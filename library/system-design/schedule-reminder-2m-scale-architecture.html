@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Scale-Ready Schedule Reminder System — 2M+ Records/Day · Library · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../../assets/style.css">
+<script>try{if(localStorage.getItem('sd-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="../../index.html">SystemDesign<span>.hinglish</span></a><div class="toplinks"><a href="../../index.html#chapters">Chapters</a><a href="../../library/index.html">Library</a><a href="../../index.html#how">Kaise padhein</a><a href="../../links.html">URL Guide</a></div><button class="theme-toggle" aria-label="theme">◐</button></header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="../index.html"><span class="num">⌂</span> Library home</a></li></ul>
+<div class="group">System Design &amp; Architecture</div><ul>
+<li><a href="../system-design/system-design-mastery.html"><span class="num">📘</span> System Design Mastery</a></li>
+<li><a href="../system-design/smart-parking-system-hld-lld.html"><span class="num">📘</span> Smart Parking System</a></li>
+<li><a href="../system-design/98-system-design-concepts.html"><span class="num">📝</span> 98 System Design Concepts</a></li>
+<li><a href="../system-design/email-notification-scheduler-design.html"><span class="num">📄</span> Email Notification Scheduler</a></li>
+<li><a class="active" href="../system-design/schedule-reminder-2m-scale-architecture.html"><span class="num">📝</span> Scale-Ready Schedule Reminder System</a></li>
+</ul>
+<div class="group">Java Core &amp; DSA</div><ul>
+<li><a href="../java-dsa/java-core-mastery-guide.html"><span class="num">📘</span> Java Core Mastery Guide</a></li>
+<li><a href="../java-dsa/java-garbage-collection-guide.html"><span class="num">📘</span> Java Garbage Collection</a></li>
+<li><a href="../java-dsa/java-ds-leetcode-mastery.html"><span class="num">📘</span> Java Data Structures for LeetCode</a></li>
+<li><a href="../java-dsa/data-structures-java-interview-guide.html"><span class="num">📄</span> Data Structures Interview Guide</a></li>
+<li><a href="../java-dsa/lru-cache-java-visual-explainer.html"><span class="num">📘</span> LRU Cache</a></li>
+</ul>
+<div class="group">Spring Boot &amp; Microservices</div><ul>
+<li><a href="../spring-boot/spring-bean-lifecycle.html"><span class="num">📘</span> Spring Bean Lifecycle</a></li>
+<li><a href="../spring-boot/spring-transactional-guide.html"><span class="num">📘</span> @Transactional</a></li>
+<li><a href="../spring-boot/spring-circuit-breaker-resilience4j.html"><span class="num">📘</span> Circuit Breaker (Resilience4j)</a></li>
+<li><a href="../spring-boot/spring-security-jwt-logging-deploy.html"><span class="num">📘</span> Spring Security · JWT · AOP · Logging · Blue-Green</a></li>
+<li><a href="../spring-boot/saga-pattern-complete-guide.html"><span class="num">📄</span> Saga Pattern — Complete Guide</a></li>
+<li><a href="../spring-boot/saga-pattern-spring-boot-quick-reference.html"><span class="num">📄</span> Saga — Quick Reference</a></li>
+</ul>
+<div class="group">Kafka · Redis · Cassandra &amp; Data</div><ul>
+<li><a href="../data-messaging/kafka-redis-cassandra-mastery.html"><span class="num">📘</span> Kafka · Redis · Cassandra</a></li>
+<li><a href="../data-messaging/northguard-xinfra-linkedin-kafka-replacement.html"><span class="num">📘</span> Northguard &amp; Xinfra</a></li>
+</ul>
+<div class="group">GenAI &amp; AI</div><ul>
+<li><a href="../genai/java-genai-complete-guide.html"><span class="num">📄</span> Java + Generative AI</a></li>
+<li><a href="../genai/vector-database-mastery.html"><span class="num">📘</span> Vector Databases</a></li>
+</ul>
+<div class="group">Payments &amp; Interview Prep</div><ul>
+<li><a href="../interview-prep/paytm-backend-interview-guide.html"><span class="num">📄</span> Paytm Backend Interview Guide</a></li>
+<li><a href="../interview-prep/paytm-dsa-questions.html"><span class="num">📄</span> Paytm DSA Questions</a></li>
+</ul>
+</nav>
+<main class="content lib-doc">
+<div class="chapter-hero"><span class="chapter-num">System Design &amp; Architecture</span><h1>Scale-Ready Schedule Reminder System — 2M+ Records/Day</h1><p class="lead">Basic @Scheduled design 2M records pe kyun tootta hai, aur fix: Spring Batch partitioning, Kafka workers, Redis idempotency, HPA, DLQ + interview talking points. / Scaling the scheduler design.</p><div class="lib-meta"><span class="badge fmt-docx">📝 DOCX → Web</span><span class="badge time">⏱ ~10 min read</span></div><div class="tags"><span class="tag">Spring Batch</span><span class="tag">Kafka</span><span class="tag">Redis</span><span class="tag">Kubernetes HPA</span></div><div class="lib-dl"><a class="btn small" href="../files/schedule-reminder-2m-scale-architecture.docx" download>⬇ Download DOCX</a></div></div>
+<div class="callout tip"><strong>Study note</strong>Ye page original document se auto-convert kiya gaya hai (headings, tables, code preserve). Exact original layout / diagrams ke liye upar se file download karo.</div>
+<h2>1. Why the Basic Design Breaks at 2M+ Records</h2>
+<p>The original single-threaded @Scheduled + @Async design works fine up to ~50K records. Beyond that, several bottlenecks emerge:</p>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Bottleneck</th><th>What Happens at Scale</th><th>Impact</th></tr></thead><tbody><tr><td>Single DB Query</td><td>SELECT 2M rows into JVM heap in one shot</td><td>OOM crash / GC freeze</td></tr><tr><td>ThreadPool Saturation</td><td>20 threads x 2M tasks = massive queue backlog</td><td>Tasks sit pending for hours</td></tr><tr><td>Single JVM Instance</td><td>One pod handles all work — no horizontal scale</td><td>Slow + single point of failure</td></tr><tr><td>DB Connection Pool</td><td>20-50 connections saturated immediately</td><td>Connection timeout errors</td></tr><tr><td>Email/Push API Rate Limits</td><td>SendGrid: 600/min free; FCM: bursts limited</td><td>API throttling / 429 errors</td></tr><tr><td>No Idempotency</td><td>If job re-runs, 2M duplicate emails sent</td><td>Critical business failure</td></tr></tbody></table></div>
+<p><b>GOAL: Process 2M reminders within a 2-hour daily window = ~280 reminders/second sustained throughput</b></p>
+<h2>2. High-Level Architecture — Event-Driven + Partitioned</h2>
+<pre><code>  +---------------------------------------------------------+
+  |           AWS EventBridge / Spring @Scheduled          |
+  |           Fires once daily at 06:00 UTC                 |
+  +---------------------------+-----------------------------+
+                              |
+                              v
+  +---------------------------------------------------------+
+  |         Spring Batch PRODUCER (Partitioned)            |
+  |  Reads schedule_reminder in CHUNKS of 1000 rows         |
+  |  Publishes each chunk ID range to Kafka topic           |
+  +---------------------------+-----------------------------+
+                              |  Kafka Topic: reminder.due
+              +---------------+----------------+
+              |               |                |
+              v               v                v
+  +----------+ +----------+ +----------+  ... (N pods)
+  |Consumer 1| |Consumer 2| |Consumer 3|
+  |@KafkaList| |@KafkaList| |@KafkaList|
+  +----+-----+ +----+-----+ +----+-----+
+       |              |              |
+       v              v              v
+  +----------+   +----------+  +----------+
+  |Email Svc |   |Push  Svc |  |DB Update |
+  +----------+   +----------+  +----------+</code></pre>
+<h3>Architecture Decisions</h3>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Component</th><th>Technology</th><th>Why This Choice</th></tr></thead><tbody><tr><td>Trigger</td><td>AWS EventBridge OR @Scheduled</td><td>EventBridge = cloud-native, ShedLock for distributed lock</td></tr><tr><td>Bulk Reader</td><td>Spring Batch (Partitioned Step)</td><td>Reads DB in chunks, restartable, built-in retry</td></tr><tr><td>Message Bus</td><td>Apache Kafka (20 partitions)</td><td>High throughput, durable, replay on failure</td></tr><tr><td>Consumers</td><td>Spring @KafkaListener (N pods)</td><td>Horizontally scalable via Kubernetes HPA</td></tr><tr><td>Deduplication</td><td>Redis (SET NX with TTL)</td><td>Fast idempotency check before sending</td></tr><tr><td>Email</td><td>SendGrid Batch API / SES</td><td>High deliverability, bulk send support</td></tr><tr><td>Push</td><td>FCM Batch Messages API</td><td>Send 500 tokens per call vs 1 at a time</td></tr><tr><td>DB</td><td>MySQL with Read Replica</td><td>Producer reads replica; only writes go to primary</td></tr></tbody></table></div>
+<h2>3. Spring Batch — Partitioned Producer</h2>
+<p>Spring Batch reads 2M rows from MySQL in partitioned chunks. Each partition covers a range of IDs and is processed independently. This avoids loading all 2M rows into memory at once.</p>
+<h3>3.1 Partition Strategy</h3>
+<pre><code>@Bean
+public Partitioner reminderPartitioner() {
+    return gridSize -&gt; {
+        Map&lt;String, ExecutionContext&gt; partitions = new HashMap&lt;&gt;();
+        long total = repo.countByNextDateAndActiveTrue(LocalDate.now());
+        long chunkSize = 1000;  // 1000 rows per partition
+        long numPartitions = (total / chunkSize) + 1; // ~2000 partitions for 2M rows
+
+        for (long i = 0; i &lt; numPartitions; i++) {
+            ExecutionContext ctx = new ExecutionContext();
+            ctx.putLong(&quot;minId&quot;, i * chunkSize);
+            ctx.putLong(&quot;maxId&quot;, (i + 1) * chunkSize - 1);
+            partitions.put(&quot;partition&quot; + i, ctx);
+        }
+        return partitions;
+    };
+}</code></pre>
+<h3>3.2 Kafka Producer Step</h3>
+<pre><code>@Bean
+public ItemWriter&lt;ScheduleReminder&gt; kafkaProducerWriter() {
+    return reminders -&gt; {
+        List&lt;ProducerRecord&lt;String, ReminderEvent&gt;&gt; records = reminders.getItems()
+            .stream()
+            .map(r -&gt; new ProducerRecord&lt;&gt;(&quot;reminder.due&quot;, r.getSenderId(),
+                ReminderEvent.from(r)))
+            .toList();
+
+        // Async batch publish — no blocking
+        records.forEach(kafkaTemplate::send);
+    };
+}</code></pre>
+<h3>3.3 Kafka Topic Config — 20 Partitions</h3>
+<pre><code>@Bean
+public NewTopic reminderTopic() {
+    return TopicBuilder.name(&quot;reminder.due&quot;)
+        .partitions(20)   // 20 consumers can work in parallel
+        .replicas(3)      // 3 Kafka brokers for durability
+        .build();
+}</code></pre>
+<p><b>20 Kafka partitions = 20 consumer pods can work in parallel = ~100K records/pod = easily processed in &lt; 2 hours</b></p>
+<h2>4. Kafka Consumer — Horizontal Scale Workers</h2>
+<h3>4.1 Consumer Service</h3>
+<pre><code>@Service
+public class ReminderConsumerService {
+
+    @Autowired private RedisTemplate&lt;String, String&gt; redis;
+    @Autowired private TransactionService txService;
+    @Autowired private EmailService emailService;
+    @Autowired private NotificationService notifService;
+    @Autowired private ScheduleReminderRepository repo;
+
+    @KafkaListener(
+        topics = &quot;reminder.due&quot;,
+        groupId = &quot;reminder-consumer-group&quot;,
+        concurrency = &quot;5&quot;   // 5 threads per pod
+    )
+    public void consume(ReminderEvent event) {
+        // IDEMPOTENCY: skip if already processed today
+        String key = &quot;reminder:sent:&quot; + event.getMtcn() + &quot;:&quot; + LocalDate.now();
+        Boolean isNew = redis.opsForValue()
+            .setIfAbsent(key, &quot;1&quot;, Duration.ofHours(25));
+
+        if (Boolean.FALSE.equals(isNew)) {
+            log.info(&quot;Duplicate skipped: {}&quot;, event.getMtcn());
+            return;
+        }
+
+        processReminder(event);
+    }
+
+    private void processReminder(ReminderEvent event) {
+        TransactionDetails tx = txService.getByMtcn(event.getMtcn());
+        String url = buildUrl(tx, event);
+
+        CompletableFuture&lt;Void&gt; emailFuture =
+            CompletableFuture.runAsync(() -&gt;
+                emailService.sendBatch(tx.getSenderEmail(), event.getReceiverName(), url));
+
+        CompletableFuture&lt;Void&gt; pushFuture =
+            CompletableFuture.runAsync(() -&gt;
+                notifService.sendBatch(tx.getDeviceToken(), event.getReceiverName(), url));
+
+        CompletableFuture.allOf(emailFuture, pushFuture).join();
+
+        // Update next_date
+        LocalDate nextDate = calculateNextDate(event.getNextDate(), event.getFrequency());
+        repo.updateNextDate(event.getId(), nextDate);
+    }
+}</code></pre>
+<h3>4.2 Concurrency Math</h3>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Variable</th><th>Value</th><th>Calculation</th></tr></thead><tbody><tr><td>Total records</td><td>2,000,000</td><td>Given</td></tr><tr><td>Kafka partitions</td><td>20</td><td>20 consumer pods</td></tr><tr><td>Records per partition</td><td>100,000</td><td>2M / 20</td></tr><tr><td>Threads per pod (concurrency)</td><td>5</td><td>@KafkaListener concurrency=5</td></tr><tr><td>Total parallel workers</td><td>100</td><td>20 pods x 5 threads</td></tr><tr><td>Records per worker</td><td>20,000</td><td>2M / 100</td></tr><tr><td>Time per record (email+push)</td><td>~50ms</td><td>Async, batch APIs</td></tr><tr><td>Total time per worker</td><td>~17 min</td><td>20,000 x 50ms</td></tr><tr><td>Total processing window</td><td>&lt; 30 min</td><td>All workers run in parallel</td></tr></tbody></table></div>
+<h2>5. Redis — Idempotency Guard</h2>
+<p>With 2M records and retry logic, duplicate sends are a serious risk. Redis SETNX (SET if Not eXists) ensures each reminder is processed exactly once per day.</p>
+<h3>5.1 Idempotency Key Pattern</h3>
+<pre><code>// Key format: reminder:sent:{mtcn}:{date}
+// TTL: 25 hours (covers the full day + buffer)
+
+String key = String.format(&quot;reminder:sent:%s:%s&quot;,
+    event.getMtcn(), LocalDate.now());
+
+// Atomic SET NX EX — only first thread sets it
+Boolean isNew = redisTemplate.opsForValue()
+    .setIfAbsent(key, &quot;1&quot;, Duration.ofHours(25));
+
+if (!Boolean.TRUE.equals(isNew)) {
+    return; // Already processed — skip
+}</code></pre>
+<h3>5.2 Redis Capacity Estimate</h3>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Metric</th><th>Value</th><th>Notes</th></tr></thead><tbody><tr><td>Keys per day</td><td>2,000,000</td><td>One per reminder</td></tr><tr><td>Key size</td><td>~50 bytes</td><td>reminder:sent:MTN123:2024-02-10</td></tr><tr><td>Value size</td><td>1 byte</td><td>String &#x27;1&#x27;</td></tr><tr><td>Total memory</td><td>~100MB</td><td>Well within Redis limits</td></tr><tr><td>TTL</td><td>25 hours</td><td>Auto-cleanup after daily window</td></tr><tr><td>Lookup speed</td><td>O(1)</td><td>Redis hash map — microsecond response</td></tr></tbody></table></div>
+<h2>6. Batch Email &amp; Push Notification APIs</h2>
+<p>Calling email/push APIs one record at a time is the #1 bottleneck. Use batch APIs to send in bulk.</p>
+<h3>6.1 SendGrid Batch Email</h3>
+<pre><code>@Service
+public class EmailService {
+
+    // Buffer emails and flush every 100 or every 500ms
+    private final List&lt;Mail&gt; buffer = Collections.synchronizedList(new ArrayList&lt;&gt;());
+
+    @Scheduled(fixedDelay = 500) // flush every 500ms
+    public void flushEmailBuffer() {
+        if (buffer.isEmpty()) return;
+        List&lt;Mail&gt; batch = new ArrayList&lt;&gt;(buffer);
+        buffer.clear();
+
+        // SendGrid supports 1000 personalizations per API call
+        Lists.partition(batch, 1000).forEach(chunk -&gt; {
+            sendGridClient.api(buildBatchRequest(chunk));
+        });
+    }
+
+    public void sendReminderEmail(String to, String name, String url, BigDecimal amt) {
+        buffer.add(buildMail(to, name, url, amt)); // just buffer, don&#x27;t send immediately
+    }
+}</code></pre>
+<h3>6.2 FCM Batch Push</h3>
+<pre><code>@Service
+public class NotificationService {
+
+    // FCM supports 500 tokens per sendMulticast call
+    public void sendBatch(List&lt;String&gt; deviceTokens, String name, String url) {
+        Lists.partition(deviceTokens, 500).forEach(chunk -&gt; {
+            MulticastMessage message = MulticastMessage.builder()
+                .addAllTokens(chunk)
+                .setNotification(Notification.builder()
+                    .setTitle(&quot;Send money to &quot; + name)
+                    .setBody(&quot;Tap to send your scheduled payment&quot;)
+                    .build())
+                .putData(&quot;url&quot;, url)
+                .build();
+
+            BatchResponse response =
+                FirebaseMessaging.getInstance().sendMulticast(message);
+            log.info(&quot;FCM batch: {} success, {} fail&quot;,
+                response.getSuccessCount(), response.getFailureCount());
+        });
+    }
+}</code></pre>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>API</th><th>Naive (1-by-1)</th><th>Batch API</th><th>Speedup</th></tr></thead><tbody><tr><td>SendGrid Email</td><td>2M individual calls</td><td>2000 calls x 1000 each</td><td>1000x fewer API calls</td></tr><tr><td>FCM Push</td><td>2M individual calls</td><td>4000 calls x 500 each</td><td>500x fewer API calls</td></tr><tr><td>DB Update</td><td>2M UPDATE statements</td><td>Batch JDBC update per chunk</td><td>100x fewer round trips</td></tr></tbody></table></div>
+<h2>7. Database Optimizations</h2>
+<h3>7.1 Critical Indexes</h3>
+<pre><code>-- Covering index for the daily scheduler query
+CREATE INDEX idx_reminder_daily
+  ON schedule_reminder(next_date, active)
+  INCLUDE (id, sender_id, receiver_name, mtcn, frequency);
+
+-- Without this index: 2M full table scan every day
+-- With this index: index-only scan in milliseconds</code></pre>
+<h3>7.2 Read Replica for Producer</h3>
+<pre><code># application.yml — separate datasources
+spring:
+  datasource:
+    primary:
+      url: jdbc:mysql://primary-db:3306/remittance
+    replica:
+      url: jdbc:mysql://replica-db:3306/remittance
+
+# Spring Batch ItemReader uses replica — no load on primary
+# Only repo.save() and repo.updateNextDate() go to primary</code></pre>
+<h3>7.3 Bulk UPDATE via JDBC</h3>
+<pre><code>@Repository
+public class ReminderBatchRepository {
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    // Batch update 1000 rows in one statement — not 1000 separate updates
+    public void bulkUpdateNextDate(List&lt;ReminderUpdate&gt; updates) {
+        jdbcTemplate.batchUpdate(
+            &quot;UPDATE schedule_reminder SET next_date = ? WHERE id = ?&quot;,
+            updates,
+            1000, // batch size
+            (ps, u) -&gt; {
+                ps.setDate(1, Date.valueOf(u.getNextDate()));
+                ps.setLong(2, u.getId());
+            }
+        );
+    }
+}</code></pre>
+<h2>8. ShedLock — Prevent Duplicate Runs Across Pods</h2>
+<p>When running multiple Spring Boot pods in Kubernetes, @Scheduled fires on ALL pods simultaneously. ShedLock ensures only ONE pod runs the producer job per day.</p>
+<pre><code>@Component
+public class ReminderSchedulerJob {
+
+    @Scheduled(cron = &quot;0 0 6 * * *&quot;)
+    @SchedulerLock(
+        name = &quot;ReminderJob&quot;,
+        lockAtMostFor = &quot;PT2H&quot;,    // release lock after 2 hours max
+        lockAtLeastFor = &quot;PT30M&quot;   // hold lock at least 30 min
+    )
+    public void runDailyJob() {
+        reminderBatchService.launchJob();
+    }
+}
+
+// ShedLock stores lock state in DB or Redis:
+// CREATE TABLE shedlock(
+//   name VARCHAR(64) PRIMARY KEY,
+//   lock_until TIMESTAMP,
+//   locked_at TIMESTAMP,
+//   locked_by VARCHAR(255)
+// );</code></pre>
+<h2>9. Kubernetes — Auto-Scaling Consumers</h2>
+<p>Kafka consumer pods auto-scale based on consumer group lag (unprocessed messages).</p>
+<h3>9.1 Horizontal Pod Autoscaler (HPA)</h3>
+<pre><code># KEDA ScaledObject — scale on Kafka lag
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: reminder-consumer-scaler
+spec:
+  scaleTargetRef:
+    name: reminder-consumer
+  minReplicaCount: 2    # always have 2 pods
+  maxReplicaCount: 20   # matches Kafka partitions
+  triggers:
+  - type: kafka
+    metadata:
+      topic: reminder.due
+      consumerGroup: reminder-consumer-group
+      lagThreshold: &#x27;100000&#x27;  # scale up if &gt;100K unread messages
+      bootstrapServers: kafka:9092</code></pre>
+<h3>9.2 Consumer Deployment</h3>
+<pre><code>apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: reminder-consumer
+spec:
+  replicas: 2  # start with 2; KEDA scales up
+  template:
+    spec:
+      containers:
+      - name: reminder-consumer
+        image: remittance/reminder-consumer:latest
+        resources:
+          requests: { cpu: 500m, memory: 512Mi }
+          limits:   { cpu: 2000m, memory: 1Gi }
+        env:
+        - name: KAFKA_CONSUMER_CONCURRENCY
+          value: &quot;5&quot;  # 5 threads per pod</code></pre>
+<h2>10. Failure Handling — Dead Letter Queue (DLQ)</h2>
+<p>In a 2M+ workload, some failures are inevitable (transient network errors, API rate limits). DLQ ensures failed messages are retried without re-processing successes.</p>
+<h3>10.1 Retry + DLQ Config</h3>
+<pre><code>@Bean
+public DefaultErrorHandler kafkaErrorHandler(KafkaTemplate&lt;?,?&gt; template) {
+    // Retry 3 times with 1s backoff before sending to DLQ
+    ExponentialBackOffWithMaxRetries backoff =
+        new ExponentialBackOffWithMaxRetries(3);
+    backoff.setInitialInterval(1000L);
+    backoff.setMultiplier(2.0);
+
+    DeadLetterPublishingRecoverer recoverer =
+        new DeadLetterPublishingRecoverer(template,
+            (rec, ex) -&gt; new TopicPartition(&quot;reminder.due.DLQ&quot;, rec.partition()));
+
+    return new DefaultErrorHandler(recoverer, backoff);
+}</code></pre>
+<h3>10.2 DLQ Reprocessing</h3>
+<pre><code>// Separate job to replay DLQ — runs every 30 minutes
+@Scheduled(fixedDelay = 1800000)
+public void replayDlq() {
+    List&lt;ConsumerRecord&lt;?,?&gt;&gt; failed = dlqConsumer.poll(Duration.ofSeconds(10));
+    failed.forEach(record -&gt; {
+        ReminderEvent event = (ReminderEvent) record.value();
+        log.warn(&quot;Replaying DLQ event: {}&quot;, event.getMtcn());
+        kafkaTemplate.send(&quot;reminder.due&quot;, event.getSenderId(), event);
+    });
+}</code></pre>
+<h2>11. Observability — Metrics &amp; Monitoring</h2>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Metric</th><th>Tool</th><th>Alert Threshold</th></tr></thead><tbody><tr><td>Kafka consumer lag</td><td>KEDA / Prometheus</td><td>&gt; 500K messages = scale up</td></tr><tr><td>Email success rate</td><td>SendGrid Dashboard / Micrometer</td><td>&lt; 95% = alert</td></tr><tr><td>Push success rate</td><td>FCM console / Micrometer</td><td>&lt; 90% = alert</td></tr><tr><td>DB query time</td><td>Spring Actuator / Grafana</td><td>&gt; 5s = alert</td></tr><tr><td>Redis hit/miss</td><td>Redis INFO stats</td><td>Miss &gt; 1% = investigate</td></tr><tr><td>DLQ depth</td><td>Kafka JMX / Prometheus</td><td>&gt; 10K = page on-call</td></tr><tr><td>Pod CPU/memory</td><td>Kubernetes metrics-server</td><td>&gt; 80% CPU = HPA trigger</td></tr><tr><td>Job completion time</td><td>Spring Batch Admin</td><td>&gt; 2 hours = alert</td></tr></tbody></table></div>
+<h3>11.1 Custom Metrics with Micrometer</h3>
+<pre><code>@Service
+public class ReminderConsumerService {
+
+    private final Counter successCounter;
+    private final Counter failureCounter;
+    private final Timer processingTimer;
+
+    public ReminderConsumerService(MeterRegistry registry) {
+        successCounter = Counter.builder(&quot;reminder.processed&quot;)
+            .tag(&quot;status&quot;, &quot;success&quot;).register(registry);
+        failureCounter = Counter.builder(&quot;reminder.processed&quot;)
+            .tag(&quot;status&quot;, &quot;failure&quot;).register(registry);
+        processingTimer = Timer.builder(&quot;reminder.processing.time&quot;)
+            .register(registry);
+    }
+
+    // Wrap processReminder() with timer
+    processingTimer.record(() -&gt; processReminder(event));
+}</code></pre>
+<h2>12. Interview Talking Points — Scale Design</h2>
+<h3>Q: How do you handle 2M records without OOM?</h3>
+<p>Spring Batch reads data in chunks (e.g., 1000 rows at a time) using paginated JDBC queries. No more than 1000 objects ever live in memory at once. Each chunk is published to Kafka and GC&#x27;d before the next chunk is loaded.</p>
+<h3>Q: How do you prevent duplicate sends on retry?</h3>
+<p>Redis SETNX with a 25-hour TTL. Before processing any reminder, we set a key like reminder:sent:MTCN:DATE. If the key already exists, we skip. Since Redis operations are atomic, two threads can never both get &#x27;isNew = true&#x27; for the same key.</p>
+<h3>Q: How do you scale consumer throughput?</h3>
+<p>Kafka topics have 20 partitions. We deploy 20 consumer pods, each with concurrency=5 threads, giving 100 parallel workers. KEDA auto-scales pods based on consumer lag, so we don&#x27;t over-provision during off-peak hours.</p>
+<h3>Q: What if the scheduler runs on multiple pods?</h3>
+<p>ShedLock prevents this. It inserts a lock row in the database before the job starts. Only the first pod to acquire the lock runs the job. Other pods see the lock is held and skip. The lock auto-releases after the configured max duration.</p>
+<h3>Q: How do you handle email/push API rate limits?</h3>
+<p>We use batch APIs: SendGrid supports 1000 personalizations per call, FCM supports 500 tokens per multicast call. This reduces API calls from 2M to ~4000, well within rate limits. We also add exponential backoff retry on 429 responses.</p>
+<h3>Q: How long does processing 2M records take?</h3>
+<p>With 100 parallel workers (20 pods x 5 threads) each processing ~50ms per record using batch APIs: 20,000 records / worker x 50ms = 17 minutes total. The Spring Batch producer step adds ~5 minutes for DB reads. Total: under 30 minutes well within a 2-hour SLA.</p>
+<h2>13. Basic vs Scale-Ready Design Comparison</h2>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Aspect</th><th>Basic Design (50K limit)</th><th>Scale-Ready Design (2M+)</th></tr></thead><tbody><tr><td>Trigger</td><td>@Scheduled on one pod</td><td>@Scheduled + ShedLock (distributed)</td></tr><tr><td>Data Read</td><td>SELECT all 2M rows at once</td><td>Spring Batch partitioned chunks of 1000</td></tr><tr><td>Processing</td><td>@Async ThreadPool (20 threads)</td><td>Kafka + 20 pods x 5 threads = 100 workers</td></tr><tr><td>Idempotency</td><td>None — duplicates possible</td><td>Redis SETNX key per MTCN per day</td></tr><tr><td>Email Sending</td><td>1 API call per email</td><td>SendGrid batch: 1000 per call</td></tr><tr><td>Push Sending</td><td>1 FCM call per user</td><td>FCM multicast: 500 tokens per call</td></tr><tr><td>DB Load</td><td>All reads on primary</td><td>Spring Batch reads from replica only</td></tr><tr><td>DB Writes</td><td>1 UPDATE per reminder</td><td>JDBC batchUpdate: 1000 per call</td></tr><tr><td>Failure Recovery</td><td>Try/catch logs and loses job</td><td>DLQ + auto-retry with backoff</td></tr><tr><td>Scaling</td><td>Manual — redeploy more threads</td><td>KEDA auto-scales pods on Kafka lag</td></tr><tr><td>Observability</td><td>Logs only</td><td>Micrometer + Prometheus + Grafana alerts</td></tr><tr><td>Est. Processing Time</td><td>&gt; 6 hours for 2M records</td><td>&lt; 30 minutes for 2M records</td></tr></tbody></table></div>
+<h2>14. One-Liner Summary</h2>
+<p><i>&quot;To scale the reminder system to 2M+ daily records, I replaced the single-threaded @Async design with Spring Batch partitioned reads, Kafka as the message bus with 20 partitions, horizontally auto-scaled consumer pods via KEDA, Redis for idempotency guards, SendGrid and FCM batch APIs to reduce API calls by 500-1000x, JDBC batch updates for DB writes, and ShedLock to prevent duplicate runs across Kubernetes pods — achieving under 30-minute end-to-end processing for 2 million reminders.&quot;</i></p>
+<div class="chapter-nav"><a class="prev" href="email-notification-scheduler-design.html">← Email Notification Scheduler</a><a class="next" href="../index.html">Back to Library →</a></div>
+</main>
+<aside class="toc"></aside>
+</div>
+<footer class="footer">SystemDesign.hinglish · Library · Personal study material</footer>
+<script src="../../assets/app.js"></script>
+</body>
+</html>

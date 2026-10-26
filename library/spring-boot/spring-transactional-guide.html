@@ -1,0 +1,1269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>@Transactional – Deep Dive</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0e17;
+    --surface: #111827;
+    --surface2: #1a2235;
+    --border: #1e2d42;
+    --accent: #00d4aa;
+    --accent2: #3b82f6;
+    --accent3: #f59e0b;
+    --accent4: #ec4899;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --code-bg: #0d1117;
+    --green: #22c55e;
+    --red: #ef4444;
+    --purple: #a78bfa;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    line-height: 1.7;
+    font-size: 15px;
+  }
+
+  /* NAV */
+  nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(10,14,23,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    display: flex; align-items: center; gap: 2rem;
+    height: 56px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  nav::-webkit-scrollbar { display: none; }
+  nav a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    transition: color .2s;
+  }
+  nav a:hover { color: var(--accent); }
+  .nav-logo {
+    color: var(--accent);
+    font-weight: 800;
+    font-size: 14px;
+    letter-spacing: .05em;
+    margin-right: auto;
+    white-space: nowrap;
+  }
+
+  /* HERO */
+  .hero {
+    padding: 5rem 2rem 4rem;
+    max-width: 900px;
+    margin: 0 auto;
+    text-align: center;
+  }
+  .hero-badge {
+    display: inline-block;
+    background: linear-gradient(135deg, #00d4aa22, #3b82f622);
+    border: 1px solid #00d4aa44;
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+    padding: .35rem 1rem;
+    border-radius: 999px;
+    margin-bottom: 1.5rem;
+  }
+  .hero h1 {
+    font-size: clamp(2.4rem, 6vw, 4rem);
+    font-weight: 800;
+    line-height: 1.1;
+    background: linear-gradient(135deg, #e2e8f0 30%, #00d4aa 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 1.2rem;
+  }
+  .hero p {
+    color: var(--muted);
+    font-size: 1.05rem;
+    max-width: 600px;
+    margin: 0 auto;
+  }
+
+  /* LAYOUT */
+  .container {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 0 2rem 6rem;
+  }
+
+  /* SECTION */
+  section {
+    margin-bottom: 4rem;
+    scroll-margin-top: 70px;
+  }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.8rem;
+    padding-bottom: .8rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-num {
+    background: var(--accent);
+    color: #000;
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+  .section-header h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #fff;
+  }
+
+  /* CARDS */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.2rem;
+  }
+  .card-title {
+    font-size: .85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    margin-bottom: .8rem;
+  }
+  .card.accent-green { border-left: 3px solid var(--green); }
+  .card.accent-red { border-left: 3px solid var(--red); }
+  .card.accent-yellow { border-left: 3px solid var(--accent3); }
+  .card.accent-blue { border-left: 3px solid var(--accent2); }
+  .card.accent-purple { border-left: 3px solid var(--purple); }
+  .card.accent-teal { border-left: 3px solid var(--accent); }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 1rem; }
+  @media(max-width:640px) { .grid-2,.grid-3 { grid-template-columns: 1fr; } }
+
+  /* CODE */
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.4rem;
+    overflow-x: auto;
+    margin: 1rem 0 1.4rem;
+    position: relative;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.75;
+  }
+  .code-label {
+    position: absolute; top: .7rem; right: .9rem;
+    font-size: 10px; font-weight: 700;
+    letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .kw { color: #ff79c6; }         /* keyword */
+  .an { color: #50fa7b; }         /* annotation */
+  .ty { color: #8be9fd; }         /* type */
+  .st { color: #f1fa8c; }         /* string */
+  .cm { color: #6272a4; font-style: italic; } /* comment */
+  .nu { color: #bd93f9; }         /* number */
+  .mt { color: #ffb86c; }         /* method */
+  .en { color: #ff5555; }         /* enum/const */
+
+  /* FLOW DIAGRAM */
+  .flow {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin: 1rem 0 1.5rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    overflow-x: auto;
+  }
+  .flow-row {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    padding: .4rem 0;
+  }
+  .box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: .3rem .7rem;
+    white-space: nowrap;
+    font-weight: 600;
+  }
+  .box.green { background: #14532d33; border-color: var(--green); color: var(--green); }
+  .box.blue { background: #1e3a5f33; border-color: var(--accent2); color: var(--accent2); }
+  .box.teal { background: #00d4aa22; border-color: var(--accent); color: var(--accent); }
+  .box.yellow { background: #78350f33; border-color: var(--accent3); color: var(--accent3); }
+  .box.red { background: #7f1d1d33; border-color: var(--red); color: var(--red); }
+  .box.purple { background: #3b0764 33; border-color: var(--purple); color: var(--purple); }
+  .arrow { color: var(--muted); font-size: 14px; }
+
+  /* TABLE */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 1rem 0 1.5rem;
+    font-size: 13.5px;
+  }
+  th {
+    background: var(--surface2);
+    padding: .7rem 1rem;
+    text-align: left;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    color: var(--muted);
+    font-weight: 700;
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: .65rem 1rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface2); }
+  code {
+    background: #ffffff0e;
+    border: 1px solid #ffffff14;
+    border-radius: 4px;
+    padding: .1rem .4rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: .85em;
+    color: var(--accent);
+  }
+
+  /* PILL */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: .3rem;
+    font-size: 11px;
+    font-weight: 700;
+    padding: .2rem .6rem;
+    border-radius: 999px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+  }
+  .pill-green { background: #14532d55; color: var(--green); border: 1px solid #22c55e44; }
+  .pill-red { background: #7f1d1d55; color: var(--red); border: 1px solid #ef444444; }
+  .pill-yellow { background: #78350f55; color: var(--accent3); border: 1px solid #f59e0b44; }
+
+  p { margin-bottom: .9rem; color: #cbd5e1; }
+  ul, ol { padding-left: 1.5rem; color: #cbd5e1; }
+  li { margin-bottom: .4rem; }
+  strong { color: #fff; }
+  .muted { color: var(--muted); font-size: .9em; }
+
+  /* CALLOUT */
+  .callout {
+    border-radius: 10px;
+    padding: 1rem 1.2rem;
+    margin: 1rem 0;
+    display: flex;
+    gap: .8rem;
+    align-items: flex-start;
+    font-size: .9rem;
+  }
+  .callout-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: .1rem; }
+  .callout.warn { background: #78350f22; border: 1px solid #f59e0b33; }
+  .callout.tip { background: #00d4aa11; border: 1px solid #00d4aa33; }
+  .callout.danger { background: #7f1d1d22; border: 1px solid #ef444433; }
+  .callout.info { background: #1e3a5f33; border: 1px solid #3b82f633; }
+</style>
+</head>
+<body>
+<div id="sdh-libbar" style="position:relative;z-index:2147483000;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0;padding:8px 16px;background:#0f172a;color:#cbd5e1;font:600 13px/1.5 Inter,'Segoe UI',system-ui,-apple-system,sans-serif;border-bottom:2px solid #4f46e5;box-sizing:border-box;width:100%;text-align:left;letter-spacing:0"><a href="../../index.html" style="color:#fff;text-decoration:none;font-weight:800">SystemDesign<span style="color:#8b8cff">.hinglish</span></a><span style="opacity:.45">/</span><a href="../index.html" style="color:#fff;text-decoration:none">📚 Library</a><span style="opacity:.45">/</span><a href="../index.html#spring-boot" style="color:#cbd5e1;text-decoration:none">Spring Boot &amp; Microservices</a><span style="margin-left:auto;font-size:11px;padding:2px 9px;border-radius:999px;border:1px solid #6366f1;color:#c7d2fe">📘 HTML ebook</span></div>
+
+<nav>
+  <span class="nav-logo">@Transactional</span>
+  <a href="#what">What</a>
+  <a href="#proxy">Proxy</a>
+  <a href="#lifecycle">Lifecycle</a>
+  <a href="#propagation">Propagation</a>
+  <a href="#isolation">Isolation</a>
+  <a href="#without">Without Tx</a>
+  <a href="#pitfalls">Pitfalls</a>
+  <a href="#bestpractice">Best Practices</a>
+  <a href="#realworld">Real World</a>
+</nav>
+
+<div class="hero">
+  <div class="hero-badge">Spring Boot · Java 17 · Deep Dive</div>
+  <h1>@Transactional<br/>Mastery Guide</h1>
+  <p>How it works under the hood — proxies, propagation, isolation, pitfalls, and production patterns.</p>
+</div>
+
+<div class="container">
+
+<!-- ─────────────────── 1. WHAT IS @TRANSACTIONAL ─────────────────── -->
+<section id="what">
+  <div class="section-header">
+    <div class="section-num">1</div>
+    <h2>What is @Transactional?</h2>
+  </div>
+
+  <p>
+    <code>@Transactional</code> is a declarative way to wrap a method (or entire class) inside a
+    <strong>database transaction</strong>. Spring opens a transaction before the method runs, and either
+    <strong>commits</strong> on success or <strong>rolls back</strong> on an exception — without you writing
+    a single line of connection/commit/rollback code.
+  </p>
+
+  <div class="grid-2">
+    <div class="card accent-green">
+      <div class="card-title" style="color:var(--green)">✓ Without @Transactional (manual)</div>
+      <p class="muted">You manage everything yourself — verbose and error-prone.</p>
+    </div>
+    <div class="card accent-teal">
+      <div class="card-title" style="color:var(--accent)">✓ With @Transactional</div>
+      <p class="muted">Spring handles begin / commit / rollback via AOP proxy.</p>
+    </div>
+  </div>
+
+<pre><span class="cm">// ─── MANUAL (without @Transactional) ───────────────────────────────</span>
+<span class="kw">public void</span> <span class="mt">transferManual</span>(<span class="ty">Long</span> from, <span class="ty">Long</span> to, <span class="ty">BigDecimal</span> amount) {
+    <span class="ty">Connection</span> conn = <span class="kw">null</span>;
+    <span class="kw">try</span> {
+        conn = dataSource.<span class="mt">getConnection</span>();
+        conn.<span class="mt">setAutoCommit</span>(<span class="kw">false</span>);
+
+        <span class="cm">// debit</span>
+        accountDao.<span class="mt">debit</span>(conn, from, amount);
+        <span class="cm">// credit</span>
+        accountDao.<span class="mt">credit</span>(conn, to, amount);
+
+        conn.<span class="mt">commit</span>();
+    } <span class="kw">catch</span> (<span class="ty">Exception</span> e) {
+        <span class="kw">if</span> (conn != <span class="kw">null</span>) conn.<span class="mt">rollback</span>(); <span class="cm">// easy to forget!</span>
+        <span class="kw">throw new</span> <span class="ty">RuntimeException</span>(e);
+    } <span class="kw">finally</span> {
+        <span class="kw">if</span> (conn != <span class="kw">null</span>) conn.<span class="mt">close</span>();   <span class="cm">// easy to forget!</span>
+    }
+}
+
+<span class="cm">// ─── WITH @Transactional ────────────────────────────────────────────</span>
+<span class="an">@Transactional</span>
+<span class="kw">public void</span> <span class="mt">transfer</span>(<span class="ty">Long</span> from, <span class="ty">Long</span> to, <span class="ty">BigDecimal</span> amount) {
+    accountRepository.<span class="mt">debit</span>(from, amount);   <span class="cm">// Spring handles everything</span>
+    accountRepository.<span class="mt">credit</span>(to, amount);
+}
+<div class="code-label">Java 17</div></pre>
+
+  <div class="card">
+    <div class="card-title">Full annotation options</div>
+<pre style="margin:0; border:none; padding:.5rem 0; background:transparent;">
+<span class="an">@Transactional</span>(
+    propagation  = <span class="ty">Propagation</span>.<span class="en">REQUIRED</span>,       <span class="cm">// default</span>
+    isolation    = <span class="ty">Isolation</span>.<span class="en">DEFAULT</span>,          <span class="cm">// default</span>
+    readOnly     = <span class="kw">false</span>,                      <span class="cm">// default</span>
+    rollbackFor  = <span class="ty">Exception</span>.<span class="kw">class</span>,
+    noRollbackFor= <span class="ty">BusinessException</span>.<span class="kw">class</span>,
+    timeout      = <span class="nu">30</span>                           <span class="cm">// seconds</span>
+)</pre>
+  </div>
+</section>
+
+<!-- ─────────────────── 2. PROXY MECHANICS ─────────────────── -->
+<section id="proxy">
+  <div class="section-header">
+    <div class="section-num">2</div>
+    <h2>How the Proxy Works Internally</h2>
+  </div>
+
+  <p>Spring does <strong>NOT</strong> modify your class. Instead, it wraps it in a <strong>proxy object</strong> at startup using AOP (Aspect Oriented Programming). Every call goes through the proxy first.</p>
+
+  <div class="flow">
+    <div class="flow-row">
+      <div class="box blue">Caller / Controller</div>
+      <div class="arrow">──▶</div>
+      <div class="box teal">Spring AOP Proxy</div>
+      <div class="arrow">──▶</div>
+      <div class="box green">Your Real Bean</div>
+    </div>
+    <div class="flow-row" style="margin-top:.6rem; font-size:11px; color:var(--muted);">
+      <span style="margin-left:165px">↓ intercepts call</span>
+    </div>
+    <div class="flow-row">
+      <div class="box yellow">Begin Transaction</div>
+      <div class="arrow">──▶</div>
+      <div class="box green">Execute Method</div>
+      <div class="arrow">──▶</div>
+      <div class="box yellow">Commit / Rollback</div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card accent-blue">
+      <div class="card-title" style="color:var(--accent2)">JDK Dynamic Proxy</div>
+      <p>Used when your class <strong>implements an interface</strong>. Spring creates a proxy implementing the same interface.</p>
+      <ul>
+        <li>Default when interface exists</li>
+        <li>Slightly lighter weight</li>
+        <li><code>java.lang.reflect.Proxy</code></li>
+      </ul>
+    </div>
+    <div class="card accent-purple">
+      <div class="card-title" style="color:var(--purple)">CGLIB Proxy</div>
+      <p>Used when your class has <strong>no interface</strong>. Spring <em>subclasses</em> your concrete class at runtime using bytecode generation.</p>
+      <ul>
+        <li>Default in Spring Boot (always CGLIB)</li>
+        <li>Requires non-final class + methods</li>
+        <li>Bytecode weaving at startup</li>
+      </ul>
+    </div>
+  </div>
+
+<pre><span class="cm">// ─── What Spring generates behind the scenes (conceptually) ─────────</span>
+
+<span class="cm">// Your real class:</span>
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">OrderService</span> {
+
+    <span class="an">@Transactional</span>
+    <span class="kw">public void</span> <span class="mt">placeOrder</span>(<span class="ty">Order</span> order) {
+        <span class="cm">// business logic</span>
+    }
+}
+
+<span class="cm">// Conceptual proxy Spring wraps around it:</span>
+<span class="kw">public class</span> <span class="ty">OrderService$$SpringCGLIB</span> <span class="kw">extends</span> <span class="ty">OrderService</span> {
+
+    <span class="kw">private final</span> <span class="ty">TransactionInterceptor</span> interceptor;
+
+    <span class="an">@Override</span>
+    <span class="kw">public void</span> <span class="mt">placeOrder</span>(<span class="ty">Order</span> order) {
+        <span class="ty">TransactionStatus</span> status = interceptor.<span class="mt">beginTransaction</span>();
+        <span class="kw">try</span> {
+            <span class="kw">super</span>.<span class="mt">placeOrder</span>(order);            <span class="cm">// calls YOUR real method</span>
+            interceptor.<span class="mt">commit</span>(status);
+        } <span class="kw">catch</span> (<span class="ty">RuntimeException</span> ex) {
+            interceptor.<span class="mt">rollback</span>(status);
+            <span class="kw">throw</span> ex;
+        }
+    }
+}
+<div class="code-label">Conceptual</div></pre>
+
+  <div class="callout danger">
+    <div class="callout-icon">🚨</div>
+    <div><strong>Self-invocation pitfall:</strong> If method A calls method B <em>within the same class</em>, the call bypasses the proxy — <code>@Transactional</code> on B is <strong>ignored</strong>. This is the #1 most common mistake.</div>
+  </div>
+
+<pre><span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">PaymentService</span> {
+
+    <span class="cm">// ❌ BROKEN — self-invocation bypasses proxy</span>
+    <span class="kw">public void</span> <span class="mt">process</span>(<span class="ty">Payment</span> p) {
+        <span class="mt">save</span>(p);   <span class="cm">// calls this.save(), NOT proxy.save()</span>
+    }
+
+    <span class="an">@Transactional</span>
+    <span class="kw">public void</span> <span class="mt">save</span>(<span class="ty">Payment</span> p) {
+        <span class="cm">// @Transactional has NO effect here when called from process()</span>
+    }
+
+    <span class="cm">// ✅ FIX — put @Transactional on the public entry point</span>
+    <span class="an">@Transactional</span>
+    <span class="kw">public void</span> <span class="mt">processFixed</span>(<span class="ty">Payment</span> p) {
+        paymentRepo.<span class="mt">save</span>(p);
+    }
+}
+<div class="code-label">Java 17</div></pre>
+</section>
+
+<!-- ─────────────────── 3. LIFECYCLE ─────────────────── -->
+<section id="lifecycle">
+  <div class="section-header">
+    <div class="section-num">3</div>
+    <h2>Transaction Lifecycle</h2>
+  </div>
+
+  <p>Understanding the exact sequence Spring follows helps you debug subtle issues.</p>
+
+  <div class="flow">
+    <div class="flow-row">
+      <div class="box blue">1. Caller invokes proxy method</div>
+    </div>
+    <div class="flow-row"><div class="arrow" style="margin-left:20px">↓</div></div>
+    <div class="flow-row">
+      <div class="box teal">2. TransactionInterceptor checks propagation rules</div>
+    </div>
+    <div class="flow-row"><div class="arrow" style="margin-left:20px">↓</div></div>
+    <div class="flow-row">
+      <div class="box teal">3. DataSourceTransactionManager gets Connection from pool</div>
+    </div>
+    <div class="flow-row"><div class="arrow" style="margin-left:20px">↓</div></div>
+    <div class="flow-row">
+      <div class="box teal">4. Sets autoCommit = false, binds Connection to current Thread</div>
+    </div>
+    <div class="flow-row"><div class="arrow" style="margin-left:20px">↓</div></div>
+    <div class="flow-row">
+      <div class="box green">5. Your real method runs (all repos use the same Connection)</div>
+    </div>
+    <div class="flow-row"><div class="arrow" style="margin-left:20px">↓</div></div>
+    <div class="flow-row">
+      <div class="box yellow">6a. Success → conn.commit() → release back to pool</div>
+    </div>
+    <div class="flow-row">
+      <div class="box red">6b. RuntimeException → conn.rollback() → release back to pool</div>
+    </div>
+  </div>
+
+<pre><span class="cm">// Spring binds the Connection to the current thread via ThreadLocal:</span>
+<span class="cm">// TransactionSynchronizationManager.bindResource(dataSource, conn)</span>
+<span class="cm">//</span>
+<span class="cm">// All Spring Data JPA / JDBC calls on the same thread get the SAME</span>
+<span class="cm">// connection — this is how atomicity is guaranteed.</span>
+
+<span class="an">@Transactional</span>
+<span class="kw">public void</span> <span class="mt">createOrderWithAudit</span>(<span class="ty">OrderRequest</span> req) {
+
+    <span class="cm">// Both of these use the SAME db connection / transaction</span>
+    <span class="ty">Order</span> order = orderRepository.<span class="mt">save</span>(
+        <span class="ty">Order</span>.<span class="mt">builder</span>()
+            .<span class="mt">customerId</span>(req.<span class="mt">customerId</span>())
+            .<span class="mt">total</span>(req.<span class="mt">total</span>())
+            .<span class="mt">build</span>()
+    );
+
+    auditRepository.<span class="mt">save</span>(
+        <span class="ty">AuditLog</span>.<span class="mt">builder</span>()
+            .<span class="mt">action</span>(<span class="st">"ORDER_CREATED"</span>)
+            .<span class="mt">entityId</span>(order.<span class="mt">getId</span>())
+            .<span class="mt">build</span>()
+    );
+
+    <span class="cm">// If auditRepository.save() throws → BOTH inserts are rolled back</span>
+}
+<div class="code-label">Java 17</div></pre>
+
+  <div class="card accent-yellow">
+    <div class="card-title" style="color:var(--accent3)">Rollback Rules</div>
+    <ul>
+      <li><strong>Rolls back by default:</strong> <code>RuntimeException</code> and its subclasses, <code>Error</code></li>
+      <li><strong>Does NOT roll back by default:</strong> checked exceptions (e.g. <code>IOException</code>)</li>
+      <li><strong>Override with:</strong> <code>rollbackFor = Exception.class</code> or <code>noRollbackFor = MyException.class</code></li>
+    </ul>
+  </div>
+
+<pre><span class="cm">// Rollback for checked exceptions too:</span>
+<span class="an">@Transactional</span>(rollbackFor = <span class="ty">Exception</span>.<span class="kw">class</span>)
+<span class="kw">public void</span> <span class="mt">processFile</span>(<span class="ty">MultipartFile</span> file) <span class="kw">throws</span> <span class="ty">IOException</span> {
+    <span class="ty">var</span> data = <span class="mt">parseFile</span>(file);     <span class="cm">// throws IOException (checked)</span>
+    recordRepository.<span class="mt">saveAll</span>(data); <span class="cm">// rolled back if parseFile throws</span>
+}
+
+<span class="cm">// Don't rollback for business exceptions:</span>
+<span class="an">@Transactional</span>(noRollbackFor = <span class="ty">InsufficientFundsException</span>.<span class="kw">class</span>)
+<span class="kw">public void</span> <span class="mt">withdraw</span>(<span class="ty">Long</span> accountId, <span class="ty">BigDecimal</span> amount) {
+    <span class="ty">var</span> account = accountRepository.<span class="mt">findById</span>(accountId).<span class="mt">orElseThrow</span>();
+    <span class="cm">// save failed attempt log even when funds are insufficient</span>
+    attemptLog.<span class="mt">save</span>(<span class="kw">new</span> <span class="ty">WithdrawAttempt</span>(accountId, amount, <span class="st">"FAILED"</span>));
+    <span class="kw">if</span> (account.<span class="mt">getBalance</span>().<span class="mt">compareTo</span>(amount) < <span class="nu">0</span>) {
+        <span class="kw">throw new</span> <span class="ty">InsufficientFundsException</span>(); <span class="cm">// log is committed!</span>
+    }
+}
+<div class="code-label">Java 17</div></pre>
+</section>
+
+<!-- ─────────────────── 4. PROPAGATION ─────────────────── -->
+<section id="propagation">
+  <div class="section-header">
+    <div class="section-num">4</div>
+    <h2>Propagation Types — All 7 Explained</h2>
+  </div>
+
+  <p>Propagation controls what happens when a <code>@Transactional</code> method is called <em>while a transaction already exists</em> (or doesn't).</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Existing Tx?</th>
+        <th>No Existing Tx?</th>
+        <th>Use Case</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>REQUIRED</code> ⭐ default</td>
+        <td>Join it</td>
+        <td>Create new</td>
+        <td>Most service methods</td>
+      </tr>
+      <tr>
+        <td><code>REQUIRES_NEW</code></td>
+        <td>Suspend old, create new</td>
+        <td>Create new</td>
+        <td>Audit log, email sending</td>
+      </tr>
+      <tr>
+        <td><code>NESTED</code></td>
+        <td>Savepoint inside existing</td>
+        <td>Create new</td>
+        <td>Partial rollback scenarios</td>
+      </tr>
+      <tr>
+        <td><code>SUPPORTS</code></td>
+        <td>Join it</td>
+        <td>No transaction</td>
+        <td>Read-only helpers</td>
+      </tr>
+      <tr>
+        <td><code>NOT_SUPPORTED</code></td>
+        <td>Suspend old, run without tx</td>
+        <td>No transaction</td>
+        <td>Bulk reads, reporting</td>
+      </tr>
+      <tr>
+        <td><code>MANDATORY</code></td>
+        <td>Join it</td>
+        <td><span class="pill pill-red">❌ Exception</span></td>
+        <td>Internal APIs that must be called in tx</td>
+      </tr>
+      <tr>
+        <td><code>NEVER</code></td>
+        <td><span class="pill pill-red">❌ Exception</span></td>
+        <td>No transaction</td>
+        <td>Methods that must NOT be in a tx</td>
+      </tr>
+    </tbody>
+  </table>
+
+<pre><span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">OrderService</span> {
+
+    <span class="kw">private final</span> <span class="ty">OrderRepository</span>  orderRepo;
+    <span class="kw">private final</span> <span class="ty">AuditService</span>     auditService;
+    <span class="kw">private final</span> <span class="ty">NotifyService</span>    notifyService;
+
+    <span class="cm">// ─── REQUIRED (default) ─────────────────────────────────────────</span>
+    <span class="an">@Transactional</span>                        <span class="cm">// propagation = REQUIRED</span>
+    <span class="kw">public void</span> <span class="mt">placeOrder</span>(<span class="ty">Order</span> order) {
+        orderRepo.<span class="mt">save</span>(order);            <span class="cm">// joins outer tx or creates one</span>
+        auditService.<span class="mt">log</span>(order);          <span class="cm">// see REQUIRES_NEW below</span>
+        notifyService.<span class="mt">notifyUser</span>(order);  <span class="cm">// see NOT_SUPPORTED below</span>
+    }
+}
+
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">AuditService</span> {
+
+    <span class="cm">// ─── REQUIRES_NEW ───────────────────────────────────────────────</span>
+    <span class="cm">// Outer (order) tx is SUSPENDED. Audit always committed separately.</span>
+    <span class="cm">// Even if placeOrder() rolls back, the audit log is preserved.</span>
+    <span class="an">@Transactional</span>(propagation = <span class="ty">Propagation</span>.<span class="en">REQUIRES_NEW</span>)
+    <span class="kw">public void</span> <span class="mt">log</span>(<span class="ty">Order</span> order) {
+        auditRepo.<span class="mt">save</span>(<span class="kw">new</span> <span class="ty">AuditEntry</span>(<span class="st">"ORDER_PLACED"</span>, order.<span class="mt">getId</span>()));
+    }
+}
+
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">NotifyService</span> {
+
+    <span class="cm">// ─── NOT_SUPPORTED ──────────────────────────────────────────────</span>
+    <span class="cm">// Sends email — no tx needed. Outer tx is suspended temporarily.</span>
+    <span class="an">@Transactional</span>(propagation = <span class="ty">Propagation</span>.<span class="en">NOT_SUPPORTED</span>)
+    <span class="kw">public void</span> <span class="mt">notifyUser</span>(<span class="ty">Order</span> order) {
+        emailClient.<span class="mt">send</span>(order.<span class="mt">getEmail</span>(), <span class="st">"Order confirmed!"</span>);
+    }
+}
+<div class="code-label">Java 17</div></pre>
+
+<pre><span class="cm">// ─── NESTED — savepoints for partial rollback ────────────────────────</span>
+
+<span class="an">@Transactional</span>
+<span class="kw">public void</span> <span class="mt">importProducts</span>(<span class="ty">List</span>&lt;<span class="ty">Product</span>&gt; products) {
+
+    <span class="kw">for</span> (<span class="ty">Product</span> p : products) {
+        <span class="kw">try</span> {
+            <span class="mt">importSingle</span>(p);              <span class="cm">// NESTED tx — has savepoint</span>
+        } <span class="kw">catch</span> (<span class="ty">Exception</span> e) {
+            <span class="cm">// Only this product's savepoint is rolled back</span>
+            <span class="cm">// Other products already imported stay committed</span>
+            log.<span class="mt">warn</span>(<span class="st">"Skipped product {}: {}"</span>, p.<span class="mt">getId</span>(), e.<span class="mt">getMessage</span>());
+        }
+    }
+}
+
+<span class="an">@Transactional</span>(propagation = <span class="ty">Propagation</span>.<span class="en">NESTED</span>)
+<span class="kw">public void</span> <span class="mt">importSingle</span>(<span class="ty">Product</span> p) {
+    productRepo.<span class="mt">save</span>(p);
+    <span class="mt">validateAndEnrich</span>(p);             <span class="cm">// may throw — rolls back savepoint only</span>
+}
+<div class="code-label">Java 17</div></pre>
+
+<pre><span class="cm">// ─── MANDATORY — must be called inside existing transaction ──────────</span>
+
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">InventoryService</span> {
+
+    <span class="cm">// This is an internal helper. Caller MUST provide a transaction.</span>
+    <span class="an">@Transactional</span>(propagation = <span class="ty">Propagation</span>.<span class="en">MANDATORY</span>)
+    <span class="kw">public void</span> <span class="mt">reserveStock</span>(<span class="ty">Long</span> productId, <span class="kw">int</span> qty) {
+        <span class="cm">// Throws IllegalTransactionStateException if called without tx</span>
+        inventoryRepo.<span class="mt">decrementStock</span>(productId, qty);
+    }
+}
+<div class="code-label">Java 17</div></pre>
+</section>
+
+<!-- ─────────────────── 5. ISOLATION ─────────────────── -->
+<section id="isolation">
+  <div class="section-header">
+    <div class="section-num">5</div>
+    <h2>Isolation Levels</h2>
+  </div>
+
+  <p>Isolation controls how your transaction sees data being modified by <strong>concurrent transactions</strong>. Higher isolation = fewer anomalies but more locking and lower performance.</p>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Level</th>
+        <th>Dirty Read</th>
+        <th>Non-Repeatable Read</th>
+        <th>Phantom Read</th>
+        <th>Use Case</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>READ_UNCOMMITTED</code></td>
+        <td><span class="pill pill-red">✗ possible</span></td>
+        <td><span class="pill pill-red">✗ possible</span></td>
+        <td><span class="pill pill-red">✗ possible</span></td>
+        <td>Analytics, rarely used</td>
+      </tr>
+      <tr>
+        <td><code>READ_COMMITTED</code></td>
+        <td><span class="pill pill-green">✓ safe</span></td>
+        <td><span class="pill pill-red">✗ possible</span></td>
+        <td><span class="pill pill-red">✗ possible</span></td>
+        <td>PostgreSQL default</td>
+      </tr>
+      <tr>
+        <td><code>REPEATABLE_READ</code></td>
+        <td><span class="pill pill-green">✓ safe</span></td>
+        <td><span class="pill pill-green">✓ safe</span></td>
+        <td><span class="pill pill-red">✗ possible</span></td>
+        <td>MySQL default, financial reads</td>
+      </tr>
+      <tr>
+        <td><code>SERIALIZABLE</code></td>
+        <td><span class="pill pill-green">✓ safe</span></td>
+        <td><span class="pill pill-green">✓ safe</span></td>
+        <td><span class="pill pill-green">✓ safe</span></td>
+        <td>Critical operations, slow</td>
+      </tr>
+    </tbody>
+  </table>
+
+<pre><span class="cm">// ─── Isolation examples ──────────────────────────────────────────────</span>
+
+<span class="cm">// READ_COMMITTED — safe for most use cases</span>
+<span class="an">@Transactional</span>(isolation = <span class="ty">Isolation</span>.<span class="en">READ_COMMITTED</span>)
+<span class="kw">public</span> <span class="ty">List</span>&lt;<span class="ty">Order</span>&gt; <span class="mt">getActiveOrders</span>() {
+    <span class="kw">return</span> orderRepo.<span class="mt">findByStatus</span>(<span class="ty">OrderStatus</span>.<span class="en">ACTIVE</span>);
+}
+
+<span class="cm">// REPEATABLE_READ — balance must not change mid-transaction</span>
+<span class="an">@Transactional</span>(isolation = <span class="ty">Isolation</span>.<span class="en">REPEATABLE_READ</span>)
+<span class="kw">public</span> <span class="ty">BigDecimal</span> <span class="mt">calculateMonthlyStatement</span>(<span class="ty">Long</span> accountId) {
+    <span class="ty">var</span> openBal  = accountRepo.<span class="mt">getBalance</span>(accountId);
+    <span class="ty">var</span> txns     = txnRepo.<span class="mt">findThisMonth</span>(accountId);
+    <span class="ty">var</span> closeBal = accountRepo.<span class="mt">getBalance</span>(accountId); <span class="cm">// guaranteed same as openBal</span>
+    <span class="kw">return</span> <span class="mt">compute</span>(openBal, txns, closeBal);
+}
+
+<span class="cm">// SERIALIZABLE — seat reservation (prevent phantom rows)</span>
+<span class="an">@Transactional</span>(isolation = <span class="ty">Isolation</span>.<span class="en">SERIALIZABLE</span>)
+<span class="kw">public void</span> <span class="mt">bookSeat</span>(<span class="ty">Long</span> flightId, <span class="ty">String</span> seat) {
+    <span class="kw">long</span> count = seatRepo.<span class="mt">countBySeatAndFlight</span>(seat, flightId);
+    <span class="kw">if</span> (count > <span class="nu">0</span>) <span class="kw">throw new</span> <span class="ty">SeatTakenException</span>();
+    seatRepo.<span class="mt">save</span>(<span class="kw">new</span> <span class="ty">Booking</span>(flightId, seat));  <span class="cm">// no phantom inserts possible</span>
+}
+<div class="code-label">Java 17</div></pre>
+</section>
+
+<!-- ─────────────────── 6. WITHOUT TRANSACTIONAL ─────────────────── -->
+<section id="without">
+  <div class="section-header">
+    <div class="section-num">6</div>
+    <h2>What Happens Without @Transactional?</h2>
+  </div>
+
+  <div class="callout danger">
+    <div class="callout-icon">⚠️</div>
+    <div>Without <code>@Transactional</code>, each repository call uses its own <strong>auto-committed connection</strong>. A failure halfway through leaves your database in a <strong>partial / corrupt state</strong>.</div>
+  </div>
+
+<pre><span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">TransferService</span> {
+
+    <span class="cm">// ❌ NO @Transactional — data corruption risk</span>
+    <span class="kw">public void</span> <span class="mt">transferBroken</span>(<span class="ty">Long</span> fromId, <span class="ty">Long</span> toId, <span class="ty">BigDecimal</span> amount) {
+
+        <span class="ty">Account</span> from = accountRepo.<span class="mt">findById</span>(fromId).<span class="mt">orElseThrow</span>();
+        from.<span class="mt">debit</span>(amount);
+        accountRepo.<span class="mt">save</span>(from);   <span class="cm">// ← committed immediately (auto-commit)</span>
+
+        <span class="cm">// 💥 Exception here (network, constraint, NPE...)</span>
+        <span class="cm">// from account is debited but to account never credited</span>
+        <span class="cm">// Money is LOST. Database is corrupted.</span>
+
+        <span class="ty">Account</span> to = accountRepo.<span class="mt">findById</span>(toId).<span class="mt">orElseThrow</span>();
+        to.<span class="mt">credit</span>(amount);
+        accountRepo.<span class="mt">save</span>(to);    <span class="cm">// ← never reached</span>
+    }
+
+    <span class="cm">// ✅ WITH @Transactional — atomic, all or nothing</span>
+    <span class="an">@Transactional</span>
+    <span class="kw">public void</span> <span class="mt">transferSafe</span>(<span class="ty">Long</span> fromId, <span class="ty">Long</span> toId, <span class="ty">BigDecimal</span> amount) {
+
+        <span class="ty">Account</span> from = accountRepo.<span class="mt">findById</span>(fromId).<span class="mt">orElseThrow</span>();
+        from.<span class="mt">debit</span>(amount);
+        accountRepo.<span class="mt">save</span>(from);   <span class="cm">// staged — not yet committed</span>
+
+        <span class="cm">// 💥 Exception here → BOTH saves rolled back automatically</span>
+        <span class="cm">// from account is NOT debited — data stays consistent</span>
+
+        <span class="ty">Account</span> to = accountRepo.<span class="mt">findById</span>(toId).<span class="mt">orElseThrow</span>();
+        to.<span class="mt">credit</span>(amount);
+        accountRepo.<span class="mt">save</span>(to);
+    }
+}
+<div class="code-label">Java 17</div></pre>
+
+  <div class="card accent-yellow">
+    <div class="card-title" style="color:var(--accent3)">Other effects of missing @Transactional</div>
+    <ul>
+      <li><strong>Lazy loading fails:</strong> JPA proxy tries to load associations after the session closes → <code>LazyInitializationException</code></li>
+      <li><strong>Dirty checking disabled:</strong> JPA won't auto-save changed entity fields — you must call <code>save()</code> explicitly</li>
+      <li><strong>Multiple connections:</strong> Each repo call borrows a separate connection from the pool — inefficient</li>
+      <li><strong>No first-level cache:</strong> Same entity loaded twice hits the DB twice</li>
+    </ul>
+  </div>
+
+<pre><span class="cm">// LazyInitializationException example without @Transactional</span>
+
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">CustomerService</span> {
+
+    <span class="cm">// ❌ Lazy load FAILS — no open session</span>
+    <span class="kw">public</span> <span class="ty">List</span>&lt;<span class="ty">Order</span>&gt; <span class="mt">getOrdersBroken</span>(<span class="ty">Long</span> customerId) {
+        <span class="ty">Customer</span> c = customerRepo.<span class="mt">findById</span>(customerId).<span class="mt">orElseThrow</span>();
+        <span class="kw">return</span> c.<span class="mt">getOrders</span>();  <span class="cm">// 💥 LazyInitializationException!</span>
+    }
+
+    <span class="cm">// ✅ Session stays open for the whole method</span>
+    <span class="an">@Transactional</span>(readOnly = <span class="kw">true</span>)
+    <span class="kw">public</span> <span class="ty">List</span>&lt;<span class="ty">Order</span>&gt; <span class="mt">getOrdersSafe</span>(<span class="ty">Long</span> customerId) {
+        <span class="ty">Customer</span> c = customerRepo.<span class="mt">findById</span>(customerId).<span class="mt">orElseThrow</span>();
+        <span class="kw">return</span> c.<span class="mt">getOrders</span>();  <span class="cm">// ✅ works fine</span>
+    }
+}
+<div class="code-label">Java 17</div></pre>
+</section>
+
+<!-- ─────────────────── 7. PITFALLS ─────────────────── -->
+<section id="pitfalls">
+  <div class="section-header">
+    <div class="section-num">7</div>
+    <h2>Common Pitfalls</h2>
+  </div>
+
+  <div class="grid-2">
+    <div class="card accent-red">
+      <div class="card-title" style="color:var(--red)">❌ Pitfall 1 — Self-invocation</div>
+      <p>Calling a <code>@Transactional</code> method from within the same bean bypasses the proxy.</p>
+    </div>
+    <div class="card accent-red">
+      <div class="card-title" style="color:var(--red)">❌ Pitfall 2 — private methods</div>
+      <p>Proxies can't intercept <code>private</code> or <code>final</code> methods — annotation silently ignored.</p>
+    </div>
+    <div class="card accent-red">
+      <div class="card-title" style="color:var(--red)">❌ Pitfall 3 — Swallowing exceptions</div>
+      <p>Catching exceptions without re-throwing prevents Spring from triggering rollback.</p>
+    </div>
+    <div class="card accent-red">
+      <div class="card-title" style="color:var(--red)">❌ Pitfall 4 — Long transactions</div>
+      <p>Holding a transaction open during slow I/O (HTTP calls, file uploads) exhausts the connection pool.</p>
+    </div>
+  </div>
+
+<pre><span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">PitfallExamples</span> {
+
+    <span class="cm">// ─── Pitfall 1: Self-invocation ──────────────────────────────────</span>
+    <span class="kw">public void</span> <span class="mt">doWorkBad</span>() {
+        <span class="mt">saveData</span>();    <span class="cm">// ❌ bypasses proxy, no transaction!</span>
+    }
+
+    <span class="an">@Transactional</span>
+    <span class="kw">public void</span> <span class="mt">saveData</span>() { repo.<span class="mt">save</span>(<span class="kw">new</span> <span class="ty">Entity</span>()); }
+
+    <span class="cm">// Fix: annotate the public entry point instead</span>
+    <span class="an">@Transactional</span>
+    <span class="kw">public void</span> <span class="mt">doWorkGood</span>() {
+        repo.<span class="mt">save</span>(<span class="kw">new</span> <span class="ty">Entity</span>());
+    }
+
+    <span class="cm">// ─── Pitfall 2: Private method (silently ignored) ────────────────</span>
+    <span class="an">@Transactional</span>  <span class="cm">// ❌ has NO effect on private methods</span>
+    <span class="kw">private void</span> <span class="mt">privateMethod</span>() { repo.<span class="mt">save</span>(<span class="kw">new</span> <span class="ty">Entity</span>()); }
+
+    <span class="cm">// ─── Pitfall 3: Swallowing exceptions → no rollback ─────────────</span>
+    <span class="an">@Transactional</span>
+    <span class="kw">public void</span> <span class="mt">saveBad</span>(<span class="ty">Data</span> d) {
+        <span class="kw">try</span> {
+            repo.<span class="mt">save</span>(d);
+            <span class="kw">throw new</span> <span class="ty">RuntimeException</span>(<span class="st">"something failed"</span>);
+        } <span class="kw">catch</span> (<span class="ty">Exception</span> e) {
+            log.<span class="mt">error</span>(<span class="st">"error"</span>, e); <span class="cm">// ❌ exception swallowed → COMMITS!</span>
+        }
+    }
+
+    <span class="cm">// Fix: rethrow or use TransactionAspectSupport</span>
+    <span class="an">@Transactional</span>
+    <span class="kw">public void</span> <span class="mt">saveGood</span>(<span class="ty">Data</span> d) {
+        <span class="kw">try</span> {
+            repo.<span class="mt">save</span>(d);
+            <span class="kw">throw new</span> <span class="ty">RuntimeException</span>(<span class="st">"something failed"</span>);
+        } <span class="kw">catch</span> (<span class="ty">Exception</span> e) {
+            log.<span class="mt">error</span>(<span class="st">"error"</span>, e);
+            <span class="ty">TransactionAspectSupport</span>.<span class="mt">currentTransactionStatus</span>().<span class="mt">setRollbackOnly</span>();
+        }
+    }
+
+    <span class="cm">// ─── Pitfall 4: Long transaction with external I/O ───────────────</span>
+    <span class="an">@Transactional</span>  <span class="cm">// ❌ holds DB connection during HTTP call!</span>
+    <span class="kw">public void</span> <span class="mt">processOrderBad</span>(<span class="ty">Order</span> order) {
+        orderRepo.<span class="mt">save</span>(order);
+        paymentGateway.<span class="mt">charge</span>(order);  <span class="cm">// slow external API call</span>
+    }
+
+    <span class="cm">// Fix: do I/O outside transaction</span>
+    <span class="kw">public void</span> <span class="mt">processOrderGood</span>(<span class="ty">Order</span> order) {
+        <span class="ty">PaymentResult</span> result = paymentGateway.<span class="mt">charge</span>(order); <span class="cm">// I/O first</span>
+        <span class="mt">saveOrderResult</span>(order, result);                       <span class="cm">// tx last</span>
+    }
+
+    <span class="an">@Transactional</span>
+    <span class="kw">public void</span> <span class="mt">saveOrderResult</span>(<span class="ty">Order</span> order, <span class="ty">PaymentResult</span> result) {
+        order.<span class="mt">setPaymentStatus</span>(result.<span class="mt">status</span>());
+        orderRepo.<span class="mt">save</span>(order);                  <span class="cm">// short, fast tx</span>
+    }
+}
+<div class="code-label">Java 17</div></pre>
+</section>
+
+<!-- ─────────────────── 8. BEST PRACTICES ─────────────────── -->
+<section id="bestpractice">
+  <div class="section-header">
+    <div class="section-num">8</div>
+    <h2>Best Practices</h2>
+  </div>
+
+<pre><span class="cm">// ─── 1. Use readOnly = true for queries ─────────────────────────────
+//    - Tells JPA to skip dirty checking (faster)
+//    - Some DBs route to read replica automatically
+//    - Prevents accidental writes</span>
+
+<span class="an">@Transactional</span>(readOnly = <span class="kw">true</span>)
+<span class="kw">public</span> <span class="ty">Page</span>&lt;<span class="ty">ProductDTO</span>&gt; <span class="mt">searchProducts</span>(<span class="ty">String</span> query, <span class="ty">Pageable</span> page) {
+    <span class="kw">return</span> productRepo.<span class="mt">searchByName</span>(query, page)
+                      .<span class="mt">map</span>(productMapper::<span class="mt">toDTO</span>);
+}
+
+<span class="cm">// ─── 2. Annotate at Service layer, not Repository ────────────────────
+//    - Repository methods already have @Transactional from Spring Data
+//    - Business logic belongs in Service</span>
+
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">SubscriptionService</span> {
+
+    <span class="an">@Transactional</span>
+    <span class="kw">public void</span> <span class="mt">subscribe</span>(<span class="ty">Long</span> userId, <span class="ty">Long</span> planId) {
+        <span class="ty">var</span> user = userRepo.<span class="mt">findById</span>(userId).<span class="mt">orElseThrow</span>();
+        <span class="ty">var</span> plan = planRepo.<span class="mt">findById</span>(planId).<span class="mt">orElseThrow</span>();
+
+        user.<span class="mt">setPlan</span>(plan);
+        userRepo.<span class="mt">save</span>(user);
+
+        billingRepo.<span class="mt">save</span>(<span class="kw">new</span> <span class="ty">Invoice</span>(user, plan, <span class="ty">LocalDate</span>.<span class="mt">now</span>()));
+    }
+}
+
+<span class="cm">// ─── 3. Keep transactions short ──────────────────────────────────────
+//    Fetch → process → save. Don't hold the tx open during slow work.</span>
+
+<span class="an">@Transactional</span>
+<span class="kw">public</span> <span class="ty">ReportResult</span> <span class="mt">generateReport</span>(<span class="ty">Long</span> reportId) {
+    <span class="ty">var</span> reportData = reportRepo.<span class="mt">findById</span>(reportId).<span class="mt">orElseThrow</span>();
+    <span class="ty">var</span> result     = reportEngine.<span class="mt">compute</span>(reportData);  <span class="cm">// fast, in-memory</span>
+    reportRepo.<span class="mt">markComplete</span>(reportId);
+    <span class="kw">return</span> result;
+    <span class="cm">// NOT: hold tx open while emailing result to 10,000 users</span>
+}
+
+<span class="cm">// ─── 4. Specify timeout for critical operations ──────────────────────</span>
+
+<span class="an">@Transactional</span>(timeout = <span class="nu">5</span>)  <span class="cm">// 5 seconds max, then rollback</span>
+<span class="kw">public void</span> <span class="mt">processPayment</span>(<span class="ty">PaymentRequest</span> req) {
+    paymentRepo.<span class="mt">save</span>(<span class="mt">buildPayment</span>(req));
+}
+
+<span class="cm">// ─── 5. Use @Transactional on interface (Spring recommends class) ────</span>
+<span class="cm">// Don't do this — CGLIB proxies can't read interface annotations cleanly</span>
+<span class="cm">// Annotate concrete classes or methods directly.</span>
+<div class="code-label">Java 17 — Best Practices</div></pre>
+</section>
+
+<!-- ─────────────────── 9. REAL WORLD EXAMPLES ─────────────────── -->
+<section id="realworld">
+  <div class="section-header">
+    <div class="section-num">9</div>
+    <h2>Real-World Examples</h2>
+  </div>
+
+  <div class="card accent-teal" style="margin-bottom:1.5rem;">
+    <div class="card-title" style="color:var(--accent)">Example A — E-Commerce Order Placement</div>
+    <p>Multiple writes that must all succeed or all fail together.</p>
+  </div>
+
+<pre><span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">OrderPlacementService</span> {
+
+    <span class="kw">private final</span> <span class="ty">OrderRepository</span>     orderRepo;
+    <span class="kw">private final</span> <span class="ty">InventoryRepository</span> inventoryRepo;
+    <span class="kw">private final</span> <span class="ty">PaymentRepository</span>   paymentRepo;
+    <span class="kw">private final</span> <span class="ty">AuditService</span>        auditService;  <span class="cm">// REQUIRES_NEW</span>
+
+    <span class="an">@Transactional</span>(
+        rollbackFor = <span class="ty">Exception</span>.<span class="kw">class</span>,
+        timeout     = <span class="nu">10</span>
+    )
+    <span class="kw">public</span> <span class="ty">OrderConfirmation</span> <span class="mt">placeOrder</span>(<span class="ty">PlaceOrderRequest</span> request) {
+
+        <span class="cm">// 1. Reserve inventory (inside main tx)</span>
+        request.<span class="mt">items</span>().<span class="mt">forEach</span>(item ->
+            inventoryRepo.<span class="mt">reserve</span>(item.<span class="mt">productId</span>(), item.<span class="mt">quantity</span>())
+        );
+
+        <span class="cm">// 2. Create the order</span>
+        <span class="ty">Order</span> order = orderRepo.<span class="mt">save</span>(
+            <span class="ty">Order</span>.<span class="mt">builder</span>()
+                .<span class="mt">customerId</span>(request.<span class="mt">customerId</span>())
+                .<span class="mt">items</span>(request.<span class="mt">items</span>())
+                .<span class="mt">status</span>(<span class="ty">OrderStatus</span>.<span class="en">PENDING</span>)
+                .<span class="mt">build</span>()
+        );
+
+        <span class="cm">// 3. Record payment intent</span>
+        paymentRepo.<span class="mt">save</span>(
+            <span class="ty">Payment</span>.<span class="mt">builder</span>()
+                .<span class="mt">orderId</span>(order.<span class="mt">getId</span>())
+                .<span class="mt">amount</span>(order.<span class="mt">total</span>())
+                .<span class="mt">status</span>(<span class="ty">PaymentStatus</span>.<span class="en">INITIATED</span>)
+                .<span class="mt">build</span>()
+        );
+
+        <span class="cm">// 4. Audit log in its OWN transaction (always committed)</span>
+        auditService.<span class="mt">log</span>(order.<span class="mt">getId</span>(), <span class="st">"ORDER_PLACED"</span>);
+
+        <span class="kw">return</span> <span class="kw">new</span> <span class="ty">OrderConfirmation</span>(order.<span class="mt">getId</span>(), order.<span class="mt">total</span>());
+
+        <span class="cm">// If ANY step above throws → inventory + order + payment ALL rolled back</span>
+        <span class="cm">// But the audit log is safe (committed in its own tx)</span>
+    }
+}
+<div class="code-label">Java 17 — E-Commerce</div></pre>
+
+  <div class="card accent-blue" style="margin-bottom:1.5rem; margin-top:2rem;">
+    <div class="card-title" style="color:var(--accent2)">Example B — Batch Import with Partial Rollback</div>
+    <p>Use <code>NESTED</code> to skip bad records and continue with the rest.</p>
+  </div>
+
+<pre><span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">ProductImportService</span> {
+
+    <span class="kw">private final</span> <span class="ty">ProductRepository</span> productRepo;
+    <span class="kw">private final</span> <span class="ty">ImportLogRepository</span> logRepo;
+
+    <span class="cm">// Outer transaction: commits at the end with all successful products</span>
+    <span class="an">@Transactional</span>
+    <span class="kw">public</span> <span class="ty">ImportSummary</span> <span class="mt">importCsv</span>(<span class="ty">List</span>&lt;<span class="ty">ProductRow</span>&gt; rows) {
+
+        <span class="kw">int</span> success = <span class="nu">0</span>, failed = <span class="nu">0</span>;
+
+        <span class="kw">for</span> (<span class="ty">ProductRow</span> row : rows) {
+            <span class="kw">try</span> {
+                <span class="mt">importRow</span>(row);   <span class="cm">// NESTED tx</span>
+                success++;
+            } <span class="kw">catch</span> (<span class="ty">Exception</span> e) {
+                failed++;
+                <span class="cm">// savepoint rolled back — outer tx still alive</span>
+                logRepo.<span class="mt">save</span>(<span class="ty">ImportLog</span>.<span class="mt">failure</span>(row.<span class="mt">sku</span>(), e.<span class="mt">getMessage</span>()));
+            }
+        }
+
+        <span class="kw">return</span> <span class="kw">new</span> <span class="ty">ImportSummary</span>(success, failed);
+    }
+
+    <span class="cm">// NESTED: creates a savepoint; partial rollback on failure</span>
+    <span class="an">@Transactional</span>(propagation = <span class="ty">Propagation</span>.<span class="en">NESTED</span>)
+    <span class="kw">public void</span> <span class="mt">importRow</span>(<span class="ty">ProductRow</span> row) {
+        <span class="ty">Product</span> p = <span class="ty">Product</span>.<span class="mt">builder</span>()
+            .<span class="mt">sku</span>(row.<span class="mt">sku</span>())
+            .<span class="mt">name</span>(row.<span class="mt">name</span>())
+            .<span class="mt">price</span>(<span class="kw">new</span> <span class="ty">BigDecimal</span>(row.<span class="mt">price</span>()))   <span class="cm">// may throw</span>
+            .<span class="mt">build</span>();
+        productRepo.<span class="mt">save</span>(p);
+    }
+}
+<div class="code-label">Java 17 — Batch Import</div></pre>
+
+  <div class="card accent-purple" style="margin-bottom:1.5rem; margin-top:2rem;">
+    <div class="card-title" style="color:var(--purple)">Example C — Read-Only Service with Optimized Queries</div>
+  </div>
+
+<pre><span class="an">@Service</span>
+<span class="an">@Transactional</span>(readOnly = <span class="kw">true</span>)  <span class="cm">// default for all methods in this class</span>
+<span class="kw">public class</span> <span class="ty">ReportingService</span> {
+
+    <span class="cm">// All reads benefit from: no dirty checking, possible read-replica routing</span>
+
+    <span class="kw">public</span> <span class="ty">DashboardDTO</span> <span class="mt">getDashboard</span>(<span class="ty">Long</span> merchantId) {
+        <span class="ty">var</span> orders   = orderRepo.<span class="mt">findTodaysByMerchant</span>(merchantId);
+        <span class="ty">var</span> revenue  = orderRepo.<span class="mt">sumTodayRevenue</span>(merchantId);
+        <span class="ty">var</span> topItems = orderRepo.<span class="mt">findTopProducts</span>(merchantId, <span class="ty">Pageable</span>.<span class="mt">ofSize</span>(<span class="nu">5</span>));
+        <span class="kw">return</span> <span class="kw">new</span> <span class="ty">DashboardDTO</span>(orders.<span class="mt">size</span>(), revenue, topItems);
+    }
+
+    <span class="kw">public</span> <span class="ty">List</span>&lt;<span class="ty">CustomerDTO</span>&gt; <span class="mt">getTopCustomers</span>(<span class="ty">Long</span> merchantId) {
+        <span class="kw">return</span> customerRepo.<span class="mt">findTopByMerchant</span>(merchantId, <span class="ty">Pageable</span>.<span class="mt">ofSize</span>(<span class="nu">10</span>))
+                           .<span class="mt">stream</span>()
+                           .<span class="mt">map</span>(customerMapper::<span class="mt">toDTO</span>)
+                           .<span class="mt">toList</span>();
+    }
+
+    <span class="cm">// This one DOES write — override the class-level readOnly</span>
+    <span class="an">@Transactional</span>  <span class="cm">// readOnly = false overrides class-level</span>
+    <span class="kw">public void</span> <span class="mt">refreshCache</span>(<span class="ty">Long</span> merchantId) {
+        <span class="ty">var</span> snapshot = <span class="mt">getDashboard</span>(merchantId);
+        cacheRepo.<span class="mt">save</span>(<span class="kw">new</span> <span class="ty">DashboardCache</span>(merchantId, snapshot));
+    }
+}
+<div class="code-label">Java 17 — Reporting Service</div></pre>
+
+  <div class="card accent-green" style="margin-top:2rem;">
+    <div class="card-title" style="color:var(--green)">Example D — Event Outbox Pattern (Reliable Messaging)</div>
+    <p>Save the domain event in the same transaction as the business data — prevents "saved to DB but never published" bugs.</p>
+  </div>
+
+<pre><span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">UserRegistrationService</span> {
+
+    <span class="an">@Transactional</span>
+    <span class="kw">public</span> <span class="ty">User</span> <span class="mt">register</span>(<span class="ty">RegisterRequest</span> req) {
+
+        <span class="cm">// 1. Save the user</span>
+        <span class="ty">User</span> user = userRepo.<span class="mt">save</span>(
+            <span class="ty">User</span>.<span class="mt">builder</span>()
+                .<span class="mt">email</span>(req.<span class="mt">email</span>())
+                .<span class="mt">passwordHash</span>(<span class="mt">hash</span>(req.<span class="mt">password</span>()))
+                .<span class="mt">build</span>()
+        );
+
+        <span class="cm">// 2. Save outbox event IN THE SAME TRANSACTION</span>
+        <span class="cm">// If user save fails → event is not saved either</span>
+        <span class="cm">// If event save fails → user is not saved either</span>
+        outboxRepo.<span class="mt">save</span>(
+            <span class="ty">OutboxEvent</span>.<span class="mt">builder</span>()
+                .<span class="mt">type</span>(<span class="st">"USER_REGISTERED"</span>)
+                .<span class="mt">payload</span>(<span class="mt">toJson</span>(user))
+                .<span class="mt">status</span>(<span class="ty">OutboxStatus</span>.<span class="en">PENDING</span>)
+                .<span class="mt">build</span>()
+        );
+
+        <span class="kw">return</span> user;
+
+        <span class="cm">// A separate @Scheduled job later reads PENDING outbox events</span>
+        <span class="cm">// and publishes them to Kafka/RabbitMQ — guaranteed at-least-once</span>
+    }
+}
+<div class="code-label">Java 17 — Outbox Pattern</div></pre>
+
+</section>
+
+<!-- SUMMARY TABLE -->
+<section>
+  <div class="section-header">
+    <div class="section-num">✓</div>
+    <h2>Quick Reference Summary</h2>
+  </div>
+
+  <table>
+    <thead>
+      <tr><th>Topic</th><th>Key Rule</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Proxy type</td><td>CGLIB by default in Spring Boot (subclass). JDK proxy if interface exists and configured.</td></tr>
+      <tr><td>Rollback default</td><td><code>RuntimeException</code> + <code>Error</code>. Checked exceptions do NOT rollback by default.</td></tr>
+      <tr><td>Self-invocation</td><td>Always fails — proxy is bypassed. Put <code>@Transactional</code> on the public entry point.</td></tr>
+      <tr><td>Private/final methods</td><td>Proxy cannot intercept them — annotation silently ignored.</td></tr>
+      <tr><td>readOnly = true</td><td>Always use for query-only methods — improves performance.</td></tr>
+      <tr><td>REQUIRES_NEW</td><td>Use for audit logs and emails — they should commit even if outer tx rolls back.</td></tr>
+      <tr><td>Long transactions</td><td>Never do external I/O (HTTP, S3) inside a transaction — exhausts connection pool.</td></tr>
+      <tr><td>Swallowed exceptions</td><td>If you catch without rethrowing, Spring won't rollback — use <code>setRollbackOnly()</code>.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout tip">
+    <div class="callout-icon">💡</div>
+    <div>
+      <strong>Golden rule:</strong> Put <code>@Transactional</code> on <em>service layer methods</em> that represent a single business operation.
+      Keep transactions <em>as short as possible</em> and <em>as wide as necessary</em>.
+      Use <code>readOnly = true</code> on every read path.
+    </div>
+  </div>
+</section>
+
+</div><!-- /container -->
+</body>
+</html>

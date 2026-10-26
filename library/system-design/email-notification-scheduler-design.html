@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Email Notification Scheduler — Design Document · Library · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../../assets/style.css">
+<script>try{if(localStorage.getItem('sd-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="../../index.html">SystemDesign<span>.hinglish</span></a><div class="toplinks"><a href="../../index.html#chapters">Chapters</a><a href="../../library/index.html">Library</a><a href="../../index.html#how">Kaise padhein</a><a href="../../links.html">URL Guide</a></div><button class="theme-toggle" aria-label="theme">◐</button></header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="../index.html"><span class="num">⌂</span> Library home</a></li></ul>
+<div class="group">System Design &amp; Architecture</div><ul>
+<li><a href="../system-design/system-design-mastery.html"><span class="num">📘</span> System Design Mastery</a></li>
+<li><a href="../system-design/smart-parking-system-hld-lld.html"><span class="num">📘</span> Smart Parking System</a></li>
+<li><a href="../system-design/98-system-design-concepts.html"><span class="num">📝</span> 98 System Design Concepts</a></li>
+<li><a class="active" href="../system-design/email-notification-scheduler-design.html"><span class="num">📄</span> Email Notification Scheduler</a></li>
+<li><a href="../system-design/schedule-reminder-2m-scale-architecture.html"><span class="num">📝</span> Scale-Ready Schedule Reminder System</a></li>
+</ul>
+<div class="group">Java Core &amp; DSA</div><ul>
+<li><a href="../java-dsa/java-core-mastery-guide.html"><span class="num">📘</span> Java Core Mastery Guide</a></li>
+<li><a href="../java-dsa/java-garbage-collection-guide.html"><span class="num">📘</span> Java Garbage Collection</a></li>
+<li><a href="../java-dsa/java-ds-leetcode-mastery.html"><span class="num">📘</span> Java Data Structures for LeetCode</a></li>
+<li><a href="../java-dsa/data-structures-java-interview-guide.html"><span class="num">📄</span> Data Structures Interview Guide</a></li>
+<li><a href="../java-dsa/lru-cache-java-visual-explainer.html"><span class="num">📘</span> LRU Cache</a></li>
+</ul>
+<div class="group">Spring Boot &amp; Microservices</div><ul>
+<li><a href="../spring-boot/spring-bean-lifecycle.html"><span class="num">📘</span> Spring Bean Lifecycle</a></li>
+<li><a href="../spring-boot/spring-transactional-guide.html"><span class="num">📘</span> @Transactional</a></li>
+<li><a href="../spring-boot/spring-circuit-breaker-resilience4j.html"><span class="num">📘</span> Circuit Breaker (Resilience4j)</a></li>
+<li><a href="../spring-boot/spring-security-jwt-logging-deploy.html"><span class="num">📘</span> Spring Security · JWT · AOP · Logging · Blue-Green</a></li>
+<li><a href="../spring-boot/saga-pattern-complete-guide.html"><span class="num">📄</span> Saga Pattern — Complete Guide</a></li>
+<li><a href="../spring-boot/saga-pattern-spring-boot-quick-reference.html"><span class="num">📄</span> Saga — Quick Reference</a></li>
+</ul>
+<div class="group">Kafka · Redis · Cassandra &amp; Data</div><ul>
+<li><a href="../data-messaging/kafka-redis-cassandra-mastery.html"><span class="num">📘</span> Kafka · Redis · Cassandra</a></li>
+<li><a href="../data-messaging/northguard-xinfra-linkedin-kafka-replacement.html"><span class="num">📘</span> Northguard &amp; Xinfra</a></li>
+</ul>
+<div class="group">GenAI &amp; AI</div><ul>
+<li><a href="../genai/java-genai-complete-guide.html"><span class="num">📄</span> Java + Generative AI</a></li>
+<li><a href="../genai/vector-database-mastery.html"><span class="num">📘</span> Vector Databases</a></li>
+</ul>
+<div class="group">Payments &amp; Interview Prep</div><ul>
+<li><a href="../interview-prep/paytm-backend-interview-guide.html"><span class="num">📄</span> Paytm Backend Interview Guide</a></li>
+<li><a href="../interview-prep/paytm-dsa-questions.html"><span class="num">📄</span> Paytm DSA Questions</a></li>
+</ul>
+</nav>
+<main class="content lib-doc">
+<div class="chapter-hero"><span class="chapter-num">System Design &amp; Architecture</span><h1>Email Notification Scheduler — Design Document</h1><p class="lead">Recurring schedules ke liye scheduler-service: 3 DB strategies, ShedLock, Kafka dispatch, idempotency, failure handling aur observability. / A compact real-world scheduler design doc.</p><div class="lib-meta"><span class="badge fmt-pdf">📄 PDF → Web</span><span class="badge time">⏱ ~6 min read</span><span class="badge pages">8 pages (original)</span></div><div class="tags"><span class="tag">ShedLock</span><span class="tag">Kafka</span><span class="tag">@Scheduled</span><span class="tag">PostgreSQL</span></div><div class="lib-dl"><a class="btn small" href="../files/email-notification-scheduler-design.pdf" download>⬇ Download PDF</a></div></div>
+<div class="callout tip"><strong>Study note</strong>Ye page original document se auto-convert kiya gaya hai (headings, tables, code preserve). Exact original layout / diagrams ke liye upar se file download karo.</div>
+<h2>1. Overview</h2>
+<p>The <b>Email Notification Scheduler</b> is a background job inside <b>scheduler-service</b> that periodically scans for recurring transaction schedules due for notification, sends email and push alerts via Kafka, then <b>updates the next notification date</b> in the database so the cycle continues at the correct frequency (Weekly / Bi-Weekly / Monthly).</p>
+<h3>Design Goals</h3>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Goal</th><th>Decision</th></tr></thead><tbody><tr><td>Single source of truth</td><td>All 3 DB strategies kept in sync — each serves a different query pattern</td></tr><tr><td>No duplicate sends</td><td>ShedLock prevents concurrent job runs across pods; Redis idempotency key per run</td></tr><tr><td>Failure resilience</td><td>Per-channel failure counters; auto-deactivate after threshold; full audit log</td></tr><tr><td>Extensibility</td><td>Template code column → easy to add new notification types (TXN_FAILED, RECEIVER_UPDATED)</td></tr><tr><td>Observability</td><td>Micrometer counters on dispatched/failed; Prometheus scrape; structured log per strategy</td></tr></tbody></table></div>
+<h2>2. Database Strategies</h2>
+<p>Three complementary table approaches are used together. Each serves a distinct purpose. The job runs all three strategies in a single cron invocation.</p>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>#</th><th>Table</th><th>Key Column</th><th>Purpose</th><th>Updated After Send?</th></tr></thead><tbody><tr><td>S1</td><td>recurring_schedule</td><td>next_notification_at</td><td>Fast index scan — primary cron driver</td><td>YES → next_notification_at = now + freq</td></tr><tr><td>S2</td><td>notification_schedule</td><td>next_send_at</td><td>Per-channel (EMAIL/PUSH) independent control + failure trackingYES → next_send_at = lastSentAt + freq</td><td></td></tr><tr><td>S3</td><td>notification_log</td><td>next_send_at</td><td>Immutable audit trail — every send appends a row carrying next_send_atN/A (append-only log)</td><td></td></tr></tbody></table></div>
+<h3>Strategy 1 — recurring_schedule.next_notification_at</h3>
+<p class="lbl"><b>New columns added via Flyway V2 migration:</b></p>
+<ul><li><b>next_notification_at</b> TIMESTAMP — when to next fire a notification</li><li><b>last_notification_at</b> TIMESTAMP — last successful send time (audit)</li><li><b>notification_attempts</b> INT — consecutive failure counter (reset on success)</li></ul>
+<p><b>Index:</b> idx_schedule_next_notif ON (next_notification_at, status) WHERE status='ACTIVE'</p>
+<p><b>Query:</b> SELECT ... WHERE status='ACTIVE' AND next_notification_at &lt;= NOW()</p>
+<p><b>Update after send:</b> UPDATE recurring_schedule SET next_notification_at = NOW() + freq, last_notification_at = NOW(), notification_attempts = 0 WHERE id = ?</p>
+<h3>Strategy 2 — notification_schedule (dedicated control table)</h3>
+<p>New table with <b>one row per (schedule_id, channel)</b>. EMAIL and PUSH are tracked independently — user can disable email but keep push.</p>
+<p>Key columns: <b>next_send_at</b>, <b>last_sent_at</b>, <b>last_status</b>, <b>failure_count</b>, <b>max_retry</b>, <b>is_active Index:</b> idx_notif_sched_next_send ON (next_send_at, is_active) WHERE is_active=TRUE</p>
+<p><b>Update after send:</b> UPDATE notification_schedule SET next_send_at=?, last_sent_at=?, last_status='SENT', failure_count=0 WHERE id=?</p>
+<p><b>Deactivate on failure:</b> UPDATE notification_schedule SET is_active=false, last_status='SUPPRESSED' WHERE id=?</p>
+<h3>Strategy 3 — notification_log.next_send_at (audit trail)</h3>
+<p>Every notification dispatch <b>appends a new row</b> to notification_log. The row carries <b>next_send_at</b> = computed next date at time of dispatch. This gives a full, immutable progression: you can see every date shift over time.</p>
+<p>This table is never updated — only inserted. Failed sends get their own row with status=FAILED. Retries append another row. This means the log shows: SENT → FAILED → SENT → SENT...</p>
+<p><b>New columns added:</b> next_send_at, channel, template_code, retry_count, error_message</p>
+<p><b>Index:</b> idx_notif_log_next_send ON (next_send_at, status) WHERE status IN ('PENDING','FAILED')</p>
+<h2>3. Scheduler Job Flow</h2>
+<h3>3.1 Trigger Mechanisms</h3>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Trigger</th><th>Expression</th><th>Description</th></tr></thead><tbody><tr><td>Fixed cron (dev)</td><td>0 * * * * * (every minute)</td><td>Scans all 3 strategies each minute</td></tr><tr><td>Fixed cron (prod)</td><td>0 0 9 * * * (daily 9 AM)</td><td>Override via scheduler.notification.cron property</td></tr><tr><td>DB-driven (S1)</td><td>next_notification_at &lt;= NOW()</td><td>Records drive timing; cron just scans</td></tr><tr><td>DB-driven (S2)</td><td>next_send_at &lt;= NOW()</td><td>Per-channel independent timing</td></tr><tr><td>Retry (S3)</td><td>FAILED rows, retryCount &lt; 3</td><td>Retries on every job run</td></tr></tbody></table></div>
+<h3>3.2 Single Job Run — Step by Step</h3>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>StepAction</th><th>Table Written</th></tr></thead><tbody><tr><td>1 Cron fires → ShedLock acquires distributed lock on shedlock table</td><td>shedlock</td></tr><tr><td>2 processStrategy1(now): query recurring_schedule WHERE next_notification_at &lt;= NOW()—</td><td></td></tr><tr><td>3 For each row: dispatch EMAIL (if emailNotify=true), dispatch PUSH (if pushNotify=true)notification_log (S3 row)</td><td></td></tr><tr><td>4 Success: UPDATE recurring_schedule SET next_notification_at=NOW()+freq, notification_attempts=0recurring_schedule</td><td></td></tr><tr><td>5 Failure: incrementFailureCount; if count &gt;= 3 → log warn and skip next cyclerecurring_schedule</td><td></td></tr><tr><td>6 processStrategy2(now): query notification_schedule WHERE next_send_at &lt;= NOW()—</td><td></td></tr><tr><td>7 For each row: dispatch via Kafka</td><td>notification_log (S3 row)</td></tr><tr><td>8 Success: UPDATE notification_schedule SET next_send_at=lastSentAt+freq, failure_count=0notification_schedule</td><td></td></tr><tr><td>9 Failure: markFailed; if failure_count &gt;= max_retry → deactivate row</td><td>notification_schedule</td></tr><tr><td>10 processRetryStrategy3(): find FAILED log rows with retryCount &lt; 3, re-dispatchnotification_log</td><td></td></tr><tr><td>11 ShedLock released; next pod can acquire on next minute</td><td>shedlock</td></tr></tbody></table></div>
+<h3>3.3 next_send_at Computation</h3>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Frequency</th><th>Formula</th><th>Example (sent 2026-02-28 09:00)</th></tr></thead><tbody><tr><td>WEEKLY</td><td>lastSentAt + 7 days</td><td>2026-03-07 09:00</td></tr><tr><td>BIWEEKLY</td><td>lastSentAt + 14 days</td><td>2026-03-14 09:00</td></tr><tr><td>MONTHLY</td><td>lastSentAt + 1 month</td><td>2026-03-28 09:00</td></tr></tbody></table></div>
+<p>Computed by <b>NextSendDateCalculator</b> — single shared utility used by all 3 strategies.</p>
+<h2>4. Concurrency &amp; Safety</h2>
+<h3>4.1 ShedLock — Distributed Lock</h3>
+<p><b>Problem:</b> Multiple scheduler-service pods run in Kubernetes. Without coordination, all pods would fire the job simultaneously → duplicate emails sent.</p>
+<p><b>Solution:</b> ShedLock acquires a row-level lock in the <b>shedlock</b> PostgreSQL table. Only the pod that wins the lock executes the job. Others skip silently.</p>
+<p>Config: lockAtLeastFor=PT50S, lockAtMostFor=PT55S (prevents ghost locks if pod crashes). The DB clock is used (<b>usingDbTime()</b>) so JVM clock skew across pods is irrelevant.</p>
+<h3>4.2 Optimistic Locking</h3>
+<p><b>recurring_schedule</b> has a <b>version</b> column (JPA @Version). If two pods somehow read the same row concurrently (before ShedLock fires), the UPDATE will return rowCount=0 for the loser — logged as a warning, the row will be picked up on the next cron tick.</p>
+<p><b>notification_schedule</b> also has a <b>version</b> column for the same protection.</p>
+<h3>4.3 Idempotency</h3>
+<p>Before publishing to Kafka, the job checks a Redis key: Key: <b>notif:sent:{scheduleId}:{channel}:{YYYYMMDD}</b> — TTL 25 hours. If the key exists, the dispatch is skipped (SKIPPED status logged in notification_log). This prevents double-send if the same job somehow runs twice (e.g. during deployment).</p>
+<h2>5. Failure Handling</h2>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Scenario</th><th>Detection</th><th>Action</th><th>Recovery</th></tr></thead><tbody><tr><td>Kafka publish fails</td><td>Exception in dispatchService.dispatch()incrementFailureCount (S1); markFailed (S2); log FAILED row (S3)Retry on next cron run (S3 retry logic)</td><td></td><td></td></tr></tbody></table></div>
+<p>DB update fails (next_send_at)Exception in markNotificationSent / markSentAndAdvanceOptimistic lock conflict logged; job continuesNext cron scan picks it up again</p>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Max retries exceeded (S2) failureCount &gt;= maxRetry</th><th>deactivate() sets is_active=false, last_status=SUPPRESSEDManual reactivation via API or ops tooling</th></tr></thead><tbody><tr><td>Max retries exceeded (S1) notificationAttempts &gt;= 3</td><td>Warning logged; row skipped in that runOps alert on Prometheus counter; manual fix</td></tr><tr><td>Pod crash mid-job ShedLock lock_until expires after PT55SNext pod re-acquires lock and re-runs jobIdempotency key prevents double send</td><td></td></tr><tr><td>Email SMTP down Exception from NotificationDispatchServiceKafka event published; notification-service handles SMTP retry separatelySMTP comes back; notification-service retries</td><td></td></tr></tbody></table></div>
+<h2>6. Class &amp; Table Summary</h2>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Class / File</th><th>Layer</th><th>Responsibility</th></tr></thead><tbody><tr><td>EmailNotificationSchedulerJob</td><td>Job</td><td>Main cron entry; orchestrates all 3 strategies; ShedLock</td></tr><tr><td>NotificationDispatchService</td><td>Service</td><td>Publish Kafka event; persist NotificationLog (S3) row</td></tr><tr><td>NotificationScheduleService</td><td>Service</td><td>Bootstrap S2 rows; toggle channels; handle freq changes</td></tr><tr><td>NextSendDateCalculator</td><td>Utility</td><td>Single place to compute next notification date per frequency</td></tr><tr><td>RecurringScheduleRef</td><td>Entity</td><td>JPA entity for recurring_schedule (S1 columns only)</td></tr><tr><td>NotificationSchedule</td><td>Entity</td><td>JPA entity for notification_schedule table (S2)</td></tr><tr><td>NotificationLog</td><td>Entity</td><td>JPA entity for notification_log with next_send_at (S3)</td></tr><tr><td>RecurringScheduleRefRepository</td><td>Repo</td><td>findDueForNotification; markNotificationSent; incrementFailureCount</td></tr><tr><td>NotificationScheduleRepository</td><td>Repo</td><td>findDueNotifications; markSentAndAdvance; markFailed; deactivate</td></tr><tr><td>NotificationLogRepository</td><td>Repo</td><td>findLatestSent; findPendingRetries</td></tr><tr><td>SchedulerConfig</td><td>Config</td><td>ShedLock LockProvider; @EnableScheduling; @EnableSchedulerLock</td></tr><tr><td>V2__notification_scheduler_tables.sql</td><td>Migration</td><td>All DDL: new columns (S1), new table (S2), updated table (S3)</td></tr></tbody></table></div>
+<h3>Kafka Topic</h3>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Topic</th><th>Producer</th><th>Consumer</th><th>Payload</th></tr></thead><tbody><tr><td>notification.send</td><td>NotificationDispatchService</td><td>Notification Service (email + push workers){scheduleId, userId, channel, templateCode, mtcn, amount, currency, sentAt, nextSendAt}</td><td></td></tr></tbody></table></div>
+<h2>7. Observability</h2>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Metric / Log</th><th>Type</th><th>Description</th></tr></thead><tbody><tr><td>notif.dispatched.count{strategy,channel}</td><td>Counter</td><td>Incremented on each successful dispatch</td></tr><tr><td>notif.failed.count{strategy,channel}</td><td>Counter</td><td>Incremented on each dispatch failure</td></tr><tr><td>notif.job.duration.ms</td><td>Timer</td><td>Full job run duration</td></tr><tr><td>notif.deactivated.count</td><td>Counter</td><td>Rows deactivated in notification_schedule (S2)</td></tr><tr><td>Log: [Strategy-1] next_notification_at updated to ...</td><td>INFO</td><td>Per-schedule update confirmation</td></tr><tr><td>Log: [Strategy-2] notification_schedule.next_send_at set to ...INFO</td><td></td><td>Per-row S2 update</td></tr><tr><td>Log: Optimistic lock conflict on scheduleId=...</td><td>WARN</td><td>Concurrent access detected — not an error</td></tr><tr><td>Log: Max failures reached for scheduleId=...</td><td>WARN</td><td>Action needed: ops should investigate</td></tr></tbody></table></div>
+<h2>Summary</h2>
+<p>The notification scheduler is self-contained inside <b>scheduler-service</b> and:</p>
+<ul><li>Uses <b>3 complementary DB strategies</b> — each addresses a different concern (fast scan, per-channel control, full</li></ul>
+<p>audit trail)</p>
+<ul><li>Runs on <b>two triggers simultaneously</b>: a fixed cron AND database-driven next_send_at / next_notification_at</li></ul>
+<p>timestamps</p>
+<ul><li><b>Updates the next date atomically</b> after every successful dispatch using @Modifying JPQL queries with optimistic</li></ul>
+<p>locking</p>
+<ul><li>Is <b>cluster-safe</b> via ShedLock on PostgreSQL; no duplicate sends possible</li><li><b>Full failure handling</b>: per-channel failure counters, auto-deactivation, Strategy-3 retry loop, idempotency keys in</li></ul>
+<p>Redis</p>
+<ul><li>All sends go through <b>Kafka topic notification.send</b> — decoupled from SMTP/FCM</li></ul>
+<div class="chapter-nav"><a class="prev" href="98-system-design-concepts.html">← 98 System Design Concepts</a><a class="next" href="schedule-reminder-2m-scale-architecture.html">Scale-Ready Schedule Reminder System →</a></div>
+</main>
+<aside class="toc"></aside>
+</div>
+<footer class="footer">SystemDesign.hinglish · Library · Personal study material</footer>
+<script src="../../assets/app.js"></script>
+</body>
+</html>

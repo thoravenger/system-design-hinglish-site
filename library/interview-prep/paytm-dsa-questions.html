@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paytm DSA Questions — Senior Level · Library · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../../assets/style.css">
+<script>try{if(localStorage.getItem('sd-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="../../index.html">SystemDesign<span>.hinglish</span></a><div class="toplinks"><a href="../../index.html#chapters">Chapters</a><a href="../../library/index.html">Library</a><a href="../../index.html#how">Kaise padhein</a><a href="../../links.html">URL Guide</a></div><button class="theme-toggle" aria-label="theme">◐</button></header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="../index.html"><span class="num">⌂</span> Library home</a></li></ul>
+<div class="group">System Design &amp; Architecture</div><ul>
+<li><a href="../system-design/system-design-mastery.html"><span class="num">📘</span> System Design Mastery</a></li>
+<li><a href="../system-design/smart-parking-system-hld-lld.html"><span class="num">📘</span> Smart Parking System</a></li>
+<li><a href="../system-design/98-system-design-concepts.html"><span class="num">📝</span> 98 System Design Concepts</a></li>
+<li><a href="../system-design/email-notification-scheduler-design.html"><span class="num">📄</span> Email Notification Scheduler</a></li>
+<li><a href="../system-design/schedule-reminder-2m-scale-architecture.html"><span class="num">📝</span> Scale-Ready Schedule Reminder System</a></li>
+</ul>
+<div class="group">Java Core &amp; DSA</div><ul>
+<li><a href="../java-dsa/java-core-mastery-guide.html"><span class="num">📘</span> Java Core Mastery Guide</a></li>
+<li><a href="../java-dsa/java-garbage-collection-guide.html"><span class="num">📘</span> Java Garbage Collection</a></li>
+<li><a href="../java-dsa/java-ds-leetcode-mastery.html"><span class="num">📘</span> Java Data Structures for LeetCode</a></li>
+<li><a href="../java-dsa/data-structures-java-interview-guide.html"><span class="num">📄</span> Data Structures Interview Guide</a></li>
+<li><a href="../java-dsa/lru-cache-java-visual-explainer.html"><span class="num">📘</span> LRU Cache</a></li>
+</ul>
+<div class="group">Spring Boot &amp; Microservices</div><ul>
+<li><a href="../spring-boot/spring-bean-lifecycle.html"><span class="num">📘</span> Spring Bean Lifecycle</a></li>
+<li><a href="../spring-boot/spring-transactional-guide.html"><span class="num">📘</span> @Transactional</a></li>
+<li><a href="../spring-boot/spring-circuit-breaker-resilience4j.html"><span class="num">📘</span> Circuit Breaker (Resilience4j)</a></li>
+<li><a href="../spring-boot/spring-security-jwt-logging-deploy.html"><span class="num">📘</span> Spring Security · JWT · AOP · Logging · Blue-Green</a></li>
+<li><a href="../spring-boot/saga-pattern-complete-guide.html"><span class="num">📄</span> Saga Pattern — Complete Guide</a></li>
+<li><a href="../spring-boot/saga-pattern-spring-boot-quick-reference.html"><span class="num">📄</span> Saga — Quick Reference</a></li>
+</ul>
+<div class="group">Kafka · Redis · Cassandra &amp; Data</div><ul>
+<li><a href="../data-messaging/kafka-redis-cassandra-mastery.html"><span class="num">📘</span> Kafka · Redis · Cassandra</a></li>
+<li><a href="../data-messaging/northguard-xinfra-linkedin-kafka-replacement.html"><span class="num">📘</span> Northguard &amp; Xinfra</a></li>
+</ul>
+<div class="group">GenAI &amp; AI</div><ul>
+<li><a href="../genai/java-genai-complete-guide.html"><span class="num">📄</span> Java + Generative AI</a></li>
+<li><a href="../genai/vector-database-mastery.html"><span class="num">📘</span> Vector Databases</a></li>
+</ul>
+<div class="group">Payments &amp; Interview Prep</div><ul>
+<li><a href="../interview-prep/paytm-backend-interview-guide.html"><span class="num">📄</span> Paytm Backend Interview Guide</a></li>
+<li><a class="active" href="../interview-prep/paytm-dsa-questions.html"><span class="num">📄</span> Paytm DSA Questions</a></li>
+</ul>
+</nav>
+<main class="content lib-doc">
+<div class="chapter-hero"><span class="chapter-num">Payments &amp; Interview Prep</span><h1>Paytm DSA Questions — Senior Level</h1><p class="lead">20 coding questions (arrays, linked list, trees, DP, graphs, concurrency) Java solutions + complexity aur patterns cheatsheet. / The DSA round, solved.</p><div class="lib-meta"><span class="badge fmt-pdf">📄 PDF → Web</span><span class="badge time">⏱ ~10 min read</span><span class="badge pages">15 pages (original)</span></div><div class="tags"><span class="tag">20 problems</span><span class="tag">Java</span><span class="tag">Concurrency</span></div><div class="lib-dl"><a class="btn small" href="../files/paytm-dsa-questions.pdf" download>⬇ Download PDF</a></div></div>
+<div class="callout tip"><strong>Study note</strong>Ye page original document se auto-convert kiya gaya hai (headings, tables, code preserve). Exact original layout / diagrams ke liye upar se file download karo.</div>
+<h2>Data Structures &amp; Algorithms</h2>
+<p><i>Most Asked Questions | Senior Backend Engineer | 2025</i></p>
+<h2>SECTION 1 · ARRAYS &amp; STRINGS</h2>
+<h3>Q1. Two Sum — Find indices of two numbers that add up to target · Easy</h3>
+<p>Array · HashMap · O(n)</p>
+<pre><code>public int[] twoSum(int[] nums, int target) {
+    Map&lt;Integer, Integer&gt; map = new HashMap&lt;&gt;();
+    for (int i = 0; i &lt; nums.length; i++) {
+        int complement = target - nums[i];
+        if (map.containsKey(complement))
+        return new int[]{map.get(complement), i};
+        map.put(nums[i], i);
+    }
+    throw new IllegalArgumentException(&quot;No solution&quot;);
+}</code></pre>
+<p><b>Time: O(n) |</b> <b>Space: O(n)</b></p>
+<h3>Q2. Longest Substring Without Repeating Characters · Medium</h3>
+<p>Sliding Window · HashMap · String</p>
+<pre><code>public int lengthOfLongestSubstring(String s) {
+    Map&lt;Character, Integer&gt; map = new HashMap&lt;&gt;();
+    int maxLen = 0, left = 0;
+    for (int right = 0; right &lt; s.length(); right++) {
+        char c = s.charAt(right);
+        if (map.containsKey(c))
+        left = Math.max(left, map.get(c) + 1);
+        map.put(c, right);
+        maxLen = Math.max(maxLen, right - left + 1);
+    }
+    return maxLen;
+}
+// &quot;abcabcbb&quot;   3 | &quot;pwwkew&quot;    3 | &quot;bbbbb&quot;   1</code></pre>
+<p><b>Time: O(n) |</b> <b>Space: O(min(m,n))</b></p>
+<h3>Q3. Maximum Subarray Sum (Kadane's Algorithm) · Medium</h3>
+<p>Array · DP · Greedy</p>
+<pre><code>public int maxSubArray(int[] nums) {
+    int maxSum = nums[0], currentSum = nums[0];
+    for (int i = 1; i &lt; nums.length; i++) {
+        currentSum = Math.max(nums[i], currentSum + nums[i]);
+        maxSum = Math.max(maxSum, currentSum);
+    }
+    return maxSum;
+}
+// [-2,1,-3,4,-1,2,1,-5,4]   6 (subarray [4,-1,2,1])</code></pre>
+<p><b>Time: O(n) |</b> <b>Space: O(1)</b></p>
+<h3>Q4. Trapping Rain Water · Hard</h3>
+<p>Array · Two Pointers · Stack</p>
+<pre><code>public int trap(int[] height) {
+    int left = 0, right = height.length - 1;
+    int leftMax = 0, rightMax = 0, water = 0;
+    while (left &lt; right) {
+        if (height[left] &lt; height[right]) {
+            leftMax = Math.max(leftMax, height[left]);
+            water += leftMax - height[left];
+            left++;
+        } else {
+            rightMax = Math.max(rightMax, height[right]);
+            water += rightMax - height[right];
+            right--;
+        }
+    }
+    return water;
+}
+// [0,1,0,2,1,0,1,3,2,1,2,1]   6</code></pre>
+<p><b>Time: O(n) |</b> <b>Space: O(1)</b></p>
+<h3>Q5. Best Time to Buy and Sell Stock (max profit) · Easy</h3>
+<p>Array · Greedy · One Pass</p>
+<pre><code>public int maxProfit(int[] prices) {
+    int minPrice = Integer.MAX_VALUE, maxProfit = 0;
+    for (int price : prices) {
+        minPrice = Math.min(minPrice, price);
+        maxProfit = Math.max(maxProfit, price - minPrice);
+    }
+    return maxProfit;
+}
+// [7,1,5,3,6,4]   5 (buy at 1, sell at 6)</code></pre>
+<p><b>Time: O(n) |</b> <b>Space: O(1)</b></p>
+<h2>SECTION 2 · LINKED LIST</h2>
+<h3>Q6. Detect a Cycle in Linked List (Floyd's Algorithm) · Medium</h3>
+<p>Linked List · Two Pointers · Cycle Detection</p>
+<pre><code>public boolean hasCycle(ListNode head) {
+    ListNode slow = head, fast = head;
+    while (fast != null &amp;&amp; fast.next != null) {
+        slow = slow.next;
+        fast = fast.next.next;
+        if (slow == fast) return true;
+    }
+    return false;
+}
+// Bonus: Find cycle start node
+public ListNode detectCycle(ListNode head) {
+    ListNode slow = head, fast = head;
+    while (fast != null &amp;&amp; fast.next != null) {
+        slow = slow.next; fast = fast.next.next;
+        if (slow == fast) {
+            slow = head; // reset one pointer to head
+            while (slow != fast) { slow = slow.next; fast = fast.next; }
+            return slow; // cycle start
+        }
+    }
+    return null;
+}</code></pre>
+<p><b>Time: O(n) |</b> <b>Space: O(1)</b></p>
+<h3>Q7. Reverse a Linked List (Iterative + Recursive) · Easy</h3>
+<p>Linked List · Recursion · Pointers</p>
+<pre><code>// Iterative
+public ListNode reverse(ListNode head) {
+    ListNode prev = null, curr = head;
+    while (curr != null) {
+        ListNode next = curr.next;
+        curr.next = prev;
+        prev = curr;
+        curr = next;
+    }
+    return prev;
+}
+// Recursive
+public ListNode reverseRecursive(ListNode head) {
+    if (head == null || head.next == null) return head;
+    ListNode newHead = reverseRecursive(head.next);
+    head.next.next = head;
+    head.next = null;
+    return newHead;
+}</code></pre>
+<p><b>Time: O(n) |</b> <b>Space: O(1) iterative, O(n) recursive</b></p>
+<h3>Q8. Merge Two Sorted Linked Lists · Easy</h3>
+<p>Linked List · Two Pointers · Merge</p>
+<pre><code>public ListNode mergeTwoLists(ListNode l1, ListNode l2) {
+    ListNode dummy = new ListNode(0), curr = dummy;
+    while (l1 != null &amp;&amp; l2 != null) {
+        if (l1.val &lt;= l2.val) { curr.next = l1; l1 = l1.next; }
+        else { curr.next = l2; l2 = l2.next; }
+        curr = curr.next;
+    }
+    curr.next = (l1 != null) ? l1 : l2;
+    return dummy.next;
+}</code></pre>
+<p><b>Time: O(m+n) |</b> <b>Space: O(1)</b></p>
+<h2>SECTION 3 · TREES &amp; BINARY SEARCH</h2>
+<h3>Q9. Lowest Common Ancestor (LCA) of a Binary Tree · Medium</h3>
+<p>Binary Tree · DFS · Recursion</p>
+<pre><code>public TreeNode lowestCommonAncestor(TreeNode root, TreeNode p, TreeNode q) {
+    if (root == null || root == p || root == q) return root;
+    TreeNode left = lowestCommonAncestor(root.left, p, q);
+    TreeNode right = lowestCommonAncestor(root.right, p, q);
+    if (left != null &amp;&amp; right != null) return root; // p and q on different sides
+    return (left != null) ? left : right;
+}
+// Paytm context: find LCA in org-hierarchy or category-tree</code></pre>
+<p><b>Time: O(n) |</b> <b>Space: O(h) — h = tree height</b></p>
+<h3>Q10. Validate Binary Search Tree · Medium</h3>
+<p>BST · DFS · Inorder Traversal</p>
+<pre><code>public boolean isValidBST(TreeNode root) {
+    return validate(root, Long.MIN_VALUE, Long.MAX_VALUE);
+}
+private boolean validate(TreeNode node, long min, long max) {
+    if (node == null) return true;
+    if (node.val &lt;= min || node.val &gt;= max) return false;
+    return validate(node.left, min, node.val)
+    &amp;&amp; validate(node.right, node.val, max);
+}
+// Use Long to handle Integer.MIN_VALUE and Integer.MAX_VALUE edge cases!</code></pre>
+<p><b>Time: O(n) |</b> <b>Space: O(h)</b></p>
+<h3>Q11. Binary Tree Level Order Traversal (BFS) · Medium</h3>
+<p>BFS · Queue · Binary Tree</p>
+<pre><code>public List&lt;List&lt;Integer&gt;&gt; levelOrder(TreeNode root) {
+    List&lt;List&lt;Integer&gt;&gt; result = new ArrayList&lt;&gt;();
+    if (root == null) return result;
+    Queue&lt;TreeNode&gt; queue = new LinkedList&lt;&gt;();
+    queue.offer(root);
+    while (!queue.isEmpty()) {
+        int size = queue.size(); // snapshot current level size!
+        List&lt;Integer&gt; level = new ArrayList&lt;&gt;();
+        for (int i = 0; i &lt; size; i++) {
+            TreeNode node = queue.poll();
+            level.add(node.val);
+            if (node.left != null) queue.offer(node.left);
+            if (node.right != null) queue.offer(node.right);
+        }
+        result.add(level);
+    }
+    return result;
+}</code></pre>
+<p><b>Time: O(n) |</b> <b>Space: O(w) — w = max width</b></p>
+<h2>SECTION 4 · DYNAMIC PROGRAMMING</h2>
+<h3>Q12. Coin Change — Minimum coins to make amount · Medium</h3>
+<p>DP · BFS · Greedy won't work</p>
+<pre><code>public int coinChange(int[] coins, int amount) {
+    int[] dp = new int[amount + 1];
+    Arrays.fill(dp, amount + 1); // sentinel infinity
+    dp[0] = 0;
+    for (int i = 1; i &lt;= amount; i++) {
+        for (int coin : coins) {
+            if (coin &lt;= i)
+            dp[i] = Math.min(dp[i], dp[i - coin] + 1);
+        }
+    }
+    return dp[amount] &gt; amount ? -1 : dp[amount];
+}
+// coins=[1,5,11], amount=15   3 (11+1+1+1... wait, 5+5+5=3 )
+// GREEDY fails: coins=[1,3,4], amount=6   greedy picks 4+1+1=3, DP gives 3+3=2</code></pre>
+<p><b>Time: O(amount * coins) |</b> <b>Space: O(amount)</b></p>
+<h3>Q13. Longest Increasing Subsequence (LIS) · Medium</h3>
+<p>DP · Binary Search · Patience Sort</p>
+<pre><code>// O(n log n) — Binary Search approach
+public int lengthOfLIS(int[] nums) {
+    List&lt;Integer&gt; tails = new ArrayList&lt;&gt;();
+    for (int num : nums) {
+        int pos = Collections.binarySearch(tails, num);
+        if (pos &lt; 0) pos = -(pos + 1); // insertion point
+        if (pos == tails.size()) tails.add(num);
+        else tails.set(pos, num);
+    }
+    return tails.size();
+}
+// [10,9,2,5,3,7,101,18]   4 (2,3,7,18 or 2,5,7,18)</code></pre>
+<p><b>Time: O(n log n) |</b> <b>Space: O(n)</b></p>
+<h3>Q14. 0/1 Knapsack Problem · Medium</h3>
+<p>DP · 2D DP · Space Optimization</p>
+<pre><code>// Space-optimized 1D DP
+public int knapsack(int[] weights, int[] values, int capacity) {
+    int n = weights.length;
+    int[] dp = new int[capacity + 1];
+    for (int i = 0; i &lt; n; i++) {
+        for (int w = capacity; w &gt;= weights[i]; w--) { // iterate BACKWARDS!
+            dp[w] = Math.max(dp[w], dp[w - weights[i]] + values[i]);
+        }
+    }
+    return dp[capacity];
+}
+// Why backwards? Prevents using same item twice (0/1 constraint)</code></pre>
+<p><b>Time: O(n * capacity) |</b> <b>Space: O(capacity)</b></p>
+<h2>SECTION 5 · GRAPHS, STACK &amp; ADVANCED</h2>
+<h3>Q15. Number of Islands (DFS / BFS on 2D Grid) · Medium</h3>
+<p>Graph · DFS · BFS · Matrix</p>
+<pre><code>public int numIslands(char[][] grid) {
+    int count = 0;
+    for (int i = 0; i &lt; grid.length; i++) {
+        for (int j = 0; j &lt; grid[0].length; j++) {
+            if (grid[i][j] == &#x27;1&#x27;) {
+                dfs(grid, i, j);
+                count++;
+            }
+        }
+    }
+    return count;
+}
+private void dfs(char[][] grid, int i, int j) {
+    if (i &lt; 0 || i &gt;= grid.length || j &lt; 0 || j &gt;= grid[0].length
+    || grid[i][j] != &#x27;1&#x27;) return;
+    grid[i][j] = &#x27;0&#x27;; // mark visited (in-place)
+    dfs(grid, i+1, j); dfs(grid, i-1, j);
+    dfs(grid, i, j+1); dfs(grid, i, j-1);
+}</code></pre>
+<p><b>Time: O(m*n) |</b> <b>Space: O(m*n) DFS stack</b></p>
+<h3>Q16. Topological Sort (Course Schedule — detect cycle + order) · Medium</h3>
+<p>Graph · BFS · Kahn's Algorithm</p>
+<pre><code>// Kahn&#x27;s BFS topological sort
+public boolean canFinish(int numCourses, int[][] prerequisites) {
+    int[] inDegree = new int[numCourses];
+    List&lt;List&lt;Integer&gt;&gt; adj = new ArrayList&lt;&gt;();
+    for (int i = 0; i &lt; numCourses; i++) adj.add(new ArrayList&lt;&gt;());
+    for (int[] pre : prerequisites) {
+        adj.get(pre[1]).add(pre[0]);
+        inDegree[pre[0]]++;
+    }
+    Queue&lt;Integer&gt; queue = new LinkedList&lt;&gt;();
+    for (int i = 0; i &lt; numCourses; i++)
+    if (inDegree[i] == 0) queue.offer(i);
+    int processed = 0;
+    while (!queue.isEmpty()) {
+        int course = queue.poll();
+        processed++;
+        for (int next : adj.get(course))
+        if (--inDegree[next] == 0) queue.offer(next);
+    }
+    return processed == numCourses; // false = cycle exists
+}</code></pre>
+<p><b>Time: O(V+E) |</b> <b>Space: O(V+E)</b></p>
+<h3>Q17. Valid Parentheses + Decode String using Stack · Medium</h3>
+<p>Stack · String · Recursion</p>
+<pre><code>// Valid Parentheses
+public boolean isValid(String s) {
+    Stack&lt;Character&gt; stack = new Stack&lt;&gt;();
+    for (char c : s.toCharArray()) {
+        if (c == &#x27;(&#x27; || c == &#x27;[&#x27; || c == &#x27;{&#x27;) { stack.push(c); }
+        else {
+            if (stack.isEmpty()) return false;
+            char top = stack.pop();
+            if (c == &#x27;)&#x27; &amp;&amp; top != &#x27;(&#x27;) return false;
+            if (c == &#x27;]&#x27; &amp;&amp; top != &#x27;[&#x27;) return false;
+            if (c == &#x27;}&#x27; &amp;&amp; top != &#x27;{&#x27;) return false;
+        }
+    }
+    return stack.isEmpty();
+}
+// Decode String: 3[a2[bc]]   abcbcabcbcabcbc
+public String decodeString(String s) {
+    Stack&lt;Integer&gt; counts = new Stack&lt;&gt;();
+    Stack&lt;String&gt; strings = new Stack&lt;&gt;();
+    String current = &quot;&quot;; int k = 0;
+    for (char c : s.toCharArray()) {
+        if (Character.isDigit(c)) { k = k * 10 + (c - &#x27;0&#x27;); }
+        else if (c == &#x27;[&#x27;) { counts.push(k); strings.push(current); k = 0; current = &quot;&quot;; }
+        else if (c == &#x27;]&#x27;) {
+            int repeat = counts.pop();
+            String prev = strings.pop();
+            current = prev + current.repeat(repeat);
+        } else { current += c; }
+    }
+    return current;
+}</code></pre>
+<p><b>Time: O(n) |</b> <b>Space: O(n)</b></p>
+<h3>Q18. Word Search in 2D Grid (Backtracking) · Medium</h3>
+<p>Backtracking · DFS · Matrix</p>
+<pre><code>public boolean exist(char[][] board, String word) {
+    for (int i = 0; i &lt; board.length; i++)
+    for (int j = 0; j &lt; board[0].length; j++)
+    if (dfs(board, word, i, j, 0)) return true;
+    return false;
+}
+private boolean dfs(char[][] board, String word, int i, int j, int idx) {
+    if (idx == word.length()) return true;
+    if (i &lt; 0 || i &gt;= board.length || j &lt; 0 || j &gt;= board[0].length
+    || board[i][j] != word.charAt(idx)) return false;
+    char temp = board[i][j];
+    board[i][j] = &#x27;#&#x27;; // mark visited
+    boolean found = dfs(board, word, i+1, j, idx+1) ||
+    dfs(board, word, i-1, j, idx+1) ||
+    dfs(board, word, i, j+1, idx+1) ||
+    dfs(board, word, i, j-1, idx+1);
+    board[i][j] = temp; // restore
+    return found;
+}</code></pre>
+<p><b>Time: O(m*n*4^L) |</b> <b>Space: O(L) — L = word length</b></p>
+<h2>SECTION 6 · CONCURRENCY CODING (Paytm Favorite)</h2>
+<h3>Q19. Producer-Consumer Problem using BlockingQueue · Medium</h3>
+<p>Concurrency · BlockingQueue · Thread Safety</p>
+<pre><code>// Paytm: payment event producer + async processor
+BlockingQueue&lt;PaymentEvent&gt; queue = new LinkedBlockingQueue&lt;&gt;(1000);
+// Producer Thread
+class Producer implements Runnable {
+    public void run() {
+        while (true) {
+            PaymentEvent event = generateEvent();
+            queue.put(event); // blocks if queue full
+        }
+    }
+}
+// Consumer Thread
+class Consumer implements Runnable {
+    public void run() {
+        while (true) {
+            PaymentEvent event = queue.take(); // blocks if empty
+            processPayment(event);
+        }
+    }
+}
+// Launch with thread pool
+ExecutorService exec = Executors.newFixedThreadPool(10);
+exec.submit(new Producer());
+for (int i = 0; i &lt; 5; i++) exec.submit(new Consumer());</code></pre>
+<div class="callout tip"><p><i><b>Tip:</b> BlockingQueue handles all the locking/signaling. LinkedBlockingQueue is bounded (backpressure).</i> <i>ArrayBlockingQueue is slightly faster but fixed size. PriorityBlockingQueue for priority payments.</i></p></div>
+<h3>Q20. Implement Bounded Blocking Queue from scratch (no BlockingQueue) · Hard</h3>
+<p>Concurrency · Lock · Condition · Monitor</p>
+<pre><code>public class BoundedBlockingQueue&lt;T&gt; {
+    private final Queue&lt;T&gt; queue = new LinkedList&lt;&gt;();
+    private final int capacity;
+    private final ReentrantLock lock = new ReentrantLock();
+    private final Condition notFull = lock.newCondition();
+    private final Condition notEmpty = lock.newCondition();
+    public BoundedBlockingQueue(int capacity) { this.capacity = capacity; }
+    public void put(T item) throws InterruptedException {
+        lock.lock();
+        try {
+            while (queue.size() == capacity) notFull.await(); // wait if full
+            queue.offer(item);
+            notEmpty.signal(); // notify consumer
+        } finally { lock.unlock(); }
+    }
+    public T take() throws InterruptedException {
+        lock.lock();
+        try {
+            while (queue.isEmpty()) notEmpty.await(); // wait if empty
+            T item = queue.poll();
+            notFull.signal(); // notify producer
+            return item;
+        } finally { lock.unlock(); }
+    }
+}
+// Why while loop (not if)? Spurious wakeups — always recheck condition</code></pre>
+<p><b>Time: O(1) put/take |</b> <b>Space: O(n)</b></p>
+<div class="callout tip"><p><i><b>Tip:</b> Classic Senior-level question! Key points: (1) while not if for spurious wakeups (2) two separate Conditions for</i> <i>full/empty (3) always unlock in finally (4) signal not signalAll for performance.</i></p></div>
+<h2>PATTERNS CHEATSHEET · Recognize &amp; Apply Fast</h2>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Pattern</th><th>When to Apply</th><th>Key Examples</th></tr></thead><tbody><tr><td>Two Pointers</td><td>Sorted array, find pair/triplet, palindrome check</td><td>Two Sum (sorted), 3Sum, Container With Most Water</td></tr><tr><td>Sliding Window</td><td>Subarray/substring max/min with constraint</td><td>Longest substring, Max sum subarray of size K</td></tr></tbody></table></div>
+<p>Cycle detection, middle of list, nth from</p>
+<p>Fast &amp; Slow Pointers end · Linked list cycle, Floyd's algorithm</p>
+<p>Overlapping intervals — merge, count,</p>
+<p>Merge Intervals insert · Meeting rooms, calendar conflicts</p>
+<p>Shortest path, level traversal, word</p>
+<p>BFS (Level Order) ladder · Binary tree levels, shortest path in grid</p>
+<p>All possible combinations,</p>
+<p>DFS + Backtracking permutations, paths · Word Search, N-Queens, Subsets</p>
+<p>Sorted array, answer space is</p>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Binary Search monotonic</th><th>Search in rotated, Koko eating bananas</th></tr></thead><tbody><tr><td>Top-K Elements K largest/smallest, K most frequent</td><td>Kth largest (heap), K closest points</td></tr><tr><td>Dynamic Optimal substructure + overlapping</td><td>Knapsack, Coin Change, LIS, Edit Distance</td></tr><tr><td>Programming subproblems</td><td></td></tr></tbody></table></div>
+<p>Daily Temperatures, Largest Rectangle</p>
+<p>Monotonic Stack · Next Greater/Smaller element in O(n) Histogram</p>
+<p class="lbl"><b>Time Complexity Quick Reference</b></p>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Operation</th><th>Array</th><th>HashMap</th><th>BST (balanced)</th><th>Heap</th></tr></thead><tbody><tr><td>Search</td><td>O(n)</td><td>O(1) avg</td><td>O(log n)</td><td>O(n)</td></tr><tr><td>Insert</td><td>O(1) amort</td><td>O(1) avg</td><td>O(log n)</td><td>O(log n)</td></tr><tr><td>Delete</td><td>O(n)</td><td>O(1) avg</td><td>O(log n)</td><td>O(log n)</td></tr><tr><td>Min/Max</td><td>O(n)</td><td>O(n)</td><td>O(log n)</td><td>O(1)</td></tr><tr><td>Sorted iter</td><td>O(n log n)</td><td>N/A</td><td>O(n)</td><td>O(n log n)</td></tr></tbody></table></div>
+<h3>Master These 10 Patterns — Solve 80% of Paytm DSA Questions! </h3>
+<p>Practice on LeetCode: Arrays → Linked List → Trees → DP → Graphs → Concurrency</p>
+<div class="chapter-nav"><a class="prev" href="paytm-backend-interview-guide.html">← Paytm Backend Interview Guide</a><a class="next" href="../index.html">Back to Library →</a></div>
+</main>
+<aside class="toc"></aside>
+</div>
+<footer class="footer">SystemDesign.hinglish · Library · Personal study material</footer>
+<script src="../../assets/app.js"></script>
+</body>
+</html>

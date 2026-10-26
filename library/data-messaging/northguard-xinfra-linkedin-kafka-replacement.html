@@ -1,0 +1,1030 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Northguard & Xinfra – LinkedIn's Kafka Replacement</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#07080e;--surface:#0e1520;--surface2:#141e2e;--border:#1a2a3e;
+    --ng:#0a66c2;--xinfra:#00a0dc;--kafka:#231f20;
+    --accent:#0a66c2;--a2:#00a0dc;--a3:#f59e0b;--a4:#ec4899;--a5:#8b5cf6;
+    --text:#e2e8f0;--muted:#64748b;--code-bg:#0c1017;
+    --green:#22c55e;--red:#ef4444;--purple:#a78bfa;--teal:#2dd4bf;--orange:#f97316;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;line-height:1.7;font-size:15px}
+
+  nav{position:sticky;top:0;z-index:100;background:rgba(7,8,14,.97);backdrop-filter:blur(14px);border-bottom:1px solid var(--border);padding:0 1.5rem;display:flex;align-items:center;gap:.9rem;height:52px;overflow-x:auto;scrollbar-width:none}
+  nav::-webkit-scrollbar{display:none}
+  .nav-logo{color:var(--accent);font-weight:800;font-size:12px;letter-spacing:.04em;margin-right:auto;white-space:nowrap;flex-shrink:0}
+  nav a{color:var(--muted);text-decoration:none;font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;white-space:nowrap;padding:.2rem .4rem;border-radius:4px;transition:color .2s}
+  nav a:hover{color:var(--accent)}
+
+  .hero{padding:4rem 2rem 3rem;max-width:980px;margin:0 auto;text-align:center}
+  .hero-badge{display:inline-block;background:linear-gradient(135deg,#0a66c222,#00a0dc22);border:1px solid #0a66c240;color:var(--accent);font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;padding:.3rem .9rem;border-radius:999px;margin-bottom:1.4rem}
+  .hero h1{font-size:clamp(1.9rem,5vw,3.2rem);font-weight:800;line-height:1.1;background:linear-gradient(135deg,#e2e8f0 20%,#0a66c2 60%,#00a0dc 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:1rem}
+  .hero p{color:var(--muted);font-size:1rem;max-width:740px;margin:0 auto}
+
+  .container{max-width:980px;margin:0 auto;padding:0 1.5rem 6rem}
+  section{margin-bottom:4.5rem;scroll-margin-top:60px}
+  .sh{display:flex;align-items:center;gap:1rem;margin-bottom:1.8rem;padding-bottom:.8rem;border-bottom:1px solid var(--border)}
+  .sn{width:32px;height:32px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0;color:#fff}
+  .sh h2{font-size:1.4rem;font-weight:700;color:#fff}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.4rem;margin-bottom:1.1rem}
+  .ct{font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.7rem}
+  .card.ag{border-left:3px solid var(--green)}.card.ar{border-left:3px solid var(--red)}
+  .card.ay{border-left:3px solid var(--a3)}.card.ab{border-left:3px solid var(--a2)}
+  .card.ap{border-left:3px solid var(--purple)}.card.at{border-left:3px solid var(--accent)}
+  .card.ao{border-left:3px solid var(--orange)}.card.ak{border-left:3px solid var(--a4)}
+  .card.ac{border-left:3px solid var(--teal)}.card.ang{border-left:3px solid var(--ng)}
+  .card.axi{border-left:3px solid var(--xinfra)}
+
+  .g2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+  .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:.9rem}
+  .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:.8rem}
+  @media(max-width:680px){.g2,.g3,.g4{grid-template-columns:1fr}}
+
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:1.3rem;overflow-x:auto;margin:1rem 0 1.3rem;position:relative;font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.85}
+  .cl-label{position:absolute;top:.6rem;right:.8rem;font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-family:'JetBrains Mono',monospace}
+  .kw{color:#ff79c6}.an{color:#50fa7b}.ty{color:#8be9fd}.st{color:#f1fa8c}
+  .cm{color:#6272a4;font-style:italic}.nu{color:#bd93f9}.mt{color:#ffb86c}
+  .en{color:#ff5555}.pr{color:#0a66c2}.cf{color:#8be9fd}.cv{color:#f1fa8c}
+
+  table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin:1rem 0 1.4rem;font-size:12.5px}
+  th{background:var(--surface2);padding:.65rem 1rem;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:700;border-bottom:1px solid var(--border)}
+  td{padding:.6rem 1rem;border-bottom:1px solid var(--border);vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:var(--surface2)}
+  code{background:#fff1;border:1px solid #fff2;border-radius:4px;padding:.1rem .4rem;font-family:'JetBrains Mono',monospace;font-size:.84em;color:var(--a2)}
+
+  .cl-box{border-radius:10px;padding:.9rem 1.1rem;margin:1rem 0;display:flex;gap:.7rem;align-items:flex-start;font-size:.89rem}
+  .ci{font-size:1rem;flex-shrink:0;margin-top:.05rem}
+  .cl-box.tip{background:#0a66c210;border:1px solid #0a66c230}
+  .cl-box.warn{background:#f59e0b15;border:1px solid #f59e0b30}
+  .cl-box.danger{background:#ef444415;border:1px solid #ef444430}
+  .cl-box.info{background:#00a0dc15;border:1px solid #00a0dc30}
+  .cl-box.ng{background:#0a66c210;border:1px solid #0a66c230}
+  .cl-box.xi{background:#00a0dc10;border:1px solid #00a0dc30}
+
+  .flow{background:var(--code-bg);border:1px solid var(--border);border-radius:11px;padding:1.3rem;margin:1rem 0 1.3rem;font-family:'JetBrains Mono',monospace;font-size:11.5px;overflow-x:auto}
+  .fr{display:flex;align-items:center;gap:.5rem;padding:.28rem 0;flex-wrap:wrap}
+  .bx{background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:.25rem .7rem;white-space:nowrap;font-weight:600;font-size:11px}
+  .bx.g{background:#14532d30;border-color:var(--green);color:var(--green)}
+  .bx.b{background:#0d3a4030;border-color:var(--a2);color:var(--a2)}
+  .bx.v{background:#3b076430;border-color:var(--purple);color:var(--purple)}
+  .bx.y{background:#78350f30;border-color:var(--a3);color:var(--a3)}
+  .bx.r{background:#7f1d1d30;border-color:var(--red);color:var(--red)}
+  .bx.t{background:#0d393630;border-color:var(--teal);color:var(--teal)}
+  .bx.o{background:#7c2d1230;border-color:var(--orange);color:var(--orange)}
+  .bx.n{background:#0a66c220;border-color:var(--ng);color:var(--ng)}
+  .bx.x{background:#00a0dc20;border-color:var(--xinfra);color:var(--xinfra)}
+  .bx.a{background:#0a66c215;border-color:var(--accent);color:var(--accent)}
+  .fa{color:var(--muted);font-size:12px}
+
+  .arch{background:var(--code-bg);border:1px solid var(--border);border-radius:14px;padding:1.6rem;margin:1rem 0 1.5rem;overflow-x:auto}
+  .arch-row{display:flex;gap:.5rem;align-items:center;margin:.3rem 0;flex-wrap:wrap}
+  .arch-box{border:1.5px solid;border-radius:7px;padding:.3rem .8rem;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;white-space:nowrap}
+  .ab-n{border-color:var(--ng);color:var(--ng);background:#0a66c215}
+  .ab-x{border-color:var(--xinfra);color:var(--xinfra);background:#00a0dc15}
+  .ab-g{border-color:var(--green);color:var(--green);background:#22c55e15}
+  .ab-y{border-color:var(--a3);color:var(--a3);background:#f59e0b15}
+  .ab-r{border-color:var(--red);color:var(--red);background:#ef444415}
+  .ab-p{border-color:var(--purple);color:var(--purple);background:#a78bfa15}
+  .ab-t{border-color:var(--teal);color:var(--teal);background:#2dd4bf15}
+  .ab-o{border-color:var(--orange);color:var(--orange);background:#f9731615}
+  .ab-b{border-color:var(--a2);color:var(--a2);background:#00a0dc15}
+  .arch-arrow{color:var(--muted);font-size:13px;padding:0 .2rem}
+
+  .pl{display:inline-flex;font-size:10px;font-weight:700;padding:.12rem .5rem;border-radius:999px;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
+  .pl-g{background:#14532d50;color:var(--green);border:1px solid #22c55e40}
+  .pl-r{background:#7f1d1d50;color:var(--red);border:1px solid #ef444440}
+  .pl-y{background:#78350f50;color:var(--a3);border:1px solid #f59e0b40}
+  .pl-b{background:#0d3a4050;color:var(--a2);border:1px solid #00a0dc40}
+  .pl-n{background:#0a66c250;color:#60a5fa;border:1px solid #0a66c240}
+
+  /* stat cards */
+  .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.8rem;margin:1.2rem 0}
+  @media(max-width:680px){.stat-grid{grid-template-columns:repeat(2,1fr)}}
+  .stat-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:1rem;text-align:center}
+  .stat-num{font-size:1.6rem;font-weight:800;font-family:'JetBrains Mono',monospace}
+  .stat-lbl{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-top:.2rem}
+
+  /* comparison table highlight */
+  .better{color:var(--green);font-weight:700}
+  .worse{color:var(--red)}
+  .neutral{color:var(--a3)}
+
+  p{margin-bottom:.85rem;color:#cbd5e1}
+  ul,ol{padding-left:1.4rem;color:#cbd5e1}
+  li{margin-bottom:.35rem}
+  strong{color:#fff}
+  .muted{color:var(--muted);font-size:.87em}
+  h3{color:#fff;font-size:1rem;font-weight:700;margin:.9rem 0 .4rem}
+
+  .tp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:.6rem;margin:1.5rem 0 3rem}
+  .tp{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.6rem .8rem;font-size:11px;font-weight:700;text-align:center;text-decoration:none;color:var(--text);display:block;transition:all .2s}
+  .tp:hover{border-color:var(--accent);color:var(--accent);background:#0a66c208;transform:translateY(-1px)}
+
+  .timeline{position:relative;padding-left:2rem}
+  .timeline::before{content:'';position:absolute;left:.5rem;top:0;bottom:0;width:2px;background:var(--border)}
+  .tl-item{position:relative;margin-bottom:1.5rem}
+  .tl-dot{position:absolute;left:-1.75rem;top:.3rem;width:12px;height:12px;border-radius:50%;border:2px solid var(--accent);background:var(--bg)}
+  .tl-year{font-size:10px;font-weight:800;color:var(--accent);font-family:'JetBrains Mono',monospace;text-transform:uppercase;letter-spacing:.1em}
+  .tl-title{font-weight:700;color:#fff;margin:.1rem 0}
+  .tl-desc{color:var(--muted);font-size:.88rem}
+</style>
+</head>
+<body>
+<div id="sdh-libbar" style="position:relative;z-index:2147483000;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0;padding:8px 16px;background:#0f172a;color:#cbd5e1;font:600 13px/1.5 Inter,'Segoe UI',system-ui,-apple-system,sans-serif;border-bottom:2px solid #4f46e5;box-sizing:border-box;width:100%;text-align:left;letter-spacing:0"><a href="../../index.html" style="color:#fff;text-decoration:none;font-weight:800">SystemDesign<span style="color:#8b8cff">.hinglish</span></a><span style="opacity:.45">/</span><a href="../index.html" style="color:#fff;text-decoration:none">📚 Library</a><span style="opacity:.45">/</span><a href="../index.html#data-messaging" style="color:#cbd5e1;text-decoration:none">Kafka · Redis · Cassandra &amp; Data</a><span style="margin-left:auto;font-size:11px;padding:2px 9px;border-radius:999px;border:1px solid #6366f1;color:#c7d2fe">📘 HTML ebook</span></div>
+
+<nav>
+  <span class="nav-logo">🛡️ Northguard + Xinfra</span>
+  <a href="#why">Why Replace Kafka</a>
+  <a href="#kafka-limits">Kafka Limits</a>
+  <a href="#ng-arch">Northguard Arch</a>
+  <a href="#data-model">Data Model</a>
+  <a href="#metadata">Metadata DS-RSM</a>
+  <a href="#storage">Storage Layer</a>
+  <a href="#protocols">Protocols</a>
+  <a href="#xinfra">Xinfra</a>
+  <a href="#migration">Migration</a>
+  <a href="#compare">Kafka vs NG</a>
+  <a href="#lessons">Key Lessons</a>
+</nav>
+
+<div class="hero">
+  <div class="hero-badge">LinkedIn Engineering · June 2025 · Deep Dive</div>
+  <h1>Northguard & Xinfra<br/>LinkedIn's Kafka Replacement</h1>
+  <p>Why LinkedIn — the company that <em>created</em> Kafka — built a replacement. Deep dive into Northguard's architecture: DS-RSM, segment-level replication, log striping, and the Xinfra virtualization layer that makes migration transparent.</p>
+</div>
+
+<div class="container">
+
+<div class="tp-grid">
+  <a class="tp" href="#why">❓ Why Replace Kafka</a>
+  <a class="tp" href="#kafka-limits">🚧 Kafka's 3 Limits</a>
+  <a class="tp" href="#ng-arch">🏗 Northguard Arch</a>
+  <a class="tp" href="#data-model">📦 Data Model</a>
+  <a class="tp" href="#metadata">🔑 DS-RSM Metadata</a>
+  <a class="tp" href="#storage">💾 Storage Layer</a>
+  <a class="tp" href="#protocols">📡 Protocols</a>
+  <a class="tp" href="#xinfra">🔀 Xinfra Layer</a>
+  <a class="tp" href="#migration">🚚 Migration Strategy</a>
+  <a class="tp" href="#compare">⚖️ Kafka vs Northguard</a>
+  <a class="tp" href="#lessons">💡 Key Lessons</a>
+</div>
+
+<!-- ══════════════════════════════════════
+     LINKEDIN SCALE STATS
+══════════════════════════════════════ -->
+<div class="stat-grid">
+  <div class="stat-card">
+    <div class="stat-num" style="color:var(--ng)">1.2B</div>
+    <div class="stat-lbl">Members</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num" style="color:var(--a3)">32T</div>
+    <div class="stat-lbl">Records/Day</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num" style="color:var(--green)">17 PB</div>
+    <div class="stat-lbl">Data/Day</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-num" style="color:var(--a2)">400K</div>
+    <div class="stat-lbl">Topics / 150 Clusters</div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════
+     1. WHY REPLACE KAFKA
+══════════════════════════════════════ -->
+<section id="why">
+  <div class="sh"><div class="sn" style="background:var(--ng)">1</div><h2>Why LinkedIn Replaced Kafka — The Full Story</h2></div>
+
+  <div class="timeline">
+    <div class="tl-item">
+      <div class="tl-dot"></div>
+      <div class="tl-year">2010</div>
+      <div class="tl-title">Kafka Born at LinkedIn</div>
+      <div class="tl-desc">Jay Kreps, Jun Rao, and Neha Narkhede create Kafka to handle 1 billion events/day for 90M members. Open-sourced and donated to Apache.</div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot" style="border-color:var(--a3)"></div>
+      <div class="tl-year">2011–2020</div>
+      <div class="tl-title">Kafka Grows with LinkedIn</div>
+      <div class="tl-desc">LinkedIn scales to 700M members. Kafka clusters multiply. KRaft mode developed to remove ZooKeeper dependency. Kafka becomes the world's dominant streaming platform.</div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot" style="border-color:var(--red)"></div>
+      <div class="tl-year">2021–2024</div>
+      <div class="tl-title">Kafka Hits Its Limits</div>
+      <div class="tl-desc">150 clusters, 10,000 machines, 400K topics, 17 PB/day. Single-controller bottleneck, partition rebalancing nightmares, and static provisioning cause operational pain at hyperscale.</div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot" style="border-color:var(--green)"></div>
+      <div class="tl-year">April 2025</div>
+      <div class="tl-title">Northguard Presented Internally</div>
+      <div class="tl-desc">Senior engineers Onur Karaman (former Kafka committer) and Xiongqi Wu present Northguard + Xinfra at internal meetup. Already migrating thousands of topics.</div>
+    </div>
+    <div class="tl-item">
+      <div class="tl-dot" style="border-color:var(--ng)"></div>
+      <div class="tl-year">June 2025</div>
+      <div class="tl-title">Public Announcement</div>
+      <div class="tl-desc">LinkedIn announces Northguard and Xinfra publicly. 90%+ of LinkedIn apps already run Xinfra clients. Thousands of topics migrated. Trillions of records per day on Northguard.</div>
+    </div>
+  </div>
+
+  <div class="cl-box ng"><div class="ci">🔑</div><div>
+    <strong>The irony:</strong> The lead engineer of Northguard, Onur Karaman, is a former Apache Kafka committer who worked on Kafka's controller redesign. This isn't external criticism — it's the original builders acknowledging architectural limits they helped design, and building the next evolution.
+  </div></div>
+</section>
+
+<!-- ══════════════════════════════════════
+     2. KAFKA'S 3 HARD LIMITS
+══════════════════════════════════════ -->
+<section id="kafka-limits">
+  <div class="sh"><div class="sn" style="background:var(--red)">2</div><h2>Kafka's 3 Architectural Limits at LinkedIn's Scale</h2></div>
+
+  <div class="g3">
+    <div class="card ar">
+      <div class="ct" style="color:var(--red)">❌ Limit 1 — Single Controller Bottleneck</div>
+      <p>Kafka uses <strong>one controller node</strong> to manage metadata for ALL partitions across the cluster. With 400K topics and millions of partitions:</p>
+      <ul>
+        <li>Controller heartbeat or metadata update → can <strong>freeze the entire cluster</strong> for seconds</li>
+        <li>1 second freeze at 32T records/day = millions of unprocessed records</li>
+        <li>KRaft helped but didn't fully solve it — still one active controller</li>
+      </ul>
+    </div>
+    <div class="card ar">
+      <div class="ct" style="color:var(--red)">❌ Limit 2 — Rebalancing Nightmare</div>
+      <p>Kafka replicates data at <strong>partition level</strong>. Partitions = multi-terabyte units. When a broker fails:</p>
+      <ul>
+        <li>Entire partition must be replicated to another broker</li>
+        <li>Moves <strong>terabytes of data</strong> across the network</li>
+        <li>Causes "resource skew" — some brokers at 100% CPU copying, others idle</li>
+        <li>Rebalancing can cascade and cause availability degradation</li>
+      </ul>
+    </div>
+    <div class="card ar">
+      <div class="ct" style="color:var(--red)">❌ Limit 3 — Static Partitioning</div>
+      <p>Kafka requires you to <strong>pre-declare partition count</strong> before knowing actual traffic:</p>
+      <ul>
+        <li>Too few partitions → throughput bottleneck (can't parallelize more)</li>
+        <li>Too many partitions → controller overhead, memory pressure</li>
+        <li>Changing partition count → risky, causes consumer rebalance</li>
+        <li>Can't auto-scale based on actual load</li>
+      </ul>
+    </div>
+  </div>
+
+<pre><span class="cm">// ── Kafka's pain at LinkedIn's scale (conceptual) ─────────────────────</span>
+
+<span class="cm">// Problem 1: Single controller managing 400K topics</span>
+<span class="cm">// Each topic = multiple partitions. Each partition = metadata entry in controller</span>
+<span class="cm">// Controller runs periodic metadata sync across 10,000 machines</span>
+<span class="cm">// One slow metadata operation → ALL brokers stall waiting for controller</span>
+<span class="cm">// Result: "seconds-long freeze" at multi-trillion record/day scale = disaster</span>
+
+<span class="cm">// Problem 2: Partition = unit of replication (TB-sized)</span>
+<span class="cm">// Broker failure → Kafka must re-replicate ENTIRE partition to new broker</span>
+<span class="cm">// linkedin.orders partition: 5 TB replica on Broker 3</span>
+<span class="cm">// Broker 3 fails → must copy 5 TB to Broker 7 → takes hours → data unavailable</span>
+<span class="cm">// During copy: Broker 7 CPU maxed, other partitions on Broker 7 slow</span>
+
+<span class="cm">// Problem 3: Static partition count</span>
+<span class="cm">// CREATE TOPIC "member-feed" --partitions 96  ← chosen based on estimate</span>
+<span class="cm">// LinkedIn hiring event: 10x normal traffic → but still only 96 partitions</span>
+<span class="cm">// Can't add partitions without disrupting consumers</span>
+<span class="cm">// Solution with Kafka: over-provision → wastes resources when traffic is low</span>
+<div class="code-label">Kafka Limits</div></pre>
+</section>
+
+<!-- ══════════════════════════════════════
+     3. NORTHGUARD ARCHITECTURE
+══════════════════════════════════════ -->
+<section id="ng-arch">
+  <div class="sh"><div class="sn" style="background:var(--ng)">3</div><h2>Northguard Architecture — Full Overview</h2></div>
+
+  <div class="arch">
+    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.8rem">Northguard Cluster Architecture</div>
+
+    <div class="arch-row">
+      <div class="arch-box ab-x">Producers (Xinfra Client)</div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box ab-n">Northguard Broker 1</div>
+      <div class="arch-box ab-n">Broker 2</div>
+      <div class="arch-box ab-n">Broker N</div>
+    </div>
+    <div class="arch-row">
+      <div style="margin-left:1rem;color:var(--muted);font-size:10.5px;font-family:'JetBrains Mono',monospace">↓ SWIM gossip for cluster membership + failure detection</div>
+    </div>
+    <div class="arch-row" style="margin-top:.4rem">
+      <div class="arch-box ab-y">DS-RSM Metadata Layer (sharded Raft vnodes)</div>
+      <div class="arch-arrow">manages →</div>
+      <div class="arch-box ab-p">Topics → Ranges → Segments</div>
+    </div>
+    <div class="arch-row">
+      <div style="margin-left:1rem;color:var(--muted);font-size:10.5px;font-family:'JetBrains Mono',monospace">↓ each broker stores:</div>
+    </div>
+    <div class="arch-row">
+      <div class="arch-box ab-g">fps-store: WAL + Direct I/O + RocksDB sparse index</div>
+      <div class="arch-arrow">replicate to →</div>
+      <div class="arch-box ab-t">N replicas (fsync all)</div>
+    </div>
+    <div class="arch-row" style="margin-top:.5rem">
+      <div class="arch-box ab-x">Consumers (Xinfra Client)</div>
+      <div class="arch-arrow">← subscribe</div>
+      <div class="arch-box ab-n">Segment Leader</div>
+    </div>
+  </div>
+
+  <div class="g2">
+    <div class="card ang">
+      <div class="ct" style="color:var(--ng)">Core Design Principles</div>
+      <ul>
+        <li><strong>No global state:</strong> metadata sharded across cluster</li>
+        <li><strong>Segments not partitions:</strong> small, immutable replication units</li>
+        <li><strong>Self-balancing:</strong> producers create new segments, brokers absorb automatically</li>
+        <li><strong>Strong durability:</strong> fsync across ALL replicas before ack</li>
+        <li><strong>Decentralized coordination:</strong> no single controller</li>
+        <li><strong>Written in C++:</strong> lower latency, lower memory overhead</li>
+      </ul>
+    </div>
+    <div class="card ab">
+      <div class="ct" style="color:var(--a2)">What Northguard Solves</div>
+      <ul>
+        <li>✅ Controller bottleneck → DS-RSM (distributed sharded metadata)</li>
+        <li>✅ Partition rebalancing → segment-level replication (small units)</li>
+        <li>✅ Static partitions → dynamic range splitting/merging</li>
+        <li>✅ Manual load balancing → producers drive self-balancing</li>
+        <li>✅ Cluster size limits → consistent hashing across unlimited nodes</li>
+        <li>✅ Millions of replicas → metadata sharding prevents bottleneck</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     4. DATA MODEL
+══════════════════════════════════════ -->
+<section id="data-model">
+  <div class="sh"><div class="sn" style="background:var(--ng)">4</div><h2>Northguard Data Model — Records → Segments → Ranges → Topics</h2></div>
+
+  <div class="arch">
+    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.8rem">Data Hierarchy (bottom up)</div>
+    <div class="arch-row">
+      <div class="arch-box ab-g">Record (key, value, headers)</div>
+      <div class="arch-arrow">many →</div>
+      <div class="arch-box ab-t">Segment (immutable unit of replication)</div>
+    </div>
+    <div class="arch-row">
+      <div class="arch-arrow" style="margin-left:2rem">↓ segments form</div>
+    </div>
+    <div class="arch-row">
+      <div class="arch-box ab-n">Range (contiguous keyspace slice, owns many segments)</div>
+    </div>
+    <div class="arch-row">
+      <div class="arch-arrow" style="margin-left:2rem">↓ ranges form</div>
+    </div>
+    <div class="arch-row">
+      <div class="arch-box ab-y">Topic (collection of ranges covering full keyspace)</div>
+    </div>
+    <div style="margin-top:.6rem;font-size:10.5px;color:var(--muted);font-family:'JetBrains Mono',monospace">
+      Ranges can SPLIT (when too large → more parallelism) or MERGE (when traffic drops → fewer resources)
+    </div>
+  </div>
+
+<pre><span class="cm">// ── Data Model Deep Dive ──────────────────────────────────────────────</span>
+
+<span class="cm">// RECORD — the atomic unit (same as Kafka)</span>
+<span class="cm">// {</span>
+<span class="cm">//   key:     bytes    (determines routing within range)</span>
+<span class="cm">//   value:   bytes    (payload)</span>
+<span class="cm">//   headers: map      (metadata: trace-id, schema-version, ...)</span>
+<span class="cm">// }</span>
+
+<span class="cm">// SEGMENT — immutable once sealed</span>
+<span class="cm">// - Records are written to an ACTIVE segment (append-only)</span>
+<span class="cm">// - When segment reaches size/time limit → SEALED (immutable)</span>
+<span class="cm">// - New segment becomes the active one</span>
+<span class="cm">// - Sealed segments can be replicated, compacted, archived independently</span>
+<span class="cm">// - KEY INSIGHT: segments are SMALL (MB to GB, not TB like Kafka partitions!)</span>
+<span class="cm">// - Broker failure → only re-replicate small segments, not giant partitions</span>
+
+<span class="cm">// RANGE — contiguous keyspace slice</span>
+<span class="cm">// - Owns a contiguous slice of the key hash space</span>
+<span class="cm">// - Example: Range A owns keys [0x0000 - 0x4000]</span>
+<span class="cm">//            Range B owns keys [0x4000 - 0x8000]</span>
+<span class="cm">//            Range C owns keys [0x8000 - 0xFFFF]</span>
+<span class="cm">// - Can SPLIT: if Range A gets too much traffic:</span>
+<span class="cm">//   Range A [0x0000-0x4000] → A1 [0x0000-0x2000] + A2 [0x2000-0x4000]</span>
+<span class="cm">// - Can MERGE: if two ranges have low traffic:</span>
+<span class="cm">//   A1 + A2 → A [0x0000-0x4000]</span>
+<span class="cm">// - Range has a LEADER broker that handles writes</span>
+
+<span class="cm">// TOPIC — logical stream (like Kafka topic)</span>
+<span class="cm">// - Collection of ranges covering the ENTIRE keyspace</span>
+<span class="cm">// - Ranges don't overlap + no gaps = complete coverage</span>
+<span class="cm">// - Topic config: retention policy, replication factor, storage policy</span>
+<span class="cm">// - Topic is the unit that Xinfra exposes to clients</span>
+
+<span class="cm">// ── Log Striping — spread data across multiple disks ──────────────────</span>
+<span class="cm">// Like RAID-0 striping: writes distributed across multiple disk drives</span>
+<span class="cm">// Benefits:</span>
+<span class="cm">// 1. No single disk is the bottleneck</span>
+<span class="cm">// 2. Parallel I/O = higher aggregate throughput</span>
+<span class="cm">// 3. Single disk failure = only lose that segment's slice (others intact)</span>
+<span class="cm">// Kafka: one partition = one log file on one disk = disk is bottleneck</span>
+<span class="cm">// Northguard: one range = striped across multiple disks = horizontal I/O scale</span>
+<div class="code-label">Northguard Data Model</div></pre>
+
+  <div class="g2">
+    <div class="card ay">
+      <div class="ct" style="color:var(--a3)">Segment vs Kafka Partition</div>
+      <table style="margin:.5rem 0 0;font-size:11.5px">
+        <thead><tr><th>Property</th><th>Kafka Partition</th><th>NG Segment</th></tr></thead>
+        <tbody>
+          <tr><td>Size</td><td>Multi-TB</td><td><span class="better">MB–GB</span></td></tr>
+          <tr><td>Mutable</td><td>Always (head)</td><td><span class="better">Sealed = immutable</span></td></tr>
+          <tr><td>Replication unit</td><td>Entire partition</td><td><span class="better">Individual segment</span></td></tr>
+          <tr><td>Failure recovery</td><td>Hours (re-replicate TB)</td><td><span class="better">Seconds (re-replicate MB)</span></td></tr>
+          <tr><td>Load balancing</td><td>Manual partition move</td><td><span class="better">Auto (segment sealing)</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card at">
+      <div class="ct" style="color:var(--accent)">Self-Balancing via Segments</div>
+      <p>In Northguard, <strong>load balancing happens automatically through segment creation</strong>:</p>
+      <ul>
+        <li>Producers write to the current active segment leader</li>
+        <li>Segment fills up → sealed → new segment created on a different (less loaded) broker</li>
+        <li>Brokers with capacity naturally absorb new segments</li>
+        <li>No explicit rebalancing command needed — ever!</li>
+        <li>Adding a new broker → it naturally receives new sealed segments</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     5. METADATA — DS-RSM
+══════════════════════════════════════ -->
+<section id="metadata">
+  <div class="sh"><div class="sn" style="background:var(--ng)">5</div><h2>DS-RSM — Replacing Kafka's Single Controller</h2></div>
+
+  <p>Kafka's single controller is the biggest scaling bottleneck. Northguard replaces it with a <strong>Dynamically-Sharded Replicated State Machine (DS-RSM)</strong> — a distributed metadata system with no single point of failure or bottleneck.</p>
+
+  <div class="arch">
+    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.8rem">DS-RSM — Sharded Raft Metadata</div>
+
+    <div class="arch-row">
+      <div class="arch-box ab-y" style="font-size:12px;padding:.4rem 1rem">Full Key Space (hashed via consistent hashing)</div>
+    </div>
+    <div class="arch-row">
+      <div class="arch-arrow" style="margin-left:1rem">↓ sharded into vnodes</div>
+    </div>
+    <div class="arch-row">
+      <div class="arch-box ab-n">vnode 1 (owns shard 0-25%)</div>
+      <div class="arch-box ab-n">vnode 2 (owns 25-50%)</div>
+      <div class="arch-box ab-n">vnode 3 (owns 50-75%)</div>
+      <div class="arch-box ab-n">vnode 4 (owns 75-100%)</div>
+    </div>
+    <div class="arch-row">
+      <div class="arch-arrow" style="margin-left:1rem">↓ each vnode is a Raft group (3-5 replicas)</div>
+    </div>
+    <div class="arch-row">
+      <div class="arch-box ab-t">vnode 1: Leader + 2 Followers (Raft)</div>
+      <div class="arch-box ab-t">vnode 2: Leader + 2 Followers (Raft)</div>
+    </div>
+    <div style="margin-top:.6rem;font-size:10.5px;color:var(--muted);font-family:'JetBrains Mono',monospace">
+      Each vnode manages: topic metadata, range state, segment lifecycle, replica sets, retention policies
+    </div>
+  </div>
+
+<pre><span class="cm">// ── DS-RSM — How it works ─────────────────────────────────────────────</span>
+
+<span class="cm">// VNODE = unit of metadata management</span>
+<span class="cm">// - Each vnode is a Raft group (typically 3 or 5 members)</span>
+<span class="cm">// - One member is the Raft leader (handles all metadata writes)</span>
+<span class="cm">// - Other members are followers (replicate state, can become leader)</span>
+<span class="cm">// - Vnodes distributed across physical brokers</span>
+
+<span class="cm">// CONSISTENT HASHING assigns which vnode owns which metadata</span>
+<span class="cm">// metadata_key = hash(topic_name + range_id)</span>
+<span class="cm">// vnode_id = consistent_hash(metadata_key)</span>
+<span class="cm">// → same topic's metadata ALWAYS goes to same vnode</span>
+<span class="cm">// → no metadata hotspots because topics spread across vnodes</span>
+
+<span class="cm">// OPERATIONS on metadata:</span>
+<span class="cm">// Create topic → find responsible vnode → leader writes via Raft → replicated</span>
+<span class="cm">// Seal segment  → same vnode updates segment state: ACTIVE → SEALED</span>
+<span class="cm">// Split range   → vnode updates: Range A → [Range A1, Range A2]</span>
+<span class="cm">// Change leader → Raft leader election within vnode (no cluster-wide pause)</span>
+
+<span class="cm">// UNARY CALLS: create, delete, query → simple request/response to vnode leader</span>
+<span class="cm">// STREAMING PROTOCOLS: produce, consume, replicate → sessionized streams</span>
+<span class="cm">//   With pipelining + windowing = maximum throughput</span>
+
+<span class="cm">// ── SWIM Protocol — Failure Detection ────────────────────────────────</span>
+<span class="cm">// SWIM = Scalable Weakly-consistent Infection-style Process Group Membership</span>
+<span class="cm">//</span>
+<span class="cm">// How it works:</span>
+<span class="cm">// 1. Random probing: each node randomly pings other nodes</span>
+<span class="cm">// 2. If no response: ask K others to try (indirect ping)</span>
+<span class="cm">// 3. Still no response: mark as SUSPECT</span>
+<span class="cm">// 4. If SUSPECT long enough: mark as FAILED</span>
+<span class="cm">// 5. Failure info spreads via infection-style gossip (like virus spreading)</span>
+<span class="cm">//</span>
+<span class="cm">// Advantages over Kafka's heartbeat model:</span>
+<span class="cm">// - Scales to thousands of nodes (O(log N) message complexity)</span>
+<span class="cm">// - No single failure detector as bottleneck</span>
+<span class="cm">// - False positive rate is bounded and configurable</span>
+<span class="cm">// - Failure detection time: O(1) protocol periods regardless of cluster size</span>
+<div class="code-label">DS-RSM + SWIM</div></pre>
+
+  <div class="g2">
+    <div class="card ag">
+      <div class="ct" style="color:var(--green)">DS-RSM vs Kafka Controller</div>
+      <table style="margin:.5rem 0 0;font-size:11.5px">
+        <thead><tr><th>Property</th><th>Kafka KRaft Controller</th><th>Northguard DS-RSM</th></tr></thead>
+        <tbody>
+          <tr><td>Controllers</td><td class="worse">1 active</td><td class="better">N vnodes (sharded)</td></tr>
+          <tr><td>Bottleneck</td><td class="worse">Yes — one writer</td><td class="better">No — parallel</td></tr>
+          <tr><td>Failure</td><td class="worse">Controller failover (pause)</td><td class="better">One vnode fails, others continue</td></tr>
+          <tr><td>Scale</td><td class="worse">~200K partitions</td><td class="better">Millions of replicas</td></tr>
+          <tr><td>Metadata sharding</td><td class="worse">No</td><td class="better">Yes (consistent hash)</td></tr>
+          <tr><td>Consistency</td><td class="neutral">Eventual</td><td class="better">Strong (Raft)</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card ap">
+      <div class="ct" style="color:var(--purple)">Raft in DS-RSM</div>
+      <p>Each vnode uses <strong>Raft consensus</strong> for strong consistency within that shard:</p>
+      <ul>
+        <li>All metadata writes go through Raft leader</li>
+        <li>Leader replicates to followers before committing</li>
+        <li>Majority quorum required for commit (e.g. 3 of 5)</li>
+        <li>Vnode leader failure → Raft election (seconds, not cluster-wide pause)</li>
+        <li>Strong consistency within each vnode's shard</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     6. STORAGE LAYER
+══════════════════════════════════════ -->
+<section id="storage">
+  <div class="sh"><div class="sn" style="background:var(--ng)">6</div><h2>Storage Layer — fps-store (Pluggable)</h2></div>
+
+  <p>Northguard's storage is <strong>pluggable</strong>. The default implementation is called <strong>fps-store</strong>, designed for maximum durability and low latency. Alternative backends (like object storage for tiered storage) can be plugged in.</p>
+
+<pre><span class="cm">// ── fps-store internals ───────────────────────────────────────────────</span>
+
+<span class="cm">// 1. WAL (Write-Ahead Log)</span>
+<span class="cm">// - Every write goes to WAL FIRST (sequential, on disk)</span>
+<span class="cm">// - WAL ensures durability even if process crashes before segment flush</span>
+<span class="cm">// - Same concept as PostgreSQL's WAL or Kafka's log</span>
+
+<span class="cm">// 2. ONE FILE PER SEGMENT</span>
+<span class="cm">// - Each sealed segment = one file on disk</span>
+<span class="cm">// - Simple: no complex compaction within a file</span>
+<span class="cm">// - Segment sealed = file closed = immutable = can be replicated atomically</span>
+
+<span class="cm">// 3. DIRECT I/O (bypasses OS page cache)</span>
+<span class="cm">// - Writes go directly to disk hardware</span>
+<span class="cm">// - Avoids double buffering (OS cache + process heap)</span>
+<span class="cm">// - Gives Northguard control over durability guarantees</span>
+<span class="cm">// - Predictable latency (no OS cache eviction surprises)</span>
+
+<span class="cm">// 4. ROCKSDB SPARSE INDEX</span>
+<span class="cm">// - Stores sparse index: offset → byte position in segment file</span>
+<span class="cm">// - "Sparse" = not every record, just checkpoints every N records</span>
+<span class="cm">// - Allows O(log N) seek within a segment without reading the whole file</span>
+<span class="cm">// - RocksDB chosen for: LSM-tree (fast writes) + sorted keys + snapshots</span>
+
+<span class="cm">// 5. REPLICATION FLOW</span>
+<span class="cm">// Producer writes batch of records</span>
+<span class="cm">// → Active segment leader writes to WAL</span>
+<span class="cm">// → Streams to N-1 follower replicas in parallel</span>
+<span class="cm">// → Each follower writes to their WAL and fsyncs to disk</span>
+<span class="cm">// → Each follower sends ACK to leader</span>
+<span class="cm">// → Leader fsyncs to its own disk</span>
+<span class="cm">// → Only after ALL replicas fsync → leader sends ACK to producer</span>
+<span class="cm">// → Producer gets acknowledgment: "data is durable across all replicas"</span>
+<span class="cm">//</span>
+<span class="cm">// Kafka comparison:</span>
+<span class="cm">// Kafka acks=all: leader writes, waits for ISR followers to write</span>
+<span class="cm">// But ISR = "in-sync" which can shrink (if follower falls behind → removed from ISR)</span>
+<span class="cm">// Northguard: ALL replicas must fsync — no concept of "shrinking ISR"</span>
+<span class="cm">// → Stronger durability guarantee than Kafka acks=all</span>
+
+<span class="cm">// 6. PLUGGABLE BACKENDS</span>
+<span class="cm">// Default: fps-store (local disk, Direct I/O)</span>
+<span class="cm">// Future: Object storage (S3/GCS) for tiered storage (cold segments)</span>
+<span class="cm">// Like Kafka's Tiered Storage but built into the architecture from the start</span>
+<div class="code-label">fps-store Architecture</div></pre>
+</section>
+
+<!-- ══════════════════════════════════════
+     7. PROTOCOLS
+══════════════════════════════════════ -->
+<section id="protocols">
+  <div class="sh"><div class="sn" style="background:var(--ng)">7</div><h2>Northguard Protocols — Produce, Consume, Replicate</h2></div>
+
+<pre><span class="cm">// ── Protocol Design Philosophy ────────────────────────────────────────</span>
+<span class="cm">//</span>
+<span class="cm">// UNARY (request/response) — for control plane operations:</span>
+<span class="cm">// - Create topic, delete topic, query metadata</span>
+<span class="cm">// - Route to vnode leader: request → response</span>
+<span class="cm">// - Simple, stateless</span>
+<span class="cm">//</span>
+<span class="cm">// SESSIONIZED STREAMING — for data plane operations:</span>
+<span class="cm">// - Produce, consume, replication</span>
+<span class="cm">// - Long-lived sessions (like HTTP/2 or gRPC streams)</span>
+<span class="cm">// - PIPELINING: multiple in-flight requests without waiting for each ACK</span>
+<span class="cm">// - WINDOWING: flow control — producer can send up to W bytes without ACK</span>
+<span class="cm">//   (similar to TCP window size)</span>
+<span class="cm">// - Why? Avoids stop-and-wait → maximum throughput over high-latency links</span>
+
+<span class="cm">// ── Produce flow ─────────────────────────────────────────────────────</span>
+<span class="cm">// 1. Producer connects to Range Leader (via vnode metadata lookup)</span>
+<span class="cm">// 2. Establishes streaming session</span>
+<span class="cm">// 3. Pipelines batches: sends Batch1, Batch2, Batch3 without waiting for ACK</span>
+<span class="cm">// 4. Leader replicates to all followers (also streamed + pipelined)</span>
+<span class="cm">// 5. After all replicas fsync: ACK sent back in stream</span>
+<span class="cm">// 6. Session persists → no TCP handshake overhead per batch</span>
+<span class="cm">//</span>
+<span class="cm">// If segment fills up during session:</span>
+<span class="cm">// - Current segment sealed, new segment created</span>
+<span class="cm">// - Session updated: new segment leader may be on different broker</span>
+<span class="cm">// - Producer transparently follows the new leader</span>
+
+<span class="cm">// ── Consume flow ─────────────────────────────────────────────────────</span>
+<span class="cm">// 1. Consumer specifies: topic + offset (or timestamp)</span>
+<span class="cm">// 2. vnode lookup: which range owns that keyspace? which segment has that offset?</span>
+<span class="cm">// 3. Connect to segment's current leader (or any follower for read)</span>
+<span class="cm">// 4. Stream records from that offset onward</span>
+<span class="cm">// 5. When segment exhausted: lookup next segment in range, continue streaming</span>
+<span class="cm">// 6. Consumer tracks offset per segment (not per partition like Kafka)</span>
+
+<span class="cm">// ── Replication flow ──────────────────────────────────────────────────</span>
+<span class="cm">// Leader → followers via sessionized streaming</span>
+<span class="cm">// Pipelining: multiple batches in-flight simultaneously</span>
+<span class="cm">// Each follower: receive batch → WAL write → fsync → ACK</span>
+<span class="cm">// Leader collects all ACKs → marks record as durably committed</span>
+<span class="cm">// Batches: flushed and fsynced "within milliseconds" per LinkedIn engineers</span>
+<div class="code-label">Northguard Protocols</div></pre>
+</section>
+
+<!-- ══════════════════════════════════════
+     8. XINFRA
+══════════════════════════════════════ -->
+<section id="xinfra">
+  <div class="sh"><div class="sn" style="background:var(--xinfra)">8</div><h2>Xinfra — The Virtualization Layer (pronounced: ZIN-frah)</h2></div>
+
+  <p><strong>Xinfra</strong> is LinkedIn's virtualized Pub/Sub abstraction layer that sits between applications and physical clusters (Kafka or Northguard). It makes migration completely transparent to developers.</p>
+
+  <div class="arch">
+    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.8rem">Xinfra Architecture — Virtual Pub/Sub</div>
+
+    <div class="arch-row">
+      <div class="arch-box ab-g">App: Producer</div>
+      <div class="arch-row">
+        <div class="arch-arrow">→ produce("member-feed-updates")</div>
+      </div>
+      <div class="arch-box ab-x">Xinfra Client</div>
+    </div>
+    <div class="arch-row" style="margin-left:8rem">
+      <div class="arch-arrow">↓ lookup virtual topic → physical cluster</div>
+    </div>
+    <div class="arch-row">
+      <div class="arch-box ab-x">Xinfra Metadata Service</div>
+      <div class="arch-arrow">← MySQL + Vitess (storage)</div>
+      <div class="arch-box ab-y">+ Couchbase (cache)</div>
+    </div>
+    <div class="arch-row" style="margin-left:8rem">
+      <div class="arch-arrow">↓ route to</div>
+    </div>
+    <div class="arch-row">
+      <div class="arch-box ab-r">Kafka Cluster (old)</div>
+      <div style="color:var(--muted);margin:0 .5rem;font-family:'JetBrains Mono',monospace;font-size:11px">and/or</div>
+      <div class="arch-box ab-n">Northguard Cluster (new)</div>
+    </div>
+    <div class="arch-row" style="margin-top:.4rem">
+      <div class="arch-box ab-g">App: Consumer</div>
+      <div class="arch-arrow">→ subscribe("member-feed-updates")</div>
+      <div class="arch-box ab-x">Xinfra Client (transparent)</div>
+    </div>
+    <div style="margin-top:.5rem;font-size:10.5px;color:var(--muted);font-family:'JetBrains Mono',monospace">
+      Consumer Group State: Apache ZooKeeper | Consumer offset tracking: per-cluster
+    </div>
+  </div>
+
+<pre><span class="cm">// ── Xinfra Key Features ───────────────────────────────────────────────</span>
+
+<span class="cm">// 1. Virtual Topics</span>
+<span class="cm">// Developer codes against a "virtual topic" name (e.g. "member-feed-updates")</span>
+<span class="cm">// Xinfra knows which physical cluster actually stores that topic</span>
+<span class="cm">// Physical cluster can change (Kafka → Northguard) without app code change</span>
+
+<span class="cm">// 2. Unified Client API</span>
+<span class="cm">// Single API works with both Kafka and Northguard</span>
+<span class="cm">// Kafka spoke Java API, Northguard speaks different protocol (C++)</span>
+<span class="cm">// Xinfra client translates: same API → correct physical protocol</span>
+
+<span class="cm">// Conceptual Xinfra client usage (from published examples):</span>
+<span class="ty">XInfraClient</span> client = <span class="ty">XInfraClient</span>.<span class="mt">builder</span>()
+    .<span class="mt">setVirtualTopic</span>(<span class="st">"member-feed-updates"</span>)
+    .<span class="mt">setConsistencyLevel</span>(<span class="ty">Consistency</span>.<span class="en">STRONG</span>)
+    .<span class="mt">build</span>();
+
+<span class="cm">// Xinfra routes transparently: Kafka or Northguard — client doesn't know</span>
+client.<span class="mt">produce</span>(<span class="kw">new</span> <span class="ty">Message</span>(<span class="st">"Update: New Blog Post Available"</span>));
+
+<span class="cm">// 3. Dual-Write during migration</span>
+<span class="cm">// MIGRATION PHASE 1: Move producers first</span>
+<span class="cm">//   Xinfra sends writes to BOTH Kafka AND Northguard simultaneously</span>
+<span class="cm">//   Both clusters have data → safe fallback if Northguard has issues</span>
+<span class="cm">// MIGRATION PHASE 2: Move consumers</span>
+<span class="cm">//   Consumers switch to reading from Northguard</span>
+<span class="cm">//   Kafka still has data → can roll back if needed</span>
+<span class="cm">// MIGRATION PHASE 3: Turn off dual-write</span>
+<span class="cm">//   Only Northguard receives writes</span>
+<span class="cm">//   Migration complete!</span>
+
+<span class="cm">// 4. Epoch-based ordering</span>
+<span class="cm">// During dual-write: messages go to both Kafka and Northguard</span>
+<span class="cm">// An "epoch" identifies which cluster is the source of truth for a time range</span>
+<span class="cm">// Consumers use epochs to know which cluster to read from and avoid duplicates</span>
+
+<span class="cm">// 5. Xinfra Metadata Stack</span>
+<span class="cm">// MySQL + Vitess: durable store for virtual topic → physical cluster mapping</span>
+<span class="cm">// Couchbase: low-latency cache for hot metadata lookups</span>
+<span class="cm">// ZooKeeper: consumer group management (reusing existing LinkedIn infra)</span>
+<div class="code-label">Xinfra</div></pre>
+
+  <div class="g3">
+    <div class="card axi">
+      <div class="ct" style="color:var(--xinfra)">Why Xinfra Was Necessary</div>
+      <ul>
+        <li>Northguard is written in C++ — Kafka in Java</li>
+        <li>Protocol incompatibility: can't reuse Kafka client</li>
+        <li>400K topics can't migrate simultaneously</li>
+        <li>Mission-critical apps → zero downtime required</li>
+        <li>Need safe rollback path at every step</li>
+      </ul>
+    </div>
+    <div class="card ag">
+      <div class="ct" style="color:var(--green)">What Xinfra Achieves</div>
+      <ul>
+        <li>90%+ LinkedIn apps already using Xinfra client</li>
+        <li>Thousands of topics migrated</li>
+        <li>Zero downtime during migration</li>
+        <li>Developers never changed a line of code</li>
+        <li>Infrastructure migrated in background</li>
+      </ul>
+    </div>
+    <div class="card ay">
+      <div class="ct" style="color:var(--a3)">Xinfra Tech Stack</div>
+      <ul>
+        <li><strong>MySQL + Vitess:</strong> virtual topic metadata storage</li>
+        <li><strong>Couchbase:</strong> low-latency metadata cache</li>
+        <li><strong>ZooKeeper:</strong> consumer group coordination</li>
+        <li><strong>Dual-write:</strong> Kafka + Northguard simultaneously</li>
+        <li><strong>Epoch:</strong> ordering guarantee across migration phases</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     9. MIGRATION STRATEGY
+══════════════════════════════════════ -->
+<section id="migration">
+  <div class="sh"><div class="sn" style="background:var(--xinfra)">9</div><h2>Migration Strategy — Kafka → Northguard at Scale</h2></div>
+
+  <div class="flow">
+    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.8rem">Migration Phases for One Topic</div>
+    <div class="fr">
+      <div class="bx g">Phase 0: App uses Xinfra client (not Kafka directly)</div>
+    </div>
+    <div class="fr" style="padding-left:.5rem"><div class="fa">↓</div></div>
+    <div class="fr">
+      <div class="bx n">Phase 1: Create topic in Northguard (empty, parallel to Kafka)</div>
+    </div>
+    <div class="fr" style="padding-left:.5rem"><div class="fa">↓</div></div>
+    <div class="fr">
+      <div class="bx y">Phase 2: Enable DUAL-WRITE — Xinfra sends to BOTH Kafka + Northguard</div>
+    </div>
+    <div class="fr" style="padding-left:.5rem"><div class="fa">↓ verify Northguard data matches Kafka</div></div>
+    <div class="fr">
+      <div class="bx x">Phase 3: Switch CONSUMERS to Northguard (Kafka still has data as backup)</div>
+    </div>
+    <div class="fr" style="padding-left:.5rem"><div class="fa">↓ monitor for errors</div></div>
+    <div class="fr">
+      <div class="bx g">Phase 4: Disable dual-write. Producers now write ONLY to Northguard.</div>
+    </div>
+    <div class="fr" style="padding-left:.5rem"><div class="fa">↓</div></div>
+    <div class="fr">
+      <div class="bx g">Phase 5: Kafka topic retained for safety period → then deleted. Done! ✅</div>
+    </div>
+  </div>
+
+<pre><span class="cm">// ── Why migration was difficult ───────────────────────────────────────</span>
+<span class="cm">//</span>
+<span class="cm">// Scale: 400,000 topics, still have hundreds of thousands to migrate</span>
+<span class="cm">// Mission-critical: member feed, job recommendations, ads — zero tolerance</span>
+<span class="cm">// Protocol difference: Kafka API ≠ Northguard API</span>
+<span class="cm">// Data consistency: must not lose or duplicate messages during switch</span>
+<span class="cm">// Consumer state: consumer group offsets must transfer correctly</span>
+<span class="cm">//</span>
+<span class="cm">// Solutions:</span>
+<span class="cm">// - Xinfra: unified abstraction → no app code changes</span>
+<span class="cm">// - Dual-write: safety net during transition</span>
+<span class="cm">// - Epoch: tracks which cluster is authoritative at each moment</span>
+<span class="cm">// - Gradual rollout: topic by topic, not big bang</span>
+<span class="cm">// - Producer migrates before consumer: ensures no data loss</span>
+<span class="cm">//   (consumer can read from Northguard only after all producers writing there)</span>
+
+<span class="cm">// ── Results as of mid-2025 ────────────────────────────────────────────</span>
+<span class="cm">// ✅ Thousands of topics migrated (out of 400K)</span>
+<span class="cm">// ✅ Trillions of records per day on Northguard</span>
+<span class="cm">// ✅ 90%+ LinkedIn apps running Xinfra clients</span>
+<span class="cm">// ✅ Zero downtime incidents reported</span>
+<span class="cm">// 🔄 Still migrating remaining hundreds of thousands of topics</span>
+<span class="cm">// 🔄 Next: auto-scaling topics, enhanced fault tolerance for Xinfra</span>
+<div class="code-label">Migration</div></pre>
+</section>
+
+<!-- ══════════════════════════════════════
+     10. KAFKA VS NORTHGUARD
+══════════════════════════════════════ -->
+<section id="compare">
+  <div class="sh"><div class="sn" style="background:var(--ng)">10</div><h2>Kafka vs Northguard — Complete Comparison</h2></div>
+
+  <table>
+    <thead>
+      <tr><th>Dimension</th><th>Apache Kafka</th><th>Northguard</th><th>Winner</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>Data model</strong></td>
+        <td>Topics → Partitions (static)</td>
+        <td>Topics → Ranges → Segments (dynamic)</td>
+        <td><span class="pl pl-n">Northguard</span></td>
+      </tr>
+      <tr>
+        <td><strong>Replication unit</strong></td>
+        <td>Partition (TB-sized)</td>
+        <td>Segment (MB-sized)</td>
+        <td><span class="pl pl-n">Northguard</span></td>
+      </tr>
+      <tr>
+        <td><strong>Metadata management</strong></td>
+        <td>1 KRaft controller</td>
+        <td>DS-RSM (sharded Raft vnodes)</td>
+        <td><span class="pl pl-n">Northguard</span></td>
+      </tr>
+      <tr>
+        <td><strong>Failure detection</strong></td>
+        <td>Controller heartbeat</td>
+        <td>SWIM gossip protocol</td>
+        <td><span class="pl pl-n">Northguard</span></td>
+      </tr>
+      <tr>
+        <td><strong>Scaling</strong></td>
+        <td>Manual partition increase + rebalance</td>
+        <td>Auto (range split/merge, segment distribution)</td>
+        <td><span class="pl pl-n">Northguard</span></td>
+      </tr>
+      <tr>
+        <td><strong>Load balancing</strong></td>
+        <td>Manual (reassign partitions)</td>
+        <td>Automatic (segment sealing drives balance)</td>
+        <td><span class="pl pl-n">Northguard</span></td>
+      </tr>
+      <tr>
+        <td><strong>Durability</strong></td>
+        <td>acks=all → ISR (can shrink)</td>
+        <td>fsync on ALL replicas always</td>
+        <td><span class="pl pl-n">Northguard</span></td>
+      </tr>
+      <tr>
+        <td><strong>Consistency</strong></td>
+        <td>Eventual (ISR-based)</td>
+        <td>Strong (Raft + fsync all)</td>
+        <td><span class="pl pl-n">Northguard</span></td>
+      </tr>
+      <tr>
+        <td><strong>Broker failure recovery</strong></td>
+        <td>Hours (re-replicate TB partitions)</td>
+        <td>Seconds (re-replicate MB segments)</td>
+        <td><span class="pl pl-n">Northguard</span></td>
+      </tr>
+      <tr>
+        <td><strong>Language</strong></td>
+        <td>Java (JVM memory overhead)</td>
+        <td>C++ (lower latency, memory)</td>
+        <td><span class="pl pl-n">Northguard</span></td>
+      </tr>
+      <tr>
+        <td><strong>Ecosystem</strong></td>
+        <td>Enormous (Kafka Connect, Streams, MirrorMaker, 1000+ connectors)</td>
+        <td>Internal only (not open-source yet)</td>
+        <td><span class="pl pl-g">Kafka</span></td>
+      </tr>
+      <tr>
+        <td><strong>Community</strong></td>
+        <td>Massive open source, 15+ years</td>
+        <td>LinkedIn internal only</td>
+        <td><span class="pl pl-g">Kafka</span></td>
+      </tr>
+      <tr>
+        <td><strong>Operational complexity</strong></td>
+        <td>High at hyperscale</td>
+        <td>Lower (self-balancing, fewer manual ops)</td>
+        <td><span class="pl pl-n">Northguard</span></td>
+      </tr>
+      <tr>
+        <td><strong>Open source</strong></td>
+        <td>✅ Full Apache license</td>
+        <td>❌ Not yet (LinkedIn exploring it)</td>
+        <td><span class="pl pl-g">Kafka</span></td>
+      </tr>
+      <tr>
+        <td><strong>Who should use it</strong></td>
+        <td>99.9% of companies</td>
+        <td>Hyperscale (10B+ events/day)</td>
+        <td>Both (different targets)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="cl-box warn"><div class="ci">⚠️</div><div>
+    <strong>Important context:</strong> Northguard is built for LinkedIn's specific hyperscale problems — 32 trillion records/day, 1.2 billion members, 400K topics. <strong>99.9% of companies will never hit these limits with Kafka.</strong> Northguard is not a Kafka replacement for the industry — it's a solution to problems that only exist at LinkedIn's extreme scale.
+  </div></div>
+</section>
+
+<!-- ══════════════════════════════════════
+     11. KEY LESSONS
+══════════════════════════════════════ -->
+<section id="lessons">
+  <div class="sh"><div class="sn" style="background:var(--ng)">11</div><h2>Key Engineering Lessons from Northguard</h2></div>
+
+  <div class="g2">
+    <div class="card ang">
+      <div class="ct" style="color:var(--ng)">Lesson 1 — Segment-level beats partition-level</div>
+      <p>Using <strong>small, immutable segments</strong> as the replication unit instead of giant partitions solves the rebalancing nightmare. Segment failure recovery = seconds, not hours. This principle applies beyond streaming — think SSTable compaction in Cassandra, or immutable objects in object storage.</p>
+    </div>
+    <div class="card ang">
+      <div class="ct" style="color:var(--ng)">Lesson 2 — Distributed metadata beats single controller</div>
+      <p>Kafka's single controller was an architecture decision made when the cluster was small. At scale, any single node that must know about everything becomes a bottleneck. <strong>DS-RSM + Raft + consistent hashing</strong> shards this responsibility — scales linearly.</p>
+    </div>
+    <div class="card ang">
+      <div class="ct" style="color:var(--ng)">Lesson 3 — Producer-driven self-balancing</div>
+      <p>Instead of a separate load balancer or rebalancer, <strong>the act of sealing segments and creating new ones naturally distributes load</strong>. Brokers with capacity absorb new segments. No explicit rebalancing command. This is elegant distributed systems design — let the normal write path do the balancing.</p>
+    </div>
+    <div class="card ang">
+      <div class="ct" style="color:var(--ng)">Lesson 4 — Virtualization enables zero-downtime migration</div>
+      <p>Xinfra's abstraction layer meant 90%+ of apps could migrate without changing a single line of code. <strong>Always build an abstraction layer between your application logic and physical infrastructure.</strong> It's the difference between a big-bang rewrite and a seamless evolution.</p>
+    </div>
+    <div class="card ang">
+      <div class="ct" style="color:var(--ng)">Lesson 5 — Strong consistency costs less than you think</div>
+      <p>Northguard fsyncs to ALL replicas before ACKing. This is "stronger" than Kafka's ISR model yet still processes trillions of records/day. <strong>Strong durability at the storage layer doesn't have to sacrifice throughput</strong> — pipelining + batching + sessionized streaming compensate for the extra latency.</p>
+    </div>
+    <div class="card ang">
+      <div class="ct" style="color:var(--ng)">Lesson 6 — Your own creation may limit you</div>
+      <p>LinkedIn created Kafka, dominated the industry with it, used it for 15 years — then had to replace it. <strong>No technology is permanent. The architecture decisions made at small scale become constraints at hyperscale.</strong> This is humility, not failure — it's the mark of engineering maturity.</p>
+    </div>
+  </div>
+
+  <h3>Quick Summary Table</h3>
+  <table>
+    <thead><tr><th>Component</th><th>What it is</th><th>What problem it solves</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Northguard</strong></td><td>LinkedIn's next-gen log storage (replaces Kafka brokers)</td><td>Scalability, self-balancing, strong consistency at hyperscale</td></tr>
+      <tr><td><strong>Xinfra</strong></td><td>Virtual Pub/Sub abstraction layer (replaces Kafka client)</td><td>Zero-downtime migration, unified API, topic virtualization</td></tr>
+      <tr><td><strong>Segment</strong></td><td>Small immutable file (MB-GB), unit of replication</td><td>Fast recovery (vs TB-sized Kafka partitions)</td></tr>
+      <tr><td><strong>Range</strong></td><td>Contiguous keyspace slice owning many segments</td><td>Dynamic split/merge for auto-scaling</td></tr>
+      <tr><td><strong>DS-RSM</strong></td><td>Sharded Raft vnodes for metadata</td><td>Replaces single Kafka controller — scales to millions of replicas</td></tr>
+      <tr><td><strong>SWIM</strong></td><td>Gossip-based failure detection</td><td>Scalable failure detection (vs centralized heartbeat)</td></tr>
+      <tr><td><strong>fps-store</strong></td><td>WAL + Direct I/O + RocksDB index</td><td>Durability + low latency + pluggability</td></tr>
+      <tr><td><strong>Log striping</strong></td><td>Write segments across multiple disks</td><td>No single disk bottleneck, higher aggregate throughput</td></tr>
+      <tr><td><strong>Dual-write</strong></td><td>Write to both Kafka and Northguard during migration</td><td>Safe rollback path, zero data loss during migration</td></tr>
+      <tr><td><strong>Epoch ordering</strong></td><td>Tracks which cluster is authoritative per time period</td><td>Prevents duplicate consumption during dual-write phase</td></tr>
+    </tbody>
+  </table>
+
+  <div class="cl-box tip"><div class="ci">💡</div><div>
+    <strong>Open source status (as of 2025):</strong> LinkedIn has stated they are "exploring the possibilities" of open-sourcing Northguard and Xinfra once internal development is finalized. Given that LinkedIn created Kafka and open-sourced it, there is reason to be optimistic — but no firm timeline. The industry is watching closely, as the architectural innovations could influence the next generation of streaming systems.
+  </div></div>
+</section>
+
+</div>
+</body>
+</html>

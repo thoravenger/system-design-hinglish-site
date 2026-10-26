@@ -1,0 +1,1460 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>System Design Mastery – Rate Limiting · SQL · Sharding · DB Sync</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#07080e;--surface:#0e1520;--surface2:#141e2e;--border:#1a2a3e;
+    --accent:#00c9a7;--a2:#3b82f6;--a3:#f59e0b;--a4:#ec4899;--a5:#8b5cf6;
+    --a6:#f97316;--text:#e2e8f0;--muted:#64748b;--code-bg:#0c1017;
+    --green:#22c55e;--red:#ef4444;--purple:#a78bfa;--teal:#2dd4bf;--cyan:#06b6d4;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;line-height:1.7;font-size:15px}
+
+  nav{position:sticky;top:0;z-index:100;background:rgba(7,8,14,.97);backdrop-filter:blur(14px);border-bottom:1px solid var(--border);padding:0 1.5rem;display:flex;align-items:center;gap:.9rem;height:52px;overflow-x:auto;scrollbar-width:none}
+  nav::-webkit-scrollbar{display:none}
+  .nav-logo{color:var(--accent);font-weight:800;font-size:12px;letter-spacing:.04em;margin-right:auto;white-space:nowrap;flex-shrink:0}
+  nav a{color:var(--muted);text-decoration:none;font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;white-space:nowrap;padding:.2rem .4rem;border-radius:4px;transition:color .2s}
+  nav a:hover{color:var(--accent)}
+  .nav-sep{color:var(--border);font-size:16px;flex-shrink:0}
+
+  .hero{padding:4rem 2rem 3rem;max-width:980px;margin:0 auto;text-align:center}
+  .hero-badge{display:inline-block;background:linear-gradient(135deg,#00c9a722,#3b82f622);border:1px solid #00c9a740;color:var(--accent);font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;padding:.3rem .9rem;border-radius:999px;margin-bottom:1.4rem}
+  .hero h1{font-size:clamp(1.9rem,5vw,3.2rem);font-weight:800;line-height:1.1;background:linear-gradient(135deg,#e2e8f0 20%,#00c9a7 60%,#3b82f6 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:1rem}
+  .hero p{color:var(--muted);font-size:1rem;max-width:740px;margin:0 auto}
+
+  .container{max-width:980px;margin:0 auto;padding:0 1.5rem 6rem}
+  section{margin-bottom:4.5rem;scroll-margin-top:60px}
+  .sh{display:flex;align-items:center;gap:1rem;margin-bottom:1.8rem;padding-bottom:.8rem;border-bottom:1px solid var(--border)}
+  .sn{width:32px;height:32px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0;color:#000}
+  .sh h2{font-size:1.4rem;font-weight:700;color:#fff}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.4rem;margin-bottom:1.1rem}
+  .ct{font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.7rem}
+  .card.ag{border-left:3px solid var(--green)}.card.ar{border-left:3px solid var(--red)}
+  .card.ay{border-left:3px solid var(--a3)}.card.ab{border-left:3px solid var(--a2)}
+  .card.ap{border-left:3px solid var(--purple)}.card.at{border-left:3px solid var(--accent)}
+  .card.ao{border-left:3px solid var(--a6)}.card.ak{border-left:3px solid var(--a4)}
+  .card.ac{border-left:3px solid var(--cyan)}
+
+  .g2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+  .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:.9rem}
+  .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:.8rem}
+  @media(max-width:680px){.g2,.g3,.g4{grid-template-columns:1fr}}
+
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:1.3rem;overflow-x:auto;margin:1rem 0 1.3rem;position:relative;font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.85}
+  .cl{position:absolute;top:.6rem;right:.8rem;font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-family:'JetBrains Mono',monospace}
+  .kw{color:#ff79c6}.an{color:#50fa7b}.ty{color:#8be9fd}.st{color:#f1fa8c}
+  .cm{color:#6272a4;font-style:italic}.nu{color:#bd93f9}.mt{color:#ffb86c}
+  .en{color:#ff5555}.pr{color:#00c9a7}.cf{color:#8be9fd}.cv{color:#f1fa8c}
+
+  table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin:1rem 0 1.4rem;font-size:12.5px}
+  th{background:var(--surface2);padding:.65rem 1rem;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:700;border-bottom:1px solid var(--border)}
+  td{padding:.6rem 1rem;border-bottom:1px solid var(--border);vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:var(--surface2)}
+  code{background:#fff1;border:1px solid #fff2;border-radius:4px;padding:.1rem .4rem;font-family:'JetBrains Mono',monospace;font-size:.84em;color:var(--accent)}
+
+  .cl-box{border-radius:10px;padding:.9rem 1.1rem;margin:1rem 0;display:flex;gap:.7rem;align-items:flex-start;font-size:.89rem}
+  .ci{font-size:1rem;flex-shrink:0;margin-top:.05rem}
+  .cl-box.tip{background:#00c9a710;border:1px solid #00c9a730}
+  .cl-box.warn{background:#f59e0b15;border:1px solid #f59e0b30}
+  .cl-box.danger{background:#ef444415;border:1px solid #ef444430}
+  .cl-box.info{background:#3b82f615;border:1px solid #3b82f630}
+
+  .flow{background:var(--code-bg);border:1px solid var(--border);border-radius:11px;padding:1.3rem;margin:1rem 0 1.3rem;font-family:'JetBrains Mono',monospace;font-size:11.5px;overflow-x:auto}
+  .fr{display:flex;align-items:center;gap:.5rem;padding:.28rem 0;flex-wrap:wrap}
+  .bx{background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:.25rem .7rem;white-space:nowrap;font-weight:600;font-size:11px}
+  .bx.g{background:#14532d30;border-color:var(--green);color:var(--green)}
+  .bx.b{background:#1e3a5f30;border-color:var(--a2);color:var(--a2)}
+  .bx.v{background:#3b076430;border-color:var(--purple);color:var(--purple)}
+  .bx.y{background:#78350f30;border-color:var(--a3);color:var(--a3)}
+  .bx.r{background:#7f1d1d30;border-color:var(--red);color:var(--red)}
+  .bx.t{background:#0d393630;border-color:var(--teal);color:var(--teal)}
+  .bx.o{background:#7c2d1230;border-color:var(--a6);color:var(--a6)}
+  .bx.a{background:#00c9a710;border-color:var(--accent);color:var(--accent)}
+  .bx.c{background:#0d3a4030;border-color:var(--cyan);color:var(--cyan)}
+  .bx.p{background:#3b076430;border-color:var(--a4);color:var(--a4)}
+  .fa{color:var(--muted);font-size:12px}
+
+  .arch{background:var(--code-bg);border:1px solid var(--border);border-radius:14px;padding:1.6rem;margin:1rem 0 1.5rem;overflow-x:auto}
+  .arch-row{display:flex;gap:.5rem;align-items:center;margin:.3rem 0;flex-wrap:wrap}
+  .arch-box{border:1.5px solid;border-radius:7px;padding:.3rem .8rem;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;white-space:nowrap}
+  .ab-g{border-color:var(--green);color:var(--green);background:#22c55e15}
+  .ab-b{border-color:var(--a2);color:var(--a2);background:#3b82f615}
+  .ab-a{border-color:var(--accent);color:var(--accent);background:#00c9a715}
+  .ab-y{border-color:var(--a3);color:var(--a3);background:#f59e0b15}
+  .ab-r{border-color:var(--red);color:var(--red);background:#ef444415}
+  .ab-p{border-color:var(--purple);color:var(--purple);background:#8b5cf615}
+  .ab-c{border-color:var(--cyan);color:var(--cyan);background:#06b6d415}
+  .ab-o{border-color:var(--a6);color:var(--a6);background:#f9731615}
+  .arch-arrow{color:var(--muted);font-size:13px;padding:0 .2rem}
+
+  .pl{display:inline-flex;font-size:10px;font-weight:700;padding:.12rem .5rem;border-radius:999px;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
+  .pl-g{background:#14532d50;color:var(--green);border:1px solid #22c55e40}
+  .pl-r{background:#7f1d1d50;color:var(--red);border:1px solid #ef444440}
+  .pl-y{background:#78350f50;color:var(--a3);border:1px solid #f59e0b40}
+  .pl-b{background:#1e3a5f50;color:var(--a2);border:1px solid #3b82f640}
+  .pl-p{background:#3b076450;color:var(--purple);border:1px solid #8b5cf640}
+
+  /* Rate limit visualizer */
+  .rl-viz{background:var(--code-bg);border:1px solid var(--border);border-radius:12px;padding:1.4rem;margin:1rem 0;font-family:'JetBrains Mono',monospace;font-size:11.5px;overflow-x:auto}
+  .rl-row{display:flex;align-items:center;gap:.5rem;margin:.35rem 0}
+  .rl-slot{width:32px;height:32px;border-radius:5px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800}
+  .rl-used{background:#ef444430;border:1.5px solid var(--red);color:var(--red)}
+  .rl-free{background:#22c55e15;border:1.5px solid #22c55e50;color:#4ade8060}
+  .rl-label{color:var(--muted);font-size:10.5px;min-width:120px}
+
+  /* Bloom filter bit array */
+  .bit-array{display:flex;gap:.25rem;flex-wrap:wrap;margin:.8rem 0}
+  .bit{width:28px;height:28px;border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;font-family:'JetBrains Mono',monospace}
+  .bit-0{background:var(--surface2);border:1px solid var(--border);color:var(--muted)}
+  .bit-1{background:#00c9a720;border:1px solid var(--accent);color:var(--accent)}
+  .bit-chk{background:#f59e0b20;border:2px solid var(--a3);color:var(--a3)}
+
+  p{margin-bottom:.85rem;color:#cbd5e1}
+  ul,ol{padding-left:1.4rem;color:#cbd5e1}
+  li{margin-bottom:.35rem}
+  strong{color:#fff}
+  .muted{color:var(--muted);font-size:.87em}
+  h3{color:#fff;font-size:1rem;font-weight:700;margin:.9rem 0 .4rem}
+
+  .tp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.6rem;margin:1.5rem 0 3rem}
+  .tp{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.6rem .8rem;font-size:11px;font-weight:700;text-align:center;text-decoration:none;color:var(--text);display:block;transition:all .2s}
+  .tp:hover{border-color:var(--accent);color:var(--accent);background:#00c9a708;transform:translateY(-1px)}
+
+  .sql-type{display:inline-block;font-size:10px;font-weight:700;padding:.12rem .45rem;border-radius:4px;font-family:'JetBrains Mono',monospace;margin-right:.3rem}
+  .sql-dml{background:#1e3a5f;color:#60a5fa;border:1px solid #3b82f640}
+  .sql-ddl{background:#14532d;color:#4ade80;border:1px solid #22c55e40}
+  .sql-dcl{background:#3b0764;color:#c4b5fd;border:1px solid #8b5cf640}
+  .sql-tcl{background:#78350f;color:#fbbf24;border:1px solid #f59e0b40}
+</style>
+</head>
+<body>
+<div id="sdh-libbar" style="position:relative;z-index:2147483000;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0;padding:8px 16px;background:#0f172a;color:#cbd5e1;font:600 13px/1.5 Inter,'Segoe UI',system-ui,-apple-system,sans-serif;border-bottom:2px solid #4f46e5;box-sizing:border-box;width:100%;text-align:left;letter-spacing:0"><a href="../../index.html" style="color:#fff;text-decoration:none;font-weight:800">SystemDesign<span style="color:#8b8cff">.hinglish</span></a><span style="opacity:.45">/</span><a href="../index.html" style="color:#fff;text-decoration:none">📚 Library</a><span style="opacity:.45">/</span><a href="../index.html#system-design" style="color:#cbd5e1;text-decoration:none">System Design &amp; Architecture</a><span style="margin-left:auto;font-size:11px;padding:2px 9px;border-radius:999px;border:1px solid #6366f1;color:#c7d2fe">📘 HTML ebook</span></div>
+
+<nav>
+  <span class="nav-logo">⚙️ System Design Mastery</span>
+  <a href="#rate-limit">Rate Limiting</a>
+  <a href="#bloom">Bloom Filter</a>
+  <a href="#sql">SQL Full</a>
+  <a href="#indexes">Indexes</a>
+  <span class="nav-sep">|</span>
+  <a href="#sharding">Sharding</a>
+  <a href="#replication">DB Replication</a>
+  <a href="#read-write-sync">Read/Write Sync</a>
+  <a href="#celebrity">Celebrity Problem</a>
+  <span class="nav-sep">|</span>
+  <a href="#cap">CAP Theorem</a>
+  <a href="#cqrs">CQRS</a>
+  <a href="#circuit">Circuit Breaker</a>
+  <a href="#consistent-hash">Consistent Hashing</a>
+</nav>
+
+<div class="hero">
+  <div class="hero-badge">System Design · Java 17 · Production Patterns · Deep Dive</div>
+  <h1>System Design Mastery<br/>Rate Limiting · SQL · Sharding · DB Sync</h1>
+  <p>Rate limiting algorithms, probabilistic data structures, full SQL internals, sharding strategies, DB replication lag, celebrity/hot-key problem, CAP theorem, CQRS, and distributed system patterns.</p>
+</div>
+
+<div class="container">
+
+<div class="tp-grid">
+  <a class="tp" href="#rate-limit">🚦 Rate Limiting</a>
+  <a class="tp" href="#bloom">🌸 Bloom Filter</a>
+  <a class="tp" href="#sql">🗄 SQL Full</a>
+  <a class="tp" href="#indexes">📇 Indexes</a>
+  <a class="tp" href="#sharding">🔀 Sharding</a>
+  <a class="tp" href="#replication">🔁 DB Replication</a>
+  <a class="tp" href="#read-write-sync">⚡ Read/Write Sync</a>
+  <a class="tp" href="#celebrity">⭐ Celebrity Problem</a>
+  <a class="tp" href="#cap">⚖️ CAP Theorem</a>
+  <a class="tp" href="#cqrs">📐 CQRS / Event Sourcing</a>
+  <a class="tp" href="#consistent-hash">🔑 Consistent Hashing</a>
+  <a class="tp" href="#more">🧩 More Patterns</a>
+</div>
+
+<!-- ══════════════════════════════════════════
+     1. RATE LIMITING — ALL TYPES
+══════════════════════════════════════════ -->
+<section id="rate-limit">
+  <div class="sh"><div class="sn" style="background:var(--accent)">1</div><h2>Rate Limiting — All 5 Algorithms</h2></div>
+
+  <p>Rate limiting controls how many requests a client can make in a time window. It protects services from overload, abuse, and DDoS attacks.</p>
+
+  <table>
+    <thead><tr><th>Algorithm</th><th>Memory</th><th>Burst Handling</th><th>Precision</th><th>Best For</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Fixed Window Counter</strong></td><td>O(1)</td><td>❌ Burst at boundary</td><td>Low</td><td>Simple API rate limits</td></tr>
+      <tr><td><strong>Sliding Window Log</strong></td><td>O(requests)</td><td>✅ Exact</td><td>Highest</td><td>Accurate per-user limits</td></tr>
+      <tr><td><strong>Sliding Window Counter</strong></td><td>O(1)</td><td>✅ Approximate</td><td>High</td><td>High-traffic APIs</td></tr>
+      <tr><td><strong>Token Bucket</strong></td><td>O(1)</td><td>✅ Controlled burst</td><td>High</td><td>API gateways (AWS, Stripe)</td></tr>
+      <tr><td><strong>Leaky Bucket</strong></td><td>O(queue)</td><td>❌ Smooth output only</td><td>High</td><td>Network traffic shaping</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Algorithm 1 — Fixed Window Counter</h3>
+  <div class="rl-viz">
+    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.8rem">Fixed Window: 5 req/min — Problem: burst at boundary</div>
+    <div class="rl-row">
+      <div class="rl-label">00:59 → 01:00</div>
+      <div class="rl-slot rl-used">R</div><div class="rl-slot rl-used">R</div><div class="rl-slot rl-used">R</div><div class="rl-slot rl-used">R</div><div class="rl-slot rl-used">R</div>
+      <span style="color:var(--a3);font-size:11px;margin-left:.5rem">← 5 reqs just before window reset</span>
+    </div>
+    <div class="rl-row">
+      <div class="rl-label">01:00 → 01:01</div>
+      <div class="rl-slot rl-used">R</div><div class="rl-slot rl-used">R</div><div class="rl-slot rl-used">R</div><div class="rl-slot rl-used">R</div><div class="rl-slot rl-used">R</div>
+      <span style="color:var(--red);font-size:11px;margin-left:.5rem">← 5 more reqs right after reset = 10 in 2 seconds!</span>
+    </div>
+  </div>
+
+<pre><span class="cm">// ── Algorithm 1: Fixed Window Counter ────────────────────────────────</span>
+<span class="cm">// Redis key: "rl:{userId}:{windowStart}"</span>
+<span class="cm">// Atomic INCR + EXPIRE</span>
+
+<span class="kw">public boolean</span> <span class="mt">isAllowed_FixedWindow</span>(<span class="ty">String</span> userId, <span class="kw">int</span> limit, <span class="kw">int</span> windowSec) {
+    <span class="ty">String</span> window = <span class="ty">String</span>.<span class="mt">valueOf</span>(<span class="ty">System</span>.<span class="mt">currentTimeMillis</span>() / (windowSec * <span class="nu">1000L</span>));
+    <span class="ty">String</span> key    = <span class="st">"rl:fixed:"</span> + userId + <span class="st">":"</span> + window;
+
+    <span class="ty">Long</span> count = redis.<span class="mt">execute</span>(<span class="kw">new</span> <span class="ty">DefaultRedisScript</span>&lt;&gt;(<span class="st">"""
+        local count = redis.call('INCR', KEYS[1])
+        if count == 1 then
+            redis.call('EXPIRE', KEYS[1], ARGV[1])
+        end
+        return count
+        """</span>, <span class="ty">Long</span>.<span class="kw">class</span>),
+        <span class="ty">List</span>.<span class="mt">of</span>(key), <span class="ty">String</span>.<span class="mt">valueOf</span>(windowSec)
+    );
+    <span class="kw">return</span> count != <span class="kw">null</span> && count <= limit;
+}
+<div class="code-label">Java 17 — Fixed Window</div></pre>
+
+  <h3>Algorithm 2 — Sliding Window Log</h3>
+<pre><span class="cm">// ── Algorithm 2: Sliding Window Log ──────────────────────────────────</span>
+<span class="cm">// Store timestamp of each request in a Redis sorted set</span>
+<span class="cm">// Score = timestamp. Remove entries older than windowSec.</span>
+<span class="cm">// Count remaining entries. Accept if under limit.</span>
+<span class="cm">// Memory: O(limit) per user — accurate but uses more memory</span>
+
+<span class="kw">public boolean</span> <span class="mt">isAllowed_SlidingLog</span>(<span class="ty">String</span> userId, <span class="kw">int</span> limit, <span class="kw">int</span> windowMs) {
+    <span class="ty">String</span> key  = <span class="st">"rl:log:"</span> + userId;
+    <span class="kw">long</span>   now  = <span class="ty">System</span>.<span class="mt">currentTimeMillis</span>();
+    <span class="kw">long</span>   from = now - windowMs;
+
+    <span class="ty">Long</span> count = redis.<span class="mt">execute</span>(<span class="kw">new</span> <span class="ty">DefaultRedisScript</span>&lt;&gt;(<span class="st">"""
+        local key    = KEYS[1]
+        local now    = tonumber(ARGV[1])
+        local from   = tonumber(ARGV[2])
+        local limit  = tonumber(ARGV[3])
+        local window = tonumber(ARGV[4])
+        redis.call('ZREMRANGEBYSCORE', key, '-inf', from)   -- remove old
+        local count = redis.call('ZCARD', key)
+        if count < limit then
+            redis.call('ZADD', key, now, now)               -- add current
+            redis.call('EXPIRE', key, window / 1000 + 1)
+            return 1
+        end
+        return 0
+        """</span>, <span class="ty">Long</span>.<span class="kw">class</span>),
+        <span class="ty">List</span>.<span class="mt">of</span>(key),
+        <span class="ty">String</span>.<span class="mt">valueOf</span>(now),
+        <span class="ty">String</span>.<span class="mt">valueOf</span>(from),
+        <span class="ty">String</span>.<span class="mt">valueOf</span>(limit),
+        <span class="ty">String</span>.<span class="mt">valueOf</span>(windowMs)
+    );
+    <span class="kw">return</span> <span class="ty">Long</span>.<span class="mt">valueOf</span>(<span class="nu">1</span>).<span class="mt">equals</span>(count);
+}
+<div class="code-label">Java 17 — Sliding Log</div></pre>
+
+  <h3>Algorithm 3 — Sliding Window Counter (Hybrid — Best for Production)</h3>
+<pre><span class="cm">// ── Algorithm 3: Sliding Window Counter ───────────────────────────────</span>
+<span class="cm">// Approximation: blend current window + previous window</span>
+<span class="cm">// count = prev_count * overlap_ratio + curr_count</span>
+<span class="cm">// Example: 60s window, at 15s into new window:</span>
+<span class="cm">//   overlap = (60-15)/60 = 0.75</span>
+<span class="cm">//   approx_count = prev(40) * 0.75 + curr(5) = 35</span>
+<span class="cm">// Memory: O(1) — only 2 counters needed</span>
+
+<span class="kw">public boolean</span> <span class="mt">isAllowed_SlidingCounter</span>(<span class="ty">String</span> userId, <span class="kw">int</span> limit, <span class="kw">int</span> windowSec) {
+    <span class="kw">long</span>   now       = <span class="ty">System</span>.<span class="mt">currentTimeMillis</span>() / <span class="nu">1000L</span>;
+    <span class="kw">long</span>   currWindow = now / windowSec;
+    <span class="kw">long</span>   prevWindow = currWindow - <span class="nu">1</span>;
+    <span class="kw">double</span> elapsed    = (now % windowSec) / (<span class="kw">double</span>) windowSec;
+
+    <span class="ty">String</span> currKey = <span class="st">"rl:sc:"</span> + userId + <span class="st">":"</span> + currWindow;
+    <span class="ty">String</span> prevKey = <span class="st">"rl:sc:"</span> + userId + <span class="st">":"</span> + prevWindow;
+
+    <span class="ty">Long</span>   currCount = redis.<span class="mt">opsForValue</span>().<span class="mt">increment</span>(currKey);
+    <span class="ty">Object</span> prevObj   = redis.<span class="mt">opsForValue</span>().<span class="mt">get</span>(prevKey);
+    <span class="kw">long</span>   prevCount = prevObj != <span class="kw">null</span> ? <span class="ty">Long</span>.<span class="mt">parseLong</span>(prevObj.<span class="mt">toString</span>()) : <span class="nu">0L</span>;
+
+    redis.<span class="mt">expire</span>(currKey, <span class="ty">Duration</span>.<span class="mt">ofSeconds</span>(windowSec * <span class="nu">2L</span>));
+
+    <span class="kw">double</span> approx = prevCount * (<span class="nu">1.0</span> - elapsed) + currCount;
+    <span class="kw">return</span> approx <= limit;
+}
+<div class="code-label">Java 17 — Sliding Counter</div></pre>
+
+  <h3>Algorithm 4 — Token Bucket (Most Widely Used)</h3>
+  <div class="rl-viz">
+    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.6rem">Token Bucket: capacity=10, refill=2/sec</div>
+    <div class="rl-row">
+      <div class="rl-label">Bucket (tokens)</div>
+      <div class="rl-slot rl-used">T</div><div class="rl-slot rl-used">T</div><div class="rl-slot rl-used">T</div><div class="rl-slot rl-used">T</div><div class="rl-slot rl-used">T</div>
+      <div class="rl-slot rl-used">T</div><div class="rl-slot rl-used">T</div><div class="rl-slot rl-used">T</div><div class="rl-slot rl-used">T</div><div class="rl-slot rl-used">T</div>
+      <span style="color:var(--green);font-size:11px;margin-left:.5rem">Full = 10 tokens (burst allowed)</span>
+    </div>
+    <div class="rl-row">
+      <div class="rl-label">After 7 requests</div>
+      <div class="rl-slot rl-used">T</div><div class="rl-slot rl-used">T</div><div class="rl-slot rl-used">T</div>
+      <div class="rl-slot rl-free">·</div><div class="rl-slot rl-free">·</div><div class="rl-slot rl-free">·</div><div class="rl-slot rl-free">·</div><div class="rl-slot rl-free">·</div><div class="rl-slot rl-free">·</div><div class="rl-slot rl-free">·</div>
+      <span style="color:var(--a3);font-size:11px;margin-left:.5rem">3 remaining, refilling at 2/sec</span>
+    </div>
+  </div>
+
+<pre><span class="cm">// ── Algorithm 4: Token Bucket (Redis Lua) ────────────────────────────</span>
+<span class="cm">// Each request takes 1 token. Tokens refill at a steady rate.</span>
+<span class="cm">// Allows burst up to bucket capacity.</span>
+
+<span class="kw">private static final</span> <span class="ty">String</span> TOKEN_BUCKET_SCRIPT = <span class="st">"""
+    local key          = KEYS[1]
+    local capacity     = tonumber(ARGV[1])
+    local refill_rate  = tonumber(ARGV[2])  -- tokens per second
+    local now          = tonumber(ARGV[3])  -- epoch milliseconds
+    local requested    = tonumber(ARGV[4])  -- tokens needed (usually 1)
+
+    local data = redis.call('HMGET', key, 'tokens', 'last_refill')
+    local tokens      = tonumber(data[1]) or capacity
+    local last_refill = tonumber(data[2]) or now
+
+    -- Compute tokens to add based on elapsed time
+    local elapsed = (now - last_refill) / 1000.0
+    tokens = math.min(capacity, tokens + elapsed * refill_rate)
+
+    if tokens >= requested then
+        tokens = tokens - requested
+        redis.call('HMSET', key, 'tokens', tokens, 'last_refill', now)
+        redis.call('EXPIRE', key, 3600)
+        return 1   -- allowed
+    else
+        redis.call('HMSET', key, 'tokens', tokens, 'last_refill', now)
+        redis.call('EXPIRE', key, 3600)
+        return 0   -- denied
+    end
+    """</span>;
+
+<span class="kw">public boolean</span> <span class="mt">isAllowed_TokenBucket</span>(<span class="ty">String</span> userId, <span class="kw">int</span> capacity, <span class="kw">int</span> refillPerSec) {
+    <span class="ty">DefaultRedisScript</span>&lt;<span class="ty">Long</span>&gt; script = <span class="kw">new</span> <span class="ty">DefaultRedisScript</span>&lt;&gt;(TOKEN_BUCKET_SCRIPT, <span class="ty">Long</span>.<span class="kw">class</span>);
+    <span class="ty">Long</span> result = redis.<span class="mt">execute</span>(script,
+        <span class="ty">List</span>.<span class="mt">of</span>(<span class="st">"rl:tb:"</span> + userId),
+        <span class="ty">String</span>.<span class="mt">valueOf</span>(capacity),
+        <span class="ty">String</span>.<span class="mt">valueOf</span>(refillPerSec),
+        <span class="ty">String</span>.<span class="mt">valueOf</span>(<span class="ty">System</span>.<span class="mt">currentTimeMillis</span>()),
+        <span class="st">"1"</span>
+    );
+    <span class="kw">return</span> <span class="ty">Long</span>.<span class="mt">valueOf</span>(<span class="nu">1</span>).<span class="mt">equals</span>(result);
+}
+<div class="code-label">Java 17 — Token Bucket</div></pre>
+
+  <h3>Algorithm 5 — Leaky Bucket</h3>
+<pre><span class="cm">// ── Algorithm 5: Leaky Bucket ─────────────────────────────────────────</span>
+<span class="cm">// Requests added to queue (bucket). Processed at constant rate (leak).</span>
+<span class="cm">// Smooths out bursts — output is always at fixed rate.</span>
+<span class="cm">// If bucket full → request DROPPED.</span>
+<span class="cm">// Use case: network bandwidth shaping, metered billing</span>
+
+<span class="kw">public class</span> <span class="ty">LeakyBucket</span> {
+    <span class="kw">private final</span> <span class="ty">BlockingQueue</span>&lt;<span class="ty">Runnable</span>&gt; bucket;
+    <span class="kw">private final</span> <span class="ty">ScheduledExecutorService</span> scheduler;
+
+    <span class="kw">public</span> <span class="ty">LeakyBucket</span>(<span class="kw">int</span> capacity, <span class="kw">int</span> leakRatePerSec) {
+        bucket    = <span class="kw">new</span> <span class="ty">ArrayBlockingQueue</span>&lt;&gt;(capacity);
+        scheduler = <span class="ty">Executors</span>.<span class="mt">newScheduledThreadPool</span>(<span class="nu">1</span>);
+        scheduler.<span class="mt">scheduleAtFixedRate</span>(<span class="kw">this</span>::<span class="mt">leak</span>,
+            <span class="nu">0</span>, <span class="nu">1000L</span> / leakRatePerSec, <span class="ty">TimeUnit</span>.<span class="en">MILLISECONDS</span>);
+    }
+
+    <span class="kw">public boolean</span> <span class="mt">submit</span>(<span class="ty">Runnable</span> request) {
+        <span class="kw">return</span> bucket.<span class="mt">offer</span>(request); <span class="cm">// false if bucket full → drop request</span>
+    }
+
+    <span class="kw">private void</span> <span class="mt">leak</span>() {
+        <span class="ty">Runnable</span> req = bucket.<span class="mt">poll</span>();
+        <span class="kw">if</span> (req != <span class="kw">null</span>) req.<span class="mt">run</span>(); <span class="cm">// process at constant rate</span>
+    }
+}
+
+<span class="cm">// ── Spring Boot Rate Limit Filter ────────────────────────────────────</span>
+<span class="an">@Component</span>
+<span class="an">@Order</span>(<span class="ty">Ordered</span>.<span class="en">HIGHEST_PRECEDENCE</span>)
+<span class="kw">public class</span> <span class="ty">RateLimitFilter</span> <span class="kw">implements</span> <span class="ty">Filter</span> {
+
+    <span class="kw">private final</span> <span class="ty">RateLimiterService</span> rateLimiter;
+
+    <span class="an">@Override</span>
+    <span class="kw">public void</span> <span class="mt">doFilter</span>(<span class="ty">ServletRequest</span> req, <span class="ty">ServletResponse</span> res, <span class="ty">FilterChain</span> chain)
+            <span class="kw">throws</span> <span class="ty">IOException</span>, <span class="ty">ServletException</span> {
+
+        <span class="ty">HttpServletRequest</span>  httpReq = (<span class="ty">HttpServletRequest</span>)  req;
+        <span class="ty">HttpServletResponse</span> httpRes = (<span class="ty">HttpServletResponse</span>) res;
+
+        <span class="ty">String</span> userId = <span class="mt">extractUserId</span>(httpReq);  <span class="cm">// from JWT / API key</span>
+        <span class="kw">if</span> (!rateLimiter.<span class="mt">isAllowed</span>(userId)) {
+            httpRes.<span class="mt">setStatus</span>(<span class="nu">429</span>);             <span class="cm">// 429 Too Many Requests</span>
+            httpRes.<span class="mt">setHeader</span>(<span class="st">"Retry-After"</span>, <span class="st">"60"</span>);
+            httpRes.<span class="mt">setHeader</span>(<span class="st">"X-RateLimit-Limit"</span>, <span class="st">"100"</span>);
+            httpRes.<span class="mt">setHeader</span>(<span class="st">"X-RateLimit-Remaining"</span>, <span class="st">"0"</span>);
+            httpRes.<span class="mt">getWriter</span>().<span class="mt">write</span>(<span class="st">"""
+                {"error":"rate_limit_exceeded","message":"Too many requests"}
+                """</span>);
+            <span class="kw">return</span>;
+        }
+        chain.<span class="mt">doFilter</span>(req, res);
+    }
+}
+<div class="code-label">Java 17 — Spring Rate Limit Filter</div></pre>
+</section>
+
+<!-- ══════════════════════════════════════════
+     2. BLOOM FILTER + PROBABILISTIC DS
+══════════════════════════════════════════ -->
+<section id="bloom">
+  <div class="sh"><div class="sn" style="background:var(--a5)">2</div><h2>Bloom Filter & Probabilistic Data Structures</h2></div>
+
+  <p>A <strong>Bloom filter</strong> answers: <em>"Is this element definitely NOT in the set, or POSSIBLY in the set?"</em> — space efficient, O(1), but has false positives (never false negatives).</p>
+
+  <div class="arch">
+    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.8rem">Bloom Filter — Bit Array + K Hash Functions</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:11.5px;margin-bottom:.8rem;color:var(--muted)">Insert "Alice": h1("Alice")=2, h2("Alice")=5, h3("Alice")=9 → set bits 2,5,9</div>
+    <div class="bit-array">
+      <div class="bit bit-0">0</div><div class="bit bit-0">0</div>
+      <div class="bit bit-1">1</div>
+      <div class="bit bit-0">0</div><div class="bit bit-0">0</div>
+      <div class="bit bit-1">1</div>
+      <div class="bit bit-0">0</div><div class="bit bit-0">0</div><div class="bit bit-0">0</div>
+      <div class="bit bit-1">1</div>
+      <div class="bit bit-0">0</div><div class="bit bit-0">0</div>
+      <div style="align-self:center;color:var(--muted);font-size:11px;margin-left:.5rem">← bit array [0..11]</div>
+    </div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:11.5px;margin:.6rem 0;color:var(--muted)">Check "Bob": h1("Bob")=2✅, h2("Bob")=4❌ → bit 4 is 0 → "Bob" DEFINITELY NOT in set</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--a3)">Check "Carol": h1("Carol")=2✅, h2("Carol")=5✅, h3("Carol")=9✅ → "Carol" POSSIBLY in set (false positive!)</div>
+  </div>
+
+<pre><span class="cm">// ── Bloom Filter — Java implementation ───────────────────────────────</span>
+
+<span class="kw">public class</span> <span class="ty">BloomFilter</span> {
+    <span class="kw">private final</span> <span class="ty">BitSet</span> bitSet;
+    <span class="kw">private final int</span>    size;
+    <span class="kw">private final int</span>    hashFunctions;
+
+    <span class="cm">// Optimal params: m = -n*ln(p)/(ln2)^2, k = (m/n)*ln2</span>
+    <span class="cm">// n = expected elements, p = false positive rate</span>
+    <span class="cm">// For n=1M, p=1%: m≈9.6M bits (1.2MB), k≈7 hash functions</span>
+    <span class="kw">public</span> <span class="ty">BloomFilter</span>(<span class="kw">int</span> size, <span class="kw">int</span> hashFunctions) {
+        <span class="kw">this</span>.size          = size;
+        <span class="kw">this</span>.hashFunctions = hashFunctions;
+        <span class="kw">this</span>.bitSet        = <span class="kw">new</span> <span class="ty">BitSet</span>(size);
+    }
+
+    <span class="kw">public void</span> <span class="mt">add</span>(<span class="ty">String</span> item) {
+        <span class="kw">for</span> (<span class="kw">int</span> i = <span class="nu">0</span>; i < hashFunctions; i++) {
+            <span class="kw">int</span> pos = <span class="mt">hash</span>(item, i) % size;
+            bitSet.<span class="mt">set</span>(<span class="ty">Math</span>.<span class="mt">abs</span>(pos));
+        }
+    }
+
+    <span class="kw">public boolean</span> <span class="mt">mightContain</span>(<span class="ty">String</span> item) {
+        <span class="kw">for</span> (<span class="kw">int</span> i = <span class="nu">0</span>; i < hashFunctions; i++) {
+            <span class="kw">int</span> pos = <span class="mt">hash</span>(item, i) % size;
+            <span class="kw">if</span> (!bitSet.<span class="mt">get</span>(<span class="ty">Math</span>.<span class="mt">abs</span>(pos))) <span class="kw">return false</span>; <span class="cm">// definitely NOT in set</span>
+        }
+        <span class="kw">return true</span>; <span class="cm">// possibly in set (may be false positive)</span>
+    }
+
+    <span class="kw">private int</span> <span class="mt">hash</span>(<span class="ty">String</span> item, <span class="kw">int</span> seed) {
+        <span class="kw">return</span> <span class="ty">Objects</span>.<span class="mt">hash</span>(item, seed); <span class="cm">// in prod: use MurmurHash3 with different seeds</span>
+    }
+}
+
+<span class="cm">// ── Redis Bloom Filter (RedisBloom module) ────────────────────────────</span>
+<span class="cm">// BF.RESERVE key error_rate initial_capacity</span>
+<span class="cm">// BF.ADD     key item</span>
+<span class="cm">// BF.EXISTS  key item</span>
+<span class="cm">// BF.MADD    key item1 item2 ...</span>
+
+<span class="cm">// Spring with Redisson:</span>
+<span class="ty">RBloomFilter</span>&lt;<span class="ty">String</span>&gt; bloomFilter = redisson.<span class="mt">getBloomFilter</span>(<span class="st">"userEmails"</span>);
+bloomFilter.<span class="mt">tryInit</span>(<span class="nu">1_000_000L</span>, <span class="nu">0.01</span>); <span class="cm">// 1M expected, 1% false positive</span>
+bloomFilter.<span class="mt">add</span>(<span class="st">"alice@example.com"</span>);
+<span class="kw">boolean</span> exists = bloomFilter.<span class="mt">contains</span>(<span class="st">"bob@example.com"</span>); <span class="cm">// false = definitely not registered</span>
+<div class="code-label">Java 17 — Bloom Filter</div></pre>
+
+  <div class="g2">
+    <div class="card ap">
+      <div class="ct" style="color:var(--purple)">Real-world Bloom Filter uses</div>
+      <ul>
+        <li><strong>Cassandra:</strong> each SSTable has a Bloom filter — skip disk reads for missing keys</li>
+        <li><strong>HBase/BigTable:</strong> reduce disk I/O for row lookups</li>
+        <li><strong>Chrome:</strong> Safe Browsing — check if URL is malicious without downloading full list</li>
+        <li><strong>Akamai CDN:</strong> one-hit-wonder cache — don't cache items seen only once</li>
+        <li><strong>Ethereum:</strong> transaction receipt search</li>
+        <li><strong>Duplicate email check</strong> before DB query</li>
+      </ul>
+    </div>
+    <div class="card at">
+      <div class="ct" style="color:var(--accent)">Other Probabilistic Structures</div>
+      <ul>
+        <li><strong>Count-Min Sketch:</strong> approximate frequency count — O(1) space, small error</li>
+        <li><strong>HyperLogLog:</strong> approximate cardinality (unique count) — 12KB for 10^18 elements</li>
+        <li><strong>Cuckoo Filter:</strong> like Bloom but supports DELETE — better for dynamic sets</li>
+        <li><strong>MinHash/LSH:</strong> similarity detection — near-duplicate document detection</li>
+        <li><strong>Skip List:</strong> ordered probabilistic structure — Redis ZSet internals</li>
+      </ul>
+    </div>
+  </div>
+
+<pre><span class="cm">// ── HyperLogLog — count UNIQUE visitors without storing all IDs ───────</span>
+<span class="cm">// Uses only ~12KB regardless of how many unique elements seen!</span>
+
+<span class="cm">// Redis HyperLogLog:</span>
+<span class="cm">// PFADD  visits:2024-01-15 user-1 user-2 user-3   → add elements</span>
+<span class="cm">// PFCOUNT visits:2024-01-15                         → approximate count</span>
+<span class="cm">// PFMERGE monthly:2024-01 daily:2024-01-01 daily:2024-01-02 → merge</span>
+
+<span class="kw">void</span> <span class="mt">trackVisit</span>(<span class="ty">String</span> userId) {
+    <span class="ty">String</span> key = <span class="st">"hll:visits:"</span> + <span class="ty">LocalDate</span>.<span class="mt">now</span>();
+    redis.<span class="mt">opsForHyperLogLog</span>().<span class="mt">add</span>(key, userId);
+}
+
+<span class="kw">long</span> <span class="mt">getUniqueVisitors</span>() {
+    <span class="kw">return</span> redis.<span class="mt">opsForHyperLogLog</span>().<span class="mt">size</span>(<span class="st">"hll:visits:"</span> + <span class="ty">LocalDate</span>.<span class="mt">now</span>());
+}
+<span class="cm">// Error rate: ±0.81% — acceptable for analytics dashboards</span>
+
+<span class="cm">// ── Count-Min Sketch — top-K trending items ───────────────────────────</span>
+<span class="cm">// Redis: CMS.INITBYPROB key error probability</span>
+<span class="cm">// Redis: CMS.INCRBY key item count</span>
+<span class="cm">// Redis: CMS.QUERY  key item</span>
+<span class="cm">// Combine with TopK: TOPK.RESERVE, TOPK.ADD, TOPK.LIST</span>
+<div class="code-label">HyperLogLog + Count-Min Sketch</div></pre>
+</section>
+
+<!-- ══════════════════════════════════════════
+     3. SQL FULL
+══════════════════════════════════════════ -->
+<section id="sql">
+  <div class="sh"><div class="sn" style="background:var(--a3)">3</div><h2>SQL Database — Complete Reference</h2></div>
+
+<pre><span class="cm">-- ══ DDL — Data Definition Language ════════════════════════════════</span>
+<span class="kw">CREATE TABLE</span> users (
+    id          <span class="ty">BIGSERIAL</span>    <span class="kw">PRIMARY KEY</span>,
+    email       <span class="ty">VARCHAR</span>(<span class="nu">255</span>) <span class="kw">NOT NULL UNIQUE</span>,
+    name        <span class="ty">VARCHAR</span>(<span class="nu">100</span>) <span class="kw">NOT NULL</span>,
+    age         <span class="ty">INT</span>          <span class="kw">CHECK</span> (age > <span class="nu">0</span> <span class="kw">AND</span> age < <span class="nu">150</span>),
+    plan        <span class="ty">VARCHAR</span>(<span class="nu">20</span>)  <span class="kw">DEFAULT</span> <span class="st">'FREE'</span>,
+    created_at  <span class="ty">TIMESTAMPTZ</span>  <span class="kw">DEFAULT</span> NOW(),
+    deleted_at  <span class="ty">TIMESTAMPTZ</span>                    <span class="cm">-- soft delete</span>
+);
+
+<span class="kw">CREATE TABLE</span> orders (
+    id          <span class="ty">BIGSERIAL</span>    <span class="kw">PRIMARY KEY</span>,
+    user_id     <span class="ty">BIGINT</span>       <span class="kw">REFERENCES</span> users(id) <span class="kw">ON DELETE CASCADE</span>,
+    total       <span class="ty">DECIMAL</span>(<span class="nu">10</span>,<span class="nu">2</span>) <span class="kw">NOT NULL</span>,
+    status      <span class="ty">VARCHAR</span>(<span class="nu">20</span>)  <span class="kw">NOT NULL DEFAULT</span> <span class="st">'PENDING'</span>,
+    created_at  <span class="ty">TIMESTAMPTZ</span>  <span class="kw">DEFAULT</span> NOW()
+);
+
+<span class="kw">ALTER TABLE</span> orders <span class="kw">ADD COLUMN</span> shipped_at <span class="ty">TIMESTAMPTZ</span>;
+<span class="kw">ALTER TABLE</span> users  <span class="kw">ADD CONSTRAINT</span> chk_plan <span class="kw">CHECK</span> (plan <span class="kw">IN</span> (<span class="st">'FREE'</span>,<span class="st">'PRO'</span>,<span class="st">'ENT'</span>));
+<span class="kw">DROP TABLE IF EXISTS</span> temp_orders;
+<span class="kw">TRUNCATE TABLE</span> audit_log;  <span class="cm">-- faster than DELETE, can't rollback by default</span>
+
+<span class="cm">-- ══ DML — Data Manipulation Language ═══════════════════════════════</span>
+<span class="kw">INSERT INTO</span> users (email, name, plan) <span class="kw">VALUES</span> (<span class="st">'a@b.com'</span>, <span class="st">'Alice'</span>, <span class="st">'PRO'</span>)
+    <span class="kw">ON CONFLICT</span> (email) <span class="kw">DO UPDATE SET</span> name = EXCLUDED.name;  <span class="cm">-- UPSERT (PostgreSQL)</span>
+
+<span class="kw">UPDATE</span> orders
+    <span class="kw">SET</span> status = <span class="st">'SHIPPED'</span>, shipped_at = NOW()
+    <span class="kw">WHERE</span> id = <span class="nu">1</span> <span class="kw">AND</span> status = <span class="st">'PENDING'</span>
+    <span class="kw">RETURNING</span> id, shipped_at;  <span class="cm">-- get updated values back</span>
+
+<span class="kw">DELETE FROM</span> orders <span class="kw">WHERE</span> created_at < NOW() - <span class="kw">INTERVAL</span> <span class="st">'90 days'</span>;
+
+<span class="cm">-- ══ Advanced SELECT ═════════════════════════════════════════════════</span>
+<span class="kw">SELECT</span>
+    u.id,
+    u.name,
+    COUNT(o.id)              <span class="kw">AS</span> order_count,
+    SUM(o.total)             <span class="kw">AS</span> total_spent,
+    AVG(o.total)             <span class="kw">AS</span> avg_order,
+    MAX(o.created_at)        <span class="kw">AS</span> last_order,
+    RANK() <span class="kw">OVER</span> (<span class="kw">ORDER BY</span> SUM(o.total) <span class="kw">DESC</span>) <span class="kw">AS</span> spending_rank
+<span class="kw">FROM</span>       users  u
+<span class="kw">LEFT JOIN</span>  orders o <span class="kw">ON</span> o.user_id = u.id <span class="kw">AND</span> o.status != <span class="st">'CANCELLED'</span>
+<span class="kw">WHERE</span>      u.deleted_at <span class="kw">IS NULL</span>
+  <span class="kw">AND</span>      u.created_at >= <span class="st">'2024-01-01'</span>
+<span class="kw">GROUP BY</span>   u.id, u.name
+<span class="kw">HAVING</span>     COUNT(o.id) > <span class="nu">5</span>
+<span class="kw">ORDER BY</span>   total_spent <span class="kw">DESC</span>
+<span class="kw">LIMIT</span>      <span class="nu">20</span>;
+
+<span class="cm">-- ══ Window Functions ════════════════════════════════════════════════</span>
+<span class="kw">SELECT</span>
+    id, user_id, total, created_at,
+    <span class="kw">ROW_NUMBER</span>() <span class="kw">OVER</span> (<span class="kw">PARTITION BY</span> user_id <span class="kw">ORDER BY</span> created_at <span class="kw">DESC</span>)   <span class="kw">AS</span> rn,
+    <span class="kw">LAG</span>(total)   <span class="kw">OVER</span> (<span class="kw">PARTITION BY</span> user_id <span class="kw">ORDER BY</span> created_at)       <span class="kw">AS</span> prev_total,
+    <span class="kw">LEAD</span>(total)  <span class="kw">OVER</span> (<span class="kw">PARTITION BY</span> user_id <span class="kw">ORDER BY</span> created_at)       <span class="kw">AS</span> next_total,
+    <span class="kw">SUM</span>(total)   <span class="kw">OVER</span> (<span class="kw">PARTITION BY</span> user_id <span class="kw">ORDER BY</span> created_at <span class="kw">ROWS UNBOUNDED PRECEDING</span>) <span class="kw">AS</span> running_total
+<span class="kw">FROM</span> orders;
+
+<span class="cm">-- ══ CTEs & Recursive Queries ════════════════════════════════════════</span>
+<span class="kw">WITH</span> top_users <span class="kw">AS</span> (
+    <span class="kw">SELECT</span> user_id, SUM(total) <span class="kw">AS</span> total_spent
+    <span class="kw">FROM</span> orders
+    <span class="kw">WHERE</span> status = <span class="st">'COMPLETED'</span>
+    <span class="kw">GROUP BY</span> user_id
+    <span class="kw">HAVING</span> SUM(total) > <span class="nu">10000</span>
+),
+<span class="kw">enriched</span> <span class="kw">AS</span> (
+    <span class="kw">SELECT</span> u.name, t.total_spent
+    <span class="kw">FROM</span> top_users t <span class="kw">JOIN</span> users u <span class="kw">ON</span> u.id = t.user_id
+)
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> enriched <span class="kw">ORDER BY</span> total_spent <span class="kw">DESC</span>;
+
+<span class="cm">-- ══ Transactions — ACID ════════════════════════════════════════════</span>
+<span class="kw">BEGIN</span>;
+    <span class="kw">UPDATE</span> accounts <span class="kw">SET</span> balance = balance - <span class="nu">100</span> <span class="kw">WHERE</span> id = <span class="nu">1</span>;
+    <span class="kw">UPDATE</span> accounts <span class="kw">SET</span> balance = balance + <span class="nu">100</span> <span class="kw">WHERE</span> id = <span class="nu">2</span>;
+    <span class="cm">-- if both succeed:</span>
+<span class="kw">COMMIT</span>;
+    <span class="cm">-- if any fails:</span>
+<span class="kw">ROLLBACK</span>;
+
+<span class="kw">SAVEPOINT</span> sp1;
+<span class="kw">ROLLBACK TO</span> sp1;  <span class="cm">-- partial rollback to savepoint</span>
+<span class="kw">RELEASE SAVEPOINT</span> sp1;
+
+<span class="cm">-- ══ Locking ════════════════════════════════════════════════════════</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> orders <span class="kw">WHERE</span> id = <span class="nu">1</span> <span class="kw">FOR UPDATE</span>;           <span class="cm">-- exclusive lock</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> orders <span class="kw">WHERE</span> id = <span class="nu">1</span> <span class="kw">FOR SHARE</span>;            <span class="cm">-- shared lock</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> orders <span class="kw">WHERE</span> id = <span class="nu">1</span> <span class="kw">FOR UPDATE NOWAIT</span>;    <span class="cm">-- fail fast if locked</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> orders <span class="kw">WHERE</span> id = <span class="nu">1</span> <span class="kw">FOR UPDATE SKIP LOCKED</span>;<span class="cm">-- skip locked rows</span>
+<div class="code-label">SQL — Complete Reference</div></pre>
+
+  <h3>ACID Properties</h3>
+  <div class="g4">
+    <div class="card ag"><div class="ct" style="color:var(--green)">Atomicity</div><p>All operations in a transaction succeed or all fail. No partial state.</p></div>
+    <div class="card ab"><div class="ct" style="color:var(--a2)">Consistency</div><p>Transaction moves DB from one valid state to another. Constraints always satisfied.</p></div>
+    <div class="card ap"><div class="ct" style="color:var(--purple)">Isolation</div><p>Concurrent transactions execute as if sequential. No dirty reads between transactions.</p></div>
+    <div class="card ao"><div class="ct" style="color:var(--a6)">Durability</div><p>Committed transactions survive crashes. Data written to disk (WAL).</p></div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════
+     4. INDEXES
+══════════════════════════════════════════ -->
+<section id="indexes">
+  <div class="sh"><div class="sn" style="background:var(--cyan)">4</div><h2>Database Indexes — All Types & Internals</h2></div>
+
+<pre><span class="cm">-- ══ Index Types ══════════════════════════════════════════════════════</span>
+
+<span class="cm">-- B-Tree (default) — works for: =, &lt;, &gt;, BETWEEN, LIKE 'prefix%'</span>
+<span class="kw">CREATE INDEX</span> idx_orders_user   <span class="kw">ON</span> orders(user_id);
+<span class="kw">CREATE INDEX</span> idx_orders_status <span class="kw">ON</span> orders(status, created_at <span class="kw">DESC</span>); <span class="cm">-- composite</span>
+<span class="kw">CREATE UNIQUE INDEX</span> idx_users_email <span class="kw">ON</span> users(email);
+
+<span class="cm">-- Partial Index — only index rows matching condition (smaller, faster)</span>
+<span class="kw">CREATE INDEX</span> idx_active_orders <span class="kw">ON</span> orders(user_id)
+    <span class="kw">WHERE</span> status <span class="kw">IN</span> (<span class="st">'PENDING'</span>, <span class="st">'PROCESSING'</span>);  <span class="cm">-- only index active orders</span>
+
+<span class="cm">-- Covering Index — index contains all columns needed (no heap fetch)</span>
+<span class="kw">CREATE INDEX</span> idx_orders_cover <span class="kw">ON</span> orders(user_id, status) <span class="kw">INCLUDE</span> (total, created_at);
+<span class="cm">-- Query: SELECT total FROM orders WHERE user_id=1 → index-only scan (no table hit)</span>
+
+<span class="cm">-- Hash Index — O(1) exact match only (no range, no sorting)</span>
+<span class="kw">CREATE INDEX</span> idx_hash_email <span class="kw">ON</span> users <span class="kw">USING</span> hash(email);
+
+<span class="cm">-- GIN — full-text search, arrays, JSONB</span>
+<span class="kw">CREATE INDEX</span> idx_tags  <span class="kw">ON</span> products <span class="kw">USING</span> gin(tags);    <span class="cm">-- tags text[]</span>
+<span class="kw">CREATE INDEX</span> idx_props <span class="kw">ON</span> products <span class="kw">USING</span> gin(props jsonb_path_ops); <span class="cm">-- JSONB</span>
+
+<span class="cm">-- GiST — geometric, full-text, range types</span>
+<span class="kw">CREATE INDEX</span> idx_location <span class="kw">ON</span> stores <span class="kw">USING</span> gist(location);  <span class="cm">-- PostGIS geometry</span>
+
+<span class="cm">-- BRIN (Block Range INdex) — huge sequential tables (logs, time-series)</span>
+<span class="kw">CREATE INDEX</span> idx_created_brin <span class="kw">ON</span> events <span class="kw">USING</span> brin(created_at);
+<span class="cm">-- 1000x smaller than B-tree, works because rows are physically ordered by time</span>
+
+<span class="cm">-- Expression Index — index on function result</span>
+<span class="kw">CREATE INDEX</span> idx_email_lower <span class="kw">ON</span> users(LOWER(email));
+<span class="cm">-- Query: WHERE LOWER(email) = 'alice@example.com' → uses index</span>
+
+<span class="cm">-- ══ EXPLAIN ANALYZE — understand query execution ════════════════════</span>
+<span class="kw">EXPLAIN</span> (<span class="kw">ANALYZE</span>, <span class="kw">BUFFERS</span>, <span class="kw">FORMAT</span> JSON)
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> orders <span class="kw">WHERE</span> user_id = <span class="nu">1</span> <span class="kw">AND</span> status = <span class="st">'PENDING'</span>;
+
+<span class="cm">-- Key EXPLAIN terms:</span>
+<span class="cm">-- Seq Scan      → full table scan (no index or small table)</span>
+<span class="cm">-- Index Scan    → uses index, fetches heap rows</span>
+<span class="cm">-- Index Only Scan → covering index, no heap fetch (fastest)</span>
+<span class="cm">-- Bitmap Scan   → multiple index scans combined</span>
+<span class="cm">-- Nested Loop   → join: for each row in outer, scan inner</span>
+<span class="cm">-- Hash Join     → build hash table of smaller, probe with larger</span>
+<span class="cm">-- Merge Join    → both sides sorted, merge (good for large sorted sets)</span>
+
+<span class="cm">-- ══ Query Optimizer Hints (PostgreSQL) ═════════════════════════════</span>
+<span class="kw">SET</span> enable_seqscan = <span class="kw">off</span>;   <span class="cm">-- force index use (testing only)</span>
+<span class="kw">SET</span> work_mem = <span class="st">'256MB'</span>;    <span class="cm">-- more memory for sort/hash operations</span>
+<span class="kw">VACUUM ANALYZE</span> orders;     <span class="cm">-- update statistics for planner</span>
+<div class="code-label">SQL Indexes</div></pre>
+
+  <table>
+    <thead><tr><th>Index Type</th><th>Best for</th><th>Operators</th><th>Size</th></tr></thead>
+    <tbody>
+      <tr><td>B-Tree</td><td>General purpose, range queries</td><td>=, &lt;, &gt;, BETWEEN, LIKE 'x%'</td><td>Medium</td></tr>
+      <tr><td>Hash</td><td>Exact match only</td><td>= only</td><td>Small</td></tr>
+      <tr><td>GIN</td><td>Arrays, JSONB, full-text</td><td>@&gt;, &lt;@, @@, ?</td><td>Large</td></tr>
+      <tr><td>GiST</td><td>Geometry, ranges, full-text</td><td>&amp;&amp;, @&gt;, &lt;&lt;, |&gt;&gt;</td><td>Medium</td></tr>
+      <tr><td>BRIN</td><td>Sequential time-series data</td><td>=, &lt;, &gt;, BETWEEN</td><td>Tiny</td></tr>
+      <tr><td>Partial</td><td>Subset of rows (active records)</td><td>Any (only matching rows indexed)</td><td>Very small</td></tr>
+      <tr><td>Covering</td><td>Index-only scans</td><td>Any + INCLUDE columns</td><td>Larger</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ══════════════════════════════════════════
+     5. SHARDING
+══════════════════════════════════════════ -->
+<section id="sharding">
+  <div class="sh"><div class="sn" style="background:var(--a6)">5</div><h2>Database Sharding — Strategies & Trade-offs</h2></div>
+
+  <p><strong>Sharding</strong> (horizontal partitioning) splits data across multiple databases so no single database has the full dataset. Each shard is an independent DB holding a subset of rows.</p>
+
+  <div class="arch">
+    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.8rem">Sharding Architecture</div>
+    <div class="arch-row">
+      <div class="arch-box ab-b">App Server</div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box ab-a">Shard Router (Proxy)</div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box ab-g">Shard 1 (user 0-25%)</div>
+    </div>
+    <div class="arch-row" style="margin-left:14rem">
+      <div class="arch-arrow">→</div>
+      <div class="arch-box ab-g">Shard 2 (user 25-50%)</div>
+    </div>
+    <div class="arch-row" style="margin-left:14rem">
+      <div class="arch-arrow">→</div>
+      <div class="arch-box ab-g">Shard 3 (user 50-75%)</div>
+    </div>
+    <div class="arch-row" style="margin-left:14rem">
+      <div class="arch-arrow">→</div>
+      <div class="arch-box ab-g">Shard 4 (user 75-100%)</div>
+    </div>
+  </div>
+
+<pre><span class="cm">// ── Sharding Strategy 1: Range Sharding ──────────────────────────────</span>
+<span class="cm">// userId 1-1M       → Shard 1</span>
+<span class="cm">// userId 1M-2M      → Shard 2</span>
+<span class="cm">// userId 2M-3M      → Shard 3</span>
+<span class="cm">//</span>
+<span class="cm">// ✅ Easy range queries (get all users in ID range)</span>
+<span class="cm">// ❌ Hot spots — new users always go to last shard</span>
+<span class="cm">// ❌ Uneven load if distribution not uniform</span>
+
+<span class="kw">int</span> <span class="mt">getShardId_Range</span>(<span class="kw">long</span> userId) {
+    <span class="kw">if</span> (userId < <span class="nu">1_000_000L</span>)  <span class="kw">return</span> <span class="nu">1</span>;
+    <span class="kw">if</span> (userId < <span class="nu">2_000_000L</span>)  <span class="kw">return</span> <span class="nu">2</span>;
+    <span class="kw">if</span> (userId < <span class="nu">3_000_000L</span>)  <span class="kw">return</span> <span class="nu">3</span>;
+    <span class="kw">return</span> <span class="nu">4</span>;
+}
+
+<span class="cm">// ── Sharding Strategy 2: Hash Sharding ───────────────────────────────</span>
+<span class="cm">// shardId = hash(userId) % numShards</span>
+<span class="cm">//</span>
+<span class="cm">// ✅ Even distribution</span>
+<span class="cm">// ❌ Cross-shard queries expensive</span>
+<span class="cm">// ❌ Adding shards requires resharding ALL data (use consistent hashing!)</span>
+
+<span class="kw">int</span> <span class="mt">getShardId_Hash</span>(<span class="kw">long</span> userId, <span class="kw">int</span> numShards) {
+    <span class="kw">return</span> (<span class="kw">int</span>) (<span class="ty">Math</span>.<span class="mt">abs</span>(<span class="ty">Objects</span>.<span class="mt">hash</span>(userId)) % numShards);
+}
+
+<span class="cm">// ── Sharding Strategy 3: Directory Sharding ──────────────────────────</span>
+<span class="cm">// A lookup service maps entity → shard</span>
+<span class="cm">// userId 1 → Shard 3 (stored in lookup DB)</span>
+<span class="cm">//</span>
+<span class="cm">// ✅ Most flexible — move data between shards without changing logic</span>
+<span class="cm">// ❌ Lookup service is a single point of failure + extra latency</span>
+
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">ShardRouter</span> {
+    <span class="kw">private final</span> <span class="ty">Map</span>&lt;<span class="ty">Long</span>, <span class="ty">DataSource</span>&gt; shardMap = <span class="kw">new</span> <span class="ty">ConcurrentHashMap</span>&lt;&gt;();
+
+    <span class="kw">public</span> <span class="ty">DataSource</span> <span class="mt">getShardForUser</span>(<span class="kw">long</span> userId) {
+        <span class="kw">int</span> shardId = (<span class="kw">int</span>) (<span class="ty">Math</span>.<span class="mt">abs</span>(userId) % <span class="nu">4</span>);
+        <span class="kw">return</span> shardMap.<span class="mt">get</span>((<span class="kw">long</span>) shardId);
+    }
+}
+
+<span class="cm">// ── Shard Key choice — critical decisions ─────────────────────────────</span>
+<span class="cm">// ✅ Good shard keys: userId, tenantId — high cardinality, uniform</span>
+<span class="cm">// ❌ Bad shard keys: country (hot: US), status (hot: ACTIVE), created_at (hot: latest)</span>
+<span class="cm">//</span>
+<span class="cm">// Compound shard key: (tenantId, userId) → tenant isolation within shard</span>
+<span class="cm">//</span>
+<span class="cm">// Cross-shard problems:</span>
+<span class="cm">// - JOIN across shards → collect from all shards, merge in app layer</span>
+<span class="cm">// - ORDER BY + LIMIT → fetch from all shards, merge-sort, take top K</span>
+<span class="cm">// - COUNT(*) → sum counts from all shards</span>
+<span class="cm">// - Transactions → distributed transaction (2PC) or saga pattern</span>
+<div class="code-label">Java 17 — Sharding</div></pre>
+
+  <div class="g3">
+    <div class="card ag">
+      <div class="ct" style="color:var(--green)">✅ When to Shard</div>
+      <ul>
+        <li>Single DB &gt; 1-2 TB</li>
+        <li>Write throughput maxed out</li>
+        <li>Can't scale vertically any more</li>
+        <li>Multi-tenancy (tenant-per-shard)</li>
+        <li>Regulatory data residency requirements</li>
+      </ul>
+    </div>
+    <div class="card ay">
+      <div class="ct" style="color:var(--a3)">⚠️ Before Sharding</div>
+      <ul>
+        <li>Read replicas for read scale</li>
+        <li>Vertical scaling (better hardware)</li>
+        <li>Caching (Redis) — reduce DB load</li>
+        <li>Database partitioning (within one DB)</li>
+        <li>Query & index optimization</li>
+      </ul>
+    </div>
+    <div class="card ar">
+      <div class="ct" style="color:var(--red)">❌ Sharding Problems</div>
+      <ul>
+        <li>Cross-shard JOINs are hard</li>
+        <li>Distributed transactions (saga needed)</li>
+        <li>Resharding is painful</li>
+        <li>Shard hotspots (celebrity problem)</li>
+        <li>Operational complexity 10x higher</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════════
+     6. DB REPLICATION
+══════════════════════════════════════════ -->
+<section id="replication">
+  <div class="sh"><div class="sn" style="background:var(--a2)">6</div><h2>Database Replication — Write Primary, Read Replica</h2></div>
+
+  <div class="arch">
+    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.8rem">Primary-Replica Replication Flow</div>
+    <div class="arch-row">
+      <div class="arch-box ab-b">App: Writes</div>
+      <div class="arch-arrow">──▶</div>
+      <div class="arch-box ab-o">Primary DB (PostgreSQL)</div>
+    </div>
+    <div class="arch-row">
+      <div style="margin-left:12.5rem;color:var(--a3);font-size:11px">↓ WAL (Write-Ahead Log) stream — async replication</div>
+    </div>
+    <div class="arch-row">
+      <div style="margin-left:12rem"></div>
+      <div class="arch-box ab-g">Replica 1 (read-only)</div>
+      <div class="arch-arrow">◀──</div>
+      <div class="arch-box ab-b">App: Reads</div>
+    </div>
+    <div class="arch-row">
+      <div style="margin-left:12rem"></div>
+      <div class="arch-box ab-g">Replica 2 (read-only)</div>
+      <div class="arch-arrow">◀──</div>
+      <div class="arch-box ab-b">App: Reads</div>
+    </div>
+    <div class="arch-row" style="margin-top:.5rem">
+      <div style="color:var(--red);font-size:11px;font-family:'JetBrains Mono',monospace">⚠️ Replication lag: 10ms-seconds. Reads may return stale data!</div>
+    </div>
+  </div>
+
+<pre><span class="cm">// ── Spring Boot: Route writes to primary, reads to replica ───────────</span>
+
+<span class="kw">public enum</span> <span class="ty">DbType</span> { <span class="en">PRIMARY</span>, <span class="en">REPLICA</span> }
+
+<span class="kw">public class</span> <span class="ty">ReplicationRoutingDataSource</span> <span class="kw">extends</span> <span class="ty">AbstractRoutingDataSource</span> {
+
+    <span class="kw">private static final</span> <span class="ty">ThreadLocal</span>&lt;<span class="ty">DbType</span>&gt; CONTEXT =
+        <span class="ty">ThreadLocal</span>.<span class="mt">withInitial</span>(() -> <span class="ty">DbType</span>.<span class="en">PRIMARY</span>);
+
+    <span class="kw">public static void</span> <span class="mt">usePrimary</span>()  { CONTEXT.<span class="mt">set</span>(<span class="ty">DbType</span>.<span class="en">PRIMARY</span>); }
+    <span class="kw">public static void</span> <span class="mt">useReplica</span>()  { CONTEXT.<span class="mt">set</span>(<span class="ty">DbType</span>.<span class="en">REPLICA</span>); }
+    <span class="kw">public static void</span> <span class="mt">clear</span>()       { CONTEXT.<span class="mt">remove</span>(); }
+
+    <span class="an">@Override</span>
+    <span class="kw">protected</span> <span class="ty">Object</span> <span class="mt">determineCurrentLookupKey</span>() {
+        <span class="kw">return</span> CONTEXT.<span class="mt">get</span>();
+    }
+}
+
+<span class="cm">// AOP: @Transactional(readOnly=true) → replica, else → primary</span>
+<span class="an">@Aspect</span>
+<span class="an">@Component</span>
+<span class="kw">public class</span> <span class="ty">DataSourceAspect</span> {
+
+    <span class="an">@Around</span>(<span class="st">"@annotation(transactional)"</span>)
+    <span class="kw">public</span> <span class="ty">Object</span> <span class="mt">routeDataSource</span>(<span class="ty">ProceedingJoinPoint</span> pjp, <span class="ty">Transactional</span> transactional)
+            <span class="kw">throws</span> <span class="ty">Throwable</span> {
+        <span class="kw">try</span> {
+            <span class="kw">if</span> (transactional.<span class="mt">readOnly</span>()) {
+                <span class="ty">ReplicationRoutingDataSource</span>.<span class="mt">useReplica</span>();
+            } <span class="kw">else</span> {
+                <span class="ty">ReplicationRoutingDataSource</span>.<span class="mt">usePrimary</span>();
+            }
+            <span class="kw">return</span> pjp.<span class="mt">proceed</span>();
+        } <span class="kw">finally</span> {
+            <span class="ty">ReplicationRoutingDataSource</span>.<span class="mt">clear</span>();
+        }
+    }
+}
+
+<span class="cm">// Usage:</span>
+<span class="an">@Transactional</span>           <span class="cm">// → PRIMARY</span>
+<span class="kw">public void</span> <span class="mt">createOrder</span>(<span class="ty">Order</span> o) { orderRepo.<span class="mt">save</span>(o); }
+
+<span class="an">@Transactional</span>(readOnly = <span class="kw">true</span>)  <span class="cm">// → REPLICA</span>
+<span class="kw">public</span> <span class="ty">List</span>&lt;<span class="ty">Order</span>&gt; <span class="mt">getOrders</span>(<span class="kw">long</span> userId) { <span class="kw">return</span> orderRepo.<span class="mt">findByUserId</span>(userId); }
+<div class="code-label">Spring Boot — DB Routing</div></pre>
+</section>
+
+<!-- ══════════════════════════════════════════
+     7. READ/WRITE SYNC — REPLICATION LAG
+══════════════════════════════════════════ -->
+<section id="read-write-sync">
+  <div class="sh"><div class="sn" style="background:var(--green)">7</div><h2>Write Primary → Read Replica: How to Keep in Sync</h2></div>
+
+  <div class="cl-box danger"><div class="ci">⚠️</div><div><strong>The problem:</strong> User writes to primary. User immediately reads. Request goes to replica. Replica has 50ms lag. User sees OLD data. This is called <strong>Read-Your-Writes Inconsistency</strong> — and it's the most common complaint in systems with replication.</div></div>
+
+<pre><span class="cm">// ── Pattern 1: Read-Your-Writes — route post-write reads to primary ───</span>
+<span class="cm">// After a write, stick to primary for reads for a short window</span>
+
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">ReadYourWritesService</span> {
+
+    <span class="kw">private final</span> <span class="ty">Cache</span>&lt;<span class="ty">String</span>, <span class="ty">Long</span>&gt; recentWrites = <span class="ty">Caffeine</span>.<span class="mt">newBuilder</span>()
+        .<span class="mt">expireAfterWrite</span>(<span class="ty">Duration</span>.<span class="mt">ofSeconds</span>(<span class="nu">5</span>))  <span class="cm">// assume replica catches up in 5s</span>
+        .<span class="mt">build</span>();
+
+    <span class="kw">public void</span> <span class="mt">updateProfile</span>(<span class="ty">String</span> userId, <span class="ty">UserProfile</span> profile) {
+        <span class="cm">// Write to primary</span>
+        <span class="ty">ReplicationRoutingDataSource</span>.<span class="mt">usePrimary</span>();
+        userRepo.<span class="mt">save</span>(profile);
+
+        <span class="cm">// Remember this user wrote recently</span>
+        recentWrites.<span class="mt">put</span>(userId, <span class="ty">System</span>.<span class="mt">currentTimeMillis</span>());
+    }
+
+    <span class="kw">public</span> <span class="ty">UserProfile</span> <span class="mt">getProfile</span>(<span class="ty">String</span> userId) {
+        <span class="cm">// If user wrote recently → read from primary (fresh data)</span>
+        <span class="kw">if</span> (recentWrites.<span class="mt">getIfPresent</span>(userId) != <span class="kw">null</span>) {
+            <span class="ty">ReplicationRoutingDataSource</span>.<span class="mt">usePrimary</span>();
+        } <span class="kw">else</span> {
+            <span class="ty">ReplicationRoutingDataSource</span>.<span class="mt">useReplica</span>();  <span class="cm">// safe to use replica</span>
+        }
+        <span class="kw">return</span> userRepo.<span class="mt">findById</span>(userId).<span class="mt">orElseThrow</span>();
+    }
+}
+
+<span class="cm">// ── Pattern 2: Monotonic Reads — same user always same replica ────────</span>
+<span class="cm">// Route each user to a specific replica — they see monotonically increasing state</span>
+<span class="cm">// userId → replicaId (via hash or sticky session)</span>
+
+<span class="kw">int</span> <span class="mt">getReplicaForUser</span>(<span class="kw">long</span> userId, <span class="kw">int</span> replicaCount) {
+    <span class="kw">return</span> (<span class="kw">int</span>) (userId % replicaCount);  <span class="cm">// always same replica for this user</span>
+}
+
+<span class="cm">// ── Pattern 3: Write to cache on write, read from cache ───────────────</span>
+<span class="cm">// Write-Through Cache: write to DB + cache atomically</span>
+
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">WriteThroughService</span> {
+
+    <span class="kw">public void</span> <span class="mt">updateUser</span>(<span class="ty">User</span> user) {
+        userRepo.<span class="mt">save</span>(user);                                     <span class="cm">// write to primary DB</span>
+        redis.<span class="mt">opsForValue</span>().<span class="mt">set</span>(<span class="st">"user:"</span> + user.<span class="mt">getId</span>(), user,
+            <span class="ty">Duration</span>.<span class="mt">ofMinutes</span>(<span class="nu">10</span>));                             <span class="cm">// update cache</span>
+    }
+
+    <span class="kw">public</span> <span class="ty">User</span> <span class="mt">getUser</span>(<span class="kw">long</span> userId) {
+        <span class="ty">User</span> cached = (<span class="ty">User</span>) redis.<span class="mt">opsForValue</span>().<span class="mt">get</span>(<span class="st">"user:"</span> + userId);
+        <span class="kw">if</span> (cached != <span class="kw">null</span>) <span class="kw">return</span> cached;     <span class="cm">// fresh from cache (beats replication lag)</span>
+        <span class="kw">return</span> userRepo.<span class="mt">findById</span>(userId).<span class="mt">orElseThrow</span>(); <span class="cm">// read from replica/primary</span>
+    }
+}
+
+<span class="cm">// ── Pattern 4: Synchronous Replication (for critical reads) ──────────</span>
+<span class="cm">// PostgreSQL synchronous_commit = on/remote_apply</span>
+<span class="cm">// Primary WAITS for replica to apply WAL before confirming write</span>
+<span class="cm">// Guarantees: zero replication lag</span>
+<span class="cm">// Cost: write latency increases by network RTT to replica</span>
+
+<span class="cm">-- PostgreSQL: synchronous_standby_names = 'replica1'</span>
+<span class="cm">-- Per-transaction override:</span>
+<span class="kw">SET</span> synchronous_commit = remote_apply;
+<span class="kw">INSERT INTO</span> critical_data VALUES (...);  <span class="cm">-- replica guaranteed to have this</span>
+<span class="kw">RESET</span> synchronous_commit;
+
+<span class="cm">// ── Pattern 5: Version / Timestamp comparison ─────────────────────────</span>
+<span class="cm">// Add version column. Client stores version after write.</span>
+<span class="cm">// On read, if version matches or is newer → replica is fine</span>
+<span class="cm">// If version on replica is older → escalate to primary</span>
+
+<span class="an">@Transactional</span>
+<span class="kw">public</span> <span class="ty">UserResponse</span> <span class="mt">updateAndReturn</span>(<span class="kw">long</span> id, <span class="ty">UpdateRequest</span> req) {
+    <span class="ty">User</span> user = userRepo.<span class="mt">findById</span>(id).<span class="mt">orElseThrow</span>();
+    user.<span class="mt">applyUpdate</span>(req);
+    user.<span class="mt">setVersion</span>(user.<span class="mt">getVersion</span>() + <span class="nu">1</span>);
+    userRepo.<span class="mt">save</span>(user);
+    <span class="kw">return</span> <span class="kw">new</span> <span class="ty">UserResponse</span>(user); <span class="cm">// return WITH the new version to client</span>
+}
+
+<span class="cm">// Client sends version in next read. Check replica has that version.</span>
+<span class="kw">public</span> <span class="ty">User</span> <span class="mt">getUserAtVersion</span>(<span class="kw">long</span> id, <span class="kw">long</span> minVersion) {
+    <span class="ty">User</span> user = replicaRepo.<span class="mt">findById</span>(id).<span class="mt">orElseThrow</span>();
+    <span class="kw">if</span> (user.<span class="mt">getVersion</span>() < minVersion) {
+        <span class="kw">return</span> primaryRepo.<span class="mt">findById</span>(id).<span class="mt">orElseThrow</span>(); <span class="cm">// replica stale → escalate</span>
+    }
+    <span class="kw">return</span> user;
+}
+<div class="code-label">Java 17 — Read/Write Sync Patterns</div></pre>
+
+  <table>
+    <thead><tr><th>Pattern</th><th>Consistency</th><th>Complexity</th><th>When to use</th></tr></thead>
+    <tbody>
+      <tr><td>Read from primary always</td><td><span class="pl pl-g">Strong</span></td><td>Low</td><td>Critical data, small scale</td></tr>
+      <tr><td>Read-Your-Writes (TTL)</td><td><span class="pl pl-b">Session</span></td><td>Medium</td><td>User profile, settings</td></tr>
+      <tr><td>Write-Through Cache</td><td><span class="pl pl-b">Cache-level</span></td><td>Medium</td><td>High-read, low-write data</td></tr>
+      <tr><td>Sticky Replica per User</td><td><span class="pl pl-y">Monotonic</span></td><td>Medium</td><td>User-scoped reads</td></tr>
+      <tr><td>Synchronous Replication</td><td><span class="pl pl-g">Strong</span></td><td>Low (config)</td><td>Financial, audit data</td></tr>
+      <tr><td>Version-based routing</td><td><span class="pl pl-b">Session</span></td><td>High</td><td>Complex multi-service systems</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ══════════════════════════════════════════
+     8. CELEBRITY PROBLEM
+══════════════════════════════════════════ -->
+<section id="celebrity">
+  <div class="sh"><div class="sn" style="background:var(--a4)">8</div><h2>Celebrity Problem — Hot Key / Hot Partition</h2></div>
+
+  <p>The <strong>celebrity problem</strong> (or hot-key / thundering herd) occurs when one entity (celebrity user, viral post, trending item) receives disproportionate traffic, overwhelming a single shard, cache node, or DB partition.</p>
+
+  <div class="arch">
+    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.8rem">The Problem — All Traffic to One Node</div>
+    <div class="arch-row">
+      <div class="arch-box ab-b">1M Users → follow ElonMusk</div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box ab-r">Shard 3 (ElonMusk lives here)</div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box ab-r">💥 OVERLOADED</div>
+    </div>
+    <div class="arch-row" style="margin-top:.5rem">
+      <div class="arch-box ab-g">Shard 1 (normal users)</div>
+      <div style="margin-left:.5rem;color:var(--muted);font-size:11px">← 2% load</div>
+    </div>
+    <div class="arch-row">
+      <div class="arch-box ab-g">Shard 2 (normal users)</div>
+      <div style="margin-left:.5rem;color:var(--muted);font-size:11px">← 2% load</div>
+    </div>
+  </div>
+
+<pre><span class="cm">// ── Solution 1: Local In-Process Cache (Caffeine) ─────────────────────</span>
+<span class="cm">// Each application server caches celebrity data locally</span>
+<span class="cm">// 100 app servers × cached locally = 100x DB read reduction</span>
+
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">UserProfileService</span> {
+
+    <span class="kw">private final</span> <span class="ty">Cache</span>&lt;<span class="ty">Long</span>, <span class="ty">UserProfile</span>&gt; localCache = <span class="ty">Caffeine</span>.<span class="mt">newBuilder</span>()
+        .<span class="mt">maximumSize</span>(<span class="nu">10_000</span>)
+        .<span class="mt">expireAfterWrite</span>(<span class="ty">Duration</span>.<span class="mt">ofSeconds</span>(<span class="nu">30</span>))   <span class="cm">// short TTL for freshness</span>
+        .<span class="mt">recordStats</span>()
+        .<span class="mt">build</span>();
+
+    <span class="kw">public</span> <span class="ty">UserProfile</span> <span class="mt">getProfile</span>(<span class="kw">long</span> userId) {
+        <span class="kw">return</span> localCache.<span class="mt">get</span>(userId, id -> {
+            <span class="cm">// Cache miss → check Redis</span>
+            <span class="ty">UserProfile</span> cached = (<span class="ty">UserProfile</span>) redis.<span class="mt">opsForValue</span>().<span class="mt">get</span>(<span class="st">"user:"</span> + id);
+            <span class="kw">if</span> (cached != <span class="kw">null</span>) <span class="kw">return</span> cached;
+            <span class="cm">// Redis miss → DB</span>
+            <span class="kw">return</span> userRepo.<span class="mt">findById</span>(id).<span class="mt">orElseThrow</span>();
+        });
+    }
+}
+
+<span class="cm">// ── Solution 2: Cache Key Replication — copy hot key to N slots ───────</span>
+<span class="cm">// Instead of one Redis key for celebrity, create N copies</span>
+<span class="cm">// Distribute reads across all N copies</span>
+
+<span class="kw">public</span> <span class="ty">UserProfile</span> <span class="mt">getCelebrityProfile</span>(<span class="kw">long</span> userId) {
+    <span class="kw">int</span>    replicas = <span class="nu">20</span>;   <span class="cm">// 20 Redis key copies</span>
+    <span class="kw">int</span>    slot     = (<span class="kw">int</span>) ((<span class="ty">System</span>.<span class="mt">nanoTime</span>() % replicas + replicas) % replicas);
+    <span class="ty">String</span> key      = <span class="st">"user:"</span> + userId + <span class="st">":slot:"</span> + slot;
+
+    <span class="ty">UserProfile</span> profile = (<span class="ty">UserProfile</span>) redis.<span class="mt">opsForValue</span>().<span class="mt">get</span>(key);
+    <span class="kw">if</span> (profile != <span class="kw">null</span>) <span class="kw">return</span> profile;
+
+    <span class="cm">// Cache miss → DB fetch + populate ALL slots</span>
+    profile = userRepo.<span class="mt">findById</span>(userId).<span class="mt">orElseThrow</span>();
+    <span class="kw">for</span> (<span class="kw">int</span> i = <span class="nu">0</span>; i < replicas; i++) {
+        redis.<span class="mt">opsForValue</span>().<span class="mt">set</span>(<span class="st">"user:"</span> + userId + <span class="st">":slot:"</span> + i,
+            profile, <span class="ty">Duration</span>.<span class="mt">ofMinutes</span>(<span class="nu">5</span>));
+    }
+    <span class="kw">return</span> profile;
+}
+
+<span class="cm">// ── Solution 3: Detect hot keys + special treatment ───────────────────</span>
+<span class="cm">// Count accesses, flag users crossing threshold as "celebrities"</span>
+<span class="cm">// Apply different caching strategy for them</span>
+
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">HotKeyDetector</span> {
+
+    <span class="kw">private final</span> <span class="ty">ConcurrentHashMap</span>&lt;<span class="ty">Long</span>, <span class="ty">LongAdder</span>&gt; accessCounts = <span class="kw">new</span> <span class="ty">ConcurrentHashMap</span>&lt;&gt;();
+    <span class="kw">private final</span> <span class="ty">Set</span>&lt;<span class="ty">Long</span>&gt; hotKeys = <span class="ty">ConcurrentHashMap</span>.<span class="mt">newKeySet</span>();
+    <span class="kw">private static final long</span> HOT_THRESHOLD = <span class="nu">10_000</span>; <span class="cm">// 10K/min = celebrity</span>
+
+    <span class="kw">public</span> <span class="ty">UserProfile</span> <span class="mt">getProfile</span>(<span class="kw">long</span> userId) {
+        <span class="cm">// Track access count</span>
+        accessCounts.<span class="mt">computeIfAbsent</span>(userId, k -> <span class="kw">new</span> <span class="ty">LongAdder</span>()).<span class="mt">increment</span>();
+
+        <span class="kw">if</span> (hotKeys.<span class="mt">contains</span>(userId)) {
+            <span class="kw">return</span> <span class="mt">getFromLocalCache</span>(userId);  <span class="cm">// celebrity → local cache</span>
+        }
+
+        <span class="kw">long</span> count = accessCounts.<span class="mt">getOrDefault</span>(userId, <span class="kw">new</span> <span class="ty">LongAdder</span>()).<span class="mt">sum</span>();
+        <span class="kw">if</span> (count > HOT_THRESHOLD) {
+            hotKeys.<span class="mt">add</span>(userId);  <span class="cm">// promote to celebrity</span>
+            log.<span class="mt">info</span>(<span class="st">"User {} promoted to hot key ({}  req/min)"</span>, userId, count);
+        }
+
+        <span class="kw">return</span> <span class="mt">getFromRedis</span>(userId);  <span class="cm">// normal user → Redis</span>
+    }
+}
+
+<span class="cm">// ── Solution 4: Async fanout — pre-compute celebrity feeds ────────────</span>
+<span class="cm">// When celebrity posts → fan out to followers' feeds IMMEDIATELY (write time)</span>
+<span class="cm">// Instead of computing "who follows this person" at read time</span>
+<span class="cm">//</span>
+<span class="cm">// Twitter hybrid approach:</span>
+<span class="cm">// - Regular users: write fanout (pre-compute feed)</span>
+<span class="cm">// - Celebrities (&gt;1M followers): read time merge</span>
+<span class="cm">// - Home timeline = precomputed_feed + merge_celebrity_posts_at_read_time</span>
+<div class="code-label">Java 17 — Celebrity Problem Solutions</div></pre>
+</section>
+
+<!-- ══════════════════════════════════════════
+     9. CAP THEOREM
+══════════════════════════════════════════ -->
+<section id="cap">
+  <div class="sh"><div class="sn" style="background:var(--a3)">9</div><h2>CAP Theorem & Distributed Systems Trade-offs</h2></div>
+
+  <div class="g3">
+    <div class="card ag">
+      <div class="ct" style="color:var(--green)">C — Consistency</div>
+      <p>Every read receives the <strong>most recent write</strong> or an error. All nodes return the same data at the same time.</p>
+      <p class="muted">Requires coordination — slower writes</p>
+    </div>
+    <div class="card ab">
+      <div class="ct" style="color:var(--a2)">A — Availability</div>
+      <p>Every request receives a response (not an error). The system always responds — may return <strong>stale data</strong>.</p>
+      <p class="muted">Always responds — may not be fresh</p>
+    </div>
+    <div class="card ap">
+      <div class="ct" style="color:var(--purple)">P — Partition Tolerance</div>
+      <p>System continues operating even if <strong>network partition</strong> (nodes can't communicate). In distributed systems — P is always required.</p>
+      <p class="muted">Real networks always partition — P is non-negotiable</p>
+    </div>
+  </div>
+
+  <table>
+    <thead><tr><th>System</th><th>Type</th><th>Sacrifices</th><th>Use When</th></tr></thead>
+    <tbody>
+      <tr><td>PostgreSQL (single)</td><td><span class="pl pl-g">CA</span></td><td>Partition tolerance (stops on split)</td><td>ACID transactions, financials</td></tr>
+      <tr><td>MySQL Cluster</td><td><span class="pl pl-b">CP</span></td><td>Availability (waits for consensus)</td><td>Banking, inventory</td></tr>
+      <tr><td>Cassandra</td><td><span class="pl pl-y">AP</span></td><td>Consistency (eventual)</td><td>High-write, geographically distributed</td></tr>
+      <tr><td>DynamoDB</td><td><span class="pl pl-y">AP</span></td><td>Strong consistency (optional)</td><td>E-commerce, gaming</td></tr>
+      <tr><td>HBase</td><td><span class="pl pl-b">CP</span></td><td>Availability during partition</td><td>Analytics, time-series</td></tr>
+      <tr><td>Zookeeper / etcd</td><td><span class="pl pl-b">CP</span></td><td>Availability (may reject writes)</td><td>Config, distributed locking</td></tr>
+      <tr><td>Redis (standalone)</td><td><span class="pl pl-g">CA</span></td><td>Partition tolerance</td><td>Cache, sessions, rate limiting</td></tr>
+      <tr><td>Redis Cluster</td><td><span class="pl pl-y">AP</span></td><td>Strong consistency</td><td>Distributed cache</td></tr>
+    </tbody>
+  </table>
+
+  <div class="cl-box tip"><div class="ci">💡</div><div><strong>PACELC extension:</strong> CAP only covers partitions. PACELC adds: even without partition, you trade Latency vs Consistency. DynamoDB = PA/EL (available under partition, low latency otherwise). Spanner = PC/EC (consistent under partition, consistent with some latency).</div></div>
+</section>
+
+<!-- ══════════════════════════════════════════
+     10. CQRS + EVENT SOURCING
+══════════════════════════════════════════ -->
+<section id="cqrs">
+  <div class="sh"><div class="sn" style="background:var(--cyan)">10</div><h2>CQRS & Event Sourcing</h2></div>
+
+  <div class="arch">
+    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.8rem">CQRS — Command Query Responsibility Segregation</div>
+    <div class="arch-row">
+      <div class="arch-box ab-o">Client</div>
+      <div class="arch-arrow">→ Command (write)</div>
+      <div class="arch-box ab-o">Command Handler</div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box ab-r">Write Model (DB)</div>
+    </div>
+    <div class="arch-row">
+      <div style="margin-left:8rem;color:var(--muted);font-size:11px">↓ Event published to Kafka</div>
+    </div>
+    <div class="arch-row">
+      <div class="arch-box ab-c">Projection Handler</div>
+      <div class="arch-arrow">→ updates</div>
+      <div class="arch-box ab-g">Read Model (ElasticSearch/Redis)</div>
+      <div class="arch-arrow">←</div>
+      <div class="arch-box ab-c">Query Handler</div>
+      <div class="arch-arrow">← Query</div>
+      <div class="arch-box ab-o">Client</div>
+    </div>
+  </div>
+
+<pre><span class="cm">// ── CQRS Implementation ───────────────────────────────────────────────</span>
+
+<span class="cm">// Command side — normalize write model</span>
+<span class="kw">public record</span> <span class="ty">CreateOrderCommand</span>(<span class="kw">long</span> customerId, <span class="ty">List</span>&lt;<span class="ty">OrderItem</span>&gt; items) {}
+
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">OrderCommandHandler</span> {
+
+    <span class="kw">private final</span> <span class="ty">OrderRepository</span>   orderRepo;
+    <span class="kw">private final</span> <span class="ty">KafkaTemplate</span>&lt;<span class="ty">String</span>, <span class="ty">Object</span>&gt; kafka;
+
+    <span class="an">@Transactional</span>
+    <span class="kw">public</span> <span class="ty">UUID</span> <span class="mt">handle</span>(<span class="ty">CreateOrderCommand</span> cmd) {
+        <span class="ty">Order</span> order = Order.<span class="mt">create</span>(cmd.<span class="mt">customerId</span>(), cmd.<span class="mt">items</span>());
+        orderRepo.<span class="mt">save</span>(order);
+        <span class="cm">// Publish event for read model update</span>
+        kafka.<span class="mt">send</span>(<span class="st">"order.events"</span>, order.<span class="mt">getId</span>().<span class="mt">toString</span>(),
+            <span class="kw">new</span> <span class="ty">OrderCreatedEvent</span>(order));
+        <span class="kw">return</span> order.<span class="mt">getId</span>();
+    }
+}
+
+<span class="cm">// Query side — denormalized read model</span>
+<span class="an">@KafkaListener</span>(topics = <span class="st">"order.events"</span>)
+<span class="kw">public class</span> <span class="ty">OrderReadModelProjection</span> {
+
+    <span class="kw">public void</span> <span class="mt">on</span>(<span class="ty">OrderCreatedEvent</span> event) {
+        <span class="cm">// Upsert denormalized view for fast reads</span>
+        <span class="ty">OrderSummary</span> summary = <span class="ty">OrderSummary</span>.<span class="mt">builder</span>()
+            .<span class="mt">orderId</span>(event.<span class="mt">orderId</span>())
+            .<span class="mt">customerName</span>(customerService.<span class="mt">getName</span>(event.<span class="mt">customerId</span>())) <span class="cm">// denorm</span>
+            .<span class="mt">itemCount</span>(event.<span class="mt">items</span>().<span class="mt">size</span>())
+            .<span class="mt">total</span>(event.<span class="mt">total</span>())
+            .<span class="mt">build</span>();
+        elasticSearch.<span class="mt">index</span>(summary);  <span class="cm">// optimized for search/reads</span>
+        redis.<span class="mt">opsForValue</span>().<span class="mt">set</span>(<span class="st">"order:"</span> + event.<span class="mt">orderId</span>(), summary,
+            <span class="ty">Duration</span>.<span class="mt">ofHours</span>(<span class="nu">1</span>));   <span class="cm">// cached for fast lookup</span>
+    }
+}
+<div class="code-label">Java 17 — CQRS</div></pre>
+</section>
+
+<!-- ══════════════════════════════════════════
+     11. CONSISTENT HASHING
+══════════════════════════════════════════ -->
+<section id="consistent-hash">
+  <div class="sh"><div class="sn" style="background:var(--a2)">11</div><h2>Consistent Hashing — How it Solves Resharding</h2></div>
+
+<pre><span class="cm">// ── Problem with modulo hashing ───────────────────────────────────────</span>
+<span class="cm">// shardId = hash(key) % N</span>
+<span class="cm">// If N changes from 4 to 5: almost ALL keys move to different shards!</span>
+<span class="cm">// With N=4→5: ~80% of keys need to be moved</span>
+
+<span class="cm">// ── Consistent Hashing — minimal key movement ─────────────────────────</span>
+<span class="cm">// Hash space is a ring (0 to 2^32)</span>
+<span class="cm">// Nodes placed at points on the ring (by hash of node ID)</span>
+<span class="cm">// Key → find nearest node clockwise</span>
+<span class="cm">// Add node → only keys between new node and its predecessor move</span>
+<span class="cm">// Remove node → only that node's keys move to next node</span>
+<span class="cm">// Average key movement: k/n (k=keys, n=nodes) — optimal!</span>
+
+<span class="kw">public class</span> <span class="ty">ConsistentHashRing</span>&lt;<span class="ty">T</span>&gt; {
+
+    <span class="kw">private final</span> <span class="ty">TreeMap</span>&lt;<span class="ty">Long</span>, <span class="ty">T</span>&gt; ring         = <span class="kw">new</span> <span class="ty">TreeMap</span>&lt;&gt;();
+    <span class="kw">private final int</span>               virtualNodes;
+
+    <span class="kw">public</span> <span class="ty">ConsistentHashRing</span>(<span class="kw">int</span> virtualNodes) {
+        <span class="kw">this</span>.virtualNodes = virtualNodes;  <span class="cm">// 150-200 vnodes per real node</span>
+    }
+
+    <span class="kw">public void</span> <span class="mt">addNode</span>(<span class="ty">T</span> node) {
+        <span class="kw">for</span> (<span class="kw">int</span> i = <span class="nu">0</span>; i < virtualNodes; i++) {
+            <span class="kw">long</span> hash = <span class="mt">hash</span>(node.<span class="mt">toString</span>() + <span class="st">"#"</span> + i);
+            ring.<span class="mt">put</span>(hash, node);
+        }
+    }
+
+    <span class="kw">public void</span> <span class="mt">removeNode</span>(<span class="ty">T</span> node) {
+        <span class="kw">for</span> (<span class="kw">int</span> i = <span class="nu">0</span>; i < virtualNodes; i++) {
+            <span class="kw">long</span> hash = <span class="mt">hash</span>(node.<span class="mt">toString</span>() + <span class="st">"#"</span> + i);
+            ring.<span class="mt">remove</span>(hash);
+        }
+    }
+
+    <span class="kw">public</span> <span class="ty">T</span> <span class="mt">getNode</span>(<span class="ty">String</span> key) {
+        <span class="kw">if</span> (ring.<span class="mt">isEmpty</span>()) <span class="kw">return null</span>;
+        <span class="kw">long</span> hash = <span class="mt">hash</span>(key);
+        <span class="cm">// Find the first node at or after the key's hash</span>
+        <span class="ty">Map</span>.<span class="ty">Entry</span>&lt;<span class="ty">Long</span>, <span class="ty">T</span>&gt; entry = ring.<span class="mt">ceilingEntry</span>(hash);
+        <span class="kw">if</span> (entry == <span class="kw">null</span>) entry = ring.<span class="mt">firstEntry</span>(); <span class="cm">// wrap around ring</span>
+        <span class="kw">return</span> entry.<span class="mt">getValue</span>();
+    }
+
+    <span class="kw">private long</span> <span class="mt">hash</span>(<span class="ty">String</span> key) {
+        <span class="cm">// Use MurmurHash3 in production for better distribution</span>
+        <span class="kw">return</span> <span class="ty">Hashing</span>.<span class="mt">murmur3_128</span>().<span class="mt">hashString</span>(key, <span class="ty">StandardCharsets</span>.<span class="en">UTF_8</span>).<span class="mt">asLong</span>();
+    }
+}
+
+<span class="cm">// Usage:</span>
+<span class="ty">ConsistentHashRing</span>&lt;<span class="ty">String</span>&gt; ring = <span class="kw">new</span> <span class="ty">ConsistentHashRing</span>&lt;&gt;(<span class="nu">200</span>);
+ring.<span class="mt">addNode</span>(<span class="st">"redis-1:6379"</span>);
+ring.<span class="mt">addNode</span>(<span class="st">"redis-2:6379"</span>);
+ring.<span class="mt">addNode</span>(<span class="st">"redis-3:6379"</span>);
+
+<span class="ty">String</span> node = ring.<span class="mt">getNode</span>(<span class="st">"user:12345"</span>); <span class="cm">// always same node for same key</span>
+ring.<span class="mt">addNode</span>(<span class="st">"redis-4:6379"</span>);              <span class="cm">// only ~25% of keys move</span>
+ring.<span class="mt">removeNode</span>(<span class="st">"redis-1:6379"</span>);          <span class="cm">// only redis-1's keys move to redis-2</span>
+<div class="code-label">Java 17 — Consistent Hashing</div></pre>
+</section>
+
+<!-- ══════════════════════════════════════════
+     12. MORE PATTERNS
+══════════════════════════════════════════ -->
+<section id="more">
+  <div class="sh"><div class="sn" style="background:var(--a5)">12</div><h2>Additional Production Patterns</h2></div>
+
+<pre><span class="cm">// ── Idempotency Key — prevent duplicate processing ────────────────────</span>
+<span class="cm">// Client sends unique idempotency key with each request</span>
+<span class="cm">// Server checks if key already processed → return cached result</span>
+<span class="cm">// Same as Stripe API idempotency keys</span>
+
+<span class="an">@PostMapping</span>(<span class="st">"/payments"</span>)
+<span class="kw">public</span> <span class="ty">PaymentResult</span> <span class="mt">createPayment</span>(
+        <span class="an">@RequestHeader</span>(<span class="st">"Idempotency-Key"</span>) <span class="ty">String</span> idempotencyKey,
+        <span class="an">@RequestBody</span> <span class="ty">PaymentRequest</span> request) {
+
+    <span class="ty">String</span> cacheKey = <span class="st">"idem:"</span> + idempotencyKey;
+    <span class="ty">PaymentResult</span> cached = (<span class="ty">PaymentResult</span>) redis.<span class="mt">opsForValue</span>().<span class="mt">get</span>(cacheKey);
+    <span class="kw">if</span> (cached != <span class="kw">null</span>) <span class="kw">return</span> cached;  <span class="cm">// duplicate request → return same result</span>
+
+    <span class="ty">PaymentResult</span> result = paymentService.<span class="mt">process</span>(request);
+    redis.<span class="mt">opsForValue</span>().<span class="mt">set</span>(cacheKey, result, <span class="ty">Duration</span>.<span class="mt">ofHours</span>(<span class="nu">24</span>));
+    <span class="kw">return</span> result;
+}
+
+<span class="cm">// ── Saga Pattern — distributed transactions ────────────────────────────</span>
+<span class="cm">// Each step has a compensating transaction for rollback</span>
+<span class="cm">// Choreography: each service reacts to events</span>
+<span class="cm">// Orchestration: a saga orchestrator tells each service what to do</span>
+
+<span class="cm">// Order Saga: PlaceOrder → ReserveInventory → ChargePayment → ConfirmOrder</span>
+<span class="cm">// Failure at ChargePayment → ReleaseInventory → CancelOrder (compensate)</span>
+
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">OrderSagaOrchestrator</span> {
+    <span class="kw">public void</span> <span class="mt">execute</span>(<span class="ty">Order</span> order) {
+        <span class="kw">try</span> {
+            inventoryService.<span class="mt">reserve</span>(order);
+            <span class="kw">try</span> {
+                paymentService.<span class="mt">charge</span>(order);
+                orderService.<span class="mt">confirm</span>(order);
+            } <span class="kw">catch</span> (<span class="ty">PaymentException</span> e) {
+                inventoryService.<span class="mt">release</span>(order);  <span class="cm">// compensate</span>
+                orderService.<span class="mt">cancel</span>(order);
+            }
+        } <span class="kw">catch</span> (<span class="ty">InventoryException</span> e) {
+            orderService.<span class="mt">cancel</span>(order);
+        }
+    }
+}
+
+<span class="cm">// ── Two-Phase Commit (2PC) — strong distributed transactions ──────────</span>
+<span class="cm">// Phase 1 PREPARE: coordinator asks all participants "can you commit?"</span>
+<span class="cm">// Phase 2 COMMIT/ABORT: if all say yes → COMMIT, else → ABORT</span>
+<span class="cm">// Problem: coordinator failure between phases → participants stuck</span>
+<span class="cm">// Use: short-lived, low-latency distributed transactions (not for microservices)</span>
+
+<span class="cm">// ── Sidecar Pattern — traffic management ──────────────────────────────</span>
+<span class="cm">// Deploy a proxy alongside each service instance</span>
+<span class="cm">// Proxy handles: rate limiting, circuit breaking, auth, retry, tracing</span>
+<span class="cm">// Service Mesh (Istio, Linkerd) = sidecars + control plane</span>
+<span class="cm">// App code is clean — infrastructure concerns in proxy</span>
+
+<span class="cm">// ── Thundering Herd — cache stampede protection ───────────────────────</span>
+<span class="cm">// When cache expires → all requests simultaneously hit DB</span>
+
+<span class="kw">private final</span> <span class="ty">Map</span>&lt;<span class="ty">String</span>, <span class="ty">Semaphore</span>&gt; keyLocks = <span class="kw">new</span> <span class="ty">ConcurrentHashMap</span>&lt;&gt;();
+
+<span class="kw">public</span> <span class="ty">Object</span> <span class="mt">getWithoutStampede</span>(<span class="ty">String</span> key) {
+    <span class="ty">Object</span> cached = cache.<span class="mt">get</span>(key);
+    <span class="kw">if</span> (cached != <span class="kw">null</span>) <span class="kw">return</span> cached;
+
+    <span class="ty">Semaphore</span> lock = keyLocks.<span class="mt">computeIfAbsent</span>(key, k -> <span class="kw">new</span> <span class="ty">Semaphore</span>(<span class="nu">1</span>));
+    <span class="kw">if</span> (lock.<span class="mt">tryAcquire</span>()) {
+        <span class="kw">try</span> {
+            <span class="ty">Object</span> fresh = db.<span class="mt">fetch</span>(key);     <span class="cm">// only ONE thread hits DB</span>
+            cache.<span class="mt">set</span>(key, fresh);
+            <span class="kw">return</span> fresh;
+        } <span class="kw">finally</span> { lock.<span class="mt">release</span>(); keyLocks.<span class="mt">remove</span>(key); }
+    } <span class="kw">else</span> {
+        lock.<span class="mt">acquire</span>();                        <span class="cm">// others WAIT for winner to load</span>
+        lock.<span class="mt">release</span>();
+        <span class="kw">return</span> cache.<span class="mt">get</span>(key);               <span class="cm">// now in cache</span>
+    }
+}
+
+<span class="cm">// ── Back Pressure — don't overflow downstream ─────────────────────────</span>
+<span class="cm">// When consumer is slower than producer → signal producer to slow down</span>
+<span class="cm">// Mechanisms: blocking queues, semaphores, reactive backpressure (Project Reactor)</span>
+
+<span class="cm">// Spring WebFlux with back pressure:</span>
+<span class="ty">Flux</span>.<span class="mt">fromIterable</span>(largeList)
+    .<span class="mt">buffer</span>(<span class="nu">100</span>)                    <span class="cm">// batch 100 items</span>
+    .<span class="mt">delayElements</span>(<span class="ty">Duration</span>.<span class="mt">ofMillis</span>(<span class="nu">10</span>)) <span class="cm">// pace the output</span>
+    .<span class="mt">flatMap</span>(<span class="kw">this</span>::<span class="mt">processBatch</span>, <span class="nu">4</span>) <span class="cm">// max 4 concurrent</span>
+    .<span class="mt">subscribe</span>();
+<div class="code-label">Java 17 — Production Patterns</div></pre>
+
+  <h3>Master Decision Guide</h3>
+  <table>
+    <thead><tr><th>Problem</th><th>Solution</th><th>Technology</th></tr></thead>
+    <tbody>
+      <tr><td>Too many requests</td><td>Rate limiting</td><td>Redis + Token Bucket/Sliding Window</td></tr>
+      <tr><td>Check membership without storing all</td><td>Bloom Filter</td><td>Redis BF, Guava, Redisson</td></tr>
+      <tr><td>Count unique without storing all</td><td>HyperLogLog</td><td>Redis PFADD/PFCOUNT</td></tr>
+      <tr><td>Find approximate frequency</td><td>Count-Min Sketch</td><td>Redis CMS module</td></tr>
+      <tr><td>DB too large / writes maxed</td><td>Sharding</td><td>Vitess, Citus, app-level routing</td></tr>
+      <tr><td>Read replicas lagging</td><td>Read-Your-Writes / Write-Through Cache</td><td>Redis + sticky routing</td></tr>
+      <tr><td>Celebrity/hot key</td><td>Local cache + key replication</td><td>Caffeine + N Redis key copies</td></tr>
+      <tr><td>Distributed transactions</td><td>Saga pattern</td><td>Kafka events + compensating txns</td></tr>
+      <tr><td>Duplicate request prevention</td><td>Idempotency key</td><td>Redis with 24h TTL</td></tr>
+      <tr><td>Cache stampede</td><td>Mutex / probabilistic early expiry</td><td>Semaphore or Redis lock</td></tr>
+      <tr><td>Complex read queries</td><td>CQRS + read model</td><td>ElasticSearch + Kafka projections</td></tr>
+      <tr><td>Add/remove cache nodes</td><td>Consistent hashing</td><td>Custom ring or Ketama</td></tr>
+    </tbody>
+  </table>
+</section>
+
+</div>
+</body>
+</html>

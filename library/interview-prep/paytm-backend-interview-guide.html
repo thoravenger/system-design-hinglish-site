@@ -1,0 +1,826 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paytm Backend Interview Guide — 20 Deep Q&amp;As · Library · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../../assets/style.css">
+<script>try{if(localStorage.getItem('sd-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="../../index.html">SystemDesign<span>.hinglish</span></a><div class="toplinks"><a href="../../index.html#chapters">Chapters</a><a href="../../library/index.html">Library</a><a href="../../index.html#how">Kaise padhein</a><a href="../../links.html">URL Guide</a></div><button class="theme-toggle" aria-label="theme">◐</button></header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="../index.html"><span class="num">⌂</span> Library home</a></li></ul>
+<div class="group">System Design &amp; Architecture</div><ul>
+<li><a href="../system-design/system-design-mastery.html"><span class="num">📘</span> System Design Mastery</a></li>
+<li><a href="../system-design/smart-parking-system-hld-lld.html"><span class="num">📘</span> Smart Parking System</a></li>
+<li><a href="../system-design/98-system-design-concepts.html"><span class="num">📝</span> 98 System Design Concepts</a></li>
+<li><a href="../system-design/email-notification-scheduler-design.html"><span class="num">📄</span> Email Notification Scheduler</a></li>
+<li><a href="../system-design/schedule-reminder-2m-scale-architecture.html"><span class="num">📝</span> Scale-Ready Schedule Reminder System</a></li>
+</ul>
+<div class="group">Java Core &amp; DSA</div><ul>
+<li><a href="../java-dsa/java-core-mastery-guide.html"><span class="num">📘</span> Java Core Mastery Guide</a></li>
+<li><a href="../java-dsa/java-garbage-collection-guide.html"><span class="num">📘</span> Java Garbage Collection</a></li>
+<li><a href="../java-dsa/java-ds-leetcode-mastery.html"><span class="num">📘</span> Java Data Structures for LeetCode</a></li>
+<li><a href="../java-dsa/data-structures-java-interview-guide.html"><span class="num">📄</span> Data Structures Interview Guide</a></li>
+<li><a href="../java-dsa/lru-cache-java-visual-explainer.html"><span class="num">📘</span> LRU Cache</a></li>
+</ul>
+<div class="group">Spring Boot &amp; Microservices</div><ul>
+<li><a href="../spring-boot/spring-bean-lifecycle.html"><span class="num">📘</span> Spring Bean Lifecycle</a></li>
+<li><a href="../spring-boot/spring-transactional-guide.html"><span class="num">📘</span> @Transactional</a></li>
+<li><a href="../spring-boot/spring-circuit-breaker-resilience4j.html"><span class="num">📘</span> Circuit Breaker (Resilience4j)</a></li>
+<li><a href="../spring-boot/spring-security-jwt-logging-deploy.html"><span class="num">📘</span> Spring Security · JWT · AOP · Logging · Blue-Green</a></li>
+<li><a href="../spring-boot/saga-pattern-complete-guide.html"><span class="num">📄</span> Saga Pattern — Complete Guide</a></li>
+<li><a href="../spring-boot/saga-pattern-spring-boot-quick-reference.html"><span class="num">📄</span> Saga — Quick Reference</a></li>
+</ul>
+<div class="group">Kafka · Redis · Cassandra &amp; Data</div><ul>
+<li><a href="../data-messaging/kafka-redis-cassandra-mastery.html"><span class="num">📘</span> Kafka · Redis · Cassandra</a></li>
+<li><a href="../data-messaging/northguard-xinfra-linkedin-kafka-replacement.html"><span class="num">📘</span> Northguard &amp; Xinfra</a></li>
+</ul>
+<div class="group">GenAI &amp; AI</div><ul>
+<li><a href="../genai/java-genai-complete-guide.html"><span class="num">📄</span> Java + Generative AI</a></li>
+<li><a href="../genai/vector-database-mastery.html"><span class="num">📘</span> Vector Databases</a></li>
+</ul>
+<div class="group">Payments &amp; Interview Prep</div><ul>
+<li><a class="active" href="../interview-prep/paytm-backend-interview-guide.html"><span class="num">📄</span> Paytm Backend Interview Guide</a></li>
+<li><a href="../interview-prep/paytm-dsa-questions.html"><span class="num">📄</span> Paytm DSA Questions</a></li>
+</ul>
+</nav>
+<main class="content lib-doc">
+<div class="chapter-hero"><span class="chapter-num">Payments &amp; Interview Prep</span><h1>Paytm Backend Interview Guide — 20 Deep Q&amp;As</h1><p class="lead">Core Java, Spring Boot, Kafka, system design (wallet, rate limiter), STAR behavioral answers, coding questions aur quick cheatsheet. / Senior backend (Java+Spring+Kafka) interview prep.</p><div class="lib-meta"><span class="badge fmt-pdf">📄 PDF → Web</span><span class="badge time">⏱ ~25 min read</span><span class="badge pages">28 pages (original)</span></div><div class="tags"><span class="tag">Java</span><span class="tag">Spring Boot</span><span class="tag">Kafka</span><span class="tag">STAR</span></div><div class="lib-dl"><a class="btn small" href="../files/paytm-backend-interview-guide.pdf" download>⬇ Download PDF</a></div></div>
+<div class="callout tip"><strong>Study note</strong>Ye page original document se auto-convert kiya gaya hai (headings, tables, code preserve). Exact original layout / diagrams ke liye upar se file download karo.</div>
+<h2>SECTION 1 · CORE JAVA</h2>
+<h3>Q1.  Explain JVM memory model — Heap, Stack, Metaspace and how GC works.</h3>
+<p class="lbl"><b>Answer &amp; Explanation</b></p>
+<p>The JVM divides memory into distinct regions — crucial for tuning Paytm's payment services:</p>
+<ul><li><b>Heap:</b> All objects and class instances. Young Gen (Eden+S0+S1) + Old Gen (Tenured). GC happens here.</li><li><b>Stack:</b> Per-thread. Method frames, local primitives, references. Auto-freed on method return. Never GC'd.</li><li><b>Metaspace (Java 8+):</b> Class metadata. Grows dynamically from native memory. Replaced PermGen.</li><li><b>PC Register:</b> Per-thread pointer to current JVM instruction.</li></ul>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>GC Algorithm</th><th>Pause Time</th><th>Best For</th><th>JVM Flag</th></tr></thead><tbody><tr><td>Serial GC</td><td>High (full STW)</td><td>Single-core, small heaps</td><td>-XX:+UseSerialGC</td></tr><tr><td>G1GC (default Java 9+)</td><td>100–200ms</td><td>Balanced — general use</td><td>-XX:+UseG1GC</td></tr><tr><td>ZGC (Java 11+)</td><td>&lt; 1ms</td><td>Low-latency payment APIs</td><td>-XX:+UseZGC</td></tr><tr><td>Shenandoah</td><td>&lt; 10ms</td><td>Large heaps, concurrent</td><td>-XX:+UseShenandoahGC</td></tr></tbody></table></div>
+<div class="callout tip"><p><i><b>Tip:</b> For Paytm payment API (SLA &lt; 200ms): use ZGC. Tune: -Xmx4g -Xms4g -XX:+UseZGC -XX:MaxGCPauseMillis=5</i></p></div>
+<h3>Q2.  What is the Java Memory Model (JMM)? Explain volatile and happens-before.</h3>
+<p class="lbl"><b>Answer &amp; Explanation</b></p>
+<p>The JMM defines rules for thread visibility. Without it, each CPU core's cache means one thread's writes may never be visible to another.</p>
+<div class="code-label">Java</div>
+<pre><code>// BROKEN — without volatile, JIT may cache &#x27;instance&#x27; in CPU register
+private static Singleton instance;
+
+// CORRECT — volatile: guarantees visibility + prevents instruction reordering
+private static volatile Singleton instance;
+
+public static Singleton getInstance() {
+    if (instance == null) { // first check (no lock — fast path)
+        synchronized (Singleton.class) { // only lock when null
+            if (instance == null) { // second check (inside lock)
+                instance = new Singleton(); // safe — volatile stops partial construct
+            }
+        }
+    }
+    return instance;
+}
+
+// Without volatile: CPU reorders steps — another thread sees non-null but
+// reads an incompletely constructed object (fields not yet initialized!)</code></pre>
+<p><b>Critical: Self-invocation this.method() skips the Spring proxy — @Transactional and @Async will be SILENTLY IGNORED!</b></p>
+<div class="callout tip"><p><i><b>Tip:</b> happens-before rules: unlock </i>→<i> lock; volatile write </i>→<i> read; thread.start() </i>→<i> run(); run() </i>→<i> join() caller.</i></p></div>
+<h3>Q3.  CompletableFuture — how does it work and how do you use it at Paytm scale?</h3>
+<p class="lbl"><b>Answer &amp; Explanation</b></p>
+<p>CompletableFuture enables non-blocking async pipelines. Parallelizing sequential downstream calls at Paytm dramatically cuts latency.</p>
+<div class="code-label">Java</div>
+<pre><code>// SEQUENTIAL — 300ms + 300ms + 100ms = 700ms total
+User user = fetchUser(id); // 300ms — blocks thread
+Wallet wallet = fetchWallet(id); // 300ms — blocks thread
+KYC kyc = fetchKYC(id); // 100ms — blocks thread
+
+// PARALLEL — max(300, 300, 100) = 300ms total (60% faster!)
+// Always provide a CUSTOM executor — never use ForkJoinPool.commonPool() in prod!
+ExecutorService executor = Executors.newFixedThreadPool(20);
+
+CompletableFuture&lt;User&gt; userFuture = CompletableFuture.supplyAsync(() -&gt; fetchUser(id), executor);
+CompletableFuture&lt;Wallet&gt; walletFuture = CompletableFuture.supplyAsync(() -&gt; fetchWallet(id), executor);
+CompletableFuture&lt;KYC&gt; kycFuture = CompletableFuture.supplyAsync(() -&gt; fetchKYC(id), executor);
+
+// Wait for ALL three to complete
+CompletableFuture.allOf(userFuture, walletFuture, kycFuture).thenRun(() -&gt; {
+    User user = userFuture.join(); // non-blocking — already done
+    Wallet wallet = walletFuture.join();
+    KYC kyc = kycFuture.join();
+    buildResponse(user, wallet, kyc);
+}).exceptionally(ex -&gt; {
+    log.error(&quot;Checkout fetch failed&quot;, ex);
+    return null;
+});
+
+// Key API Reference:
+// supplyAsync(Supplier, Executor) — run async task on executor
+// thenApply(Function) — transform result (same thread)
+// thenApplyAsync(Function, Executor) — transform on separate thread
+// thenCompose(Function&lt;T,CF&lt;U&gt;&gt;) — flatMap: chain dependent future
+// exceptionally(Function&lt;Throwable&gt;) — fallback on any exception
+// allOf(CF...) — complete when ALL complete
+// anyOf(CF...) — complete when FIRST completes</code></pre>
+<div class="callout tip"><p><i><b>Tip:</b> Real Paytm impact: checkout API 1,200ms </i>→<i> 140ms by parallelizing user-profile, wallet-balance, and fraud-score via</i> <i>CompletableFuture.allOf().</i></p></div>
+<h3>Q4.  ReentrantLock vs synchronized — differences and when to use which?</h3>
+<p class="lbl"><b>Answer &amp; Explanation</b></p>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Feature</th><th>synchronized</th><th>ReentrantLock</th></tr></thead><tbody><tr><td>Try locking without blocking</td><td>Blocks forever</td><td>tryLock(timeout, unit)</td></tr><tr><td>Interruptible wait</td><td>No</td><td>lockInterruptibly()</td></tr><tr><td>Fairness (FIFO ordering)</td><td>No</td><td>new ReentrantLock(true)</td></tr><tr><td>Multiple condition vars</td><td>One wait/notify set</td><td>Unlimited Condition objects</td></tr><tr><td>Read-write split</td><td>No</td><td>ReentrantReadWriteLock</td></tr><tr><td>Code complexity</td><td>Implicit block-scoped</td><td>Explicit try/finally required</td></tr></tbody></table></div>
+<div class="code-label">Java</div>
+<pre><code>// ReentrantLock — ALWAYS unlock in finally!
+ReentrantLock lock = new ReentrantLock();
+
+public void processPayment(Payment payment) {
+    try {
+        // tryLock with timeout — avoids deadlock risk
+        if (!lock.tryLock(500, TimeUnit.MILLISECONDS)) {
+            throw new TimeoutException(&quot;Could not acquire payment lock&quot;);
+        }
+        try {
+            debitWallet(payment); // critical section
+            callBankGateway(payment);
+        } finally {
+            lock.unlock(); // ALWAYS release — even on exception
+        }
+    } catch (InterruptedException e) {
+        Thread.currentThread().interrupt(); // restore interrupted flag!
+    }
+}
+
+// Multiple Conditions — fine-grained signaling (Producer-Consumer)
+ReentrantLock lock = new ReentrantLock();
+Condition notFull = lock.newCondition(); // producer waits here when queue full
+Condition notEmpty = lock.newCondition(); // consumer waits here when queue empty
+// Signal only producers OR only consumers — more efficient than notifyAll()</code></pre>
+<div class="callout tip"><p><i><b>Tip:</b> Use synchronized for simple cases. Use ReentrantLock for: tryLock timeout, fair ordering, or multiple conditions (e.g.,</i> <i>bounded blocking queue).</i></p></div>
+<h2>SECTION 2 · SPRING BOOT (Advanced)</h2>
+<h3>Q5.  How does @Transactional work internally? Explain propagation + isolation levels.</h3>
+<p class="lbl"><b>Answer &amp; Explanation</b></p>
+<p>Spring wraps @Transactional methods with a proxy (CGLIB for classes, JDK proxy for interfaces). The proxy intercepts the call, starts a tx, runs your method, then commits or rolls back.</p>
+<div class="code-label">Java</div>
+<pre><code>// THE MOST COMMON @Transactional MISTAKE: Self-Invocation
+// this.method() bypasses the Spring proxy   @Transactional SILENTLY ignored!
+
+@Service
+public class OrderService {
+
+    // WRONG — processPayment() runs WITHOUT any transaction
+    public void createOrder(Order order) {
+        this.processPayment(order); // direct call, skips Spring proxy
+    }
+
+    @Transactional
+    public void processPayment(Order order) { /* runs without tx context! */ }
+
+    // FIX 1 — inject self (Spring returns the proxy, not &#x27;this&#x27;)
+    @Autowired
+    private OrderService self;
+
+    public void createOrderFixed(Order order) {
+        self.processPayment(order); // goes through proxy
+    }
+    // FIX 2 (cleaner) — extract processPayment() to a SEPARATE @Service bean
+}
+
+// PROPAGATION EXAMPLES:
+@Transactional(propagation = Propagation.REQUIRES_NEW) // new tx, suspend outer
+public void saveAuditLog(AuditEntry entry) {
+    auditRepo.save(entry); // saved even if the outer tx rolls back
+}
+
+@Transactional(propagation = Propagation.NESTED) // savepoint in outer tx
+public void processLineItem(LineItem item) {
+    lineItemRepo.save(item); // rollback here = partial undo, outer tx survives
+}
+
+@Transactional(isolation = Isolation.SERIALIZABLE) // highest isolation
+public void debitWallet(String userId, BigDecimal amount) {
+    // No phantom reads, no dirty reads, no non-repeatable reads
+    // Full serialization — use for critical payment debits
+}
+
+@Transactional(rollbackFor = Exception.class, // rollback on checked exceptions
+noRollbackFor = InsufficientFundsException.class) // NOT on this one
+public void charge(Payment payment) throws InsufficientFundsException {
+    // InsufficientFunds = expected business outcome, should NOT roll back tx
+}</code></pre>
+<p class="lbl"><b>Non-Repeatabl</b></p>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Isolation Level</th><th>Dirty Read e</th><th>Phantom</th><th>Paytm Use</th></tr></thead><tbody><tr><td>READ_UNCOMMITTED</td><td>Yes Yes</td><td>Yes</td><td>Never</td></tr><tr><td>READ_COMMITTED</td><td>No Yes</td><td>Yes</td><td>General</td></tr><tr><td>REPEATABLE_READ</td><td>No No</td><td>Yes</td><td>Balance reads</td></tr><tr><td>SERIALIZABLE</td><td>No No</td><td>No</td><td>Payment debit</td></tr></tbody></table></div>
+<div class="callout tip"><p><i><b>Tip:</b> For wallet debit: SERIALIZABLE or optimistic locking (@Version). Prevents double-spend when two threads debit</i> <i>same wallet simultaneously.</i></p></div>
+<h3>Q6.  How does Spring AOP work? Write a custom logging + idempotency aspect.</h3>
+<p class="lbl"><b>Answer &amp; Explanation</b></p>
+<p>AOP separates cross-cutting concerns from business logic. Spring creates proxy beans at runtime — this is exactly how @Transactional, @Cacheable, and @Async work automatically.</p>
+<div class="code-label">Java</div>
+<pre><code>// Step 1: Custom Annotation
+@Retention(RetentionPolicy.RUNTIME)
+@Target(ElementType.METHOD)
+public @interface Idempotent {
+    long ttlHours() default 24;
+}
+
+// Step 2: Aspect — intercepts methods at runtime via proxy
+@Aspect
+@Component
+public class PaymentAspect {
+
+    // Timing + Logging — wraps ALL payment service methods
+    @Around(&quot;execution(* com.paytm.payment.service.*.*(..))&quot;)
+    public Object logAndTime(ProceedingJoinPoint pjp) throws Throwable {
+        String method = pjp.getSignature().toShortString();
+        long start = System.currentTimeMillis();
+        try {
+            Object result = pjp.proceed(); // invoke the REAL method
+            log.info(&quot;[OK] {} in {}ms&quot;, method, System.currentTimeMillis()-start);
+            return result;
+        } catch (Exception e) {
+            log.error(&quot;[ERR] {}   {}&quot;, method, e.getMessage());
+            metrics.counter(&quot;payment.errors&quot;,&quot;method&quot;,method).increment();
+            throw e; // ALWAYS re-throw!
+        }
+    }
+
+    // Idempotency — intercepts @Idempotent annotated methods
+    @Around(&quot;@annotation(idempotent)&quot;)
+    public Object enforceIdempotency(ProceedingJoinPoint pjp,
+    Idempotent idempotent) throws Throwable {
+        String key = getCurrentRequest().getHeader(&quot;Idempotency-Key&quot;);
+        String redisKey = &quot;idem:&quot; + key;
+        String cached = redis.get(redisKey);
+
+        if (cached != null) { // already processed — return cached
+            return objectMapper.readValue(cached, getReturnType(pjp));
+        }
+        Object result = pjp.proceed();
+        redis.setex(redisKey, idempotent.ttlHours()*3600, serialize(result));
+        return result;
+    }
+}
+
+// Step 3: Usage — clean, declarative
+@PostMapping(&quot;/payment&quot;)
+@Idempotent(ttlHours = 24) // runs at most once per idempotency key
+public PaymentResponse pay(@RequestBody PaymentRequest req) {
+    return paymentService.process(req);
+}</code></pre>
+<div class="callout tip"><p><i><b>Tip:</b> CGLIB proxy (default in Spring Boot) requires a no-arg constructor. JDK proxy (for interfaces) is slightly faster. Mention</i> <i>both — shows depth of Spring internals knowledge.</i></p></div>
+<h3>Q7.  Explain Circuit Breaker with Resilience4j — states, config, fallback pattern.</h3>
+<p class="lbl"><b>Answer &amp; Explanation</b></p>
+<p><b>State</b> · <b>Behavior</b> · <b>Transition Trigger</b></p>
+<ul><li>→ OPEN when failure rate ≥</li></ul>
+<p>CLOSED · Normal — all calls pass through threshold</p>
+<ul><li>→ HALF_OPEN after</li></ul>
+<p>OPEN · Fail-fast — no actual calls made, fallback triggered waitDurationInOpenState</p>
+<ul><li>→ CLOSED on success; → OPEN on</li></ul>
+<p>HALF_OPEN · N probe calls allowed to test service recovery failure</p>
+<pre><code>application.yml
+  # application.yml — Resilience4j config for payment gateway
+  resilience4j:
+  circuitbreaker:
+  instances:
+  paymentGateway:
+  slidingWindowSize: 10 # evaluate last 10 calls
+  failureRateThreshold: 50 # OPEN if 50%+ fail
+  slowCallRateThreshold: 80 # OPEN if 80%+ are slow
+  slowCallDurationThreshold: 2000ms # &#x27;slow&#x27; = &gt; 2 seconds
+  waitDurationInOpenState: 10s # stay OPEN for 10s
+  permittedNumberOfCallsInHalfOpenState: 3 # 3 probes in HALF_OPEN
+  retry:
+  instances:
+  paymentGateway:
+  maxAttempts: 3
+  waitDuration: 1s
+  enableExponentialBackoff: true
+  exponentialBackoffMultiplier: 2 # delays: 1s   2s   4s
+Java
+  @Service
+  public class PaymentGatewayService {
+
+  // Circuit Breaker + Retry + TimeLimiter — layered resilience
+  @CircuitBreaker(name = &quot;paymentGateway&quot;, fallbackMethod = &quot;paymentFallback&quot;)
+  @Retry(name = &quot;paymentGateway&quot;)
+  @TimeLimiter(name = &quot;paymentGateway&quot;)
+  public CompletableFuture&lt;PaymentResponse&gt; chargeAsync(PaymentRequest req) {
+  return CompletableFuture.supplyAsync(() -&gt; gatewayClient.charge(req));
+  }
+
+  // Fallback — triggered when CB is OPEN or all retries exhausted
+  public CompletableFuture&lt;PaymentResponse&gt; paymentFallback(
+  PaymentRequest req, Exception ex) {
+  log.warn(&quot;[CB-FALLBACK] Gateway unavailable: {}&quot;, ex.getClass().getSimpleName());
+  kafkaProducer.send(&quot;payment-retry-queue&quot;, req.getUserId(), req); // queue retry
+  return CompletableFuture.completedFuture(
+  PaymentResponse.pending(req.getOrderId())); // return PENDING to client
+  }
+  }</code></pre>
+<div class="callout tip"><p><i><b>Tip:</b> Stack all three: CB (opens at 50% failure) + Retry (3x, exponential backoff) + TimeLimiter (2s). Production resilience</i> <i>pattern at Paytm for all bank gateway calls.</i></p></div>
+<h2>SECTION 3 · APACHE KAFKA (Highest Weight at Paytm)</h2>
+<h3>Q8.  Explain Kafka architecture — broker, partition, consumer group, ISR, offset.</h3>
+<p class="lbl"><b>Answer &amp; Explanation</b></p>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Concept</th><th>Description</th><th>Paytm Config</th></tr></thead><tbody><tr><td>Topic</td><td>Immutable append-only log per domain event</td><td>One topic per event type: payment-events, wallet-events</td></tr><tr><td>Partition</td><td>Topic split into N ordered shards. Unit of parallelism.</td><td>Key=userId → same partition → ordered per user</td></tr></tbody></table></div>
+<p>3–5 brokers in prod; replication</p>
+<p>Broker · Kafka server. Holds subset of partitions. factor=3</p>
+<p>1 leader per partition; auto-elected</p>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Leader</th><th>Handles all reads/writes for a partition. on failure</th></tr></thead><tbody><tr><td>ISR</td><td>In-Sync Replicas — replicas caught up with acks=all → message committed only leader. when all ISR ack</td></tr><tr><td>Consumer Group</td><td>Consumers sharing work. 1 partition → 1 group.id='payment-processor'; max consumer max. parallel = partitions</td></tr><tr><td>Offset</td><td>Message position in partition. Consumer enable.auto.commit=false → manual tracks here. commit</td></tr></tbody></table></div>
+<div class="code-label">Java</div>
+<pre><code>// PRODUCER — reliable, idempotent, ordered per user
+Properties props = new Properties();
+props.put(&quot;bootstrap.servers&quot;, &quot;kafka1:9092,kafka2:9092,kafka3:9092&quot;);
+props.put(&quot;acks&quot;, &quot;all&quot;); // wait for ALL ISR to ack
+props.put(&quot;enable.idempotence&quot;, true); // broker deduplicates retries
+props.put(&quot;retries&quot;, Integer.MAX_VALUE); // retry indefinitely
+props.put(&quot;max.in.flight.requests.per.connection&quot;, 5);// safe with idempotence=true
+
+// Key = userId   all events for same user   same partition    ordered
+ProducerRecord&lt;String, PaymentEvent&gt; record =
+new ProducerRecord&lt;&gt;(&quot;payment-events&quot;, userId, paymentEvent);
+
+producer.send(record, (metadata, exception) -&gt; {
+    if (exception != null) log.error(&quot;Publish failed partition={}&quot;, metadata.partition());
+});
+
+// CONSUMER — manual commit, cooperative rebalancing
+props.put(&quot;group.id&quot;, &quot;payment-processor&quot;);
+props.put(&quot;auto.offset.reset&quot;, &quot;earliest&quot;); // don&#x27;t miss messages on new group
+props.put(&quot;enable.auto.commit&quot;, false); // manual commit = we control it
+props.put(&quot;isolation.level&quot;, &quot;read_committed&quot;); // skip aborted tx messages
+props.put(&quot;partition.assignment.strategy&quot;,
+&quot;org.apache.kafka.clients.consumer.CooperativeStickyAssignor&quot;); // zero-downtime rebalance
+props.put(&quot;max.poll.records&quot;, 100);
+props.put(&quot;max.poll.interval.ms&quot;, 300000); // 5min — for heavy DB processing</code></pre>
+<div class="callout tip"><p><i><b>Tip:</b> KEY: 10 partitions = max 10 parallel consumers. 11th consumer sits idle. Size partitions for peak throughput BEFORE</i> <i>launch — repartitioning live topics is painful and requires downtime.</i></p></div>
+<h3>Q9.  How do you achieve exactly-once semantics in Kafka for payment events?</h3>
+<p class="lbl"><b>Answer &amp; Explanation</b></p>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Semantic</th><th>Risk</th><th>Config</th><th>Paytm?</th></tr></thead><tbody><tr><td>At-most-once</td><td>May LOSE messages</td><td>retries=0, auto.commit=true</td><td>Never</td></tr><tr><td></td><td>Duplicate messages</td><td></td><td>With idempotency</td></tr><tr><td>At-least-once</td><td>possible</td><td>retries=N, manual commit</td><td>key</td></tr><tr><td></td><td>Processed exactly once</td><td></td><td>Kafka EOS or Redis</td></tr><tr><td>Exactly-once (EOS)</td><td>end-to-end</td><td>enable.idempotence + transactions</td><td>key</td></tr></tbody></table></div>
+<div class="code-label">Java</div>
+<pre><code>// OPTION A: Kafka Transactions (true EOS)
+producerProps.put(&quot;enable.idempotence&quot;, true);
+producerProps.put(&quot;transactional.id&quot;, &quot;payment-producer-pod-1&quot;); // unique per JVM!
+producerProps.put(&quot;acks&quot;, &quot;all&quot;);
+
+producer.initTransactions();
+try {
+    producer.beginTransaction();
+    // Both sends are ATOMIC — either both commit or both abort
+    producer.send(new ProducerRecord&lt;&gt;(&quot;payment-events&quot;, key, paymentJson));
+    producer.send(new ProducerRecord&lt;&gt;(&quot;audit-log&quot;, key, auditJson));
+    producer.commitTransaction(); // both visible atomically
+} catch (ProducerFencedException e) {
+    producer.close(); // another instance took over — must close
+} catch (Exception e) {
+    producer.abortTransaction(); // both messages invisible to consumers
+}
+
+// Consumer: MUST use read_committed to skip uncommitted messages
+consumerProps.put(&quot;isolation.level&quot;, &quot;read_committed&quot;);
+
+
+// OPTION B: At-least-once + Redis Idempotency Key (PAYTM&#x27;S ACTUAL APPROACH)
+// Simpler and more resilient than Kafka transactions in practice
+@KafkaListener(topics = &quot;payment-events&quot;, groupId = &quot;payment-processor&quot;)
+public void process(ConsumerRecord&lt;String, PaymentEvent&gt; record, Acknowledgment ack) {
+    String key = &quot;processed:&quot; + record.value().getIdempotencyKey();
+
+    if (Boolean.TRUE.equals(redis.hasKey(key))) {
+        log.info(&quot;[SKIP] Already processed: {}&quot;, key);
+        ack.acknowledge(); // commit offset — we&#x27;ve seen this before
+        return;
+    }
+
+    paymentService.process(record.value());
+    redis.opsForValue().set(key, &quot;1&quot;, 24, TimeUnit.HOURS); // mark done
+    ack.acknowledge(); // commit offset AFTER successful processing
+}</code></pre>
+<div class="callout tip"><p><i><b>Tip:</b> Paytm REAL choice: at-least-once + Redis idempotency key. Kafka transactions add broker overhead and operational</i> <i>complexity. The Redis approach handles crashes, retries, and Kafka redeliveries elegantly.</i></p></div>
+<h3>Q10.  Kafka Consumer Rebalancing — what triggers it and how to minimize impact?</h3>
+<p class="lbl"><b>Answer &amp; Explanation</b></p>
+<p>Rebalancing: ALL consumers in a group STOP processing while partitions are redistributed. For real-time payment processing this causes dangerous processing gaps.</p>
+<div class="code-label">Java</div>
+<pre><code>// REBALANCE TUNING — minimize impact for payment consumers
+
+// CooperativeSticky = incremental rebalance — only move partitions that NEED moving
+// Standard range/roundrobin: ALL consumers stop   ALL partitions reassigned (Stop-The-World)
+// CooperativeSticky: ONLY affected partitions move   others continue processing
+props.put(&quot;partition.assignment.strategy&quot;,
+&quot;org.apache.kafka.clients.consumer.CooperativeStickyAssignor&quot;);
+
+// Static membership — each pod gets a fixed ID
+// On restart: Kafka waits for SAME consumer to rejoin instead of triggering rebalance
+props.put(&quot;group.instance.id&quot;, &quot;payment-consumer-pod-&quot; + System.getenv(&quot;POD_INDEX&quot;));
+
+// Heartbeat / timeout tuning — prevent false rebalances from slow processing
+props.put(&quot;heartbeat.interval.ms&quot;, 3000); // send heartbeat every 3s
+props.put(&quot;session.timeout.ms&quot;, 45000); // consumer &#x27;dead&#x27; if silent for 45s
+props.put(&quot;max.poll.interval.ms&quot;, 300000); // 5min max between polls (for heavy DB work)
+props.put(&quot;max.poll.records&quot;, 100); // don&#x27;t over-fetch  slow processing    rebalance
+
+// REBALANCE LISTENER — graceful commit before rebalance
+public class PaymentConsumer implements ConsumerAwareRebalanceListener {
+
+    @Override
+    public void onPartitionsRevokedBeforeCommit(Consumer&lt;?,?&gt; consumer,
+    Collection&lt;TopicPartition&gt; partitions) {
+        // Commit current offsets BEFORE partitions are taken away
+        consumer.commitSync(currentOffsets);
+        log.info(&quot;Revoked — committed offsets for {} partitions&quot;, partitions.size());
+    }
+
+    @Override
+    public void onPartitionsAssigned(Consumer&lt;?,?&gt; consumer,
+    Collection&lt;TopicPartition&gt; partitions) {
+        log.info(&quot;Assigned {} new partitions — warming caches&quot;, partitions.size());
+    }
+}</code></pre>
+<div class="callout tip"><p><i><b>Tip:</b> CooperativeSticky + static membership prevents 30–60 second processing gaps during rolling deployments. Critical for</i> <i>Paytm's zero-downtime payment processing.</i></p></div>
+<h3>Q11.  Design a Dead Letter Queue (DLQ) pattern in Kafka for failed payment events.</h3>
+<p class="lbl"><b>Answer &amp; Explanation</b></p>
+<p>DLQ routes repeatedly-failing messages to a separate topic instead of blocking the main pipeline. Paytm uses a multi-level retry topology:</p>
+<div class="code-label">Java</div>
+<pre><code>// MULTI-LEVEL RETRY TOPOLOGY
+// payment-events   (fail x1)    payment-retry-30s (retry after 30 seconds)
+// (fail x2)   payment-retry-5min (retry after 5 minutes)
+// (fail x3)   payment-DLQ (manual ops review + alert)
+
+@KafkaListener(topics = &quot;payment-events&quot;, groupId = &quot;payment-processor&quot;)
+public void processPayment(ConsumerRecord&lt;String, PaymentEvent&gt; record,
+Acknowledgment ack) {
+    try {
+        paymentService.process(record.value());
+        ack.acknowledge(); // success — commit offset
+
+    } catch (RetryableException e) {
+        // Transient (timeout, network) — send to retry topic with delay header
+        int retryCount = parseRetryCount(record.headers());
+        if (retryCount &lt; 3) {
+            sendToRetryTopic(record, retryCount + 1);
+        } else {
+            sendToDLQ(record, e); // exhausted retries   DLQ
+        }
+        ack.acknowledge(); // commit — we re-queued it
+
+    } catch (NonRetryableException e) {
+        // Permanent error (invalid account, fraud block)   DLQ immediately
+        sendToDLQ(record, e);
+        ack.acknowledge();
+    }
+}
+
+// DLQ ENRICHMENT — ops team needs these headers for fast triage
+private void sendToDLQ(ConsumerRecord&lt;String, PaymentEvent&gt; record, Exception ex) {
+    RecordHeaders headers = new RecordHeaders(record.headers());
+    headers.add(&quot;X-Exception-Class&quot;, ex.getClass().getName().getBytes());
+    headers.add(&quot;X-Exception-Message&quot;, ex.getMessage().getBytes());
+    headers.add(&quot;X-Original-Topic&quot;, record.topic().getBytes());
+    headers.add(&quot;X-Original-Partition&quot;, String.valueOf(record.partition()).getBytes());
+    headers.add(&quot;X-Original-Offset&quot;, String.valueOf(record.offset()).getBytes());
+    headers.add(&quot;X-Failed-At&quot;, Instant.now().toString().getBytes());
+
+    dlqProducer.send(new ProducerRecord&lt;&gt;(
+    &quot;payment-events-DLQ&quot;, null, record.key(), record.value(), headers));
+    log.error(&quot;[DLQ] key={} reason={}&quot;, record.key(), ex.getMessage());
+}
+
+@Scheduled(cron = &quot;0 */30 * * * *&quot;) // replay DLQ every 30 minutes
+public void reprocessDLQ() {
+    // Read DLQ, re-publish to main topic after root cause fixed
+    // Alert on-call (PagerDuty) if DLQ size &gt; 100 messages
+}</code></pre>
+<div class="callout tip"><p><i><b>Tip:</b> Always enrich DLQ with exception, timestamp, original-topic, retry-count headers. Paytm ops team uses this for fast</i> <i>triage. Set up PagerDuty alert when DLQ depth exceeds threshold.</i></p></div>
+<h2>SECTION 4 · SYSTEM DESIGN</h2>
+<h3>Q12.  Design a Wallet System — concurrent debit/credit with strong consistency.</h3>
+<p class="lbl"><b>Answer &amp; Explanation</b></p>
+<div class="code-label">Java</div>
+<pre><code>// ENTITY — @Version enables optimistic locking
+@Entity
+@Table(name = &quot;wallet_accounts&quot;,
+indexes = @Index(columnList = &quot;user_id&quot;, unique = true))
+public class Wallet {
+    @Id @GeneratedValue
+    private Long id;
+
+    @Column(nullable = false, unique = true)
+    private String userId;
+
+    @Column(nullable = false, precision = 15, scale = 2)
+    private BigDecimal balance;
+
+    @Version // auto-incremented on every save
+    private int version; // concurrent update throws OptimisticLockException
+}
+
+// SERVICE — idempotency + optimistic lock + outbox
+@Service
+@Transactional(isolation = Isolation.REPEATABLE_READ)
+public class WalletService {
+
+    public void debit(String userId, BigDecimal amount, String idempotencyKey) {
+
+        // Idempotency check — prevent double-processing same request
+        if (txnRepo.existsByIdempotencyKey(idempotencyKey)) {
+            log.info(&quot;[SKIP] Already processed: {}&quot;, idempotencyKey);
+            return;
+        }
+
+        // Fetch wallet — @Version enables optimistic locking
+        Wallet wallet = walletRepo.findByUserId(userId)
+        .orElseThrow(() -&gt; new WalletNotFoundException(userId));
+
+        // Business validation
+        if (wallet.getBalance().compareTo(amount) &lt; 0) {
+            throw new InsufficientFundsException(
+            &quot;Balance &quot; + wallet.getBalance() + &quot; &lt; Required &quot; + amount);
+        }
+
+        // Debit — save throws OptimisticLockException on concurrent update
+        wallet.setBalance(wallet.getBalance().subtract(amount));
+        walletRepo.save(wallet); // increments version; concurrent update fails here
+
+        // Record transaction for audit trail
+        txnRepo.save(WalletTransaction.debit(wallet.getId(), amount, idempotencyKey));
+
+        // Outbox pattern — same DB tx = guaranteed event delivery to Kafka
+        outboxRepo.save(OutboxEvent.walletDebit(userId, amount, idempotencyKey));
+        // A separate poller reads outbox and publishes to Kafka
+        // Prevents dual-write: no risk of DB commit + Kafka publish both needed atomically
+    }
+}</code></pre>
+<div class="callout tip"><p><i><b>Tip:</b> OUTBOX PATTERN is critical: write transaction + event to DB in SAME transaction. Separate poller publishes to</i> <i>Kafka. Eliminates dual-write problem where DB succeeds but Kafka publish fails.</i></p></div>
+<h3>Q13.  Design a distributed Rate Limiter for Paytm's Payment API (Token Bucket algorithm).</h3>
+<p class="lbl"><b>Answer &amp; Explanation</b></p>
+<p><b>Algorithm</b> · <b>Behavior</b> · <b>Best For</b></p>
+<p>Tokens refill at fixed rate. Burst up to capacity</p>
+<p>Token Bucket allowed. · API rate limiting </p>
+<p>Process at constant rate. Bursts queued and</p>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Leaky Bucket smoothed.</th><th>Outgoing call shaping</th></tr></thead><tbody><tr><td>Fixed Window Simple counter per window (e.g., per minute).</td><td>Coarse limiting only</td></tr><tr><td>Sliding Window Track exact request timestamps. Most accurate.</td><td>Audit / compliance</td></tr></tbody></table></div>
+<div class="code-label">Java</div>
+<pre><code>// REDIS LUA SCRIPT — atomic token bucket, no race conditions
+// Lua executes atomically in Redis — safe across distributed nodes!
+private static final String TOKEN_BUCKET_SCRIPT = &quot;&quot;&quot;
+local key = KEYS[1]
+local capacity = tonumber(ARGV[1])
+local ttl = tonumber(ARGV[2])
+local tokens = tonumber(redis.call(&#x27;GET&#x27;, key))
+if tokens == nil then tokens = capacity end -- first request, full bucket
+if tokens &gt; 0 then
+redis.call(&#x27;SET&#x27;, key, tokens - 1, &#x27;EX&#x27;, ttl)
+return 1 -- ALLOWED
+else
+return 0 -- RATE LIMITED
+end&quot;&quot;&quot;;
+
+@Component
+public class RedisRateLimiter {
+    // 100 requests/minute per user, burst up to 200
+    public boolean isAllowed(String userId) {
+        Long result = (Long) redisTemplate.execute(
+        new DefaultRedisScript&lt;&gt;(TOKEN_BUCKET_SCRIPT, Long.class),
+        List.of(&quot;rate:&quot; + userId),
+        &quot;100&quot;, // ARGV[1] — max tokens (burst capacity)
+        &quot;60&quot; // ARGV[2] — TTL seconds (refill window)
+        );
+        return result != null &amp;&amp; result == 1L;
+    }
+}
+
+// SPRING FILTER — applied at API Gateway, before business logic
+@Component @Order(1)
+public class RateLimitFilter extends OncePerRequestFilter {
+    @Override
+    protected void doFilterInternal(HttpServletRequest req,
+    HttpServletResponse res,
+    FilterChain chain) throws IOException, ServletException {
+        String userId = jwtService.extractUserId(req);
+        if (!rateLimiter.isAllowed(userId)) {
+            res.setStatus(429);
+            res.setHeader(&quot;Retry-After&quot;, &quot;60&quot;);
+            res.getWriter().write(&quot;{\&quot;error\&quot;:\&quot;Rate limit exceeded\&quot;}&quot;);
+            return;
+        }
+        chain.doFilter(req, res);
+    }
+}</code></pre>
+<div class="callout tip"><p><i><b>Tip:</b> Lua script is atomic — no Redis WATCH/MULTI needed. Paytm applies: 100 req/min per user, 1000 req/min per</i> <i>merchant. Redis handles 100K rate-limit checks/sec easily.</i></p></div>
+<h2>SECTION 5 · BEHAVIORAL (STAR Pattern)</h2>
+<p><b>STAR</b> = <b>S</b>ituation · <b>T</b>ask · <b>A</b>ction · <b>R</b>esult — include specific numbers, timelines, outcomes.</p>
+<h3>Q14.  Tell me about a system you designed from scratch. What challenges did you face?</h3>
+<p class="lbl"><b>Answer &amp; Explanation</b></p>
+<p class="lbl"><b>Situation</b></p>
+<p>Payment reconciliation was fully manual — finance team running SQL queries at midnight, taking 4 hours. This caused delayed settlements and customer complaints about failed refunds.</p>
+<p class="lbl"><b>Task</b></p>
+<p>Design and build an automated reconciliation system: 1M+ transactions/day, sub-1-hour SLA. Sole architect leading a team of 3.</p>
+<p><b>Action</b> Event-driven: payment events  Kafka  reconciliation service  compared with bank file feed → → → →</p>
+<p>discrepancies flagged → automated retry for minor diffs → ops alert for manual review. Used Spring Batch for large files, Redis for deduplication, Kafka exactly-once semantics. Delivered in 6 two-week sprints.</p>
+<p class="lbl"><b>Result</b></p>
+<p>Reconciliation time: 4 hours → 18 minutes. 95% automated. Finance team saved 120 man-hours/month. Zero settlement delays post-launch. Recognized in quarterly leadership review.</p>
+<h3>Q15.  Describe a production incident you resolved. Your role and impact?</h3>
+<p class="lbl"><b>Answer &amp; Explanation</b></p>
+<p class="lbl"><b>Situation</b></p>
+<p>3 AM alert. Payment service: 200ms → 8 second latency spike. 15,000 users affected. Revenue impact ~50 lakh/minute.</p>
+<p class="lbl"><b>Task</b></p>
+<p>On-call senior engineer — identify root cause and restore service within 30-minute SLA.</p>
+<p class="lbl"><b>Action</b></p>
+<p>Dashboards: HikariCP connection pool exhausted (max=10, pending=340). Root cause: Kafka consumer processing 10K records/batch, each making individual DB call, holding connections 90 seconds. Immediate fix: pool size 10→50, restart (5 min). Permanent fix next day: batch DB calls with IN clause, added HikariCP wait-time alert.</p>
+<p class="lbl"><b>Result</b></p>
+<p>Service restored in 8 minutes. As bonus, latency improved 200ms → 85ms. Post-mortem written. Monitoring added. Nominated for engineering recognition.</p>
+<h3>Q16.  How did you significantly improve system performance? Specific example.</h3>
+<p class="lbl"><b>Answer &amp; Explanation</b></p>
+<p class="lbl"><b>Situation</b></p>
+<p>Checkout API averaging 1,200ms. Business target: &lt; 200ms for conversion improvement. Peak: 50,000 RPM.</p>
+<p class="lbl"><b>Task</b></p>
+<p>Profile and optimize full checkout flow to &lt; 200ms without changing the external API contract.</p>
+<p class="lbl"><b>Action</b></p>
+<p>async-profiler: (1) 3 sequential DB queries → 1 JOIN query. (2) Product catalog DB every request → Redis cache, 5-min TTL, 98% hit rate. (3) Fraud score was sync blocking → pre-computed async score refreshed every 30s. (4) CompletableFuture.allOf() to parallelize remaining I/O.</p>
+<p class="lbl"><b>Result</b></p>
+<p>Checkout: 1,200ms → 140ms. p99: 4s → 380ms. Conversion +3.2% = 2Cr additional monthly revenue. Presented at engineering all-hands as case study.</p>
+<h3>Q17.  Tell me about a conflict with a tech lead. How did you handle it?</h3>
+<p class="lbl"><b>Answer &amp; Explanation</b></p>
+<p class="lbl"><b>Situation</b></p>
+<p>Tech lead wanted monolithic DB for new payment module for 'simplicity'. I believed this would cause scaling issues within 6 months given projected 10x user growth.</p>
+<p class="lbl"><b>Task</b></p>
+<p>Convince team to adopt better architecture without causing conflict or damaging the relationship.</p>
+<p class="lbl"><b>Action</b></p>
+<p>Didn't argue in meeting. Prepared comparison: benchmarks, failure modes, migration cost at 10x scale. Had a private 1:1 with tech lead — acknowledged simplicity benefit, walked through risk data. Proposed middle path: single DB now but strict schema-per-domain separation for easy future extraction. Volunteered to write the migration runbook.</p>
+<p class="lbl"><b>Result</b></p>
+<p>Team agreed to middle path. 8 months later, domain extraction took 2 weeks instead of estimated 3 months. Relationship with tech lead improved. Included in promotion cycle.</p>
+<h2>SECTION 6 · CODING QUESTIONS (Senior Level)</h2>
+<h3>Q18.  Implement a Thread-Safe LRU Cache — O(1) get and put.</h3>
+<p class="lbl"><b>Answer &amp; Explanation</b></p>
+<div class="code-label">Java</div>
+<pre><code>// LinkedHashMap(accessOrder=true) + ReentrantReadWriteLock
+public class LRUCache&lt;K, V&gt; {
+
+    private final int capacity;
+    private final ReentrantReadWriteLock rwLock = new ReentrantReadWriteLock();
+    private final LinkedHashMap&lt;K, V&gt; cache;
+
+    public LRUCache(int capacity) {
+        this.capacity = capacity;
+        // accessOrder=true: get() moves the accessed entry to END (most recently used)
+        // removeEldestEntry: evicts the FIRST entry (least recently used) when over capacity
+        this.cache = new LinkedHashMap&lt;&gt;(capacity, 0.75f, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry&lt;K, V&gt; eldest) {
+                return size() &gt; LRUCache.this.capacity; // evict LRU when full
+            }
+        };
+    }
+
+    public V get(K key) {
+        // MUST use writeLock — accessOrder=true means get() modifies internal order!
+        rwLock.writeLock().lock();
+        try {
+            return cache.getOrDefault(key, null);
+        } finally {
+            rwLock.writeLock().unlock(); // always unlock in finally
+        }
+    }
+
+    public void put(K key, V value) {
+        rwLock.writeLock().lock();
+        try {
+            cache.put(key, value); // auto-evicts LRU entry if at capacity
+        } finally {
+            rwLock.writeLock().unlock();
+        }
+    }
+
+    public int size() {
+        rwLock.readLock().lock();
+        try { return cache.size(); }
+        finally { rwLock.readLock().unlock(); }
+    }
+}
+
+// Time: O(1) get and put | Space: O(capacity)
+LRUCache&lt;String, UserProfile&gt; cache = new LRUCache&lt;&gt;(10_000);
+cache.put(&quot;user123&quot;, profile);
+UserProfile p = cache.get(&quot;user123&quot;); // p is null if evicted or missing</code></pre>
+<p><b>Critical: LinkedHashMap with accessOrder=true is NOT thread-safe for reads — get() modifies the node order. Must use writeLock for BOTH get and put. This is a famous interview gotcha!</b></p>
+<h3>Q19.  Longest Substring Without Repeating Characters — O(n) sliding window.</h3>
+<p class="lbl"><b>Answer &amp; Explanation</b></p>
+<div class="code-label">Java</div>
+<pre><code>// SLIDING WINDOW — two pointers + HashMap
+// Window [left, right]: expand right, shrink left on duplicate character
+
+public int lengthOfLongestSubstring(String s) {
+    Map&lt;Character, Integer&gt; lastSeen = new HashMap&lt;&gt;(); // char  last seen index
+    int maxLen = 0;
+    int left = 0; // left boundary of window
+
+    for (int right = 0; right &lt; s.length(); right++) {
+        char c = s.charAt(right);
+
+        if (lastSeen.containsKey(c)) {
+            // Shrink left past the duplicate — but never move left backwards!
+            left = Math.max(left, lastSeen.get(c) + 1);
+        }
+
+        lastSeen.put(c, right); // update last seen position
+        maxLen = Math.max(maxLen, right - left + 1); // current window size
+    }
+    return maxLen;
+}
+
+// TRACE — &quot;abcabcbb&quot;:
+// right=0 &#x27;a&#x27;: left=0 window=&quot;a&quot; size=1 maxLen=1
+// right=1 &#x27;b&#x27;: left=0 window=&quot;ab&quot; size=2 maxLen=2
+// right=2 &#x27;c&#x27;: left=0 window=&quot;abc&quot; size=3 maxLen=3
+// right=3 &#x27;a&#x27;: left=1 window=&quot;bca&quot; size=3 maxLen=3   skip past &#x27;a&#x27; at index 0
+// right=4 &#x27;b&#x27;: left=2 window=&quot;cab&quot; size=3 maxLen=3   skip past &#x27;b&#x27; at index 1
+// right=5 &#x27;c&#x27;: left=3 window=&quot;abc&quot; size=3 maxLen=3
+// right=6 &#x27;b&#x27;: left=5 window=&quot;cb&quot; size=2 maxLen=3
+// right=7 &#x27;b&#x27;: left=7 window=&quot;b&quot; size=1 maxLen=3
+// RESULT: 3
+
+// Time: O(n) | Space: O(min(m,n)) where m = charset size</code></pre>
+<h3>Q20.  Implement Thread-Safe Token Bucket Rate Limiter — in-process (no Redis).</h3>
+<p class="lbl"><b>Answer &amp; Explanation</b></p>
+<div class="code-label">Java</div>
+<pre><code>// In-process Token Bucket — single JVM, no external dependency
+public class TokenBucketRateLimiter {
+
+    private final long capacity; // max tokens (= max burst)
+    private final long refillTokens; // tokens added per interval
+    private final long refillIntervalMs; // refill interval (milliseconds)
+    private final AtomicLong tokens; // current tokens — thread-safe counter
+    private volatile long lastRefillTime; // volatile — visible to all threads
+
+    public TokenBucketRateLimiter(long capacity, long refillTokens, long intervalMs) {
+        this.capacity = capacity;
+        this.refillTokens = refillTokens;
+        this.refillIntervalMs = intervalMs;
+        this.tokens = new AtomicLong(capacity); // start with full bucket
+        this.lastRefillTime = System.currentTimeMillis();
+    }
+
+    // synchronized: make refill + check + decrement atomic
+    public synchronized boolean tryAcquire() {
+        refill(); // top up tokens based on elapsed time
+        if (tokens.get() &gt; 0) {
+            tokens.decrementAndGet();
+            return true; // allowed
+        }
+        return false; // rate limited
+    }
+
+    private void refill() {
+        long now = System.currentTimeMillis();
+        long elapsed = now - lastRefillTime;
+        if (elapsed &gt;= refillIntervalMs) {
+            long intervals = elapsed / refillIntervalMs;
+            long toAdd = intervals * refillTokens;
+            // Cap at capacity — don&#x27;t exceed burst limit
+            tokens.set(Math.min(capacity, tokens.get() + toAdd));
+            lastRefillTime = now;
+        }
+    }
+}
+
+// Usage: 100 requests/second, burst allowed up to 200
+TokenBucketRateLimiter limiter = new TokenBucketRateLimiter(
+200, // capacity — burst up to 200 requests
+100, // refill 100 tokens
+1000 // every 1,000ms = 1 second
+);
+
+if (!limiter.tryAcquire()) {
+    throw new RateLimitExceededException(&quot;Too many requests. Slow down.&quot;);
+}</code></pre>
+<div class="callout tip"><p><i><b>Tip:</b> synchronized on tryAcquire() makes refill + check + decrement atomic. For distributed multi-node systems: swap</i> <i>AtomicLong for Redis Lua script (see Q13). Same algorithm, different scope.</i></p></div>
+<h2>SECTION 7 · QUICK REFERENCE CHEATSHEET</h2>
+<p class="lbl"><b>Kafka Production Config — Copy-Paste Ready</b></p>
+<p><b>Property</b> · <b>Recommended Value</b> · <b>Why</b></p>
+<p>All ISR must ack — zero message</p>
+<p>acks · all loss</p>
+<p>Broker deduplicates retried producer</p>
+<p>enable.idempotence · true messages</p>
+<p>Skip messages from aborted</p>
+<p>isolation.level · read_committed transactions</p>
+<p>Don't miss messages on new</p>
+<p>auto.offset.reset · earliest consumer group</p>
+<p>Manual commit = full control over</p>
+<p>enable.auto.commit · false offset</p>
+<p>Zero-downtime incremental</p>
+<p>partition.assignment.strategy · CooperativeStickyAssignor rebalances</p>
+<p>Allows slow processing consumers to</p>
+<p>session.timeout.ms · 45000 breathe</p>
+<p>5 min — prevent false rebalance on</p>
+<p>max.poll.interval.ms · 300000 heavy DB calls</p>
+<p>Don't over-fetch; avoid poll interval</p>
+<p>max.poll.records · 100 violations</p>
+<p class="lbl"><b>@Transactional Propagation — Quick Reference</b></p>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Propagation</th><th>Behavior</th><th>Use When</th></tr></thead><tbody><tr><td>REQUIRED (default)</td><td>Join existing tx or create new</td><td>Standard — most service methods</td></tr></tbody></table></div>
+<p>Audit logs, outbox events — must save</p>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>REQUIRES_NEW</th><th>Suspend outer, always new tx even if outer fails</th></tr></thead><tbody><tr><td>NESTED</td><td>Savepoint within outer tx Partial rollback without failing entire outer tx</td></tr><tr><td>MANDATORY</td><td>Throw if no existing tx Assert code must run inside a transaction</td></tr></tbody></table></div>
+<p>Read-only cache operations that must not</p>
+<p>NEVER · Throw if tx exists be in a tx</p>
+<p class="lbl"><b>Performance Numbers — Know These by Heart</b></p>
+<p><b>Component</b> · <b>Benchmark</b> · <b>Notes for Paytm</b></p>
+<p>Rate limiting, idempotency, balance cache,</p>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Redis GET/SET</th><th>~100K ops/sec, &lt; 1ms session</th></tr></thead><tbody><tr><td>MySQL InnoDB</td><td>~10K TPS, ~5ms per query HikariCP pool = (cores×2) + spindles</td></tr><tr><td>Kafka throughput</td><td>1M+ msgs/sec per broker Tune batch.size=64KB, linger.ms=5</td></tr><tr><td>JVM G1GC pause</td><td>100–200ms Use ZGC (&lt; 1ms) for payment API SLA</td></tr><tr><td>HTTP internal (same VPC)</td><td>1–5ms Service-to-service on same data center</td></tr><tr><td>HTTP external API</td><td>50–200ms Bank gateway, UPI NPCI, card network</td></tr><tr><td>HikariCP default pool</td><td>10 connections Always increase! Payment service: 50–100</td></tr></tbody></table></div>
+<p>Parallelize 3×300ms serial calls → 300ms</p>
+<p>CompletableFuture gain · 60–70% latency reduction total</p>
+<h2>Best of Luck with Your Paytm Interview! </h2>
+<p><i>Focus order: Kafka (highest weight) </i>→<i> System Design </i>→<i> Spring Boot internals </i>→<i> Behavioral STAR</i></p>
+<div class="chapter-nav"><a class="prev" href="../index.html">← Library</a><a class="next" href="paytm-dsa-questions.html">Paytm DSA Questions →</a></div>
+</main>
+<aside class="toc"></aside>
+</div>
+<footer class="footer">SystemDesign.hinglish · Library · Personal study material</footer>
+<script src="../../assets/app.js"></script>
+</body>
+</html>

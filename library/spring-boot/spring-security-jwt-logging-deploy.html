@@ -1,0 +1,1231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spring Boot Security · JWT · AOP · Logging · Blue-Green · LeetCode DS</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#07080e;--surface:#0e1520;--surface2:#141e2e;--border:#1a2a3e;
+    --accent:#00c9a7;--a2:#3b82f6;--a3:#f59e0b;--a4:#ec4899;--a5:#8b5cf6;
+    --a6:#f97316;--text:#e2e8f0;--muted:#64748b;--code-bg:#0c1017;
+    --green:#22c55e;--red:#ef4444;--purple:#a78bfa;--teal:#2dd4bf;--cyan:#06b6d4;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;line-height:1.7;font-size:15px}
+
+  nav{position:sticky;top:0;z-index:100;background:rgba(7,8,14,.97);backdrop-filter:blur(14px);border-bottom:1px solid var(--border);padding:0 1.5rem;display:flex;align-items:center;gap:.8rem;height:52px;overflow-x:auto;scrollbar-width:none}
+  nav::-webkit-scrollbar{display:none}
+  .nav-logo{color:var(--accent);font-weight:800;font-size:11px;letter-spacing:.04em;margin-right:auto;white-space:nowrap;flex-shrink:0}
+  nav a{color:var(--muted);text-decoration:none;font-size:9.5px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;white-space:nowrap;padding:.2rem .35rem;border-radius:4px;transition:color .2s}
+  nav a:hover{color:var(--accent)}
+
+  .hero{padding:3.5rem 2rem 2.5rem;max-width:980px;margin:0 auto;text-align:center}
+  .hero-badge{display:inline-block;background:linear-gradient(135deg,#00c9a722,#3b82f622);border:1px solid #00c9a740;color:var(--accent);font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;padding:.3rem .9rem;border-radius:999px;margin-bottom:1.2rem}
+  .hero h1{font-size:clamp(1.8rem,5vw,3rem);font-weight:800;line-height:1.1;background:linear-gradient(135deg,#e2e8f0 20%,#00c9a7 60%,#3b82f6 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:.9rem}
+  .hero p{color:var(--muted);font-size:.95rem;max-width:740px;margin:0 auto}
+
+  .container{max-width:980px;margin:0 auto;padding:0 1.5rem 6rem}
+  section{margin-bottom:4rem;scroll-margin-top:60px}
+  .sh{display:flex;align-items:center;gap:1rem;margin-bottom:1.6rem;padding-bottom:.8rem;border-bottom:1px solid var(--border)}
+  .sn{width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;flex-shrink:0;color:#000}
+  .sh h2{font-size:1.3rem;font-weight:700;color:#fff}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.3rem;margin-bottom:1rem}
+  .ct{font-size:.76rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.6rem}
+  .card.ag{border-left:3px solid var(--green)}.card.ar{border-left:3px solid var(--red)}
+  .card.ay{border-left:3px solid var(--a3)}.card.ab{border-left:3px solid var(--a2)}
+  .card.ap{border-left:3px solid var(--purple)}.card.at{border-left:3px solid var(--accent)}
+  .card.ao{border-left:3px solid var(--a6)}.card.ak{border-left:3px solid var(--a4)}
+  .card.ac{border-left:3px solid var(--teal)}.card.a5{border-left:3px solid var(--a5)}
+
+  .g2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+  .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:.85rem}
+  .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:.75rem}
+  @media(max-width:680px){.g2,.g3,.g4{grid-template-columns:1fr}}
+
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:1.2rem;overflow-x:auto;margin:.8rem 0 1.2rem;position:relative;font-family:'JetBrains Mono',monospace;font-size:12px;line-height:1.85}
+  .cl{position:absolute;top:.5rem;right:.7rem;font-size:9px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-family:'JetBrains Mono',monospace}
+  .kw{color:#ff79c6}.an{color:#50fa7b}.ty{color:#8be9fd}.st{color:#f1fa8c}
+  .cm{color:#6272a4;font-style:italic}.nu{color:#bd93f9}.mt{color:#ffb86c}.en{color:#ff5555}
+
+  table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin:.8rem 0 1.2rem;font-size:12px}
+  th{background:var(--surface2);padding:.6rem .9rem;text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:700;border-bottom:1px solid var(--border)}
+  td{padding:.55rem .9rem;border-bottom:1px solid var(--border);vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:var(--surface2)}
+  code{background:#fff1;border:1px solid #fff2;border-radius:4px;padding:.1rem .35rem;font-family:'JetBrains Mono',monospace;font-size:.83em;color:var(--accent)}
+
+  .cl-box{border-radius:10px;padding:.85rem 1rem;margin:.8rem 0;display:flex;gap:.6rem;align-items:flex-start;font-size:.87rem}
+  .ci{font-size:.95rem;flex-shrink:0;margin-top:.05rem}
+  .cl-box.tip{background:#00c9a710;border:1px solid #00c9a730}
+  .cl-box.warn{background:#f59e0b15;border:1px solid #f59e0b30}
+  .cl-box.danger{background:#ef444415;border:1px solid #ef444430}
+  .cl-box.info{background:#3b82f615;border:1px solid #3b82f630}
+
+  .flow{background:var(--code-bg);border:1px solid var(--border);border-radius:11px;padding:1.2rem;margin:.8rem 0 1.2rem;font-family:'JetBrains Mono',monospace;font-size:11px;overflow-x:auto}
+  .fr{display:flex;align-items:center;gap:.5rem;padding:.25rem 0;flex-wrap:wrap}
+  .bx{background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:.22rem .65rem;white-space:nowrap;font-weight:600;font-size:10.5px}
+  .bx.g{background:#14532d30;border-color:var(--green);color:var(--green)}
+  .bx.b{background:#1e3a5f30;border-color:var(--a2);color:var(--a2)}
+  .bx.v{background:#3b076430;border-color:var(--purple);color:var(--purple)}
+  .bx.y{background:#78350f30;border-color:var(--a3);color:var(--a3)}
+  .bx.r{background:#7f1d1d30;border-color:var(--red);color:var(--red)}
+  .bx.t{background:#0d393630;border-color:var(--teal);color:var(--teal)}
+  .bx.o{background:#7c2d1230;border-color:var(--a6);color:var(--a6)}
+  .bx.a{background:#00c9a710;border-color:var(--accent);color:var(--accent)}
+  .bx.c{background:#0d3a4030;border-color:var(--cyan);color:var(--cyan)}
+  .fa{color:var(--muted);font-size:12px}
+
+  .pl{display:inline-flex;font-size:9.5px;font-weight:700;padding:.1rem .45rem;border-radius:999px;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
+  .pl-g{background:#14532d50;color:var(--green);border:1px solid #22c55e40}
+  .pl-r{background:#7f1d1d50;color:var(--red);border:1px solid #ef444440}
+  .pl-y{background:#78350f50;color:var(--a3);border:1px solid #f59e0b40}
+  .pl-b{background:#1e3a5f50;color:var(--a2);border:1px solid #3b82f640}
+
+  .lc-tag{display:inline-flex;font-size:9.5px;font-weight:700;padding:.1rem .45rem;border-radius:999px;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;margin:.1rem}
+  .lc-e{background:#14532d50;color:#4ade80;border:1px solid #22c55e40}
+  .lc-m{background:#78350f50;color:#fbbf24;border:1px solid #f59e0b40}
+  .lc-h{background:#7f1d1d50;color:#f87171;border:1px solid #ef444440}
+
+  p{margin-bottom:.8rem;color:#cbd5e1}
+  ul,ol{padding-left:1.3rem;color:#cbd5e1}
+  li{margin-bottom:.3rem}
+  strong{color:#fff}
+  .muted{color:var(--muted);font-size:.86em}
+  h3{color:#fff;font-size:.95rem;font-weight:700;margin:.8rem 0 .35rem}
+
+  .tp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:.55rem;margin:1.2rem 0 2.5rem}
+  .tp{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.55rem .75rem;font-size:10.5px;font-weight:700;text-align:center;text-decoration:none;color:var(--text);display:block;transition:all .2s}
+  .tp:hover{border-color:var(--accent);color:var(--accent);background:#00c9a708;transform:translateY(-1px)}
+
+  /* JWT diagram */
+  .jwt-parts{display:flex;gap:.3rem;font-family:'JetBrains Mono',monospace;font-size:11px;flex-wrap:wrap;margin:.6rem 0}
+  .jwt-h{background:#7c3aed30;border:1px solid #7c3aed;color:#c4b5fd;border-radius:5px;padding:.25rem .6rem;font-weight:700}
+  .jwt-p{background:#0a66c230;border:1px solid #0a66c2;color:#60a5fa;border-radius:5px;padding:.25rem .6rem;font-weight:700}
+  .jwt-s{background:#15803d30;border:1px solid #15803d;color:#4ade80;border-radius:5px;padding:.25rem .6rem;font-weight:700}
+  .jwt-dot{color:var(--muted);align-self:center;font-size:16px;font-weight:900}
+
+  /* deploy diagram */
+  .deploy-box{border:1.5px solid var(--border);border-radius:8px;padding:.8rem 1rem;font-family:'JetBrains Mono',monospace;font-size:11px;margin:.3rem 0}
+  .deploy-live{border-color:var(--green);background:#22c55e15}
+  .deploy-idle{border-color:var(--muted);background:var(--surface2)}
+  .deploy-new{border-color:var(--a2);background:#3b82f615}
+</style>
+</head>
+<body>
+<div id="sdh-libbar" style="position:relative;z-index:2147483000;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0;padding:8px 16px;background:#0f172a;color:#cbd5e1;font:600 13px/1.5 Inter,'Segoe UI',system-ui,-apple-system,sans-serif;border-bottom:2px solid #4f46e5;box-sizing:border-box;width:100%;text-align:left;letter-spacing:0"><a href="../../index.html" style="color:#fff;text-decoration:none;font-weight:800">SystemDesign<span style="color:#8b8cff">.hinglish</span></a><span style="opacity:.45">/</span><a href="../index.html" style="color:#fff;text-decoration:none">📚 Library</a><span style="opacity:.45">/</span><a href="../index.html#spring-boot" style="color:#cbd5e1;text-decoration:none">Spring Boot &amp; Microservices</a><span style="margin-left:auto;font-size:11px;padding:2px 9px;border-radius:999px;border:1px solid #6366f1;color:#c7d2fe">📘 HTML ebook</span></div>
+
+<nav>
+  <span class="nav-logo">⚡ Spring · JWT · Deploy · LeetCode</span>
+  <a href="#ds-lc">DS LeetCode</a>
+  <a href="#jwt">JWT</a>
+  <a href="#authn-authz">Auth</a>
+  <a href="#filter-chain">Filter Chain</a>
+  <a href="#aop">AOP</a>
+  <a href="#traceid">TraceId</a>
+  <a href="#logging">Logging+Kafka</a>
+  <a href="#cloudwatch">CloudWatch</a>
+  <a href="#bluegreen">Blue-Green</a>
+  <a href="#graceful">Graceful Shutdown</a>
+</nav>
+
+<div class="hero">
+  <div class="hero-badge">Spring Boot · JWT · AOP · Kafka · Blue-Green · LeetCode DS</div>
+  <h1>Spring Security · JWT · Logging<br/>Blue-Green Deployment</h1>
+  <p>Complete guide: LeetCode DS patterns, JWT flow, Spring filter chain, AOP authorization, TraceId logging, Kafka→Cassandra pipeline, CloudWatch, and blue-green zero-downtime deployment.</p>
+</div>
+
+<div class="container">
+
+<div class="tp-grid">
+  <a class="tp" href="#ds-lc">📦 DS for LeetCode</a>
+  <a class="tp" href="#jwt">🔑 JWT Token</a>
+  <a class="tp" href="#authn-authz">🛡 Auth Flow</a>
+  <a class="tp" href="#filter-chain">🔗 Filter Chain</a>
+  <a class="tp" href="#aop">🎯 AOP Auth</a>
+  <a class="tp" href="#traceid">🔍 TraceId</a>
+  <a class="tp" href="#logging">📋 Logging+Kafka</a>
+  <a class="tp" href="#cloudwatch">☁️ CloudWatch</a>
+  <a class="tp" href="#bluegreen">🔵🟢 Blue-Green</a>
+  <a class="tp" href="#graceful">⏳ Graceful Shutdown</a>
+</div>
+
+<!-- ══════════════════════════════════════
+     1. DATA STRUCTURES FOR LEETCODE
+══════════════════════════════════════ -->
+<section id="ds-lc">
+  <div class="sh"><div class="sn" style="background:var(--accent)">1</div><h2>Data Structures — Quick Pattern Reference for LeetCode</h2></div>
+
+  <table>
+    <thead><tr><th>Pattern</th><th>DS</th><th>Key Method</th><th>Problems</th><th>Difficulty</th></tr></thead>
+    <tbody>
+      <tr><td>Frequency count</td><td><code>HashMap</code></td><td><code>merge(k,1,Integer::sum)</code></td><td>49, 347, 242</td><td><span class="lc-tag lc-m">M</span></td></tr>
+      <tr><td>Sliding window unique</td><td><code>HashSet</code></td><td><code>add/remove/contains</code></td><td>3, 159</td><td><span class="lc-tag lc-m">M</span></td></tr>
+      <tr><td>Sliding window max</td><td><code>ArrayDeque</code> (monotonic)</td><td><code>peekFirst/pollLast</code></td><td>239, 1438</td><td><span class="lc-tag lc-h">H</span></td></tr>
+      <tr><td>BFS level order</td><td><code>ArrayDeque</code> as Queue</td><td><code>offer/poll/size</code></td><td>102, 200, 994</td><td><span class="lc-tag lc-m">M</span></td></tr>
+      <tr><td>Top-K elements</td><td><code>PriorityQueue</code> (min-heap)</td><td><code>offer + poll when&gt;k</code></td><td>215, 347, 373</td><td><span class="lc-tag lc-m">M</span></td></tr>
+      <tr><td>Two heaps / median</td><td>maxH + minH</td><td>balance sizes</td><td>295, 480</td><td><span class="lc-tag lc-h">H</span></td></tr>
+      <tr><td>Cycle detection</td><td>slow/fast pointers or <code>HashSet</code></td><td>Floyd's</td><td>141, 142, 287</td><td><span class="lc-tag lc-e">E</span></td></tr>
+      <tr><td>Consecutive sequence</td><td><code>HashSet</code></td><td>check n-1 not in set</td><td>128</td><td><span class="lc-tag lc-m">M</span></td></tr>
+      <tr><td>Prefix sum</td><td><code>HashMap</code></td><td>sum→count</td><td>560, 974, 523</td><td><span class="lc-tag lc-m">M</span></td></tr>
+      <tr><td>LRU Cache</td><td><code>LinkedHashMap</code> or DLL+Map</td><td>accessOrder=true</td><td>146</td><td><span class="lc-tag lc-m">M</span></td></tr>
+      <tr><td>Monotonic stack</td><td><code>ArrayDeque</code> as Stack</td><td><code>push/pop/peek</code></td><td>84, 739, 496</td><td><span class="lc-tag lc-m">M</span></td></tr>
+      <tr><td>Trie / prefix tree</td><td><code>HashMap</code> in Node</td><td>insert/search/startsWith</td><td>208, 212</td><td><span class="lc-tag lc-m">M</span></td></tr>
+      <tr><td>Union-Find</td><td><code>int[]</code> parent+rank</td><td>find(path compression)+union</td><td>200, 684, 721</td><td><span class="lc-tag lc-m">M</span></td></tr>
+      <tr><td>Range query</td><td><code>TreeMap</code></td><td>floorKey/ceilingKey</td><td>729, 981</td><td><span class="lc-tag lc-m">M</span></td></tr>
+      <tr><td>Thread-safe queue</td><td><code>BlockingQueue</code></td><td>put/take (blocking)</td><td>1114, 1115</td><td><span class="lc-tag lc-e">E</span></td></tr>
+    </tbody>
+  </table>
+
+<pre><span class="cm">// ── All Queue types — when to use ────────────────────────────────────</span>
+<span class="ty">Queue</span>&lt;<span class="ty">T</span>&gt;  bfsQ   = <span class="kw">new</span> <span class="ty">ArrayDeque</span>&lt;&gt;();          <span class="cm">// BFS — fast, no null</span>
+<span class="ty">Deque</span>&lt;<span class="ty">T</span>&gt;  stack  = <span class="kw">new</span> <span class="ty">ArrayDeque</span>&lt;&gt;();          <span class="cm">// Stack/monotonic (push/pop)</span>
+<span class="ty">Deque</span>&lt;<span class="ty">T</span>&gt;  mono   = <span class="kw">new</span> <span class="ty">ArrayDeque</span>&lt;&gt;();          <span class="cm">// Monotonic deque (window max)</span>
+<span class="ty">PriorityQueue</span>&lt;<span class="ty">T</span>&gt; minH = <span class="kw">new</span> <span class="ty">PriorityQueue</span>&lt;&gt;();   <span class="cm">// Min-heap (Top-K)</span>
+<span class="ty">PriorityQueue</span>&lt;<span class="ty">T</span>&gt; maxH = <span class="kw">new</span> <span class="ty">PriorityQueue</span>&lt;&gt;(<span class="ty">Collections</span>.<span class="mt">reverseOrder</span>()); <span class="cm">// Max-heap</span>
+<span class="ty">BlockingQueue</span>&lt;<span class="ty">T</span>&gt; bq  = <span class="kw">new</span> <span class="ty">LinkedBlockingQueue</span>&lt;&gt;(<span class="nu">100</span>); <span class="cm">// Thread-safe, producer-consumer</span>
+<span class="ty">SynchronousQueue</span>&lt;<span class="ty">T</span>&gt; sq = <span class="kw">new</span> <span class="ty">SynchronousQueue</span>&lt;&gt;(); <span class="cm">// Direct handoff, LeetCode 1114</span>
+
+<span class="cm">// ── All Set types ────────────────────────────────────────────────────</span>
+<span class="ty">Set</span>&lt;<span class="ty">T</span>&gt;  hash   = <span class="kw">new</span> <span class="ty">HashSet</span>&lt;&gt;();             <span class="cm">// O(1) — unordered, for visited/seen</span>
+<span class="ty">Set</span>&lt;<span class="ty">T</span>&gt;  linked = <span class="kw">new</span> <span class="ty">LinkedHashSet</span>&lt;&gt;();       <span class="cm">// insertion order preserved</span>
+<span class="ty">TreeSet</span>&lt;<span class="ty">T</span>&gt; tree = <span class="kw">new</span> <span class="ty">TreeSet</span>&lt;&gt;();            <span class="cm">// sorted, floor/ceiling/range</span>
+<span class="ty">Set</span>&lt;<span class="ty">T</span>&gt;  conc   = <span class="ty">ConcurrentHashMap</span>.<span class="mt">newKeySet</span>(); <span class="cm">// thread-safe</span>
+
+<span class="cm">// ── All Map types ────────────────────────────────────────────────────</span>
+<span class="ty">Map</span>&lt;<span class="ty">K</span>,<span class="ty">V</span>&gt; hash  = <span class="kw">new</span> <span class="ty">HashMap</span>&lt;&gt;();             <span class="cm">// O(1) — general purpose</span>
+<span class="ty">Map</span>&lt;<span class="ty">K</span>,<span class="ty">V</span>&gt; lhm   = <span class="kw">new</span> <span class="ty">LinkedHashMap</span>&lt;&gt;(<span class="nu">16</span>,<span class="nu">0.75f</span>,<span class="kw">true</span>); <span class="cm">// LRU (accessOrder=true)</span>
+<span class="ty">TreeMap</span>&lt;<span class="ty">K</span>,<span class="ty">V</span>&gt; tm = <span class="kw">new</span> <span class="ty">TreeMap</span>&lt;&gt;();            <span class="cm">// sorted, floorKey/ceilingKey</span>
+<span class="ty">Map</span>&lt;<span class="ty">K</span>,<span class="ty">V</span>&gt; chm   = <span class="kw">new</span> <span class="ty">ConcurrentHashMap</span>&lt;&gt;();   <span class="cm">// thread-safe</span>
+
+<span class="cm">// ── LinkedList — ListNode for LeetCode ──────────────────────────────</span>
+<span class="kw">class</span> <span class="ty">ListNode</span> {
+    <span class="kw">int</span> val; <span class="ty">ListNode</span> next;
+    <span class="ty">ListNode</span>(<span class="kw">int</span> v) { val = v; }
+}
+
+<span class="cm">// ── ThreadPool backed by Queue — custom implementation ───────────────</span>
+<span class="ty">BlockingQueue</span>&lt;<span class="ty">Runnable</span>&gt; workQ = <span class="kw">new</span> <span class="ty">LinkedBlockingQueue</span>&lt;&gt;(<span class="nu">100</span>);
+<span class="ty">ThreadPoolExecutor</span> pool = <span class="kw">new</span> <span class="ty">ThreadPoolExecutor</span>(
+    <span class="nu">4</span>, <span class="nu">8</span>, <span class="nu">60L</span>, <span class="ty">TimeUnit</span>.<span class="en">SECONDS</span>, workQ,
+    <span class="kw">new</span> <span class="ty">ThreadPoolExecutor</span>.<span class="ty">CallerRunsPolicy</span>()
+);
+<div class="cl">Java 17</div></pre>
+</section>
+
+<!-- ══════════════════════════════════════
+     2. JWT TOKEN
+══════════════════════════════════════ -->
+<section id="jwt">
+  <div class="sh"><div class="sn" style="background:var(--a5)">2</div><h2>JWT — Structure, Generation & Validation</h2></div>
+
+  <p>JWT (JSON Web Token) is a compact, self-contained token for securely transmitting claims between parties. It has <strong>3 parts separated by dots</strong>.</p>
+
+  <div class="jwt-parts">
+    <div class="jwt-h">eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9</div>
+    <div class="jwt-dot">.</div>
+    <div class="jwt-p">eyJzdWIiOiJ1c2VyMTIzIiwicm9sZXMiOlsiQURNSU4iXSwiZXhwIjoxNzE3MDAwMH0</div>
+    <div class="jwt-dot">.</div>
+    <div class="jwt-s">SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c</div>
+  </div>
+  <div style="display:flex;gap:1rem;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);margin-bottom:1rem;flex-wrap:wrap">
+    <span style="color:#c4b5fd">■ Header (algo + type)</span>
+    <span style="color:#60a5fa">■ Payload (claims: sub, roles, exp)</span>
+    <span style="color:#4ade80">■ Signature (HMAC-SHA256 of header.payload)</span>
+  </div>
+
+<pre><span class="cm">// ── JWT utility — generate + validate ────────────────────────────────</span>
+<span class="cm">// Maven: io.jsonwebtoken:jjwt-api:0.12.5 + jjwt-impl + jjwt-jackson</span>
+
+<span class="an">@Component</span>
+<span class="kw">public class</span> <span class="ty">JwtUtils</span> {
+
+    <span class="an">@Value</span>(<span class="st">"${jwt.secret}"</span>)
+    <span class="kw">private</span> <span class="ty">String</span> secret;   <span class="cm">// 256-bit base64 secret in application.yml</span>
+
+    <span class="an">@Value</span>(<span class="st">"${jwt.expiry-ms:900000}"</span>) <span class="cm">// 15 min default</span>
+    <span class="kw">private long</span> expiryMs;
+
+    <span class="kw">private</span> <span class="ty">SecretKey</span> <span class="mt">key</span>() {
+        <span class="kw">return</span> <span class="ty">Keys</span>.<span class="mt">hmacShaKeyFor</span>(<span class="ty">Decoders</span>.<span class="en">BASE64</span>.<span class="mt">decode</span>(secret));
+    }
+
+    <span class="cm">// ── Generate access token ─────────────────────────────────────────</span>
+    <span class="kw">public</span> <span class="ty">String</span> <span class="mt">generateToken</span>(<span class="ty">UserDetails</span> user) {
+        <span class="ty">List</span>&lt;<span class="ty">String</span>&gt; roles = user.<span class="mt">getAuthorities</span>().<span class="mt">stream</span>()
+            .<span class="mt">map</span>(<span class="ty">GrantedAuthority</span>::<span class="mt">getAuthority</span>).<span class="mt">toList</span>();
+
+        <span class="kw">return</span> <span class="ty">Jwts</span>.<span class="mt">builder</span>()
+            .<span class="mt">subject</span>(user.<span class="mt">getUsername</span>())           <span class="cm">// sub claim</span>
+            .<span class="mt">claim</span>(<span class="st">"roles"</span>, roles)                  <span class="cm">// custom claim</span>
+            .<span class="mt">claim</span>(<span class="st">"type"</span>, <span class="st">"ACCESS"</span>)
+            .<span class="mt">issuedAt</span>(<span class="kw">new</span> <span class="ty">Date</span>())
+            .<span class="mt">expiration</span>(<span class="kw">new</span> <span class="ty">Date</span>(<span class="ty">System</span>.<span class="mt">currentTimeMillis</span>() + expiryMs))
+            .<span class="mt">signWith</span>(<span class="mt">key</span>())                       <span class="cm">// HMAC-SHA256</span>
+            .<span class="mt">compact</span>();
+    }
+
+    <span class="cm">// ── Generate refresh token (longer lived) ─────────────────────────</span>
+    <span class="kw">public</span> <span class="ty">String</span> <span class="mt">generateRefreshToken</span>(<span class="ty">String</span> username) {
+        <span class="kw">return</span> <span class="ty">Jwts</span>.<span class="mt">builder</span>()
+            .<span class="mt">subject</span>(username)
+            .<span class="mt">claim</span>(<span class="st">"type"</span>, <span class="st">"REFRESH"</span>)
+            .<span class="mt">issuedAt</span>(<span class="kw">new</span> <span class="ty">Date</span>())
+            .<span class="mt">expiration</span>(<span class="kw">new</span> <span class="ty">Date</span>(<span class="ty">System</span>.<span class="mt">currentTimeMillis</span>() + <span class="nu">7L</span> * <span class="nu">24</span> * <span class="nu">60</span> * <span class="nu">60000</span>)) <span class="cm">// 7 days</span>
+            .<span class="mt">signWith</span>(<span class="mt">key</span>())
+            .<span class="mt">compact</span>();
+    }
+
+    <span class="cm">// ── Validate and parse ────────────────────────────────────────────</span>
+    <span class="kw">public</span> <span class="ty">Claims</span> <span class="mt">validateAndParse</span>(<span class="ty">String</span> token) {
+        <span class="kw">return</span> <span class="ty">Jwts</span>.<span class="mt">parser</span>()
+            .<span class="mt">verifyWith</span>(<span class="mt">key</span>())
+            .<span class="mt">build</span>()
+            .<span class="mt">parseSignedClaims</span>(token)   <span class="cm">// throws if expired/tampered</span>
+            .<span class="mt">getPayload</span>();
+    }
+
+    <span class="kw">public</span> <span class="ty">String</span>       <span class="mt">getUsername</span>(<span class="ty">String</span> token) { <span class="kw">return</span> <span class="mt">validateAndParse</span>(token).<span class="mt">getSubject</span>(); }
+    <span class="kw">public</span> <span class="ty">List</span>&lt;<span class="ty">String</span>&gt; <span class="mt">getRoles</span>   (<span class="ty">String</span> token) { <span class="kw">return</span> <span class="mt">validateAndParse</span>(token).<span class="mt">get</span>(<span class="st">"roles"</span>, <span class="ty">List</span>.<span class="kw">class</span>); }
+    <span class="kw">public boolean</span>      <span class="mt">isExpired</span>  (<span class="ty">String</span> token) {
+        <span class="kw">try</span> { <span class="mt">validateAndParse</span>(token); <span class="kw">return false</span>; }
+        <span class="kw">catch</span> (<span class="ty">ExpiredJwtException</span> e) { <span class="kw">return true</span>; }
+    }
+}
+<div class="cl">Java 17 — JWT</div></pre>
+
+  <div class="g3">
+    <div class="card ap"><div class="ct" style="color:var(--purple)">Header</div>
+      <p><code>alg</code>: HS256 (HMAC) or RS256 (RSA)<br/><code>typ</code>: JWT<br/>Base64Url encoded</p></div>
+    <div class="card ab"><div class="ct" style="color:var(--a2)">Payload (Claims)</div>
+      <p><code>sub</code>: subject (userId)<br/><code>iat</code>: issued at<br/><code>exp</code>: expiry<br/><code>roles</code>: custom</p></div>
+    <div class="card ag"><div class="ct" style="color:var(--green)">Signature</div>
+      <p>HMAC-SHA256(base64(header) + "." + base64(payload), secretKey)<br/>Prevents tampering</p></div>
+  </div>
+
+  <div class="cl-box warn"><div class="ci">⚠️</div><div>JWT payload is <strong>base64-encoded, NOT encrypted</strong>. Anyone can decode and read it. Never put passwords, card numbers, or secrets in JWT. Use HTTPS always. Store tokens in HttpOnly cookies (not localStorage) to prevent XSS theft.</div></div>
+</section>
+
+<!-- ══════════════════════════════════════
+     3. AUTHENTICATION vs AUTHORIZATION
+══════════════════════════════════════ -->
+<section id="authn-authz">
+  <div class="sh"><div class="sn" style="background:var(--a6)">3</div><h2>Authentication vs Authorization — Full Spring Flow</h2></div>
+
+  <div class="g2">
+    <div class="card ao"><div class="ct" style="color:var(--a6)">Authentication (who are you?)</div>
+      <p>Verifies <strong>identity</strong>. "Are you really Alice?"</p>
+      <ul>
+        <li>Username + password → login endpoint</li>
+        <li>Server validates credentials → issues JWT</li>
+        <li>Client sends JWT in every subsequent request</li>
+        <li>Server validates JWT signature + expiry</li>
+      </ul></div>
+    <div class="card ab"><div class="ct" style="color:var(--a2)">Authorization (what can you do?)</div>
+      <p>Verifies <strong>permissions</strong>. "Can Alice delete orders?"</p>
+      <ul>
+        <li>JWT contains roles: <code>["ADMIN","USER"]</code></li>
+        <li>Spring Security checks <code>@PreAuthorize</code></li>
+        <li>Role-based: ADMIN can delete, USER cannot</li>
+        <li>Resource-based: can Alice access order #123?</li>
+      </ul></div>
+  </div>
+
+  <div class="flow">
+    <div style="color:var(--muted);font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.6rem">Full Request Flow — Login → Subsequent Requests</div>
+    <div class="fr"><div class="bx g">POST /auth/login {user,pass}</div><div class="fa">→</div><div class="bx b">AuthController</div><div class="fa">→</div><div class="bx y">AuthenticationManager</div><div class="fa">→</div><div class="bx y">UserDetailsService (DB lookup)</div></div>
+    <div class="fr" style="padding-left:1rem"><div class="fa">→ valid →</div><div class="bx a">JwtUtils.generateToken()</div><div class="fa">→</div><div class="bx g">Response: {accessToken, refreshToken}</div></div>
+    <div style="margin:.5rem 0;border-top:1px solid var(--border);padding-top:.5rem"></div>
+    <div class="fr"><div class="bx g">GET /api/orders (Authorization: Bearer xyz)</div><div class="fa">→</div><div class="bx b">JwtAuthFilter</div></div>
+    <div class="fr" style="padding-left:1rem"><div class="fa">→</div><div class="bx y">JwtUtils.validateAndParse(token)</div><div class="fa">→</div><div class="bx y">Set SecurityContext</div><div class="fa">→</div><div class="bx b">FilterChain.doFilter()</div></div>
+    <div class="fr" style="padding-left:1rem"><div class="fa">→</div><div class="bx v">@PreAuthorize("hasRole('USER')")</div><div class="fa">→</div><div class="bx a">Controller method executes</div></div>
+  </div>
+
+<pre><span class="cm">// ── Login endpoint ────────────────────────────────────────────────────</span>
+<span class="kw">public record</span> <span class="ty">LoginRequest</span>(<span class="ty">String</span> username, <span class="ty">String</span> password) {}
+<span class="kw">public record</span> <span class="ty">LoginResponse</span>(<span class="ty">String</span> accessToken, <span class="ty">String</span> refreshToken, <span class="ty">String</span> tokenType) {}
+
+<span class="an">@RestController</span>
+<span class="an">@RequestMapping</span>(<span class="st">"/auth"</span>)
+<span class="kw">public class</span> <span class="ty">AuthController</span> {
+
+    <span class="kw">private final</span> <span class="ty">AuthenticationManager</span> authManager;
+    <span class="kw">private final</span> <span class="ty">JwtUtils</span>              jwtUtils;
+
+    <span class="an">@PostMapping</span>(<span class="st">"/login"</span>)
+    <span class="kw">public</span> <span class="ty">ResponseEntity</span>&lt;<span class="ty">LoginResponse</span>&gt; <span class="mt">login</span>(<span class="an">@RequestBody</span> <span class="ty">LoginRequest</span> req) {
+        <span class="cm">// 1. Authenticate — throws BadCredentialsException if wrong</span>
+        <span class="ty">Authentication</span> auth = authManager.<span class="mt">authenticate</span>(
+            <span class="kw">new</span> <span class="ty">UsernamePasswordAuthenticationToken</span>(req.<span class="mt">username</span>(), req.<span class="mt">password</span>())
+        );
+        <span class="cm">// 2. Get UserDetails from Authentication</span>
+        <span class="ty">UserDetails</span> user = (<span class="ty">UserDetails</span>) auth.<span class="mt">getPrincipal</span>();
+
+        <span class="cm">// 3. Issue tokens</span>
+        <span class="ty">String</span> access  = jwtUtils.<span class="mt">generateToken</span>(user);
+        <span class="ty">String</span> refresh = jwtUtils.<span class="mt">generateRefreshToken</span>(user.<span class="mt">getUsername</span>());
+
+        <span class="kw">return</span> <span class="ty">ResponseEntity</span>.<span class="mt">ok</span>(<span class="kw">new</span> <span class="ty">LoginResponse</span>(access, refresh, <span class="st">"Bearer"</span>));
+    }
+
+    <span class="an">@PostMapping</span>(<span class="st">"/refresh"</span>)
+    <span class="kw">public</span> <span class="ty">ResponseEntity</span>&lt;<span class="ty">LoginResponse</span>&gt; <span class="mt">refresh</span>(<span class="an">@RequestBody</span> <span class="ty">Map</span>&lt;<span class="ty">String</span>, <span class="ty">String</span>&gt; body) {
+        <span class="ty">String</span> refreshToken = body.<span class="mt">get</span>(<span class="st">"refreshToken"</span>);
+        <span class="ty">Claims</span> claims = jwtUtils.<span class="mt">validateAndParse</span>(refreshToken);
+        <span class="kw">if</span> (!<span class="st">"REFRESH"</span>.<span class="mt">equals</span>(claims.<span class="mt">get</span>(<span class="st">"type"</span>))) <span class="kw">throw new</span> <span class="ty">IllegalArgumentException</span>(<span class="st">"Not a refresh token"</span>);
+        <span class="ty">UserDetails</span> user = userDetailsService.<span class="mt">loadUserByUsername</span>(claims.<span class="mt">getSubject</span>());
+        <span class="ty">String</span> newAccess = jwtUtils.<span class="mt">generateToken</span>(user);
+        <span class="kw">return</span> <span class="ty">ResponseEntity</span>.<span class="mt">ok</span>(<span class="kw">new</span> <span class="ty">LoginResponse</span>(newAccess, refreshToken, <span class="st">"Bearer"</span>));
+    }
+}
+<div class="cl">Java 17 — Auth Controller</div></pre>
+</section>
+
+<!-- ══════════════════════════════════════
+     4. FILTER CHAIN — COMPLETE FLOW
+══════════════════════════════════════ -->
+<section id="filter-chain">
+  <div class="sh"><div class="sn" style="background:var(--a2)">4</div><h2>Spring Filter Chain — doFilter, FilterChain, SecurityConfig</h2></div>
+
+  <div class="flow">
+    <div style="color:var(--muted);font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.6rem">Filter Execution Order (outermost → innermost)</div>
+    <div class="fr"><div class="bx c">HTTP Request</div><div class="fa">→</div><div class="bx o">1. CorsFilter</div><div class="fa">→</div><div class="bx o">2. LoggingFilter (TraceId)</div></div>
+    <div class="fr" style="padding-left:1rem"><div class="fa">→</div><div class="bx y">3. JwtAuthFilter (validates token)</div><div class="fa">→</div><div class="bx v">4. SecurityContextPersistenceFilter</div></div>
+    <div class="fr" style="padding-left:1rem"><div class="fa">→</div><div class="bx b">5. UsernamePasswordAuthenticationFilter</div><div class="fa">→</div><div class="bx b">6. ExceptionTranslationFilter</div></div>
+    <div class="fr" style="padding-left:1rem"><div class="fa">→</div><div class="bx a">7. FilterSecurityInterceptor (authorization)</div><div class="fa">→</div><div class="bx g">DispatcherServlet → Controller</div></div>
+    <div style="margin-top:.4rem;color:var(--muted);font-size:10.5px">Response flows in REVERSE order through the same filters</div>
+  </div>
+
+<pre><span class="cm">// ── JWT Auth Filter — the most important custom filter ────────────────</span>
+<span class="an">@Component</span>
+<span class="kw">public class</span> <span class="ty">JwtAuthFilter</span> <span class="kw">extends</span> <span class="ty">OncePerRequestFilter</span> { <span class="cm">// fires ONCE per request</span>
+
+    <span class="kw">private final</span> <span class="ty">JwtUtils</span>            jwtUtils;
+    <span class="kw">private final</span> <span class="ty">UserDetailsService</span>  userDetailsService;
+
+    <span class="an">@Override</span>
+    <span class="kw">protected void</span> <span class="mt">doFilterInternal</span>(
+            <span class="ty">HttpServletRequest</span>  request,
+            <span class="ty">HttpServletResponse</span> response,
+            <span class="ty">FilterChain</span>         filterChain   <span class="cm">// ← pass request down the chain</span>
+    ) <span class="kw">throws</span> <span class="ty">ServletException</span>, <span class="ty">IOException</span> {
+
+        <span class="ty">String</span> authHeader = request.<span class="mt">getHeader</span>(<span class="st">"Authorization"</span>);
+
+        <span class="cm">// 1. Skip if no Bearer token</span>
+        <span class="kw">if</span> (authHeader == <span class="kw">null</span> || !authHeader.<span class="mt">startsWith</span>(<span class="st">"Bearer "</span>)) {
+            filterChain.<span class="mt">doFilter</span>(request, response); <span class="cm">// ← MUST call this to continue chain</span>
+            <span class="kw">return</span>;
+        }
+
+        <span class="kw">try</span> {
+            <span class="ty">String</span> token    = authHeader.<span class="mt">substring</span>(<span class="nu">7</span>);  <span class="cm">// strip "Bearer "</span>
+            <span class="ty">String</span> username = jwtUtils.<span class="mt">getUsername</span>(token);
+
+            <span class="cm">// 2. Set authentication only if not already set</span>
+            <span class="kw">if</span> (username != <span class="kw">null</span> && <span class="ty">SecurityContextHolder</span>.<span class="mt">getContext</span>().<span class="mt">getAuthentication</span>() == <span class="kw">null</span>) {
+                <span class="ty">UserDetails</span> user = userDetailsService.<span class="mt">loadUserByUsername</span>(username);
+
+                <span class="cm">// 3. Build authentication object with roles</span>
+                <span class="kw">var</span> auth = <span class="kw">new</span> <span class="ty">UsernamePasswordAuthenticationToken</span>(
+                    user, <span class="kw">null</span>, user.<span class="mt">getAuthorities</span>()
+                );
+                auth.<span class="mt">setDetails</span>(<span class="kw">new</span> <span class="ty">WebAuthenticationDetailsSource</span>().<span class="mt">buildDetails</span>(request));
+
+                <span class="cm">// 4. Store in ThreadLocal SecurityContext</span>
+                <span class="ty">SecurityContextHolder</span>.<span class="mt">getContext</span>().<span class="mt">setAuthentication</span>(auth);
+            }
+        } <span class="kw">catch</span> (<span class="ty">JwtException</span> ex) {
+            <span class="cm">// Token invalid — clear context, let ExceptionTranslationFilter handle</span>
+            <span class="ty">SecurityContextHolder</span>.<span class="mt">clearContext</span>();
+            response.<span class="mt">sendError</span>(<span class="ty">HttpServletResponse</span>.<span class="en">SC_UNAUTHORIZED</span>, <span class="st">"Invalid token"</span>);
+            <span class="kw">return</span>;
+        }
+
+        <span class="cm">// 5. ALWAYS pass to next filter in chain</span>
+        filterChain.<span class="mt">doFilter</span>(request, response);
+    }
+
+    <span class="an">@Override</span>
+    <span class="kw">protected boolean</span> <span class="mt">shouldNotFilter</span>(<span class="ty">HttpServletRequest</span> req) {
+        <span class="cm">// Skip JWT filter for login, register, public endpoints</span>
+        <span class="ty">String</span> path = req.<span class="mt">getServletPath</span>();
+        <span class="kw">return</span> path.<span class="mt">startsWith</span>(<span class="st">"/auth/"</span>) || path.<span class="mt">startsWith</span>(<span class="st">"/public/"</span>);
+    }
+}
+<div class="cl">Java 17 — JwtAuthFilter</div></pre>
+
+<pre><span class="cm">// ── SecurityFilterChain Configuration ────────────────────────────────</span>
+<span class="an">@Configuration</span>
+<span class="an">@EnableWebSecurity</span>
+<span class="an">@EnableMethodSecurity</span>          <span class="cm">// enables @PreAuthorize, @PostAuthorize</span>
+<span class="kw">public class</span> <span class="ty">SecurityConfig</span> {
+
+    <span class="kw">private final</span> <span class="ty">JwtAuthFilter</span>       jwtFilter;
+    <span class="kw">private final</span> <span class="ty">UserDetailsService</span>  uds;
+
+    <span class="an">@Bean</span>
+    <span class="kw">public</span> <span class="ty">SecurityFilterChain</span> <span class="mt">securityFilterChain</span>(<span class="ty">HttpSecurity</span> http) <span class="kw">throws</span> <span class="ty">Exception</span> {
+        <span class="kw">return</span> http
+            .<span class="mt">csrf</span>(<span class="ty">AbstractHttpConfigurer</span>::<span class="mt">disable</span>)       <span class="cm">// stateless API, no CSRF needed</span>
+            .<span class="mt">sessionManagement</span>(s -> s.<span class="mt">sessionCreationPolicy</span>(<span class="ty">SessionCreationPolicy</span>.<span class="en">STATELESS</span>))
+            .<span class="mt">authorizeHttpRequests</span>(auth -> auth
+                .<span class="mt">requestMatchers</span>(<span class="st">"/auth/**"</span>, <span class="st">"/public/**"</span>).<span class="mt">permitAll</span>()
+                .<span class="mt">requestMatchers</span>(<span class="st">"/admin/**"</span>).<span class="mt">hasRole</span>(<span class="st">"ADMIN"</span>)
+                .<span class="mt">requestMatchers</span>(<span class="st">"/api/**"</span>).<span class="mt">hasAnyRole</span>(<span class="st">"USER"</span>, <span class="st">"ADMIN"</span>)
+                .<span class="mt">anyRequest</span>().<span class="mt">authenticated</span>()
+            )
+            .<span class="mt">exceptionHandling</span>(ex -> ex
+                .<span class="mt">authenticationEntryPoint</span>((req, res, e) ->
+                    res.<span class="mt">sendError</span>(<span class="nu">401</span>, <span class="st">"Unauthorized"</span>))     <span class="cm">// no token → 401</span>
+                .<span class="mt">accessDeniedHandler</span>((req, res, e) ->
+                    res.<span class="mt">sendError</span>(<span class="nu">403</span>, <span class="st">"Forbidden"</span>))          <span class="cm">// wrong role → 403</span>
+            )
+            .<span class="mt">addFilterBefore</span>(jwtFilter, <span class="ty">UsernamePasswordAuthenticationFilter</span>.<span class="kw">class</span>)
+            .<span class="mt">build</span>();
+    }
+
+    <span class="an">@Bean</span>
+    <span class="kw">public</span> <span class="ty">AuthenticationManager</span> <span class="mt">authManager</span>(<span class="ty">AuthenticationConfiguration</span> config) <span class="kw">throws</span> <span class="ty">Exception</span> {
+        <span class="kw">return</span> config.<span class="mt">getAuthenticationManager</span>();
+    }
+
+    <span class="an">@Bean</span>
+    <span class="kw">public</span> <span class="ty">PasswordEncoder</span> <span class="mt">passwordEncoder</span>() {
+        <span class="kw">return new</span> <span class="ty">BCryptPasswordEncoder</span>(<span class="nu">12</span>);  <span class="cm">// cost factor 12</span>
+    }
+}
+<div class="cl">Java 17 — SecurityConfig</div></pre>
+
+<pre><span class="cm">// ── WebFilter (Spring WebFlux reactive equivalent) ────────────────────</span>
+<span class="cm">// Use this if you're on Spring WebFlux (reactive, non-blocking)</span>
+<span class="an">@Component</span>
+<span class="kw">public class</span> <span class="ty">ReactiveJwtFilter</span> <span class="kw">implements</span> <span class="ty">WebFilter</span> {
+
+    <span class="an">@Override</span>
+    <span class="kw">public</span> <span class="ty">Mono</span>&lt;<span class="ty">Void</span>&gt; <span class="mt">filter</span>(<span class="ty">ServerWebExchange</span> exchange, <span class="ty">WebFilterChain</span> chain) {
+        <span class="ty">String</span> token = exchange.<span class="mt">getRequest</span>().<span class="mt">getHeaders</span>()
+            .<span class="mt">getFirst</span>(<span class="st">"Authorization"</span>);
+
+        <span class="kw">if</span> (token == <span class="kw">null</span> || !token.<span class="mt">startsWith</span>(<span class="st">"Bearer "</span>))
+            <span class="kw">return</span> chain.<span class="mt">filter</span>(exchange);  <span class="cm">// WebFilter uses chain.filter() not doFilter()</span>
+
+        <span class="kw">return</span> jwtUtils.<span class="mt">validateReactive</span>(token.<span class="mt">substring</span>(<span class="nu">7</span>))
+            .<span class="mt">flatMap</span>(auth -> chain.<span class="mt">filter</span>(exchange)
+                .<span class="mt">contextWrite</span>(<span class="ty">ReactiveSecurityContextHolder</span>.<span class="mt">withAuthentication</span>(auth)));
+    }
+}
+<div class="cl">WebFlux WebFilter</div></pre>
+</section>
+
+<!-- ══════════════════════════════════════
+     5. AOP FOR AUTHORIZATION
+══════════════════════════════════════ -->
+<section id="aop">
+  <div class="sh"><div class="sn" style="background:var(--a4)">5</div><h2>AOP for Authorization — @PreAuthorize, Custom Aspects</h2></div>
+
+<pre><span class="cm">// ── Method-level security with @PreAuthorize ──────────────────────────</span>
+<span class="an">@RestController</span>
+<span class="an">@RequestMapping</span>(<span class="st">"/api/orders"</span>)
+<span class="kw">public class</span> <span class="ty">OrderController</span> {
+
+    <span class="cm">// Spring AOP proxy intercepts this call BEFORE method runs</span>
+    <span class="cm">// SpEL expression evaluated against SecurityContext</span>
+    <span class="an">@PreAuthorize</span>(<span class="st">"hasRole('ADMIN')"</span>)
+    <span class="an">@DeleteMapping</span>(<span class="st">"/{id}"</span>)
+    <span class="kw">public void</span> <span class="mt">delete</span>(<span class="an">@PathVariable</span> <span class="kw">long</span> id) { orderService.<span class="mt">delete</span>(id); }
+
+    <span class="cm">// Check role AND ownership: user can only access their own orders</span>
+    <span class="an">@PreAuthorize</span>(<span class="st">"hasRole('ADMIN') or @orderSecurity.isOwner(#id, authentication)"</span>)
+    <span class="an">@GetMapping</span>(<span class="st">"/{id}"</span>)
+    <span class="kw">public</span> <span class="ty">Order</span> <span class="mt">get</span>(<span class="an">@PathVariable</span> <span class="kw">long</span> id) { <span class="kw">return</span> orderService.<span class="mt">findById</span>(id); }
+
+    <span class="cm">// @PostAuthorize — check AFTER method returns (filter return value)</span>
+    <span class="an">@PostAuthorize</span>(<span class="st">"returnObject.userId == authentication.name"</span>)
+    <span class="an">@GetMapping</span>(<span class="st">"/my-latest"</span>)
+    <span class="kw">public</span> <span class="ty">Order</span> <span class="mt">myLatest</span>() { <span class="kw">return</span> orderService.<span class="mt">findLatestForCurrentUser</span>(); }
+}
+
+<span class="cm">// Custom security bean referenced in @PreAuthorize SpEL</span>
+<span class="an">@Component</span>(<span class="st">"orderSecurity"</span>)
+<span class="kw">public class</span> <span class="ty">OrderSecurityService</span> {
+    <span class="kw">private final</span> <span class="ty">OrderRepository</span> orderRepo;
+
+    <span class="kw">public boolean</span> <span class="mt">isOwner</span>(<span class="kw">long</span> orderId, <span class="ty">Authentication</span> auth) {
+        <span class="kw">return</span> orderRepo.<span class="mt">findById</span>(orderId)
+            .<span class="mt">map</span>(o -> o.<span class="mt">getUserId</span>().<span class="mt">equals</span>(auth.<span class="mt">getName</span>()))
+            .<span class="mt">orElse</span>(<span class="kw">false</span>);
+    }
+}
+<div class="cl">Spring Security AOP</div></pre>
+
+<pre><span class="cm">// ── Custom AOP Aspect for Authorization (advanced) ────────────────────</span>
+<span class="cm">// Use when @PreAuthorize is not expressive enough</span>
+
+<span class="cm">// 1. Custom annotation</span>
+<span class="an">@Target</span>(<span class="ty">ElementType</span>.<span class="en">METHOD</span>)
+<span class="an">@Retention</span>(<span class="ty">RetentionPolicy</span>.<span class="en">RUNTIME</span>)
+<span class="kw">public @interface</span> <span class="ty">RequiresPermission</span> {
+    <span class="ty">String</span>   resource();
+    <span class="ty">String</span>[] actions();  <span class="cm">// e.g. {"READ", "WRITE"}</span>
+}
+
+<span class="cm">// 2. Aspect that intercepts @RequiresPermission</span>
+<span class="an">@Aspect</span>
+<span class="an">@Component</span>
+<span class="kw">public class</span> <span class="ty">PermissionAspect</span> {
+
+    <span class="kw">private final</span> <span class="ty">PermissionService</span> permService;
+
+    <span class="an">@Around</span>(<span class="st">"@annotation(requiresPermission)"</span>)
+    <span class="kw">public</span> <span class="ty">Object</span> <span class="mt">checkPermission</span>(<span class="ty">ProceedingJoinPoint</span> pjp, <span class="ty">RequiresPermission</span> rp) <span class="kw">throws</span> <span class="ty">Throwable</span> {
+        <span class="ty">Authentication</span> auth = <span class="ty">SecurityContextHolder</span>.<span class="mt">getContext</span>().<span class="mt">getAuthentication</span>();
+
+        <span class="kw">if</span> (auth == <span class="kw">null</span> || !auth.<span class="mt">isAuthenticated</span>())
+            <span class="kw">throw new</span> <span class="ty">AccessDeniedException</span>(<span class="st">"Not authenticated"</span>);
+
+        <span class="ty">String</span> userId = auth.<span class="mt">getName</span>();
+        <span class="kw">boolean</span> hasPermission = permService.<span class="mt">hasAnyPermission</span>(
+            userId, rp.<span class="mt">resource</span>(), rp.<span class="mt">actions</span>()
+        );
+
+        <span class="kw">if</span> (!hasPermission) {
+            log.<span class="mt">warn</span>(<span class="st">"Access denied: user={} resource={} actions={}"</span>,
+                userId, rp.<span class="mt">resource</span>(), rp.<span class="mt">actions</span>());
+            <span class="kw">throw new</span> <span class="ty">AccessDeniedException</span>(<span class="st">"Permission denied for "</span> + rp.<span class="mt">resource</span>());
+        }
+
+        <span class="kw">return</span> pjp.<span class="mt">proceed</span>(); <span class="cm">// call the actual method</span>
+    }
+}
+
+<span class="cm">// 3. Usage</span>
+<span class="an">@RequiresPermission</span>(resource = <span class="st">"REPORT"</span>, actions = {<span class="st">"READ"</span>, <span class="st">"EXPORT"</span>})
+<span class="kw">public byte</span>[] <span class="mt">downloadReport</span>(<span class="kw">long</span> reportId) { ... }
+<div class="cl">Custom AOP Auth</div></pre>
+</section>
+
+<!-- ══════════════════════════════════════
+     6. TRACE ID IN EVERY CALL
+══════════════════════════════════════ -->
+<section id="traceid">
+  <div class="sh"><div class="sn" style="background:var(--teal)">6</div><h2>TraceId — Add Unique ID to Every Request & Log</h2></div>
+
+<pre><span class="cm">// ── TraceId Filter — adds UUID to every request ───────────────────────</span>
+<span class="an">@Component</span>
+<span class="an">@Order</span>(<span class="ty">Ordered</span>.<span class="en">HIGHEST_PRECEDENCE</span>)  <span class="cm">// must run FIRST</span>
+<span class="kw">public class</span> <span class="ty">TraceIdFilter</span> <span class="kw">extends</span> <span class="ty">OncePerRequestFilter</span> {
+
+    <span class="kw">public static final</span> <span class="ty">String</span> TRACE_HEADER = <span class="st">"X-Trace-Id"</span>;
+    <span class="kw">public static final</span> <span class="ty">String</span> MDC_KEY      = <span class="st">"traceId"</span>;
+
+    <span class="an">@Override</span>
+    <span class="kw">protected void</span> <span class="mt">doFilterInternal</span>(<span class="ty">HttpServletRequest</span> req, <span class="ty">HttpServletResponse</span> res, <span class="ty">FilterChain</span> chain)
+            <span class="kw">throws</span> <span class="ty">ServletException</span>, <span class="ty">IOException</span> {
+
+        <span class="cm">// Accept trace from upstream or generate new one</span>
+        <span class="ty">String</span> traceId = req.<span class="mt">getHeader</span>(TRACE_HEADER);
+        <span class="kw">if</span> (traceId == <span class="kw">null</span> || traceId.<span class="mt">isBlank</span>())
+            traceId = <span class="ty">UUID</span>.<span class="mt">randomUUID</span>().<span class="mt">toString</span>();
+
+        <span class="kw">try</span> {
+            <span class="cm">// 1. Put in MDC — Logback/Log4j picks it up in every log line</span>
+            <span class="ty">MDC</span>.<span class="mt">put</span>(MDC_KEY, traceId);
+
+            <span class="cm">// 2. Echo it back in response header</span>
+            res.<span class="mt">setHeader</span>(TRACE_HEADER, traceId);
+
+            <span class="cm">// 3. Store in request attribute for controllers to use</span>
+            req.<span class="mt">setAttribute</span>(MDC_KEY, traceId);
+
+            chain.<span class="mt">doFilter</span>(req, res);
+        } <span class="kw">finally</span> {
+            <span class="cm">// CRITICAL: remove from MDC after request — thread pool reuses threads!</span>
+            <span class="ty">MDC</span>.<span class="mt">remove</span>(MDC_KEY);
+        }
+    }
+}
+
+<span class="cm">// ── Logback configuration — auto-include traceId in every log ─────────</span>
+<span class="cm">&lt;!-- logback-spring.xml --&gt;
+&lt;pattern&gt;%d{yyyy-MM-dd HH:mm:ss} [%thread] %-5level [traceId=%X{traceId}] %logger{36} - %msg%n&lt;/pattern&gt;
+&lt;!-- Output: 2024-01-15 10:30:45 [pool-1] INFO  [traceId=abc-123] OrderService - Processing order --&gt;</span>
+
+<span class="cm">// ── Propagate traceId to downstream services (RestTemplate/WebClient) ─</span>
+<span class="an">@Bean</span>
+<span class="kw">public</span> <span class="ty">RestTemplate</span> <span class="mt">restTemplate</span>() {
+    <span class="ty">RestTemplate</span> rt = <span class="kw">new</span> <span class="ty">RestTemplate</span>();
+    rt.<span class="mt">getInterceptors</span>().<span class="mt">add</span>((req, body, exec) -> {
+        <span class="ty">String</span> traceId = <span class="ty">MDC</span>.<span class="mt">get</span>(<span class="ty">TraceIdFilter</span>.<span class="en">MDC_KEY</span>);
+        <span class="kw">if</span> (traceId != <span class="kw">null</span>) req.<span class="mt">getHeaders</span>().<span class="mt">set</span>(<span class="ty">TraceIdFilter</span>.<span class="en">TRACE_HEADER</span>, traceId);
+        <span class="kw">return</span> exec.<span class="mt">execute</span>(req, body);
+    });
+    <span class="kw">return</span> rt;
+}
+
+<span class="cm">// WebClient propagation:</span>
+<span class="an">@Bean</span>
+<span class="kw">public</span> <span class="ty">WebClient</span> <span class="mt">webClient</span>() {
+    <span class="kw">return</span> <span class="ty">WebClient</span>.<span class="mt">builder</span>()
+        .<span class="mt">filter</span>((req, next) -> {
+            <span class="ty">String</span> tid = <span class="ty">MDC</span>.<span class="mt">get</span>(<span class="ty">TraceIdFilter</span>.<span class="en">MDC_KEY</span>);
+            <span class="kw">return</span> next.<span class="mt">exchange</span>(<span class="ty">ClientRequest</span>.<span class="mt">from</span>(req)
+                .<span class="mt">header</span>(<span class="ty">TraceIdFilter</span>.<span class="en">TRACE_HEADER</span>, tid != <span class="kw">null</span> ? tid : <span class="st">""</span>).<span class="mt">build</span>());
+        })
+        .<span class="mt">build</span>();
+}
+
+<span class="cm">// ── Access traceId anywhere in your code ─────────────────────────────</span>
+<span class="kw">public</span> <span class="ty">Order</span> <span class="mt">createOrder</span>(<span class="ty">OrderRequest</span> req) {
+    <span class="ty">String</span> traceId = <span class="ty">MDC</span>.<span class="mt">get</span>(<span class="st">"traceId"</span>);
+    log.<span class="mt">info</span>(<span class="st">"Creating order for user={} amount={}"</span>, req.<span class="mt">userId</span>(), req.<span class="mt">amount</span>());
+    <span class="cm">// log line auto includes traceId from MDC — no need to add manually</span>
+}
+<div class="cl">TraceId Filter + MDC</div></pre>
+</section>
+
+<!-- ══════════════════════════════════════
+     7. LOGGING → FILE → KAFKA → CASSANDRA
+══════════════════════════════════════ -->
+<section id="logging">
+  <div class="sh"><div class="sn" style="background:var(--a3)">7</div><h2>Logging Pipeline — Save File + Kafka → Cassandra</h2></div>
+
+  <div class="flow">
+    <div style="color:var(--muted);font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.6rem">Log Pipeline Architecture</div>
+    <div class="fr"><div class="bx a">App Log (MDC: traceId, userId, method)</div><div class="fa">→</div><div class="bx y">Logback Appender (rolling file)</div><div class="fa">→</div><div class="bx o">Log file on server</div></div>
+    <div class="fr" style="padding-left:1rem"><div class="fa">+→</div><div class="bx b">Custom Kafka Appender</div><div class="fa">→</div><div class="bx a">Kafka topic: app-logs</div></div>
+    <div class="fr" style="padding-left:1rem"><div class="fa">→</div><div class="bx v">KafkaConsumer (LogProcessor)</div><div class="fa">→</div><div class="bx t">Cassandra: logs table</div></div>
+  </div>
+
+<pre><span class="cm">// ── Access Log Filter — saves every request/response to log ──────────</span>
+<span class="an">@Component</span>
+<span class="an">@Order</span>(<span class="nu">2</span>)
+<span class="kw">public class</span> <span class="ty">AccessLogFilter</span> <span class="kw">extends</span> <span class="ty">OncePerRequestFilter</span> {
+
+    <span class="kw">private static final</span> <span class="ty">Logger</span> ACCESS_LOG = <span class="ty">LoggerFactory</span>.<span class="mt">getLogger</span>(<span class="st">"ACCESS"</span>);
+
+    <span class="an">@Override</span>
+    <span class="kw">protected void</span> <span class="mt">doFilterInternal</span>(<span class="ty">HttpServletRequest</span> req, <span class="ty">HttpServletResponse</span> res,
+                                      <span class="ty">FilterChain</span> chain) <span class="kw">throws</span> <span class="ty">ServletException</span>, <span class="ty">IOException</span> {
+        <span class="kw">long</span> start = <span class="ty">System</span>.<span class="mt">currentTimeMillis</span>();
+        <span class="kw">try</span> {
+            chain.<span class="mt">doFilter</span>(req, res);
+        } <span class="kw">finally</span> {
+            <span class="kw">long</span> durationMs = <span class="ty">System</span>.<span class="mt">currentTimeMillis</span>() - start;
+            ACCESS_LOG.<span class="mt">info</span>(<span class="st">"{} {} {} {}ms traceId={} userId={}"</span>,
+                req.<span class="mt">getMethod</span>(), req.<span class="mt">getRequestURI</span>(),
+                res.<span class="mt">getStatus</span>(), durationMs,
+                <span class="ty">MDC</span>.<span class="mt">get</span>(<span class="st">"traceId"</span>),
+                <span class="ty">MDC</span>.<span class="mt">get</span>(<span class="st">"userId"</span>)
+            );
+        }
+    }
+}
+<div class="cl">Access Log Filter</div></pre>
+
+<pre><span class="cm">// ── Custom Logback Kafka Appender ─────────────────────────────────────</span>
+<span class="kw">public class</span> <span class="ty">KafkaLogAppender</span> <span class="kw">extends</span> <span class="ty">AppenderBase</span>&lt;<span class="ty">ILoggingEvent</span>&gt; {
+
+    <span class="kw">private</span> <span class="ty">KafkaProducer</span>&lt;<span class="ty">String</span>, <span class="ty">String</span>&gt; producer;
+    <span class="kw">private final</span> <span class="ty">String</span> topic = <span class="st">"app-logs"</span>;
+    <span class="kw">private final</span> <span class="ty">ObjectMapper</span> mapper = <span class="kw">new</span> <span class="ty">ObjectMapper</span>();
+
+    <span class="an">@Override</span>
+    <span class="kw">public void</span> <span class="mt">start</span>() {
+        <span class="ty">Properties</span> props = <span class="kw">new</span> <span class="ty">Properties</span>();
+        props.<span class="mt">put</span>(<span class="st">"bootstrap.servers"</span>, <span class="st">"broker1:9092"</span>);
+        props.<span class="mt">put</span>(<span class="st">"key.serializer"</span>,   <span class="st">"org.apache.kafka.common.serialization.StringSerializer"</span>);
+        props.<span class="mt">put</span>(<span class="st">"value.serializer"</span>, <span class="st">"org.apache.kafka.common.serialization.StringSerializer"</span>);
+        props.<span class="mt">put</span>(<span class="st">"linger.ms"</span>, <span class="st">"100"</span>);        <span class="cm">// batch logs for efficiency</span>
+        props.<span class="mt">put</span>(<span class="st">"compression.type"</span>, <span class="st">"gzip"</span>); <span class="cm">// logs compress very well</span>
+        producer = <span class="kw">new</span> <span class="ty">KafkaProducer</span>&lt;&gt;(props);
+        <span class="kw">super</span>.<span class="mt">start</span>();
+    }
+
+    <span class="an">@Override</span>
+    <span class="kw">protected void</span> <span class="mt">append</span>(<span class="ty">ILoggingEvent</span> event) {
+        <span class="kw">try</span> {
+            <span class="ty">Map</span>&lt;<span class="ty">String</span>, <span class="ty">Object</span>&gt; logEntry = <span class="ty">Map</span>.<span class="mt">of</span>(
+                <span class="st">"timestamp"</span>, event.<span class="mt">getTimeStamp</span>(),
+                <span class="st">"level"</span>,     event.<span class="mt">getLevel</span>().<span class="mt">toString</span>(),
+                <span class="st">"logger"</span>,    event.<span class="mt">getLoggerName</span>(),
+                <span class="st">"message"</span>,   event.<span class="mt">getFormattedMessage</span>(),
+                <span class="st">"traceId"</span>,   event.<span class="mt">getMDCPropertyMap</span>().<span class="mt">getOrDefault</span>(<span class="st">"traceId"</span>, <span class="st">""</span>),
+                <span class="st">"service"</span>,   <span class="st">"order-service"</span>,
+                <span class="st">"host"</span>,      <span class="ty">InetAddress</span>.<span class="mt">getLocalHost</span>().<span class="mt">getHostName</span>()
+            );
+            <span class="ty">String</span> json = mapper.<span class="mt">writeValueAsString</span>(logEntry);
+            producer.<span class="mt">send</span>(<span class="kw">new</span> <span class="ty">ProducerRecord</span>&lt;&gt;(topic, json));
+        } <span class="kw">catch</span> (<span class="ty">Exception</span> e) {
+            <span class="cm">// Silent fail — don't let logging break the app</span>
+        }
+    }
+
+    <span class="an">@Override</span> <span class="kw">public void</span> <span class="mt">stop</span>() { <span class="kw">if</span> (producer != <span class="kw">null</span>) producer.<span class="mt">close</span>(); <span class="kw">super</span>.<span class="mt">stop</span>(); }
+}
+<div class="cl">Kafka Log Appender</div></pre>
+
+<pre><span class="cm">// ── Kafka Consumer → Cassandra ────────────────────────────────────────</span>
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">LogToCassandraConsumer</span> {
+
+    <span class="kw">private final</span> <span class="ty">CassandraTemplate</span> cassandra;
+    <span class="kw">private final</span> <span class="ty">ObjectMapper</span>      mapper = <span class="kw">new</span> <span class="ty">ObjectMapper</span>();
+
+    <span class="cm">// Cassandra table: logs_by_service (partition: service+day, cluster: timestamp)</span>
+    <span class="an">@KafkaListener</span>(topics = <span class="st">"app-logs"</span>, groupId = <span class="st">"log-processor"</span>,
+                   concurrency = <span class="st">"3"</span>)
+    <span class="kw">public void</span> <span class="mt">consume</span>(<span class="ty">ConsumerRecord</span>&lt;<span class="ty">String</span>, <span class="ty">String</span>&gt; record, <span class="ty">Acknowledgment</span> ack) {
+        <span class="kw">try</span> {
+            <span class="ty">Map</span>&lt;<span class="ty">String</span>, <span class="ty">Object</span>&gt; log = mapper.<span class="mt">readValue</span>(record.<span class="mt">value</span>(), <span class="ty">Map</span>.<span class="kw">class</span>);
+
+            <span class="cm">// Write to Cassandra — optimized for time-series log queries</span>
+            cassandra.<span class="mt">insert</span>(<span class="kw">new</span> <span class="ty">LogEntry</span>(
+                (<span class="ty">String</span>) log.<span class="mt">get</span>(<span class="st">"service"</span>),
+                <span class="ty">LocalDate</span>.<span class="mt">now</span>(),                    <span class="cm">// partition key: service + day</span>
+                <span class="ty">Instant</span>.<span class="mt">ofEpochMilli</span>((<span class="ty">Long</span>) log.<span class="mt">get</span>(<span class="st">"timestamp"</span>)),
+                (<span class="ty">String</span>) log.<span class="mt">get</span>(<span class="st">"level"</span>),
+                (<span class="ty">String</span>) log.<span class="mt">get</span>(<span class="st">"traceId"</span>),
+                (<span class="ty">String</span>) log.<span class="mt">get</span>(<span class="st">"message"</span>)
+            ));
+            ack.<span class="mt">acknowledge</span>();
+        } <span class="kw">catch</span> (<span class="ty">Exception</span> e) {
+            log.<span class="mt">error</span>(<span class="st">"Failed to store log: {}"</span>, e.<span class="mt">getMessage</span>());
+            <span class="cm">// DLQ handles failed log entries</span>
+        }
+    }
+}
+
+<span class="cm">-- Cassandra table design for logs (optimized for: query by service + day + level)</span>
+<span class="cm">CREATE TABLE logs_by_service (
+    service     TEXT,
+    log_date    DATE,
+    timestamp   TIMESTAMP,
+    level       TEXT,
+    trace_id    TEXT,
+    message     TEXT,
+    PRIMARY KEY ((service, log_date), timestamp, level)
+) WITH CLUSTERING ORDER BY (timestamp DESC)
+  AND default_time_to_live = 7776000;  -- 90 days TTL auto-cleanup</span>
+
+<span class="cm">-- Query logs: get all ERRORs for order-service today</span>
+<span class="cm">SELECT * FROM logs_by_service
+WHERE service='order-service' AND log_date='2024-01-15' AND level='ERROR'
+ORDER BY timestamp DESC LIMIT 100;</span>
+<div class="cl">Kafka → Cassandra Log Pipeline</div></pre>
+
+<pre><span class="cm"># ── logback-spring.xml — File + Kafka + Console appenders ─────────────</span>
+<span class="cm">&lt;configuration&gt;
+    &lt;springProperty name="kafkaBrokers" source="spring.kafka.bootstrap-servers"/&gt;
+
+    &lt;!-- Rolling file appender --&gt;
+    &lt;appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender"&gt;
+        &lt;file&gt;/var/log/app/application.log&lt;/file&gt;
+        &lt;rollingPolicy class="...TimeBasedRollingPolicy"&gt;
+            &lt;fileNamePattern&gt;/var/log/app/application.%d{yyyy-MM-dd}.%i.log.gz&lt;/fileNamePattern&gt;
+            &lt;maxHistory&gt;30&lt;/maxHistory&gt;       &lt;!-- keep 30 days --&gt;
+            &lt;totalSizeCap&gt;10GB&lt;/totalSizeCap&gt; &lt;!-- max total disk usage --&gt;
+            &lt;timeBasedFileNamingPolicy class="...SizeAndTimeBasedFNATP"&gt;
+                &lt;maxFileSize&gt;100MB&lt;/maxFileSize&gt;
+            &lt;/timeBasedFileNamingPolicy&gt;
+        &lt;/rollingPolicy&gt;
+        &lt;encoder&gt;
+            &lt;pattern&gt;%d{ISO8601} [%thread] %-5level [%X{traceId}] %logger - %msg%n&lt;/pattern&gt;
+        &lt;/encoder&gt;
+    &lt;/appender&gt;
+
+    &lt;!-- Custom Kafka appender (async to avoid blocking request threads) --&gt;
+    &lt;appender name="KAFKA_ASYNC" class="ch.qos.logback.classic.AsyncAppender"&gt;
+        &lt;queueSize&gt;10000&lt;/queueSize&gt;
+        &lt;discardingThreshold&gt;0&lt;/discardingThreshold&gt;
+        &lt;appender-ref ref="KAFKA"/&gt;
+    &lt;/appender&gt;
+    &lt;appender name="KAFKA" class="com.myapp.KafkaLogAppender"/&gt;
+
+    &lt;!-- Separate logger for access logs --&gt;
+    &lt;logger name="ACCESS" level="INFO" additivity="false"&gt;
+        &lt;appender-ref ref="FILE"/&gt;
+        &lt;appender-ref ref="KAFKA_ASYNC"/&gt;
+    &lt;/logger&gt;
+
+    &lt;root level="INFO"&gt;
+        &lt;appender-ref ref="FILE"/&gt;
+        &lt;appender-ref ref="KAFKA_ASYNC"/&gt;
+    &lt;/root&gt;
+&lt;/configuration&gt;</span>
+<div class="cl">logback-spring.xml</div></pre>
+</section>
+
+<!-- ══════════════════════════════════════
+     8. CLOUDWATCH ACCESS LOGS
+══════════════════════════════════════ -->
+<section id="cloudwatch">
+  <div class="sh"><div class="sn" style="background:var(--a6)">8</div><h2>Access Logs → CloudWatch</h2></div>
+
+<pre><span class="cm"># ── Option 1: CloudWatch Agent (EC2/ECS) reads log files ─────────────</span>
+<span class="cm"># /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.json</span>
+<span class="cm">{
+  "logs": {
+    "logs_collected": {
+      "files": {
+        "collect_list": [
+          {
+            "file_path": "/var/log/app/application.log",
+            "log_group_name": "/prod/order-service/app",
+            "log_stream_name": "{instance_id}",
+            "timestamp_format": "%Y-%m-%dT%H:%M:%S",
+            "multi_line_start_pattern": "^\\d{4}-\\d{2}-\\d{2}"
+          },
+          {
+            "file_path": "/var/log/app/access.log",
+            "log_group_name": "/prod/order-service/access",
+            "log_stream_name": "{instance_id}"
+          }
+        ]
+      }
+    }
+  }
+}</span>
+
+<span class="cm"># ── Option 2: AWS SDK — send logs programmatically from Java ──────────</span>
+<span class="cm">// Maven: software.amazon.awssdk:cloudwatchlogs:2.x</span>
+
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">CloudWatchLogger</span> {
+
+    <span class="kw">private final</span> <span class="ty">CloudWatchLogsClient</span> cwClient = <span class="ty">CloudWatchLogsClient</span>.<span class="mt">builder</span>()
+        .<span class="mt">region</span>(<span class="ty">Region</span>.<span class="en">US_EAST_1</span>).<span class="mt">build</span>();
+
+    <span class="kw">private final</span> <span class="ty">String</span> logGroup  = <span class="st">"/prod/order-service/app"</span>;
+    <span class="kw">private final</span> <span class="ty">String</span> logStream = <span class="mt">getInstanceId</span>() + <span class="st">"/access"</span>;
+
+    <span class="kw">public void</span> <span class="mt">sendBatch</span>(<span class="ty">List</span>&lt;<span class="ty">String</span>&gt; messages) {
+        <span class="ty">List</span>&lt;<span class="ty">InputLogEvent</span>&gt; events = messages.<span class="mt">stream</span>()
+            .<span class="mt">map</span>(msg -> <span class="ty">InputLogEvent</span>.<span class="mt">builder</span>()
+                .<span class="mt">timestamp</span>(<span class="ty">Instant</span>.<span class="mt">now</span>().<span class="mt">toEpochMilli</span>())
+                .<span class="mt">message</span>(msg)
+                .<span class="mt">build</span>())
+            .<span class="mt">toList</span>();
+
+        cwClient.<span class="mt">putLogEvents</span>(<span class="ty">PutLogEventsRequest</span>.<span class="mt">builder</span>()
+            .<span class="mt">logGroupName</span>(logGroup)
+            .<span class="mt">logStreamName</span>(logStream)
+            .<span class="mt">logEvents</span>(events)
+            .<span class="mt">build</span>());
+    }
+}
+
+<span class="cm"># ── Option 3: ECS / Fargate — awslogs log driver (simplest) ──────────</span>
+<span class="cm"># task-definition.json:
+# "logConfiguration": {
+#   "logDriver": "awslogs",
+#   "options": {
+#     "awslogs-group":         "/prod/order-service",
+#     "awslogs-region":        "us-east-1",
+#     "awslogs-stream-prefix": "ecs",
+#     "awslogs-create-group":  "true"
+#   }
+# }
+# stdout/stderr automatically sent to CloudWatch — zero config!</span>
+
+<span class="cm"># ── CloudWatch Insights — query logs ─────────────────────────────────
+# Find all ERRORS in last 1 hour:
+fields @timestamp, @message, traceId
+| filter level = "ERROR"
+| sort @timestamp desc
+| limit 100
+
+# Request count by status code:
+fields @timestamp, method, path, statusCode, durationMs
+| stats count() by statusCode
+| sort count desc
+
+# Slow requests (> 2 seconds):
+fields @timestamp, traceId, path, durationMs
+| filter durationMs > 2000
+| sort durationMs desc</span>
+<div class="cl">CloudWatch</div></pre>
+</section>
+
+<!-- ══════════════════════════════════════
+     9. BLUE-GREEN DEPLOYMENT
+══════════════════════════════════════ -->
+<section id="bluegreen">
+  <div class="sh"><div class="sn" style="background:var(--a2)">9</div><h2>Blue-Green Deployment — Zero Downtime Release</h2></div>
+
+  <p><strong>Blue-Green</strong> keeps two identical environments. Blue is live. Green gets the new code. You switch traffic at the load balancer. If something breaks, flip back instantly.</p>
+
+  <div class="flow">
+    <div style="color:var(--muted);font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.6rem">Blue-Green Deployment Phases</div>
+    <div class="fr"><div style="color:var(--a3);font-size:10px;font-weight:700;min-width:80px">PHASE 1</div><div class="bx g">🔵 Blue (v1 LIVE — 100% traffic)</div><div class="bx" style="border-color:var(--muted)">🟢 Green (v2 idle / deploying)</div></div>
+    <div class="fr"><div style="color:var(--a3);font-size:10px;font-weight:700;min-width:80px">PHASE 2</div><div class="bx g">🔵 Blue (100% traffic)</div><div class="bx b">🟢 Green (v2 deployed + smoke tested)</div></div>
+    <div class="fr"><div style="color:var(--a3);font-size:10px;font-weight:700;min-width:80px">PHASE 3</div><div class="bx g">🔵 Blue (0% traffic, still running)</div><div class="bx b">🟢 Green (v2 — 100% traffic)</div></div>
+    <div class="fr"><div style="color:var(--a3);font-size:10px;font-weight:700;min-width:80px">PHASE 4</div><div class="bx" style="border-color:var(--muted)">🔵 Blue (terminated / becomes next green)</div><div class="bx g">🟢 Green (v2 LIVE — 100% traffic)</div></div>
+    <div style="margin-top:.4rem;color:var(--red);font-size:10.5px;font-family:'JetBrains Mono',monospace">If v2 has a bug: flip LB back to Blue in seconds. Zero data loss.</div>
+  </div>
+
+<pre><span class="cm"># ── AWS ALB — blue-green with Target Groups ───────────────────────────</span>
+
+<span class="cm"># Current state: Blue TG gets 100% traffic</span>
+aws elbv2 modify-rule \
+  --rule-arn arn:aws:elasticloadbalancing:...rule/... \
+  --actions '[{
+    "Type": "forward",
+    "ForwardConfig": {
+      "TargetGroups": [
+        {"TargetGroupArn": "arn:.../tg-blue", "Weight": 100},
+        {"TargetGroupArn": "arn:.../tg-green","Weight": 0}
+      ]
+    }
+  }]'
+
+<span class="cm"># Deploy new code to Green instances (Blue still serving all traffic)</span>
+<span class="cm"># Run smoke tests on Green directly (bypass LB)</span>
+curl -H "Host: green.internal" http://green-instance:8080/actuator/health
+
+<span class="cm"># Switch to canary: 10% Green, 90% Blue (watch error rates)</span>
+<span class="cm">--actions ForwardConfig.TargetGroups=[{tg-blue,Weight:90},{tg-green,Weight:10}]</span>
+
+<span class="cm"># Full switch: 100% Green</span>
+<span class="cm">--actions ForwardConfig.TargetGroups=[{tg-blue,Weight:0},{tg-green,Weight:100}]</span>
+
+<span class="cm"># Rollback (instant — just flip weights back):</span>
+<span class="cm">--actions ForwardConfig.TargetGroups=[{tg-blue,Weight:100},{tg-green,Weight:0}]</span>
+<div class="cl">AWS ALB Blue-Green</div></pre>
+
+<pre><span class="cm"># ── Kubernetes Blue-Green with Services ───────────────────────────────</span>
+
+<span class="cm"># Blue deployment (current production)</span>
+<span class="cm">apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-service-blue
+spec:
+  replicas: 5
+  selector:
+    matchLabels:
+      app: order-service
+      version: blue
+  template:
+    metadata:
+      labels:
+        app: order-service
+        version: blue
+    spec:
+      containers:
+      - name: order-service
+        image: myapp/order-service:v1.0.0
+        readinessProbe:               # must pass before receiving traffic
+          httpGet: {path: /actuator/health, port: 8080}
+          initialDelaySeconds: 30</span>
+
+<span class="cm"># Green deployment (new version — service NOT pointing to it yet)</span>
+<span class="cm">apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-service-green
+spec:
+  replicas: 5
+  selector:
+    matchLabels: {app: order-service, version: green}
+  template:
+    metadata:
+      labels: {app: order-service, version: green}
+    spec:
+      containers:
+      - name: order-service
+        image: myapp/order-service:v2.0.0</span>
+
+<span class="cm"># Production Service (currently points to blue)</span>
+<span class="cm">apiVersion: v1
+kind: Service
+metadata:
+  name: order-service
+spec:
+  selector:
+    app: order-service
+    version: blue          # ← change to "green" to switch traffic
+  ports:
+  - port: 80
+    targetPort: 8080</span>
+
+<span class="cm"># Switch traffic: change selector from blue → green (instant, atomic)</span>
+kubectl patch service order-service -p '{"spec":{"selector":{"version":"green"}}}'
+
+<span class="cm"># Verify (watch error rate in Grafana for 5 minutes)</span>
+<span class="cm"># Rollback if needed:</span>
+kubectl patch service order-service -p '{"spec":{"selector":{"version":"blue"}}}'
+<div class="cl">Kubernetes Blue-Green</div></pre>
+</section>
+
+<!-- ══════════════════════════════════════
+     10. GRACEFUL SHUTDOWN — DRAIN OLD SESSIONS
+══════════════════════════════════════ -->
+<section id="graceful">
+  <div class="sh"><div class="sn" style="background:var(--green)">10</div><h2>Graceful Shutdown — Let Existing Sessions Finish, Then Shutdown</h2></div>
+
+  <p>When deploying new code, existing in-flight requests on the <strong>old instance must complete</strong> before it shuts down. No dropped requests, no 502 errors for active users.</p>
+
+  <div class="flow">
+    <div style="color:var(--muted);font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.6rem">Graceful Shutdown Sequence</div>
+    <div class="fr"><div class="bx b">1. Load Balancer removes old instance from target group (no new traffic)</div></div>
+    <div class="fr"><div class="bx y">2. SIGTERM sent to old instance JVM</div></div>
+    <div class="fr"><div class="bx a">3. Spring catches SIGTERM → starts shutdown sequence</div></div>
+    <div class="fr"><div class="bx a">4. Servlet container (Tomcat) waits for in-flight requests to complete</div></div>
+    <div class="fr"><div class="bx a">5. @PreDestroy / ApplicationListener&lt;ContextClosedEvent&gt; → cleanup</div></div>
+    <div class="fr"><div class="bx a">6. ThreadPools shut down gracefully (awaitTermination)</div></div>
+    <div class="fr"><div class="bx g">7. JVM exits cleanly — old instance is fully gone</div></div>
+  </div>
+
+<pre><span class="cm"># ── Spring Boot — enable graceful shutdown ────────────────────────────</span>
+<span class="cm"># application.yml</span>
+server:
+  shutdown: graceful              <span class="cm"># default is "immediate" — CHANGE THIS!</span>
+
+spring:
+  lifecycle:
+    timeout-per-shutdown-phase: 30s  <span class="cm"># wait up to 30s for requests to finish</span>
+<div class="cl">application.yml</div></pre>
+
+<pre><span class="cm">// ── What Spring's graceful shutdown does internally ───────────────────</span>
+<span class="cm">// 1. Sets SmartLifecycle isRunning() = false</span>
+<span class="cm">// 2. Tomcat connector: stop accepting new connections</span>
+<span class="cm">// 3. Tomcat connector: waits for in-progress requests (up to timeout-per-shutdown-phase)</span>
+<span class="cm">// 4. Spring context: calls stop() on all beans that implement Lifecycle</span>
+<span class="cm">// 5. Spring context: closes — @PreDestroy methods fire, beans destroyed</span>
+
+<span class="cm">// ── @PreDestroy — cleanup when Spring shuts down ──────────────────────</span>
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">OrderProcessingService</span> {
+
+    <span class="kw">private final</span> <span class="ty">ExecutorService</span> workers = <span class="ty">Executors</span>.<span class="mt">newFixedThreadPool</span>(<span class="nu">8</span>);
+
+    <span class="an">@PreDestroy</span>
+    <span class="kw">public void</span> <span class="mt">cleanup</span>() <span class="kw">throws</span> <span class="ty">InterruptedException</span> {
+        log.<span class="mt">info</span>(<span class="st">"Graceful shutdown: stopping worker threads..."</span>);
+        workers.<span class="mt">shutdown</span>();  <span class="cm">// no new tasks accepted</span>
+        <span class="kw">if</span> (!workers.<span class="mt">awaitTermination</span>(<span class="nu">30</span>, <span class="ty">TimeUnit</span>.<span class="en">SECONDS</span>)) {
+            log.<span class="mt">warn</span>(<span class="st">"Workers didn't finish in 30s — forcing shutdown"</span>);
+            workers.<span class="mt">shutdownNow</span>();
+        }
+        log.<span class="mt">info</span>(<span class="st">"All workers stopped cleanly"</span>);
+    }
+}
+
+<span class="cm">// ── Kafka consumer — drain messages before shutdown ────────────────────</span>
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">OrderKafkaConsumer</span> <span class="kw">implements</span> <span class="ty">ApplicationListener</span>&lt;<span class="ty">ContextClosedEvent</span>&gt; {
+
+    <span class="kw">private volatile boolean</span> shuttingDown = <span class="kw">false</span>;
+
+    <span class="an">@Override</span>
+    <span class="kw">public void</span> <span class="mt">onApplicationEvent</span>(<span class="ty">ContextClosedEvent</span> event) {
+        log.<span class="mt">info</span>(<span class="st">"Context closing — consumer will drain and stop"</span>);
+        shuttingDown = <span class="kw">true</span>;
+    }
+
+    <span class="an">@KafkaListener</span>(topics = <span class="st">"orders"</span>)
+    <span class="kw">public void</span> <span class="mt">consume</span>(<span class="ty">Order</span> order, <span class="ty">Acknowledgment</span> ack) {
+        <span class="kw">if</span> (shuttingDown) {
+            <span class="cm">// Don't commit — will be reprocessed by new instance</span>
+            <span class="kw">return</span>;
+        }
+        <span class="mt">processOrder</span>(order);
+        ack.<span class="mt">acknowledge</span>();
+    }
+}
+<div class="cl">Graceful Shutdown</div></pre>
+
+<pre><span class="cm"># ── Kubernetes — readinessProbe + preStop hook ────────────────────────</span>
+<span class="cm">spec:
+  containers:
+  - name: order-service
+    lifecycle:
+      preStop:
+        exec:
+          command: ["/bin/sh", "-c", "sleep 5"]
+          # 5s sleep BEFORE SIGTERM: gives LB time to deregister instance
+          # After preStop completes → SIGTERM sent → Spring graceful shutdown
+
+    readinessProbe:
+      httpGet:
+        path: /actuator/health/readiness
+        port: 8080
+      initialDelaySeconds: 20     # wait before receiving traffic
+      periodSeconds: 10
+      failureThreshold: 3         # 30s to become unhealthy → removed from LB
+
+    livenessProbe:
+      httpGet:
+        path: /actuator/health/liveness
+        port: 8080
+      initialDelaySeconds: 60
+      periodSeconds: 30
+      failureThreshold: 3         # 90s to fail → pod restarted
+
+  terminationGracePeriodSeconds: 60  # max time for graceful shutdown before SIGKILL</span>
+
+<span class="cm"># ── Full deploy sequence in Kubernetes ───────────────────────────────</span>
+<span class="cm"># 1. kubectl apply -f deployment-green.yaml</span>
+<span class="cm"># 2. K8s creates new green pods (using readinessProbe)</span>
+<span class="cm"># 3. Once green pods are Ready → K8s switches service selector</span>
+<span class="cm"># 4. Blue pods receive SIGTERM (preStop 5s delay → then 30s spring graceful)</span>
+<span class="cm"># 5. In-flight requests on blue complete → blue pods exit</span>
+<span class="cm"># 6. Done — zero dropped requests!</span>
+<div class="cl">Kubernetes Graceful Shutdown</div></pre>
+
+  <div class="cl-box tip"><div class="ci">💡</div><div>
+    <strong>The three keys to zero-downtime deploys:</strong>
+    <ol style="margin-top:.4rem">
+      <li><strong>Readiness probe</strong> — new instance only gets traffic after it's truly ready</li>
+      <li><strong>Graceful shutdown</strong> — old instance finishes in-flight requests before dying</li>
+      <li><strong>preStop sleep</strong> — gives the load balancer time to deregister the old pod before SIGTERM is sent</li>
+    </ol>
+    Without all three, you'll see 502 errors during deployment.
+  </div></div>
+
+  <h3>Complete Blue-Green + Graceful Shutdown Timeline</h3>
+  <table>
+    <thead><tr><th>Time</th><th>Blue (old)</th><th>Green (new)</th><th>Load Balancer</th><th>User sees</th></tr></thead>
+    <tbody>
+      <tr><td>T+0</td><td class="pl-g" style="display:block">Running v1</td><td>Not started</td><td>100% → Blue</td><td>v1 responses ✅</td></tr>
+      <tr><td>T+5m</td><td class="pl-g" style="display:block">Running v1</td><td><span class="pl pl-b">Deploying v2</span></td><td>100% → Blue</td><td>v1 responses ✅</td></tr>
+      <tr><td>T+10m</td><td class="pl-g" style="display:block">Running v1</td><td><span class="pl pl-g">Ready v2 ✅</span></td><td>100% → Blue</td><td>v1 responses ✅</td></tr>
+      <tr><td>T+11m</td><td><span class="pl pl-y">Draining (30s)</span></td><td><span class="pl pl-g">Running v2</span></td><td>0%→Blue 100%→Green</td><td>v2 responses ✅</td></tr>
+      <tr><td>T+12m</td><td><span class="pl pl-r">Terminated</span></td><td><span class="pl pl-g">Running v2</span></td><td>100% → Green</td><td>v2 responses ✅</td></tr>
+    </tbody>
+  </table>
+
+  <div class="cl-box info"><div class="ci">🔄</div><div>
+    <strong>Rollback scenario:</strong> At T+11m, if v2 has a bug (high error rate in Grafana/CloudWatch) → switch LB back to Blue immediately (0ms). Blue is still running with all existing sessions intact. Users see v1 again. Then fix v2 and try again. Blue-green makes rollback as easy as flipping a switch.
+  </div></div>
+</section>
+
+<!-- SUMMARY -->
+<section>
+  <div class="sh"><div class="sn" style="background:var(--accent)">✓</div><h2>Master Quick Reference</h2></div>
+  <table>
+    <thead><tr><th>Topic</th><th>Key Rule</th></tr></thead>
+    <tbody>
+      <tr><td>JWT</td><td>Header.Payload.Signature — payload is base64, NOT encrypted. Never put secrets in JWT.</td></tr>
+      <tr><td>JWT storage</td><td>HttpOnly cookie (prevents XSS). Short-lived access (15min) + long-lived refresh (7d).</td></tr>
+      <tr><td>Authentication</td><td>Who are you? → Login → JWT issued</td></tr>
+      <tr><td>Authorization</td><td>What can you do? → @PreAuthorize, role check in SecurityContext</td></tr>
+      <tr><td>Filter order</td><td>TraceIdFilter → JwtAuthFilter → SecurityContext → Controller → Response (reverse)</td></tr>
+      <tr><td>doFilterInternal</td><td>Always call <code>filterChain.doFilter(req, res)</code> to continue chain (or set error response)</td></tr>
+      <tr><td>shouldNotFilter</td><td>Override in OncePerRequestFilter to skip JWT check for /auth/**, /public/**</td></tr>
+      <tr><td>TraceId</td><td>Generate in filter → MDC.put() → log pattern includes %X{traceId} → remove in finally</td></tr>
+      <tr><td>Log pipeline</td><td>App → Logback (file + async Kafka appender) → Kafka → Consumer → Cassandra</td></tr>
+      <tr><td>CloudWatch</td><td>ECS: awslogs driver (zero-config). EC2: CloudWatch Agent reads log files.</td></tr>
+      <tr><td>Blue-Green</td><td>Two identical envs. Switch LB. Keep old env for instant rollback.</td></tr>
+      <tr><td>Graceful shutdown</td><td><code>server.shutdown=graceful</code> + <code>timeout-per-shutdown-phase=30s</code> + preStop sleep 5s in K8s</td></tr>
+      <tr><td>Zero-downtime keys</td><td>Readiness probe (new ready before traffic) + Graceful shutdown (old finishes) + preStop sleep</td></tr>
+    </tbody>
+  </table>
+</section>
+
+</div>
+</body>
+</html>

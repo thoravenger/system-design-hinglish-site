@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Saga Pattern — Complete Guide (Spring Boot + Kafka) · Library · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../../assets/style.css">
+<script>try{if(localStorage.getItem('sd-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="../../index.html">SystemDesign<span>.hinglish</span></a><div class="toplinks"><a href="../../index.html#chapters">Chapters</a><a href="../../library/index.html">Library</a><a href="../../index.html#how">Kaise padhein</a><a href="../../links.html">URL Guide</a></div><button class="theme-toggle" aria-label="theme">◐</button></header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="../index.html"><span class="num">⌂</span> Library home</a></li></ul>
+<div class="group">System Design &amp; Architecture</div><ul>
+<li><a href="../system-design/system-design-mastery.html"><span class="num">📘</span> System Design Mastery</a></li>
+<li><a href="../system-design/smart-parking-system-hld-lld.html"><span class="num">📘</span> Smart Parking System</a></li>
+<li><a href="../system-design/98-system-design-concepts.html"><span class="num">📝</span> 98 System Design Concepts</a></li>
+<li><a href="../system-design/email-notification-scheduler-design.html"><span class="num">📄</span> Email Notification Scheduler</a></li>
+<li><a href="../system-design/schedule-reminder-2m-scale-architecture.html"><span class="num">📝</span> Scale-Ready Schedule Reminder System</a></li>
+</ul>
+<div class="group">Java Core &amp; DSA</div><ul>
+<li><a href="../java-dsa/java-core-mastery-guide.html"><span class="num">📘</span> Java Core Mastery Guide</a></li>
+<li><a href="../java-dsa/java-garbage-collection-guide.html"><span class="num">📘</span> Java Garbage Collection</a></li>
+<li><a href="../java-dsa/java-ds-leetcode-mastery.html"><span class="num">📘</span> Java Data Structures for LeetCode</a></li>
+<li><a href="../java-dsa/data-structures-java-interview-guide.html"><span class="num">📄</span> Data Structures Interview Guide</a></li>
+<li><a href="../java-dsa/lru-cache-java-visual-explainer.html"><span class="num">📘</span> LRU Cache</a></li>
+</ul>
+<div class="group">Spring Boot &amp; Microservices</div><ul>
+<li><a href="../spring-boot/spring-bean-lifecycle.html"><span class="num">📘</span> Spring Bean Lifecycle</a></li>
+<li><a href="../spring-boot/spring-transactional-guide.html"><span class="num">📘</span> @Transactional</a></li>
+<li><a href="../spring-boot/spring-circuit-breaker-resilience4j.html"><span class="num">📘</span> Circuit Breaker (Resilience4j)</a></li>
+<li><a href="../spring-boot/spring-security-jwt-logging-deploy.html"><span class="num">📘</span> Spring Security · JWT · AOP · Logging · Blue-Green</a></li>
+<li><a class="active" href="../spring-boot/saga-pattern-complete-guide.html"><span class="num">📄</span> Saga Pattern — Complete Guide</a></li>
+<li><a href="../spring-boot/saga-pattern-spring-boot-quick-reference.html"><span class="num">📄</span> Saga — Quick Reference</a></li>
+</ul>
+<div class="group">Kafka · Redis · Cassandra &amp; Data</div><ul>
+<li><a href="../data-messaging/kafka-redis-cassandra-mastery.html"><span class="num">📘</span> Kafka · Redis · Cassandra</a></li>
+<li><a href="../data-messaging/northguard-xinfra-linkedin-kafka-replacement.html"><span class="num">📘</span> Northguard &amp; Xinfra</a></li>
+</ul>
+<div class="group">GenAI &amp; AI</div><ul>
+<li><a href="../genai/java-genai-complete-guide.html"><span class="num">📄</span> Java + Generative AI</a></li>
+<li><a href="../genai/vector-database-mastery.html"><span class="num">📘</span> Vector Databases</a></li>
+</ul>
+<div class="group">Payments &amp; Interview Prep</div><ul>
+<li><a href="../interview-prep/paytm-backend-interview-guide.html"><span class="num">📄</span> Paytm Backend Interview Guide</a></li>
+<li><a href="../interview-prep/paytm-dsa-questions.html"><span class="num">📄</span> Paytm DSA Questions</a></li>
+</ul>
+</nav>
+<main class="content lib-doc">
+<div class="chapter-hero"><span class="chapter-num">Spring Boot &amp; Microservices</span><h1>Saga Pattern — Complete Guide (Spring Boot + Kafka)</h1><p class="lead">Layman story se shuru: HLD, step-by-step saga flow, compensation, Outbox pattern, LLD aur Order/Inventory/Payment services ka complete code + idempotency. / The main Saga book.</p><div class="lib-meta"><span class="badge fmt-pdf">📄 PDF → Web</span><span class="badge time">⏱ ~20 min read</span><span class="badge pages">24 pages (original)</span></div><div class="tags"><span class="tag">Saga</span><span class="tag">Outbox</span><span class="tag">Kafka</span><span class="tag">Idempotency</span></div><div class="lib-dl"><a class="btn small" href="../files/saga-pattern-complete-guide.pdf" download>⬇ Download PDF</a></div></div>
+<div class="callout tip"><strong>Study note</strong>Ye page original document se auto-convert kiya gaya hai (headings, tables, code preserve). Exact original layout / diagrams ke liye upar se file download karo.</div>
+<h2>Chapter 1 — The Simple Story — Layman Language</h2>
+<h3>IMAGINE THIS REAL LIFE SITUATION</h3>
+<p>You go to a restaurant. You order food, the waiter writes it down (Order taken). The kitchen starts cooking (Stock reserved). You pay the bill (Payment done). Then the waiter confirms your order is complete.</p>
+<p>Now imagine: you paid, but the kitchen ran out of ingredients AFTER you already paid. What should happen? The restaurant should REFUND your money and CANCEL the order. That undo-process is called a <b>Compensating Transaction</b> in the Saga pattern.</p>
+<p>In software: when you buy something on Amazon, there are 3 separate computer systems — one for Orders, one for Warehouse (Inventory), one for Payments. They do NOT share one giant database. Each has its own. The Saga Pattern coordinates them.</p>
+<h3>IN ONE LINE</h3>
+<p><b>Saga Pattern = Do things step by step. If any step fails, automatically UNDO all previous steps.</b></p>
+<h3>WHY CAN'T WE USE ONE DATABASE FOR EVERYTHING?</h3>
+<p>This is the most common confusion. The answer is simple:</p>
+<ul><li>Each microservice is a SEPARATE application, possibly on a different server, even in a different city.</li><li>If all services share one DB, they become tightly coupled — fixing one breaks another.</li><li>Microservices are meant to be INDEPENDENT. Independent deployment, independent scaling.</li><li>One DB = one point of failure. Your entire app dies if that DB has issues.</li><li>Amazon's Order team and Payment team are different departments — they own their own data.</li></ul>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>SHARED DATABASE (Wrong)</th><th>SEPARATE DATABASE (Saga Way)</th></tr></thead><tbody><tr><td>All services read/write same DB</td><td>Each service owns its DB only</td></tr><tr><td>Change one table = might break others</td><td>Change is isolated to that service</td></tr><tr><td>One DB crash = entire app down</td><td>One service down = others still work</td></tr><tr><td>Hard to scale — you scale all or nothing</td><td>Scale Payment service separately from Order</td></tr><tr><td>NOT microservices — this is a distributed monolith</td><td>True microservices architecture</td></tr></tbody></table></div>
+<h2>Chapter 2 — The Problem Saga Solves</h2>
+<h3>BEFORE SAGA — THE PROBLEM (without any pattern)</h3>
+<p>Imagine you wrote this naive code (the WRONG way):</p>
+<pre><code>// BAD CODE - Without Saga Pattern
+@PostMapping(&quot;/order&quot;)
+public String createOrder(OrderRequest req) {
+    // Step 1: Save order
+    orderService.save(req);                    // Saved in Order DB
+    // Step 2: Reserve inventory
+    inventoryService.reserve(req.productId);   // Reserved in Inventory DB
+    // Step 3: Charge payment -- CRASH HAPPENS HERE!
+    paymentService.charge(req.amount);         // SERVER CRASH or TIMEOUT
+    // Now: Order is saved, Inventory is reserved, but Payment NEVER happened.
+    // Customer is confused. Money not taken. But stock is locked. DATABASE IS INCONSISTENT!
+    return &quot;Order placed&quot;;
+}</code></pre>
+<div class="callout warn"><p>WARNING: This is called DATA INCONSISTENCY. Your databases are now in an illegal state. This is the exact problem the Saga Pattern was invented to solve.</p></div>
+<h3>AFTER SAGA — THE SOLUTION</h3>
+<ul><li>Each step is a separate local transaction in its own database.</li><li>Each step publishes an event to Kafka when it succeeds.</li><li>The next step only starts when it receives that event.</li><li>If any step FAILS, it publishes a FAILURE event.</li><li>The previous steps then run COMPENSATING transactions to undo themselves.</li></ul>
+<div class="callout tip"><p>TIP: Think of it like a relay race. Each runner (service) runs their part and passes the baton (event). If a runner drops the baton, the race is STOPPED and everyone returns to start position.</p></div>
+<h2>Chapter 3 — High Level Design (HLD)</h2>
+<h3>HOW MANY MICROSERVICES AND HOW THEY CONNECT</h3>
+<p>Our e-commerce order system has exactly 4 microservices and 1 message broker:</p>
+<p><b>Service</b> · <b>Port</b> · <b>Responsibility</b> · <b>Database</b></p>
+<p>Single entry point for all client requests. Routes to</p>
+<p>API Gateway · :8080 correct service. · No DB</p>
+<p>Creates orders. Orchestrates the entire saga.</p>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Order Service</th><th>:8081 Tracks saga state.</th><th>order_db (PostgreSQL)</th></tr></thead><tbody><tr><td>Inventory Service</td><td>:8082 Reserves and releases product stock.</td><td>inventory_db (PostgreSQL)</td></tr><tr><td>Payment Service</td><td>:8083 Charges customer. Issues refunds when needed.</td><td>payment_db (PostgreSQL)</td></tr></tbody></table></div>
+<h3>ARCHITECTURE DIAGRAM</h3>
+<p class="lbl"><b>Each microservice has its OWN database — they NEVER share a DB</b></p>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>ORDER</th><th>INVENTORY</th><th>PAYMENT</th></tr></thead><tbody><tr><td><b>SERVICE</b></td><td><b>SERVICE</b></td><td><b>SERVICE</b></td></tr><tr><td>:8081</td><td>:8082</td><td>:8083</td></tr><tr><td><i>OWN DB</i></td><td><i>OWN DB</i></td><td><i>OWN DB</i></td></tr><tr><td><b>PostgreSQL</b></td><td><b>PostgreSQL</b></td><td><b>PostgreSQL</b></td></tr><tr><td>order_db</td><td>inventory_db</td><td>payment_db</td></tr></tbody></table></div>
+<p class="lbl"><b>APACHE KAFKA  (Message Broker — the postman between services)</b></p>
+<h3>KAFKA TOPICS (the communication channels)</h3>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Kafka Topic</th><th>Published By</th><th>Consumed By</th><th>Meaning</th></tr></thead><tbody><tr><td>order-created</td><td>Order Service</td><td>Inventory Service</td><td>Please reserve stock for this order</td></tr><tr><td>inventory-reserved</td><td>Inventory Service</td><td>Order Service</td><td>Stock reserved OK, proceed to payment</td></tr><tr><td>inventory-failed</td><td>Inventory Service</td><td>Order Service</td><td>Stock unavailable, cancel the saga</td></tr><tr><td>payment-requested</td><td>Order Service</td><td>Payment Service</td><td>Charge the customer now</td></tr><tr><td>payment-completed</td><td>Payment Service</td><td>Order Service</td><td>Payment OK, confirm the order</td></tr><tr><td>payment-failed</td><td>Payment Service</td><td>Order Service</td><td>Payment failed, release stock + cancel order</td></tr></tbody></table></div>
+<p>UNDO: Release the reserved stock</p>
+<p>inventory-release · Order Service · Inventory Service (compensation)</p>
+<h2>Chapter 4 — Saga Flow — Step by Step</h2>
+<h3>COMPLETE SAGA FLOW DIAGRAM</h3>
+<p class="lbl"><b>HAPPY PATH</b></p>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>1. User places</th><th>2. Order</th><th>3. Reserve</th><th>4. Process</th><th>5. Order</th></tr></thead><tbody><tr><td><b>order</b></td><td><b>Created (PENDING)</b></td><td><b>Inventory</b></td><td><b>Payment</b></td><td><b>CONFIRMED</b></td></tr></tbody></table></div>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Cancel Order</th><th>Inventory</th></tr></thead><tbody><tr><td><b>(compensate)</b></td><td><b>FAILS</b></td></tr></tbody></table></div>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Release Stock</th><th>Payment</th></tr></thead><tbody><tr><td><b>+ Cancel Order</b></td><td><b>FAILS</b></td></tr></tbody></table></div>
+<p><i>Dashed lines = Failure path     Solid arrows = Success path     Arrows going left = Compensation (UNDO)</i></p>
+<h3>STEP BY STEP — HAPPY PATH (Everything succeeds)</h3>
+<p><b>Step</b> · <b>Action</b> · <b>Who Does It</b> · <b>What Happens in DB</b></p>
+<p>User calls POST /orders via API</p>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Step 1 Gateway</th><th>Order Service</th><th>Order saved with status=PENDING in order_db</th></tr></thead><tbody><tr><td>Order Service publishes</td><td></td><td>Event contains: orderId, productId, quantity,</td></tr><tr><td>Step 2</td><td>Kafka</td><td></td></tr><tr><td>'order-created' event to Kafka</td><td></td><td>amount</td></tr><tr><td>Inventory Service consumes</td><td></td><td>Checks stock. If available, reduces quantity in</td></tr><tr><td>Step 3</td><td>Inventory Service</td><td></td></tr><tr><td>'order-created'</td><td></td><td>inventory_db</td></tr></tbody></table></div>
+<p>Inventory Service publishes</p>
+<p>Step 4 'inventory-reserved' event · Kafka · Signals Order Service that stock is locked</p>
+<p>Order Service consumes</p>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Step 5 'inventory-reserved'</th><th>Order Service</th><th>Publishes 'payment-requested' to Kafka</th></tr></thead><tbody><tr><td>Payment Service consumes</td><td></td><td>Calls bank API, saves transaction in</td></tr><tr><td>Step 6</td><td>Payment Service</td><td></td></tr><tr><td>'payment-requested'</td><td></td><td>payment_db</td></tr></tbody></table></div>
+<p>Payment Service publishes</p>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Step 7 'payment-completed'</th><th>Kafka</th><th>Signals Order Service that money is taken</th></tr></thead><tbody><tr><td>Order Service consumes</td><td></td><td>Updates order status to CONFIRMED in</td></tr><tr><td>Step 8</td><td>Order Service</td><td></td></tr><tr><td>'payment-completed'</td><td></td><td>order_db. SAGA COMPLETE!</td></tr></tbody></table></div>
+<h3>COMPENSATION PATH (When Payment Fails)</h3>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Step</th><th>Action</th><th>Who Does It</th><th>What Happens in DB</th></tr></thead><tbody><tr><td>Step 1-4 Same as above</td><td></td><td>—</td><td>Order PENDING, stock reserved</td></tr></tbody></table></div>
+<p>Payment Service charges bank —</p>
+<p>Step 5 FAILS · Payment Service · Saves FAILED status in payment_db</p>
+<p>Payment Service publishes</p>
+<p>Step 6 'payment-failed' · Kafka · Contains reason for failure</p>
+<p>Order Service consumes</p>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Step 7 'payment-failed'</th><th>Order Service</th><th>Publishes 'inventory-release' event</th></tr></thead><tbody><tr><td>Inventory Service consumes</td><td></td><td>Adds stock back in inventory_db (UNDO step</td></tr><tr><td>Step 8</td><td>Inventory Service</td><td></td></tr><tr><td>'inventory-release'</td><td></td><td>3)</td></tr></tbody></table></div>
+<p>Status = CANCELLED in order_db. SAGA</p>
+<p>Step 9 · Order Service updates order · Order Service COMPENSATED!</p>
+<h2>Chapter 5 — Kafka Late-Read Problem &amp; Outbox Pattern</h2>
+<h3>THE PROBLEM: WHAT IF KAFKA IS SLOW OR DOWN?</h3>
+<p>This is the BIGGEST real-world challenge with Saga + Kafka. Here is the scenario:</p>
+<pre><code>// ORDER SERVICE does this:
+orderRepository.save(order);           // 1. Saves order to DB
+kafkaTemplate.send(&quot;order-created&quot;);  // 2. Sends to Kafka       &lt;-- Kafka is temporarily DOWN
+// What happens?
+// - Order IS saved in the database
+// - Event is NOT in Kafka
+// - Inventory Service never receives the event
+// - Saga is STUCK. Order stays PENDING forever.
+// - Manual intervention needed. This is a BUG.</code></pre>
+<div class="callout warn"><p>WARNING: This is called the DUAL WRITE PROBLEM. You are writing to two separate systems (DB and Kafka) and they are NOT in the same transaction. One can succeed while the other fails.</p></div>
+<h3>THE SOLUTION: OUTBOX PATTERN</h3>
+<p>Instead of writing to DB and Kafka separately, you write to DB ONLY. A separate poller (Debezium or @Scheduled) then reads from the DB and publishes to Kafka. Both the business data and the event go into the SAME database transaction.</p>
+<p class="lbl"><b>Order Service</b></p>
+<p>(Spring Boot)</p>
+<ol><li><i>1. Save order + event</i><i>in SAME transaction</i></li></ol>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>PostgreSQL (order_db)</th><th><i>3. Publish to Kafka</i> Outbox Poller Kafka Topic</th></tr></thead><tbody><tr><td><i>2. Poller reads</i><i>unpublished events</i>(Debezium / @Scheduled) <b>outbox_events table  (NEW!)</b></td><td>reserve-inventory</td></tr></tbody></table></div>
+<p>id | event_type | payload | status | created_at</p>
+<p>Result: Even if Kafka is DOWN at step 3, the event is safe in DB and will be published when Kafka recovers. Zero data loss.</p>
+<h3>HOW THE OUTBOX TABLE LOOKS</h3>
+<pre><code>-- outbox_events table (in order_db, same database as orders table)
+CREATE TABLE outbox_events (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    aggregate_id BIGINT NOT NULL,        -- orderId
+    event_type   VARCHAR(100) NOT NULL,  -- e.g. &#x27;ORDER_CREATED&#x27;
+    payload      JSONB NOT NULL,         -- full event data as JSON
+    status       VARCHAR(20) DEFAULT &#x27;PENDING&#x27;,  -- PENDING or PUBLISHED
+    created_at   TIMESTAMP DEFAULT NOW(),
+    published_at TIMESTAMP
+);</code></pre>
+<h3>HOW THE ORDER SERVICE SAVES DATA (Same Transaction)</h3>
+<pre><code>@Service
+@Transactional   // &lt;-- ONE SINGLE TRANSACTION covers BOTH saves below
+public class OrderService {
+    @Autowired private OrderRepository orderRepo;
+    @Autowired private OutboxRepository outboxRepo;
+    public Order createOrder(CreateOrderRequest req) {
+        // Save the actual order
+        Order order = new Order(req.getProductId(), req.getQuantity(),
+                                req.getAmount(), OrderStatus.PENDING);
+        order = orderRepo.save(order);  // Saved to orders table
+        // Save the event in the SAME transaction (not to Kafka yet!)
+        OutboxEvent event = new OutboxEvent(
+            order.getId(),
+            &quot;ORDER_CREATED&quot;,
+            toJson(new OrderCreatedPayload(order.getId(),
+                                           req.getProductId(),
+                                           req.getQuantity()))
+        );
+        outboxRepo.save(event);  // Saved to outbox_events table
+        // Both saves are in ONE @Transactional block.
+        // Either BOTH succeed or BOTH fail. No inconsistency possible.
+        return order;
+    }
+}</code></pre>
+<h3>THE OUTBOX POLLER (reads DB and publishes to Kafka)</h3>
+<pre><code>@Component
+public class OutboxEventPoller {
+    @Autowired private OutboxRepository outboxRepo;
+    @Autowired private KafkaTemplate&lt;String, String&gt; kafkaTemplate;
+    @Scheduled(fixedDelay = 1000)  // runs every 1 second
+    @Transactional
+    public void pollAndPublish() {
+        // Find all events not yet sent to Kafka
+        List&lt;OutboxEvent&gt; pending = outboxRepo
+            .findByStatusOrderByCreatedAtAsc(&quot;PENDING&quot;);
+        for (OutboxEvent event : pending) {
+            try {
+                // Determine topic from event type
+                String topic = resolveTopicName(event.getEventType());
+                // Publish to Kafka
+                kafkaTemplate.send(topic, event.getPayload()).get();
+                // .get() makes it synchronous - waits for Kafka acknowledgment
+                // Mark as published
+                event.setStatus(&quot;PUBLISHED&quot;);
+                event.setPublishedAt(LocalDateTime.now());
+                outboxRepo.save(event);
+            } catch (Exception e) {
+                // Kafka still down? Event stays PENDING, will retry next poll
+                log.warn(&quot;Failed to publish event {}, will retry&quot;, event.getId());
+            }
+        }
+    }
+    private String resolveTopicName(String eventType) {
+        return switch (eventType) {
+            case &quot;ORDER_CREATED&quot;       -&gt; &quot;order-created&quot;;
+            case &quot;PAYMENT_REQUESTED&quot;   -&gt; &quot;payment-requested&quot;;
+            case &quot;INVENTORY_RELEASE&quot;   -&gt; &quot;inventory-release&quot;;
+            default -&gt; throw new IllegalArgumentException(&quot;Unknown: &quot; + eventType);
+        };
+    }
+}</code></pre>
+<div class="callout tip"><p>TIP: With the Outbox Pattern, Kafka can be DOWN for hours. Events accumulate in the DB and are automatically published when Kafka recovers. Zero message loss. Zero manual fix needed.</p></div>
+<h2>Chapter 6 — Low Level Design (LLD)</h2>
+<h3>DATABASE SCHEMAS</h3>
+<h3>Order Service — order_db</h3>
+<pre><code>-- orders table
+CREATE TABLE orders (
+    id            BIGSERIAL PRIMARY KEY,
+    product_id    VARCHAR(50) NOT NULL,
+    quantity      INT NOT NULL CHECK (quantity &gt; 0),
+    total_price   DECIMAL(10,2) NOT NULL,
+    status        VARCHAR(20) NOT NULL,   -- PENDING/CONFIRMED/CANCELLED
+    created_at    TIMESTAMP DEFAULT NOW(),
+    updated_at    TIMESTAMP DEFAULT NOW()
+);
+-- saga_state table (tracks where in the saga we are)
+CREATE TABLE saga_state (
+    order_id      BIGINT PRIMARY KEY REFERENCES orders(id),
+    current_step  VARCHAR(50),            -- ORDER_CREATED, INVENTORY_RESERVED, etc.
+    saga_status   VARCHAR(20),            -- IN_PROGRESS, COMPLETED, COMPENSATING, FAILED
+    failure_reason VARCHAR(255),
+    updated_at    TIMESTAMP DEFAULT NOW()
+);
+-- outbox_events table (already shown in Chapter 5)</code></pre>
+<h3>Inventory Service — inventory_db</h3>
+<pre><code>CREATE TABLE products (
+    id                  BIGSERIAL PRIMARY KEY,
+    product_id          VARCHAR(50) UNIQUE NOT NULL,
+    name                VARCHAR(200) NOT NULL,
+    available_quantity  INT NOT NULL CHECK (available_quantity &gt;= 0),
+    reserved_quantity   INT NOT NULL DEFAULT 0
+);
+-- reservation table (important for compensation!)
+CREATE TABLE reservations (
+    id          BIGSERIAL PRIMARY KEY,
+    order_id    BIGINT UNIQUE NOT NULL,   -- UNIQUE prevents double-reservation
+    product_id  VARCHAR(50) NOT NULL,
+    quantity    INT NOT NULL,
+    status      VARCHAR(20) NOT NULL,     -- RESERVED / RELEASED
+    created_at  TIMESTAMP DEFAULT NOW()
+);</code></pre>
+<h3>Payment Service — payment_db</h3>
+<pre><code>CREATE TABLE payments (
+    id              BIGSERIAL PRIMARY KEY,
+    order_id        BIGINT UNIQUE NOT NULL,  -- UNIQUE prevents double-charge!
+    amount          DECIMAL(10,2) NOT NULL,
+    status          VARCHAR(20) NOT NULL,    -- PENDING/COMPLETED/FAILED/REFUNDED
+    gateway_ref     VARCHAR(100),            -- external payment ID
+    created_at      TIMESTAMP DEFAULT NOW(),
+    updated_at      TIMESTAMP DEFAULT NOW()
+);</code></pre>
+<h3>REST APIS EXPOSED BY EACH SERVICE</h3>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Service</th><th>Method</th><th>Endpoint</th><th>Description</th></tr></thead><tbody><tr><td>Order</td><td>POST</td><td>/api/orders</td><td>Create new order (starts saga)</td></tr><tr><td>Order</td><td>GET</td><td>/api/orders/{id}</td><td>Get order with current saga status</td></tr><tr><td>Order</td><td>GET</td><td>/api/orders/{id}/saga</td><td>Get full saga execution history</td></tr><tr><td>Inventory</td><td>GET</td><td>/api/inventory/{productId}</td><td>Check available stock</td></tr><tr><td>Payment</td><td>GET</td><td>/api/payments/{orderId}</td><td>Get payment status for order</td></tr></tbody></table></div>
+<h2>Chapter 7 — Order Service — Complete Code</h2>
+<h3>FILE STRUCTURE OF ORDER SERVICE</h3>
+<pre><code>order-service/
+ src/main/java/com/saga/order/
+       OrderServiceApplication.java      &lt;- Spring Boot main class
+       controller/
+           OrderController.java          &lt;- REST endpoints (POST /orders)
+       service/
+           OrderService.java             &lt;- Business logic + start saga
+           SagaOrchestrator.java         &lt;- Kafka listeners + saga management
+       entity/
+           Order.java                    &lt;- JPA entity for orders table
+           SagaState.java                &lt;- JPA entity for saga_state table
+           OutboxEvent.java              &lt;- JPA entity for outbox_events table
+       repository/
+           OrderRepository.java
+           SagaStateRepository.java
+           OutboxRepository.java
+       events/                           &lt;- Event classes (POJOs)
+           OrderCreatedEvent.java
+           InventoryReservedEvent.java
+           InventoryFailedEvent.java
+           PaymentCompletedEvent.java
+           PaymentFailedEvent.java
+       outbox/
+           OutboxEventPoller.java        &lt;- @Scheduled Kafka publisher</code></pre>
+<h3>ORDER ENTITY (Order.java)</h3>
+<pre><code>@Entity
+@Table(name = &quot;orders&quot;)
+public class Order {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    @Column(name = &quot;product_id&quot;, nullable = false)
+    private String productId;
+    @Column(nullable = false)
+    private int quantity;
+    @Column(name = &quot;total_price&quot;, nullable = false)
+    private double totalPrice;
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private OrderStatus status;
+    @Column(name = &quot;created_at&quot;)
+    private LocalDateTime createdAt;
+    // Always use constructor or builder - never expose setters for status
+    // Status should only change through saga orchestrator
+    @PrePersist
+    protected void onCreate() { this.createdAt = LocalDateTime.now(); }
+    // Getters and setters...
+}
+public enum OrderStatus { PENDING, CONFIRMED, CANCELLED }</code></pre>
+<h3>SAGA ORCHESTRATOR (The Brain of the Saga)</h3>
+<p>This class LISTENS to Kafka events and decides what to do next. It is the central coordinator — think of it as the manager who tells each department what to do.</p>
+<pre><code>@Service
+@Slf4j
+public class SagaOrchestrator {
+    @Autowired private KafkaTemplate&lt;String, String&gt; kafkaTemplate;
+    @Autowired private OrderRepository orderRepo;
+    @Autowired private SagaStateRepository sagaStateRepo;
+    @Autowired private OutboxRepository outboxRepo;
+    @Autowired private ObjectMapper objectMapper;
+    // -------------------------------------------------------
+    // LISTENER 1: Inventory confirmed stock is reserved
+    // This is triggered AFTER Inventory Service reserves stock
+    // -------------------------------------------------------
+    @KafkaListener(topics = &quot;inventory-reserved&quot;, groupId = &quot;order-service-group&quot;)
+    @Transactional
+    public void onInventoryReserved(String message) {
+        try {
+            InventoryReservedEvent event = objectMapper.readValue(message,
+                                                                   InventoryReservedEvent.class);
+            Long orderId = event.getOrderId();
+            log.info(&quot;Inventory reserved for order: {}&quot;, orderId);
+            // Update saga state
+            updateSagaState(orderId, &quot;INVENTORY_RESERVED&quot;, &quot;IN_PROGRESS&quot;);
+            // Next step: request payment via Outbox (not directly to Kafka!)
+            Order order = orderRepo.findById(orderId)
+                .orElseThrow(() -&gt; new RuntimeException(&quot;Order not found: &quot; + orderId));
+            saveOutboxEvent(orderId, &quot;PAYMENT_REQUESTED&quot;,
+                Map.of(&quot;orderId&quot;, orderId, &quot;amount&quot;, order.getTotalPrice()));
+        } catch (Exception e) {
+            log.error(&quot;Error processing inventory-reserved: {}&quot;, e.getMessage());
+        }
+    }
+    // -------------------------------------------------------
+    // LISTENER 2: Inventory says stock is NOT available
+    // -------------------------------------------------------
+    @KafkaListener(topics = &quot;inventory-failed&quot;, groupId = &quot;order-service-group&quot;)
+    @Transactional
+    public void onInventoryFailed(String message) {
+        InventoryFailedEvent event = parseEvent(message, InventoryFailedEvent.class);
+        log.warn(&quot;Inventory failed for order: {} reason: {}&quot;,
+                  event.getOrderId(), event.getReason());
+        // No compensation needed (nothing was charged yet)
+        // Just cancel the order
+        cancelOrder(event.getOrderId(), event.getReason());
+    }
+    // -------------------------------------------------------
+    // LISTENER 3: Payment successful
+    // -------------------------------------------------------
+    @KafkaListener(topics = &quot;payment-completed&quot;, groupId = &quot;order-service-group&quot;)
+    @Transactional
+    public void onPaymentCompleted(String message) {
+        PaymentCompletedEvent event = parseEvent(message, PaymentCompletedEvent.class);
+        log.info(&quot;Payment completed for order: {}&quot;, event.getOrderId());
+        // SAGA SUCCESS! Confirm the order.
+        orderRepo.findById(event.getOrderId()).ifPresent(order -&gt; {
+            order.setStatus(OrderStatus.CONFIRMED);
+            orderRepo.save(order);
+        });
+        updateSagaState(event.getOrderId(), &quot;PAYMENT_COMPLETED&quot;, &quot;COMPLETED&quot;);
+    }
+    // -------------------------------------------------------
+    // LISTENER 4: Payment failed — need to COMPENSATE
+    // Compensation = undo step 3 (release the reserved stock)
+    // -------------------------------------------------------
+    @KafkaListener(topics = &quot;payment-failed&quot;, groupId = &quot;order-service-group&quot;)
+    @Transactional
+    public void onPaymentFailed(String message) {
+        PaymentFailedEvent event = parseEvent(message, PaymentFailedEvent.class);
+        log.warn(&quot;Payment failed for order: {}. Starting compensation...&quot;,
+                  event.getOrderId());
+        // Update saga to COMPENSATING state
+        updateSagaState(event.getOrderId(), &quot;PAYMENT_FAILED&quot;, &quot;COMPENSATING&quot;);
+        // COMPENSATING TRANSACTION: Tell Inventory Service to release stock
+        Order order = orderRepo.findById(event.getOrderId()).get();
+        saveOutboxEvent(event.getOrderId(), &quot;INVENTORY_RELEASE&quot;,
+            Map.of(&quot;orderId&quot;, event.getOrderId(),
+                   &quot;productId&quot;, order.getProductId(),
+                   &quot;quantity&quot;, order.getQuantity()));
+        // Cancel the order
+        cancelOrder(event.getOrderId(), &quot;Payment failed: &quot; + event.getReason());
+    }
+    // -------------------------------------------------------
+    // HELPER: Cancel order and mark saga as failed
+    // -------------------------------------------------------
+    private void cancelOrder(Long orderId, String reason) {
+        orderRepo.findById(orderId).ifPresent(order -&gt; {
+            order.setStatus(OrderStatus.CANCELLED);
+            orderRepo.save(order);
+        });
+        updateSagaState(orderId, &quot;ORDER_CANCELLED&quot;, &quot;FAILED&quot;);
+    }
+    // -------------------------------------------------------
+    // HELPER: Save to outbox (not directly to Kafka!)
+    // -------------------------------------------------------
+    private void saveOutboxEvent(Long orderId, String eventType, Map&lt;String, Object&gt; payload) {
+        try {
+            OutboxEvent outboxEvent = new OutboxEvent();
+            outboxEvent.setAggregateId(orderId);
+            outboxEvent.setEventType(eventType);
+            outboxEvent.setPayload(objectMapper.writeValueAsString(payload));
+            outboxEvent.setStatus(&quot;PENDING&quot;);
+            outboxRepo.save(outboxEvent);
+        } catch (Exception e) {
+            throw new RuntimeException(&quot;Failed to save outbox event&quot;, e);
+        }
+    }
+}</code></pre>
+<h2>Chapter 8 — Inventory Service — Complete Code</h2>
+<h3>INVENTORY SERVICE LISTENS TO 2 TOPICS:</h3>
+<ul><li>'order-created' — Reserve stock for the order</li><li>'inventory-release' — COMPENSATION: Release the reserved stock back</li></ul>
+<pre><code>@Service
+@Slf4j
+public class InventoryService {
+    @Autowired private ProductRepository productRepo;
+    @Autowired private ReservationRepository reservationRepo;
+    @Autowired private KafkaTemplate&lt;String, String&gt; kafkaTemplate;
+    @Autowired private ObjectMapper objectMapper;
+    // -------------------------------------------------------
+    // FORWARD STEP: Reserve stock when order is created
+    // -------------------------------------------------------
+    @KafkaListener(topics = &quot;order-created&quot;, groupId = &quot;inventory-service-group&quot;)
+    @Transactional
+    public void onOrderCreated(String message) {
+        OrderCreatedEvent event = parseEvent(message, OrderCreatedEvent.class);
+        Long orderId = event.getOrderId();
+        // IDEMPOTENCY CHECK: Have we already processed this order?
+        // This prevents double-processing if Kafka delivers the same message twice
+        if (reservationRepo.existsByOrderId(orderId)) {
+            log.warn(&quot;Already processed reservation for order: {}. Skipping.&quot;, orderId);
+            return;  // &lt;-- This is idempotency in action
+        }
+        Product product = productRepo.findByProductId(event.getProductId())
+            .orElse(null);
+        if (product == null || product.getAvailableQuantity() &lt; event.getQuantity()) {
+            // NOT ENOUGH STOCK — publish failure event
+            publishEvent(&quot;inventory-failed&quot;,
+                Map.of(&quot;orderId&quot;, orderId,
+                       &quot;reason&quot;, product == null ? &quot;Product not found&quot; : &quot;Insufficient stock&quot;));
+            return;
+        }
+        // Reserve the stock (reduce available, increase reserved)
+        product.setAvailableQuantity(
+            product.getAvailableQuantity() - event.getQuantity());
+        product.setReservedQuantity(
+            product.getReservedQuantity() + event.getQuantity());
+        productRepo.save(product);
+        // Save reservation record (needed for compensation later)
+        Reservation reservation = new Reservation(orderId,
+            event.getProductId(), event.getQuantity(), &quot;RESERVED&quot;);
+        reservationRepo.save(reservation);
+        // Publish success event
+        publishEvent(&quot;inventory-reserved&quot;,
+            Map.of(&quot;orderId&quot;, orderId, &quot;productId&quot;, event.getProductId()));
+        log.info(&quot;Stock reserved for order: {}, product: {}, qty: {}&quot;,
+                  orderId, event.getProductId(), event.getQuantity());
+    }
+    // -------------------------------------------------------
+    // COMPENSATING STEP: Release stock when payment fails
+    // This UNDOES the reservation made above
+    // -------------------------------------------------------
+    @KafkaListener(topics = &quot;inventory-release&quot;, groupId = &quot;inventory-service-group&quot;)
+    @Transactional
+    public void onInventoryRelease(String message) {
+        InventoryReleaseEvent event = parseEvent(message, InventoryReleaseEvent.class);
+        Long orderId = event.getOrderId();
+        Reservation reservation = reservationRepo.findByOrderId(orderId)
+            .orElse(null);
+        if (reservation == null || &quot;RELEASED&quot;.equals(reservation.getStatus())) {
+            log.warn(&quot;Reservation not found or already released for order: {}&quot;, orderId);
+            return;  // Idempotency: don&#x27;t release twice
+        }
+        // UNDO the reservation
+        Product product = productRepo.findByProductId(reservation.getProductId()).get();
+        product.setAvailableQuantity(
+            product.getAvailableQuantity() + reservation.getQuantity());
+        product.setReservedQuantity(
+            product.getReservedQuantity() - reservation.getQuantity());
+        productRepo.save(product);
+        // Mark reservation as released
+        reservation.setStatus(&quot;RELEASED&quot;);
+        reservationRepo.save(reservation);
+        log.info(&quot;Stock released for order: {}&quot;, orderId);
+    }
+    private void publishEvent(String topic, Map&lt;String, Object&gt; payload) {
+        try {
+            kafkaTemplate.send(topic, objectMapper.writeValueAsString(payload));
+        } catch (Exception e) {
+            throw new RuntimeException(&quot;Failed to publish event to: &quot; + topic, e);
+        }
+    }
+}</code></pre>
+<h2>Chapter 9 — Payment Service — Complete Code</h2>
+<h3>PAYMENT SERVICE LISTENS TO 1 TOPIC:</h3>
+<ul><li>'payment-requested' — Charge the customer</li></ul>
+<pre><code>@Service
+@Slf4j
+public class PaymentService {
+    @Autowired private PaymentRepository paymentRepo;
+    @Autowired private KafkaTemplate&lt;String, String&gt; kafkaTemplate;
+    @Autowired private ObjectMapper objectMapper;
+    // -------------------------------------------------------
+    // FORWARD STEP: Process payment when inventory is reserved
+    // -------------------------------------------------------
+    @KafkaListener(topics = &quot;payment-requested&quot;, groupId = &quot;payment-service-group&quot;)
+    @Transactional
+    public void onPaymentRequested(String message) {
+        PaymentRequestedEvent event = parseEvent(message, PaymentRequestedEvent.class);
+        Long orderId = event.getOrderId();
+        // IDEMPOTENCY CHECK: Never charge the same order twice!
+        if (paymentRepo.existsByOrderId(orderId)) {
+            log.warn(&quot;Payment already exists for order: {}. Skipping.&quot;, orderId);
+            return;
+        }
+        // Create payment record FIRST with PENDING status
+        // This is important: if server crashes after charge but before save,
+        // we can detect it on retry
+        Payment payment = new Payment(orderId, event.getAmount(), PaymentStatus.PENDING);
+        payment = paymentRepo.save(payment);
+        try {
+            // Call external payment gateway (Stripe, PayPal, Razorpay, etc.)
+            String gatewayRef = paymentGateway.charge(orderId, event.getAmount());
+            // Update payment to COMPLETED
+            payment.setStatus(PaymentStatus.COMPLETED);
+            payment.setGatewayRef(gatewayRef);
+            paymentRepo.save(payment);
+            // Publish success
+            publishEvent(&quot;payment-completed&quot;,
+                Map.of(&quot;orderId&quot;, orderId, &quot;gatewayRef&quot;, gatewayRef));
+            log.info(&quot;Payment completed for order: {}, ref: {}&quot;, orderId, gatewayRef);
+        } catch (PaymentGatewayException e) {
+            // Payment gateway rejected the charge
+            payment.setStatus(PaymentStatus.FAILED);
+            paymentRepo.save(payment);
+            publishEvent(&quot;payment-failed&quot;,
+                Map.of(&quot;orderId&quot;, orderId, &quot;reason&quot;, e.getMessage()));
+            log.warn(&quot;Payment failed for order: {} reason: {}&quot;, orderId, e.getMessage());
+        }
+    }
+    // -------------------------------------------------------
+    // COMPENSATION (optional): Refund if needed
+    // Note: In our flow, payment only succeeds if everything works,
+    // so refund is mainly for edge cases or manual processes
+    // -------------------------------------------------------
+    @KafkaListener(topics = &quot;payment-refund&quot;, groupId = &quot;payment-service-group&quot;)
+    @Transactional
+    public void onPaymentRefund(String message) {
+        PaymentRefundEvent event = parseEvent(message, PaymentRefundEvent.class);
+        paymentRepo.findByOrderId(event.getOrderId()).ifPresent(payment -&gt; {
+            if (!&quot;REFUNDED&quot;.equals(payment.getStatus().name())) {
+                // Issue refund via payment gateway
+                paymentGateway.refund(payment.getGatewayRef());
+                payment.setStatus(PaymentStatus.REFUNDED);
+                paymentRepo.save(payment);
+                log.info(&quot;Refunded payment for order: {}&quot;, event.getOrderId());
+            }
+        });
+    }
+}</code></pre>
+<h2>Chapter 10 — Idempotency — Handling Duplicate Events</h2>
+<h3>WHAT IS IDEMPOTENCY? (Simple explanation)</h3>
+<p>Idempotency means: doing the same operation 10 times gives the SAME result as doing it once.</p>
+<p>Example: Pressing the elevator button 10 times doesn't summon 10 elevators. The elevator comes once. The extra button presses are ignored.</p>
+<p>In Kafka: a message can be delivered MORE THAN ONCE (Kafka's 'at-least-once' guarantee). Your code must handle duplicate messages gracefully — process it once, ignore the rest.</p>
+<h3>WHY DOES KAFKA SEND DUPLICATE MESSAGES?</h3>
+<ul><li>Consumer crashes AFTER processing but BEFORE committing the offset to Kafka.</li><li>Kafka thinks the message was not processed (offset not committed).</li><li>Kafka redelivers the message to the next consumer instance.</li><li>Result: message is processed TWICE.</li></ul>
+<pre><code>// WITHOUT IDEMPOTENCY — DANGEROUS!
+@KafkaListener(topics = &quot;order-created&quot;)
+public void onOrderCreated(String message) {
+    OrderCreatedEvent event = parse(message);
+    product.setQuantity(product.getQuantity() - event.getQuantity());
+    // If this message comes twice, stock is reduced TWICE! Customer exploited us.
+}
+// WITH IDEMPOTENCY — SAFE!
+@KafkaListener(topics = &quot;order-created&quot;)
+@Transactional
+public void onOrderCreated(String message) {
+    OrderCreatedEvent event = parse(message);
+    // Check: did we already process this exact order?
+    if (reservationRepo.existsByOrderId(event.getOrderId())) {
+        log.warn(&quot;DUPLICATE MESSAGE. Already processed order {}. Skipping.&quot;,
+                  event.getOrderId());
+        return;  // Exit immediately. Do nothing.
+    }
+    // First time seeing this orderId — proceed normally
+    product.setQuantity(product.getQuantity() - event.getQuantity());
+    reservationRepo.save(new Reservation(event.getOrderId(), ...));
+    // Now even if message comes 100 times, stock is only reduced once!
+}</code></pre>
+<div class="callout tip"><p>TIP: Always use a UNIQUE constraint on orderId in your reservation/payment tables. This gives you database-level idempotency as a safety net, even if your code check is missed.</p></div>
+<h2>Chapter 11 — Summary &amp; Quick Reference Card</h2>
+<h3>WHEN TO USE SAGA PATTERN</h3>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>USE Saga When</th><th>AVOID Saga When</th></tr></thead><tbody><tr><td>Multiple microservices each with their own DB need to</td><td>You have a single service with one database — just use</td></tr><tr><td>participate in one business operation</td><td>@Transactional</td></tr><tr><td>You want eventual consistency (not instant) across service</td><td>You need strong immediate ACID consistency and can use</td></tr><tr><td>boundaries</td><td>one DB</td></tr><tr><td>Long business processes: order placement, hotel booking,</td><td>Simple CRUD — creating a user profile, updating a setting</td></tr></tbody></table></div>
+<p>loan approval</p>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>You are already using event-driven architecture with</th><th>Team is unfamiliar with eventual consistency — high risk of</th></tr></thead><tbody><tr><td>Kafka/RabbitMQ</td><td>bugs</td></tr></tbody></table></div>
+<h3>THE 5 GOLDEN RULES OF SAGA PATTERN</h3>
+<p class="lbl"><b>Each service has its OWN database</b></p>
+<p class="lbl"><b>Rule 1</b></p>
+<p>Never share a database between microservices. This is the foundation.</p>
+<p class="lbl"><b>Use the Outbox Pattern</b></p>
+<p><b>Rule 2</b> Never write to DB and Kafka in separate operations. Use a local outbox table to prevent</p>
+<p>dual-write problems.</p>
+<p class="lbl"><b>Every step must be Idempotent</b></p>
+<p><b>Rule 3</b> Your Kafka listener must handle duplicate messages without side effects. Check before</p>
+<p>processing.</p>
+<p class="lbl"><b>Design Compensation FIRST</b></p>
+<p><b>Rule 4</b> Before coding the forward step, know exactly how to UNDO it. If you can't undo it, you can't</p>
+<p>use Saga.</p>
+<p class="lbl"><b>Track Saga State</b></p>
+<p><b>Rule 5</b> Keep a saga_state table so you can always answer: where is this saga? Is it stuck? Can you</p>
+<p>retry?</p>
+<h3>QUICK PROBLEM-SOLUTION MAP</h3>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Problem / Question</th><th>Solution</th></tr></thead><tbody><tr><td>Kafka is down when I publish an event</td><td>Use Outbox Pattern — save event to DB first, publish when Kafka</td></tr></tbody></table></div>
+<p>recovers</p>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Same Kafka message processed twice</th><th>Idempotency — check if orderId already exists before processing</th></tr></thead><tbody><tr><td>Why can't services share one DB?</td><td>Independence, separate scaling, no coupling. One DB = distributed</td></tr></tbody></table></div>
+<p>monolith, not microservices</p>
+<p>Saga is stuck at PENDING Add saga timeout: if saga stays in-progress &gt; X minutes, auto-cancel</p>
+<p>and compensate</p>
+<p>How do I debug a saga across services? Distributed tracing (Zipkin/Jaeger) with correlation IDs. Every event</p>
+<p>carries the same orderId</p>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Compensation failed — stock was released but</th><th>Retry compensation via Dead Letter Queue (DLQ) + saga_state table</th></tr></thead><tbody><tr><td>order still shows PENDING</td><td>for manual review</td></tr></tbody></table></div>
+<p><b>You now know:</b> Why Saga exists, why separate DBs, how HLD connects services, the complete Saga flow with compensation, how to solve Kafka late-read with Outbox Pattern, full LLD schemas and APIs, every line of Java code in all 3 services, and idempotency.</p>
+<p>Start small: implement Order + Inventory first, get the happy path working, then add compensation and the Outbox Pattern step by step.</p>
+<div class="chapter-nav"><a class="prev" href="spring-security-jwt-logging-deploy.html">← Spring Security · JWT · AOP · Logging · Blue-Green</a><a class="next" href="saga-pattern-spring-boot-quick-reference.html">Saga Pattern →</a></div>
+</main>
+<aside class="toc"></aside>
+</div>
+<footer class="footer">SystemDesign.hinglish · Library · Personal study material</footer>
+<script src="../../assets/app.js"></script>
+</body>
+</html>

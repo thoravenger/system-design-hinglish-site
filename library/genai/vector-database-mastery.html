@@ -1,0 +1,1370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Vector Databases – Deep Dive</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#07080e;--surface:#0e1520;--surface2:#141e2e;--border:#1a2a3e;
+    --accent:#7c3aed;--a2:#06b6d4;--a3:#f59e0b;--a4:#ec4899;--a5:#22c55e;
+    --a6:#f97316;--text:#e2e8f0;--muted:#64748b;--code-bg:#0c1017;
+    --green:#22c55e;--red:#ef4444;--purple:#a78bfa;--teal:#2dd4bf;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;line-height:1.7;font-size:15px}
+
+  nav{position:sticky;top:0;z-index:100;background:rgba(7,8,14,.97);backdrop-filter:blur(14px);border-bottom:1px solid var(--border);padding:0 1.5rem;display:flex;align-items:center;gap:.9rem;height:52px;overflow-x:auto;scrollbar-width:none}
+  nav::-webkit-scrollbar{display:none}
+  .nav-logo{color:var(--accent);font-weight:800;font-size:12px;letter-spacing:.04em;margin-right:auto;white-space:nowrap;flex-shrink:0}
+  nav a{color:var(--muted);text-decoration:none;font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;white-space:nowrap;padding:.2rem .4rem;border-radius:4px;transition:color .2s}
+  nav a:hover{color:var(--accent)}
+
+  .hero{padding:4rem 2rem 3rem;max-width:980px;margin:0 auto;text-align:center}
+  .hero-badge{display:inline-block;background:linear-gradient(135deg,#7c3aed22,#06b6d422);border:1px solid #7c3aed40;color:var(--accent);font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;padding:.3rem .9rem;border-radius:999px;margin-bottom:1.4rem}
+  .hero h1{font-size:clamp(1.9rem,5vw,3.2rem);font-weight:800;line-height:1.1;background:linear-gradient(135deg,#e2e8f0 20%,#7c3aed 60%,#06b6d4 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:1rem}
+  .hero p{color:var(--muted);font-size:1rem;max-width:740px;margin:0 auto}
+
+  .container{max-width:980px;margin:0 auto;padding:0 1.5rem 6rem}
+  section{margin-bottom:4.5rem;scroll-margin-top:60px}
+  .sh{display:flex;align-items:center;gap:1rem;margin-bottom:1.8rem;padding-bottom:.8rem;border-bottom:1px solid var(--border)}
+  .sn{width:32px;height:32px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0;color:#fff}
+  .sh h2{font-size:1.4rem;font-weight:700;color:#fff}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.4rem;margin-bottom:1.1rem}
+  .ct{font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.7rem}
+  .card.ag{border-left:3px solid var(--green)}.card.ar{border-left:3px solid var(--red)}
+  .card.ay{border-left:3px solid var(--a3)}.card.ab{border-left:3px solid var(--a2)}
+  .card.ap{border-left:3px solid var(--purple)}.card.at{border-left:3px solid var(--accent)}
+  .card.ao{border-left:3px solid var(--a6)}.card.ak{border-left:3px solid var(--a4)}
+  .card.ac{border-left:3px solid var(--teal)}
+
+  .g2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+  .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:.9rem}
+  .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:.8rem}
+  @media(max-width:680px){.g2,.g3,.g4{grid-template-columns:1fr}}
+
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:1.3rem;overflow-x:auto;margin:1rem 0 1.3rem;position:relative;font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.85}
+  .cl-label{position:absolute;top:.6rem;right:.8rem;font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-family:'JetBrains Mono',monospace}
+  .kw{color:#ff79c6}.an{color:#50fa7b}.ty{color:#8be9fd}.st{color:#f1fa8c}
+  .cm{color:#6272a4;font-style:italic}.nu{color:#bd93f9}.mt{color:#ffb86c}
+  .en{color:#ff5555}.pr{color:#7c3aed}.cf{color:#8be9fd}.cv{color:#f1fa8c}
+
+  table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin:1rem 0 1.4rem;font-size:12.5px}
+  th{background:var(--surface2);padding:.65rem 1rem;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:700;border-bottom:1px solid var(--border)}
+  td{padding:.6rem 1rem;border-bottom:1px solid var(--border);vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:var(--surface2)}
+  code{background:#fff1;border:1px solid #fff2;border-radius:4px;padding:.1rem .4rem;font-family:'JetBrains Mono',monospace;font-size:.84em;color:var(--accent)}
+
+  .cl-box{border-radius:10px;padding:.9rem 1.1rem;margin:1rem 0;display:flex;gap:.7rem;align-items:flex-start;font-size:.89rem}
+  .ci{font-size:1rem;flex-shrink:0;margin-top:.05rem}
+  .cl-box.tip{background:#7c3aed10;border:1px solid #7c3aed30}
+  .cl-box.warn{background:#f59e0b15;border:1px solid #f59e0b30}
+  .cl-box.danger{background:#ef444415;border:1px solid #ef444430}
+  .cl-box.info{background:#06b6d415;border:1px solid #06b6d430}
+
+  .flow{background:var(--code-bg);border:1px solid var(--border);border-radius:11px;padding:1.3rem;margin:1rem 0 1.3rem;font-family:'JetBrains Mono',monospace;font-size:11.5px;overflow-x:auto}
+  .fr{display:flex;align-items:center;gap:.5rem;padding:.28rem 0;flex-wrap:wrap}
+  .bx{background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:.25rem .7rem;white-space:nowrap;font-weight:600;font-size:11px}
+  .bx.g{background:#14532d30;border-color:var(--green);color:var(--green)}
+  .bx.b{background:#0d3a4030;border-color:var(--a2);color:var(--a2)}
+  .bx.v{background:#3b076430;border-color:var(--purple);color:var(--purple)}
+  .bx.y{background:#78350f30;border-color:var(--a3);color:var(--a3)}
+  .bx.r{background:#7f1d1d30;border-color:var(--red);color:var(--red)}
+  .bx.t{background:#0d393630;border-color:var(--teal);color:var(--teal)}
+  .bx.o{background:#7c2d1230;border-color:var(--a6);color:var(--a6)}
+  .bx.a{background:#7c3aed15;border-color:var(--accent);color:var(--accent)}
+  .bx.p{background:#83024430;border-color:var(--a4);color:var(--a4)}
+  .fa{color:var(--muted);font-size:12px}
+
+  .arch{background:var(--code-bg);border:1px solid var(--border);border-radius:14px;padding:1.6rem;margin:1rem 0 1.5rem;overflow-x:auto}
+  .arch-row{display:flex;gap:.5rem;align-items:center;margin:.3rem 0;flex-wrap:wrap}
+  .arch-box{border:1.5px solid;border-radius:7px;padding:.3rem .8rem;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;white-space:nowrap}
+  .ab-v{border-color:var(--accent);color:var(--accent);background:#7c3aed15}
+  .ab-b{border-color:var(--a2);color:var(--a2);background:#06b6d415}
+  .ab-g{border-color:var(--green);color:var(--green);background:#22c55e15}
+  .ab-y{border-color:var(--a3);color:var(--a3);background:#f59e0b15}
+  .ab-r{border-color:var(--red);color:var(--red);background:#ef444415}
+  .ab-p{border-color:var(--purple);color:var(--purple);background:#a78bfa15}
+  .ab-t{border-color:var(--teal);color:var(--teal);background:#2dd4bf15}
+  .ab-o{border-color:var(--a6);color:var(--a6);background:#f9731615}
+  .arch-arrow{color:var(--muted);font-size:13px;padding:0 .2rem}
+
+  .pl{display:inline-flex;font-size:10px;font-weight:700;padding:.12rem .5rem;border-radius:999px;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
+  .pl-g{background:#14532d50;color:var(--green);border:1px solid #22c55e40}
+  .pl-r{background:#7f1d1d50;color:var(--red);border:1px solid #ef444440}
+  .pl-y{background:#78350f50;color:var(--a3);border:1px solid #f59e0b40}
+  .pl-b{background:#0d3a4050;color:var(--a2);border:1px solid #06b6d440}
+  .pl-v{background:#3b076450;color:var(--purple);border:1px solid #a78bfa40}
+
+  /* Vector viz */
+  .vec-space{background:var(--code-bg);border:1px solid var(--border);border-radius:12px;padding:1.5rem;margin:1rem 0;overflow-x:auto;font-family:'JetBrains Mono',monospace;font-size:11.5px}
+  .vec-point{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;font-size:10px;font-weight:800;margin:.2rem;border:2px solid}
+  .vp-v{border-color:var(--accent);background:#7c3aed20;color:var(--accent)}
+  .vp-g{border-color:var(--green);background:#22c55e20;color:var(--green)}
+  .vp-r{border-color:var(--red);background:#ef444420;color:var(--red)}
+  .vp-y{border-color:var(--a3);background:#f59e0b20;color:var(--a3)}
+
+  /* Index viz */
+  .index-viz{background:var(--code-bg);border:1px solid var(--border);border-radius:12px;padding:1.4rem;margin:1rem 0;font-family:'JetBrains Mono',monospace;font-size:11px;overflow-x:auto}
+
+  p{margin-bottom:.85rem;color:#cbd5e1}
+  ul,ol{padding-left:1.4rem;color:#cbd5e1}
+  li{margin-bottom:.35rem}
+  strong{color:#fff}
+  .muted{color:var(--muted);font-size:.87em}
+  h3{color:#fff;font-size:1rem;font-weight:700;margin:.9rem 0 .4rem}
+
+  .tp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(148px,1fr));gap:.6rem;margin:1.5rem 0 3rem}
+  .tp{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.6rem .8rem;font-size:11px;font-weight:700;text-align:center;text-decoration:none;color:var(--text);display:block;transition:all .2s}
+  .tp:hover{border-color:var(--accent);color:var(--accent);background:#7c3aed08;transform:translateY(-1px)}
+
+  .db-badge{display:inline-flex;align-items:center;gap:.4rem;font-size:11px;font-weight:700;padding:.25rem .7rem;border-radius:6px;margin:.2rem;font-family:'JetBrains Mono',monospace}
+  .db-qdrant{background:#ef444415;border:1px solid #ef444440;color:#f87171}
+  .db-pinecone{background:#7c3aed15;border:1px solid #7c3aed40;color:#a78bfa}
+  .db-weaviate{background:#06b6d415;border:1px solid #06b6d440;color:#22d3ee}
+  .db-milvus{background:#22c55e15;border:1px solid #22c55e40;color:#4ade80}
+  .db-pgvector{background:#3b82f615;border:1px solid #3b82f640;color:#60a5fa}
+  .db-chroma{background:#f59e0b15;border:1px solid #f59e0b40;color:#fbbf24}
+  .db-faiss{background:#f9731615;border:1px solid #f9731640;color:#fb923c}
+  .db-elastic{background:#2dd4bf15;border:1px solid #2dd4bf40;color:#5eead4}
+</style>
+</head>
+<body>
+<div id="sdh-libbar" style="position:relative;z-index:2147483000;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0;padding:8px 16px;background:#0f172a;color:#cbd5e1;font:600 13px/1.5 Inter,'Segoe UI',system-ui,-apple-system,sans-serif;border-bottom:2px solid #4f46e5;box-sizing:border-box;width:100%;text-align:left;letter-spacing:0"><a href="../../index.html" style="color:#fff;text-decoration:none;font-weight:800">SystemDesign<span style="color:#8b8cff">.hinglish</span></a><span style="opacity:.45">/</span><a href="../index.html" style="color:#fff;text-decoration:none">📚 Library</a><span style="opacity:.45">/</span><a href="../index.html#genai" style="color:#cbd5e1;text-decoration:none">GenAI &amp; AI</a><span style="margin-left:auto;font-size:11px;padding:2px 9px;border-radius:999px;border:1px solid #6366f1;color:#c7d2fe">📘 HTML ebook</span></div>
+
+<nav>
+  <span class="nav-logo">🧠 Vector DB Mastery</span>
+  <a href="#what">What is a Vector DB</a>
+  <a href="#embedding">Embeddings</a>
+  <a href="#similarity">Similarity</a>
+  <a href="#index-types">Index Types</a>
+  <a href="#hnsw">HNSW Deep Dive</a>
+  <a href="#db-types">DB Comparison</a>
+  <a href="#qdrant">Qdrant</a>
+  <a href="#pgvector">pgvector</a>
+  <a href="#patterns">Use Cases</a>
+  <a href="#rag">RAG Pattern</a>
+  <a href="#spring">Spring AI</a>
+  <a href="#perf">Performance</a>
+</nav>
+
+<div class="hero">
+  <div class="hero-badge">Vector DB · Embeddings · ANN · RAG · Spring AI · Deep Dive</div>
+  <h1>Vector Database<br/>Complete Mastery Guide</h1>
+  <p>What vectors are, how similarity search works internally, all index algorithms (HNSW, IVF, LSH, PQ), every major vector database compared, RAG pattern, Spring AI integration, and production tuning.</p>
+</div>
+
+<div class="container">
+
+<div class="tp-grid">
+  <a class="tp" href="#what">🧠 What is a Vector DB</a>
+  <a class="tp" href="#embedding">🔢 Embeddings</a>
+  <a class="tp" href="#similarity">📐 Similarity Metrics</a>
+  <a class="tp" href="#index-types">📇 Index Algorithms</a>
+  <a class="tp" href="#hnsw">🕸 HNSW Internals</a>
+  <a class="tp" href="#db-types">⚖️ DB Comparison</a>
+  <a class="tp" href="#qdrant">🔴 Qdrant</a>
+  <a class="tp" href="#pgvector">🐘 pgvector</a>
+  <a class="tp" href="#patterns">🎯 Use Cases</a>
+  <a class="tp" href="#rag">🔍 RAG Pattern</a>
+  <a class="tp" href="#spring">🌱 Spring AI</a>
+  <a class="tp" href="#perf">⚡ Performance</a>
+</div>
+
+<!-- ══════════════════════════════════════
+     1. WHAT IS A VECTOR DATABASE
+══════════════════════════════════════ -->
+<section id="what">
+  <div class="sh"><div class="sn" style="background:var(--accent)">1</div><h2>What is a Vector Database?</h2></div>
+
+  <p>A <strong>Vector Database</strong> stores data as high-dimensional numerical vectors (embeddings) and enables <strong>similarity search</strong> — finding the most semantically similar items without exact matching. Traditional databases ask "does this row equal X?". Vector databases ask "what is most similar to X?"</p>
+
+  <div class="g2">
+    <div class="card at">
+      <div class="ct" style="color:var(--accent)">Traditional DB</div>
+      <p>Stores structured rows/documents. Queries use exact match, range, or full-text.</p>
+      <ul>
+        <li>Query: <code>WHERE name = 'cat'</code></li>
+        <li>Returns: exact matches only</li>
+        <li>"kitten" ≠ "cat" in a SQL query</li>
+        <li>No concept of "meaning" or "similarity"</li>
+      </ul>
+    </div>
+    <div class="card ab">
+      <div class="ct" style="color:var(--a2)">Vector DB</div>
+      <p>Stores vectors (embeddings). Queries find nearest neighbors in vector space.</p>
+      <ul>
+        <li>Query: find nearest to <code>[0.2, -0.8, 0.5, ...]</code></li>
+        <li>Returns: semantically similar items</li>
+        <li>"kitten" ≈ "cat" ≈ "feline" (close in space)</li>
+        <li>Works across languages, modalities</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="vec-space">
+    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:1rem">2D Vector Space — Semantic Clusters (simplified)</div>
+    <div style="display:flex;gap:2rem;flex-wrap:wrap;align-items:flex-start">
+      <div>
+        <div style="color:var(--accent);font-size:10px;font-weight:700;margin-bottom:.4rem">🐱 ANIMALS</div>
+        <div><span class="vec-point vp-v">cat</span><span class="vec-point vp-v">dog</span><span class="vec-point vp-v">kitten</span></div>
+        <div><span class="vec-point vp-v">feline</span><span class="vec-point vp-v">puppy</span></div>
+      </div>
+      <div>
+        <div style="color:var(--green);font-size:10px;font-weight:700;margin-bottom:.4rem">💻 TECHNOLOGY</div>
+        <div><span class="vec-point vp-g">java</span><span class="vec-point vp-g">python</span><span class="vec-point vp-g">code</span></div>
+        <div><span class="vec-point vp-g">server</span><span class="vec-point vp-g">API</span></div>
+      </div>
+      <div>
+        <div style="color:var(--red);font-size:10px;font-weight:700;margin-bottom:.4rem">🍕 FOOD</div>
+        <div><span class="vec-point vp-r">pizza</span><span class="vec-point vp-r">pasta</span></div>
+        <div><span class="vec-point vp-r">cheese</span><span class="vec-point vp-r">eat</span></div>
+      </div>
+      <div style="align-self:center;color:var(--muted);font-size:10.5px;max-width:180px">
+        Items with similar <strong style="color:#fff">meaning</strong> cluster together. Query "feline" → returns cat, kitten, dog (near vectors).
+      </div>
+    </div>
+  </div>
+
+<pre><span class="cm">// ── What a vector looks like ──────────────────────────────────────────</span>
+
+<span class="cm">// Text "I love cats" → embedding model → 1536-dimensional vector</span>
+<span class="kw">float</span>[] embedding = {
+    <span class="nu">0.023f</span>, -<span class="nu">0.847f</span>, <span class="nu">0.234f</span>, <span class="nu">0.891f</span>, -<span class="nu">0.123f</span>, <span class="nu">0.567f</span>,
+    <span class="nu">0.003f</span>, -<span class="nu">0.234f</span>, <span class="nu">0.678f</span>, <span class="nu">0.912f</span>,
+    <span class="cm">// ... 1526 more floats ...</span>
+};
+<span class="cm">// float32: 1536 * 4 bytes = 6 KB per vector</span>
+<span class="cm">// 1M documents = 6 GB of vectors</span>
+<span class="cm">// 100M docs    = 600 GB — need efficient storage + search</span>
+
+<span class="cm">// ── The core problem: k-Nearest Neighbor (kNN) search ────────────────</span>
+<span class="cm">// Given a query vector q, find k most similar vectors in dataset</span>
+<span class="cm">//</span>
+<span class="cm">// Brute force: compare q to EVERY vector → O(n*d)</span>
+<span class="cm">// n=1M vectors, d=1536 dims → 1.5B multiplications per query</span>
+<span class="cm">// Too slow! → Need Approximate Nearest Neighbor (ANN) algorithms</span>
+<span class="cm">// ANN: trade tiny accuracy loss for 100-1000x speed gain</span>
+<div class="code-label">Vector Basics</div></pre>
+</section>
+
+<!-- ══════════════════════════════════════
+     2. EMBEDDINGS
+══════════════════════════════════════ -->
+<section id="embedding">
+  <div class="sh"><div class="sn" style="background:var(--a2)">2</div><h2>Embeddings — How Text/Images Become Vectors</h2></div>
+
+  <div class="arch">
+    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.8rem">Embedding Pipeline</div>
+    <div class="arch-row">
+      <div class="arch-box ab-g">Raw Input (text / image / audio / code)</div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box ab-y">Embedding Model (Transformer)</div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box ab-v">Dense Vector [0.23, -0.84, ...]</div>
+    </div>
+    <div class="arch-row">
+      <div class="arch-arrow" style="margin-left:1rem">↓ store</div>
+    </div>
+    <div class="arch-row">
+      <div class="arch-box ab-v">Vector Database (Qdrant / Pinecone / pgvector)</div>
+      <div class="arch-arrow">← query vector</div>
+      <div class="arch-box ab-b">kNN Search → top-k results</div>
+    </div>
+  </div>
+
+  <table>
+    <thead><tr><th>Model</th><th>Provider</th><th>Dimensions</th><th>Best For</th><th>Cost</th></tr></thead>
+    <tbody>
+      <tr><td><code>text-embedding-3-small</code></td><td>OpenAI</td><td>1536</td><td>General text, RAG</td><td>$0.02/1M tokens</td></tr>
+      <tr><td><code>text-embedding-3-large</code></td><td>OpenAI</td><td>3072</td><td>High-accuracy RAG</td><td>$0.13/1M tokens</td></tr>
+      <tr><td><code>text-embedding-ada-002</code></td><td>OpenAI (legacy)</td><td>1536</td><td>Legacy apps</td><td>$0.10/1M tokens</td></tr>
+      <tr><td><code>embed-english-v3.0</code></td><td>Cohere</td><td>1024</td><td>Search, classification</td><td>$0.10/1M tokens</td></tr>
+      <tr><td><code>all-MiniLM-L6-v2</code></td><td>HuggingFace (free)</td><td>384</td><td>Small, fast, offline</td><td>Free</td></tr>
+      <tr><td><code>bge-large-en-v1.5</code></td><td>BAAI (free)</td><td>1024</td><td>High quality, free</td><td>Free</td></tr>
+      <tr><td><code>nomic-embed-text</code></td><td>Nomic (free)</td><td>768</td><td>Long docs (8192 tokens)</td><td>Free</td></tr>
+      <tr><td><code>clip-vit-base</code></td><td>OpenAI (free)</td><td>512</td><td>Image + text together</td><td>Free</td></tr>
+    </tbody>
+  </table>
+
+<pre><span class="cm">// ── Generating embeddings — Java + OpenAI ────────────────────────────</span>
+
+<span class="cm">// Maven: com.theokanning.openai-gpt3-java:service:0.18.2</span>
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">EmbeddingService</span> {
+
+    <span class="kw">private final</span> <span class="ty">OpenAiService</span> openAiService;
+
+    <span class="cm">// Single text embedding</span>
+    <span class="kw">public</span> <span class="kw">float</span>[] <span class="mt">embed</span>(<span class="ty">String</span> text) {
+        <span class="ty">EmbeddingRequest</span> req = <span class="ty">EmbeddingRequest</span>.<span class="mt">builder</span>()
+            .<span class="mt">model</span>(<span class="st">"text-embedding-3-small"</span>)
+            .<span class="mt">input</span>(<span class="ty">List</span>.<span class="mt">of</span>(text))
+            .<span class="mt">build</span>();
+        <span class="ty">EmbeddingResult</span> result = openAiService.<span class="mt">createEmbeddings</span>(req);
+        <span class="ty">List</span>&lt;<span class="ty">Double</span>&gt; embedding = result.<span class="mt">getData</span>().<span class="mt">get</span>(<span class="nu">0</span>).<span class="mt">getEmbedding</span>();
+        <span class="cm">// Convert to float[] for storage efficiency</span>
+        <span class="kw">float</span>[] vec = <span class="kw">new float</span>[embedding.<span class="mt">size</span>()];
+        <span class="kw">for</span> (<span class="kw">int</span> i = <span class="nu">0</span>; i < embedding.<span class="mt">size</span>(); i++) vec[i] = embedding.<span class="mt">get</span>(i).<span class="mt">floatValue</span>();
+        <span class="kw">return</span> vec;
+    }
+
+    <span class="cm">// Batch embedding — more efficient</span>
+    <span class="kw">public</span> <span class="ty">List</span>&lt;<span class="kw">float</span>[]&gt; <span class="mt">embedBatch</span>(<span class="ty">List</span>&lt;<span class="ty">String</span>&gt; texts) {
+        <span class="ty">EmbeddingRequest</span> req = <span class="ty">EmbeddingRequest</span>.<span class="mt">builder</span>()
+            .<span class="mt">model</span>(<span class="st">"text-embedding-3-small"</span>)
+            .<span class="mt">input</span>(texts)
+            .<span class="mt">build</span>();
+        <span class="kw">return</span> openAiService.<span class="mt">createEmbeddings</span>(req)
+            .<span class="mt">getData</span>().<span class="mt">stream</span>()
+            .<span class="mt">map</span>(e -> <span class="mt">toFloatArray</span>(e.<span class="mt">getEmbedding</span>()))
+            .<span class="mt">toList</span>();
+    }
+}
+
+<span class="cm">// ── Local embedding (no API cost) — with ONNX Runtime ────────────────</span>
+<span class="cm">// Use: djl.ai sentence-transformers or fastembed-java</span>
+<span class="an">@Bean</span>
+<span class="kw">public</span> <span class="ty">EmbeddingModel</span> <span class="mt">localEmbeddingModel</span>() {
+    <span class="cm">// all-MiniLM-L6-v2: 384 dims, ~25MB, very fast</span>
+    <span class="kw">return new</span> <span class="ty">AllMiniLmL6V2EmbeddingModel</span>(); <span class="cm">// DJL / LangChain4j</span>
+}
+<div class="code-label">Java 17 — Embeddings</div></pre>
+
+  <div class="g3">
+    <div class="card at">
+      <div class="ct" style="color:var(--accent)">Chunking Strategy</div>
+      <p>Long documents must be split into chunks before embedding. Chunk size matters enormously.</p>
+      <ul>
+        <li><strong>Fixed size:</strong> 512 tokens, 50% overlap</li>
+        <li><strong>Semantic:</strong> split at sentences/paragraphs</li>
+        <li><strong>Recursive:</strong> try paragraph → sentence → word</li>
+        <li>Overlap prevents context loss at boundaries</li>
+      </ul>
+    </div>
+    <div class="card ab">
+      <div class="ct" style="color:var(--a2)">Normalization</div>
+      <p>Most models output vectors that benefit from L2 normalization (unit length = 1).</p>
+      <ul>
+        <li>Normalized: cosine similarity = dot product</li>
+        <li>Faster: no sqrt needed in distance calc</li>
+        <li>Always normalize for cosine similarity</li>
+        <li>Don't normalize for Euclidean distance</li>
+      </ul>
+    </div>
+    <div class="card ay">
+      <div class="ct" style="color:var(--a3)">Dimensionality</div>
+      <ul>
+        <li><strong>384 dims:</strong> fast, small, good for simple tasks</li>
+        <li><strong>768 dims:</strong> balanced, most popular</li>
+        <li><strong>1536 dims:</strong> high quality, OpenAI default</li>
+        <li><strong>3072 dims:</strong> best quality, 2x storage cost</li>
+        <li>Matryoshka models: truncate to smaller dim!</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     3. SIMILARITY METRICS
+══════════════════════════════════════ -->
+<section id="similarity">
+  <div class="sh"><div class="sn" style="background:var(--a3)">3</div><h2>Similarity Metrics — Cosine, Dot Product, Euclidean</h2></div>
+
+<pre><span class="cm">// ── The 3 main distance/similarity metrics ───────────────────────────</span>
+
+<span class="cm">// ── 1. Cosine Similarity ─────────────────────────────────────────────</span>
+<span class="cm">// Measures ANGLE between vectors (ignores magnitude)</span>
+<span class="cm">// Range: -1 (opposite) to +1 (identical)</span>
+<span class="cm">// Best for: text similarity, semantic search</span>
+<span class="cm">// Formula: cos(θ) = (A·B) / (|A| * |B|)</span>
+
+<span class="kw">double</span> <span class="mt">cosineSimilarity</span>(<span class="kw">float</span>[] a, <span class="kw">float</span>[] b) {
+    <span class="kw">double</span> dot = <span class="nu">0</span>, normA = <span class="nu">0</span>, normB = <span class="nu">0</span>;
+    <span class="kw">for</span> (<span class="kw">int</span> i = <span class="nu">0</span>; i < a.length; i++) {
+        dot   += a[i] * b[i];
+        normA += a[i] * a[i];
+        normB += b[i] * b[i];
+    }
+    <span class="kw">return</span> dot / (<span class="ty">Math</span>.<span class="mt">sqrt</span>(normA) * <span class="ty">Math</span>.<span class="mt">sqrt</span>(normB));
+}
+<span class="cm">// If vectors are normalized (|v| = 1):</span>
+<span class="cm">// cosine_similarity = dot_product  (faster!)</span>
+
+<span class="cm">// ── 2. Dot Product ────────────────────────────────────────────────────</span>
+<span class="cm">// Measures BOTH angle AND magnitude</span>
+<span class="cm">// Range: -∞ to +∞</span>
+<span class="cm">// Best for: when magnitude matters (e.g. popularity + similarity)</span>
+<span class="cm">// FASTEST computation — pure multiply-add</span>
+
+<span class="kw">double</span> <span class="mt">dotProduct</span>(<span class="kw">float</span>[] a, <span class="kw">float</span>[] b) {
+    <span class="kw">double</span> sum = <span class="nu">0</span>;
+    <span class="kw">for</span> (<span class="kw">int</span> i = <span class="nu">0</span>; i < a.length; i++) sum += a[i] * b[i];
+    <span class="kw">return</span> sum;
+}
+
+<span class="cm">// ── 3. Euclidean Distance (L2) ────────────────────────────────────────</span>
+<span class="cm">// Straight-line distance between two points in vector space</span>
+<span class="cm">// Range: 0 (identical) to +∞</span>
+<span class="cm">// Best for: image embeddings, geographic coordinates</span>
+
+<span class="kw">double</span> <span class="mt">euclidean</span>(<span class="kw">float</span>[] a, <span class="kw">float</span>[] b) {
+    <span class="kw">double</span> sum = <span class="nu">0</span>;
+    <span class="kw">for</span> (<span class="kw">int</span> i = <span class="nu">0</span>; i < a.length; i++) {
+        <span class="kw">double</span> diff = a[i] - b[i];
+        sum += diff * diff;
+    }
+    <span class="kw">return</span> <span class="ty">Math</span>.<span class="mt">sqrt</span>(sum);
+}
+
+<span class="cm">// ── Choosing the right metric ─────────────────────────────────────────</span>
+<span class="cm">// Text search / RAG          → Cosine (direction = meaning)</span>
+<span class="cm">// Recommendation with scores → Dot Product (magnitude = relevance score)</span>
+<span class="cm">// Image/spatial similarity   → Euclidean (actual distance matters)</span>
+<span class="cm">// When in doubt              → Cosine with normalized vectors</span>
+<div class="code-label">Similarity Metrics</div></pre>
+
+  <table>
+    <thead><tr><th>Metric</th><th>Formula</th><th>Range</th><th>Normalized?</th><th>Speed</th><th>Use Case</th></tr></thead>
+    <tbody>
+      <tr><td>Cosine Similarity</td><td>(A·B)/(|A||B|)</td><td>-1 to 1</td><td>Not required</td><td>Medium</td><td>Text, NLP, semantic search</td></tr>
+      <tr><td>Dot Product</td><td>Σ(Aᵢ×Bᵢ)</td><td>-∞ to +∞</td><td>Required for cosine equiv</td><td><span class="pl pl-g">Fastest</span></td><td>Recommendations, scoring</td></tr>
+      <tr><td>Euclidean (L2)</td><td>√Σ(Aᵢ-Bᵢ)²</td><td>0 to +∞</td><td>Not required</td><td>Slow</td><td>Images, spatial, anomaly detection</td></tr>
+      <tr><td>Manhattan (L1)</td><td>Σ|Aᵢ-Bᵢ|</td><td>0 to +∞</td><td>No</td><td>Fast</td><td>Sparse vectors, tabular data</td></tr>
+      <tr><td>Hamming</td><td>XOR bit count</td><td>0 to d</td><td>Binary only</td><td><span class="pl pl-g">Fastest</span></td><td>Binary embeddings</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ══════════════════════════════════════
+     4. INDEX ALGORITHMS
+══════════════════════════════════════ -->
+<section id="index-types">
+  <div class="sh"><div class="sn" style="background:var(--a5)">4</div><h2>ANN Index Algorithms — How Fast Search Works</h2></div>
+
+  <p>Approximate Nearest Neighbor (ANN) algorithms sacrifice a tiny bit of accuracy for massive speed gains. Here are the 5 main approaches:</p>
+
+  <table>
+    <thead><tr><th>Algorithm</th><th>Type</th><th>Build Speed</th><th>Query Speed</th><th>Memory</th><th>Recall@10</th><th>Best For</th></tr></thead>
+    <tbody>
+      <tr><td><strong>HNSW</strong></td><td>Graph</td><td><span class="pl pl-y">Slow</span></td><td><span class="pl pl-g">Fastest</span></td><td><span class="pl pl-r">High</span></td><td>95-99%</td><td>Low-latency, high-accuracy</td></tr>
+      <tr><td><strong>IVF (Flat)</strong></td><td>Cluster</td><td>Medium</td><td>Fast</td><td>Medium</td><td>85-95%</td><td>Large datasets, batch search</td></tr>
+      <tr><td><strong>IVF+PQ</strong></td><td>Cluster+Compress</td><td>Slow</td><td>Fast</td><td><span class="pl pl-g">Very low</span></td><td>80-90%</td><td>Billion-scale, GPU</td></tr>
+      <tr><td><strong>LSH</strong></td><td>Hash</td><td>Fast</td><td>Medium</td><td>Medium</td><td>75-85%</td><td>High-dim sparse vectors</td></tr>
+      <tr><td><strong>Flat (brute force)</strong></td><td>None</td><td><span class="pl pl-g">Instant</span></td><td><span class="pl pl-r">Slowest</span></td><td>Lowest</td><td>100%</td><td>&lt;10K vectors, exact results</td></tr>
+      <tr><td><strong>ScaNN</strong></td><td>Tree+PQ</td><td>Slow</td><td>Very fast</td><td>Medium</td><td>93-97%</td><td>Google-scale, GPU optimized</td></tr>
+    </tbody>
+  </table>
+
+<pre><span class="cm">// ── IVF (Inverted File Index) — Cluster then Search ──────────────────</span>
+<span class="cm">//</span>
+<span class="cm">// Step 1 BUILD: K-means cluster all vectors into nlist clusters (e.g. 1024)</span>
+<span class="cm">//               Store centroid for each cluster</span>
+<span class="cm">//               Assign each vector to its nearest cluster</span>
+<span class="cm">//</span>
+<span class="cm">// Step 2 QUERY: Embed query → find nearest nprobe centroids (e.g. 16)</span>
+<span class="cm">//               Search only those nprobe clusters (not all nlist)</span>
+<span class="cm">//               Return top-k from searched clusters</span>
+<span class="cm">//</span>
+<span class="cm">// nlist=1024, nprobe=16 → search 16/1024 = 1.5% of data</span>
+<span class="cm">// Tuning: higher nprobe → better recall but slower query</span>
+<span class="cm">// Rule of thumb: nprobe = sqrt(nlist)</span>
+
+<span class="cm">// ── LSH (Locality Sensitive Hashing) — Similar → Same Bucket ─────────</span>
+<span class="cm">//</span>
+<span class="cm">// Hash function designed so SIMILAR vectors → SAME hash bucket</span>
+<span class="cm">// For cosine: random hyperplane projections</span>
+<span class="cm">// sign(v · r) = 0 or 1 for each random vector r</span>
+<span class="cm">// K such projections → K-bit hash</span>
+<span class="cm">// Vectors with same K-bit hash are likely similar</span>
+<span class="cm">// Multiple hash tables → reduce false negatives</span>
+<span class="cm">//</span>
+<span class="cm">// Good for: very high dimensions (10K+), sparse vectors</span>
+<span class="cm">// Not good for: dense low-dim vectors (HNSW beats it)</span>
+
+<span class="cm">// ── Product Quantization (PQ) — Compress Vectors ─────────────────────</span>
+<span class="cm">//</span>
+<span class="cm">// 1536-dim float32 vector = 6 KB</span>
+<span class="cm">// Split into M=8 sub-vectors of 192 dims each</span>
+<span class="cm">// For each sub-vector: k-means into 256 centroids (8-bit code)</span>
+<span class="cm">// Store only centroid index: 8 × 8 bits = 8 bytes per vector!</span>
+<span class="cm">// Compression: 6144 bytes → 8 bytes = 768x smaller</span>
+<span class="cm">// Distance computed from lookup tables (very fast)</span>
+<span class="cm">// Recall penalty: ~5-15% compared to exact search</span>
+<div class="code-label">ANN Algorithms</div></pre>
+</section>
+
+<!-- ══════════════════════════════════════
+     5. HNSW DEEP DIVE
+══════════════════════════════════════ -->
+<section id="hnsw">
+  <div class="sh"><div class="sn" style="background:var(--a4)">5</div><h2>HNSW — Hierarchical Navigable Small World (Deep Dive)</h2></div>
+
+  <p>HNSW is the dominant algorithm used by Qdrant, Weaviate, Milvus, and pgvector. It builds a multi-layer graph where upper layers navigate quickly to the neighborhood and lower layers refine the search.</p>
+
+  <div class="index-viz">
+    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.8rem">HNSW Multi-Layer Graph</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:11.5px">
+      <div style="color:var(--accent);margin-bottom:.3rem">Layer 2 (top) — few nodes, long-range connections (highway)</div>
+      <div style="margin-left:1rem;color:var(--a3)">A ←————————————————————————→ F</div>
+      <div style="margin-top:.4rem;color:var(--purple)">Layer 1 (mid) — more nodes, medium connections</div>
+      <div style="margin-left:1rem;color:var(--purple)">A ←——→ B ←——→ D ←——————→ F</div>
+      <div style="margin-top:.4rem;color:var(--green)">Layer 0 (bottom) — all nodes, short connections (local search)</div>
+      <div style="margin-left:1rem;color:var(--green)">A-B-C-D-E-F-G-H-I-J (dense graph, all neighbors)</div>
+      <div style="margin-top:.6rem;color:var(--muted)">
+        Search: Enter at Layer 2, navigate to neighborhood → Layer 1 refine → Layer 0 exact top-k
+      </div>
+    </div>
+  </div>
+
+<pre><span class="cm">// ── HNSW Build Parameters ─────────────────────────────────────────────</span>
+<span class="cm">//</span>
+<span class="cm">// M (connections per node): 4-64, default 16</span>
+<span class="cm">// Higher M → better recall, more memory, slower build</span>
+<span class="cm">// Memory per vector ≈ M * 8 bytes * 2 layers = M*16 bytes extra</span>
+<span class="cm">// For 1M vectors, M=16: 256 MB extra for graph structure</span>
+<span class="cm">//</span>
+<span class="cm">// ef_construction (candidate list during build): 100-500, default 200</span>
+<span class="cm">// Higher ef_construction → better recall, slower build (one-time cost)</span>
+<span class="cm">//</span>
+<span class="cm">// ef (search width, query-time): 10-500, default 50</span>
+<span class="cm">// Higher ef → better recall, slower query (tune per request or globally)</span>
+
+<span class="cm">// ── How HNSW Search Works Step by Step ───────────────────────────────</span>
+<span class="cm">//</span>
+<span class="cm">// 1. Start at the entry point (top layer, fixed per index)</span>
+<span class="cm">// 2. Greedy search on top layer: follow edges toward query</span>
+<span class="cm">// 3. When local minimum found: descend one layer</span>
+<span class="cm">// 4. Continue greedy search on new layer</span>
+<span class="cm">// 5. At layer 0: beam search with ef candidates</span>
+<span class="cm">// 6. Return top-k from candidates</span>
+<span class="cm">//</span>
+<span class="cm">// Complexity: O(log N) layers × O(M * ef) nodes per layer</span>
+<span class="cm">// In practice: 1-5ms for 1M vectors at recall@10 > 95%</span>
+
+<span class="cm">// ── HNSW in Qdrant — configuration ───────────────────────────────────</span>
+<span class="cm">// See Qdrant section below for full Java code</span>
+<span class="cm">// hnsw_config:
+//   m: 16               # connections per node
+//   ef_construct: 200   # build quality
+//   full_scan_threshold: 10000  # use flat search for small collections</span>
+<div class="code-label">HNSW Internals</div></pre>
+
+  <div class="g2">
+    <div class="card at">
+      <div class="ct" style="color:var(--accent)">When HNSW is Best</div>
+      <ul>
+        <li>Low query latency required (&lt;10ms)</li>
+        <li>High recall needed (&gt;95%)</li>
+        <li>Dataset fits in RAM (graph must be in memory)</li>
+        <li>Frequent inserts (supports incremental)</li>
+        <li>Up to ~100M vectors</li>
+      </ul>
+    </div>
+    <div class="card ay">
+      <div class="ct" style="color:var(--a3)">When NOT to Use HNSW</div>
+      <ul>
+        <li>Billions of vectors (memory won't fit)</li>
+        <li>Memory constrained environment</li>
+        <li>Batch-only queries (IVF+PQ better)</li>
+        <li>Cold start — build is slow for large datasets</li>
+        <li>Use IVF+PQ or ScaNN for billion-scale</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     6. DB COMPARISON
+══════════════════════════════════════ -->
+<section id="db-types">
+  <div class="sh"><div class="sn" style="background:var(--a2)">6</div><h2>Vector Database Comparison — All Major Players</h2></div>
+
+  <div style="margin-bottom:1rem">
+    <span class="db-badge db-qdrant">🔴 Qdrant</span>
+    <span class="db-badge db-pinecone">🟣 Pinecone</span>
+    <span class="db-badge db-weaviate">🔵 Weaviate</span>
+    <span class="db-badge db-milvus">🟢 Milvus</span>
+    <span class="db-badge db-pgvector">🐘 pgvector</span>
+    <span class="db-badge db-chroma">🟡 Chroma</span>
+    <span class="db-badge db-faiss">🟠 FAISS</span>
+    <span class="db-badge db-elastic">🔷 Elastic</span>
+  </div>
+
+  <table>
+    <thead><tr><th>Database</th><th>Type</th><th>Index</th><th>Filtering</th><th>Scale</th><th>Managed</th><th>Best For</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>Qdrant</strong> ⭐</td><td>Purpose-built</td><td>HNSW</td>
+        <td><span class="pl pl-g">Best (native)</span></td><td>100M+</td><td>✅ Cloud</td>
+        <td>Production, filtered search, Rust performance</td>
+      </tr>
+      <tr>
+        <td><strong>Pinecone</strong></td><td>Managed SaaS</td><td>Proprietary</td>
+        <td>✅ Good</td><td>Billions</td><td>✅ Only</td>
+        <td>Fastest time-to-prod, no infra ops</td>
+      </tr>
+      <tr>
+        <td><strong>Weaviate</strong></td><td>Purpose-built</td><td>HNSW</td>
+        <td>✅ Good</td><td>100M+</td><td>✅ Cloud</td>
+        <td>GraphQL API, built-in text/image modules</td>
+      </tr>
+      <tr>
+        <td><strong>Milvus</strong></td><td>Purpose-built</td><td>HNSW,IVF,DiskANN</td>
+        <td>✅ Good</td><td>Billions</td><td>✅ Zilliz</td>
+        <td>Billion-scale, Kubernetes-native</td>
+      </tr>
+      <tr>
+        <td><strong>pgvector</strong></td><td>PostgreSQL ext</td><td>HNSW, IVF</td>
+        <td><span class="pl pl-g">SQL-native</span></td><td>&lt;10M</td><td>✅ RDS/Supabase</td>
+        <td>Already using Postgres, simple setup</td>
+      </tr>
+      <tr>
+        <td><strong>Chroma</strong></td><td>Embedded/server</td><td>HNSW</td>
+        <td>✅ Basic</td><td>&lt;1M</td><td>✅ Cloud</td>
+        <td>Prototyping, local dev, LangChain</td>
+      </tr>
+      <tr>
+        <td><strong>FAISS</strong></td><td>Library (Meta)</td><td>All types</td>
+        <td>❌ None</td><td>Billions</td><td>❌ Self-only</td>
+        <td>Research, GPU acceleration, custom pipelines</td>
+      </tr>
+      <tr>
+        <td><strong>Elasticsearch</strong></td><td>Search engine</td><td>HNSW</td>
+        <td><span class="pl pl-g">Best (mature)</span></td><td>Billions</td><td>✅ Elastic Cloud</td>
+        <td>Hybrid text+vector, existing ES users</td>
+      </tr>
+      <tr>
+        <td><strong>Redis (VSS)</strong></td><td>Cache + Vector</td><td>HNSW,Flat</td>
+        <td>✅ Good</td><td>&lt;50M</td><td>✅ Cloud</td>
+        <td>Ultra-low latency, already using Redis</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="cl-box tip"><div class="ci">💡</div><div>
+    <strong>Decision guide:</strong>
+    Already on Postgres → <strong>pgvector</strong> |
+    Need fastest time-to-prod → <strong>Pinecone</strong> |
+    Self-hosted best performance → <strong>Qdrant</strong> |
+    Billion-scale → <strong>Milvus</strong> |
+    Existing Elasticsearch → <strong>Elasticsearch vector search</strong> |
+    Local dev/prototype → <strong>Chroma</strong>
+  </div></div>
+</section>
+
+<!-- ══════════════════════════════════════
+     7. QDRANT DEEP DIVE
+══════════════════════════════════════ -->
+<section id="qdrant">
+  <div class="sh"><div class="sn" style="background:var(--red)">7</div><h2>Qdrant — Internal Architecture & Java Integration</h2></div>
+
+  <div class="arch">
+    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.8rem">Qdrant Internal Architecture</div>
+    <div class="arch-row">
+      <div class="arch-box ab-b">HTTP/gRPC API</div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box ab-v">Collection Manager</div>
+    </div>
+    <div class="arch-row">
+      <div class="arch-arrow" style="margin-left:14rem">↓</div>
+    </div>
+    <div class="arch-row">
+      <div class="arch-box ab-v">Shard Manager</div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box ab-g">Shard 0</div>
+      <div class="arch-box ab-g">Shard 1</div>
+      <div class="arch-box ab-g">Shard N</div>
+    </div>
+    <div class="arch-row" style="margin-left:9rem">
+      <div class="arch-arrow">↓ each shard contains:</div>
+    </div>
+    <div class="arch-row" style="margin-left:9rem">
+      <div class="arch-box ab-p">HNSW Graph (RAM)</div>
+      <div class="arch-box ab-t">Payload Store (RocksDB)</div>
+      <div class="arch-box ab-y">WAL (disk)</div>
+      <div class="arch-box ab-o">Quantized vectors (optional)</div>
+    </div>
+    <div class="arch-row" style="margin-top:.4rem;margin-left:9rem">
+      <div style="font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace">Segments: sealed (immutable) + growing (mutable, small HNSW)</div>
+    </div>
+  </div>
+
+<pre><span class="cm">// ── Qdrant Java Client — Full CRUD + Search ───────────────────────────</span>
+<span class="cm">// Maven: io.qdrant:client:1.9.0</span>
+
+<span class="an">@Configuration</span>
+<span class="kw">public class</span> <span class="ty">QdrantConfig</span> {
+    <span class="an">@Bean</span>
+    <span class="kw">public</span> <span class="ty">QdrantClient</span> <span class="mt">qdrantClient</span>() {
+        <span class="kw">return new</span> <span class="ty">QdrantClient</span>(
+            <span class="ty">QdrantGrpcClient</span>.<span class="mt">newBuilder</span>(<span class="st">"localhost"</span>, <span class="nu">6334</span>, <span class="kw">false</span>).<span class="mt">build</span>()
+        );
+    }
+}
+
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">QdrantService</span> {
+
+    <span class="kw">private final</span> <span class="ty">QdrantClient</span>    client;
+    <span class="kw">private final</span> <span class="ty">EmbeddingService</span> embedder;
+    <span class="kw">private static final</span> <span class="ty">String</span>   COLLECTION = <span class="st">"documents"</span>;
+
+    <span class="cm">// ── Create collection with HNSW config ───────────────────────────</span>
+    <span class="kw">public void</span> <span class="mt">createCollection</span>() <span class="kw">throws</span> <span class="ty">ExecutionException</span>, <span class="ty">InterruptedException</span> {
+        client.<span class="mt">createCollectionAsync</span>(
+            <span class="ty">CreateCollection</span>.<span class="mt">newBuilder</span>()
+                .<span class="mt">setCollectionName</span>(COLLECTION)
+                .<span class="mt">setVectorsConfig</span>(<span class="ty">VectorsConfig</span>.<span class="mt">newBuilder</span>()
+                    .<span class="mt">setParams</span>(<span class="ty">VectorParams</span>.<span class="mt">newBuilder</span>()
+                        .<span class="mt">setSize</span>(<span class="nu">1536</span>)                        <span class="cm">// OpenAI dimensions</span>
+                        .<span class="mt">setDistance</span>(<span class="ty">Distance</span>.<span class="en">Cosine</span>)
+                        .<span class="mt">build</span>())
+                    .<span class="mt">build</span>())
+                .<span class="mt">setHnswConfig</span>(<span class="ty">HnswConfigDiff</span>.<span class="mt">newBuilder</span>()
+                    .<span class="mt">setM</span>(<span class="nu">16</span>)                               <span class="cm">// connections per node</span>
+                    .<span class="mt">setEfConstruct</span>(<span class="nu">200</span>)                   <span class="cm">// build quality</span>
+                    .<span class="mt">build</span>())
+                .<span class="mt">setQuantizationConfig</span>(<span class="ty">QuantizationConfig</span>.<span class="mt">newBuilder</span>()
+                    .<span class="mt">setScalar</span>(<span class="ty">ScalarQuantization</span>.<span class="mt">newBuilder</span>()
+                        .<span class="mt">setType</span>(<span class="ty">QuantizationType</span>.<span class="en">Int8</span>)    <span class="cm">// 4x memory reduction</span>
+                        .<span class="mt">setAlwaysRam</span>(<span class="kw">true</span>)
+                        .<span class="mt">build</span>())
+                    .<span class="mt">build</span>())
+                .<span class="mt">build</span>()
+        ).<span class="mt">get</span>();
+    }
+
+    <span class="cm">// ── Upsert points (insert or update) ─────────────────────────────</span>
+    <span class="kw">public void</span> <span class="mt">upsertDocuments</span>(<span class="ty">List</span>&lt;<span class="ty">Document</span>&gt; docs) <span class="kw">throws</span> <span class="ty">Exception</span> {
+        <span class="ty">List</span>&lt;<span class="ty">PointStruct</span>&gt; points = docs.<span class="mt">stream</span>().<span class="mt">map</span>(doc -> {
+            <span class="kw">float</span>[] vec = embedder.<span class="mt">embed</span>(doc.<span class="mt">getContent</span>());
+            <span class="kw">return</span> <span class="ty">PointStruct</span>.<span class="mt">newBuilder</span>()
+                .<span class="mt">setId</span>(<span class="ty">PointId</span>.<span class="mt">newBuilder</span>().<span class="mt">setUuid</span>(doc.<span class="mt">getId</span>().<span class="mt">toString</span>()).<span class="mt">build</span>())
+                .<span class="mt">setVectors</span>(<span class="ty">Vectors</span>.<span class="mt">newBuilder</span>()
+                    .<span class="mt">setVector</span>(<span class="ty">VectorsFactory</span>.<span class="mt">vectors</span>(vec)).<span class="mt">build</span>())
+                .<span class="mt">putAllPayload</span>(<span class="ty">Map</span>.<span class="mt">of</span>(
+                    <span class="st">"title"</span>,    <span class="mt">value</span>(doc.<span class="mt">getTitle</span>()),
+                    <span class="st">"category"</span>, <span class="mt">value</span>(doc.<span class="mt">getCategory</span>()),
+                    <span class="st">"source"</span>,   <span class="mt">value</span>(doc.<span class="mt">getSource</span>()),
+                    <span class="st">"created"</span>,  <span class="mt">value</span>(doc.<span class="mt">getCreatedAt</span>().<span class="mt">toString</span>())
+                ))
+                .<span class="mt">build</span>();
+        }).<span class="mt">toList</span>();
+
+        client.<span class="mt">upsertAsync</span>(COLLECTION,
+            <span class="ty">UpsertPoints</span>.<span class="mt">newBuilder</span>()
+                .<span class="mt">setCollectionName</span>(COLLECTION)
+                .<span class="mt">addAllPoints</span>(points)
+                .<span class="mt">build</span>()
+        ).<span class="mt">get</span>();
+    }
+
+    <span class="cm">// ── Vector search with metadata filter ────────────────────────────</span>
+    <span class="kw">public</span> <span class="ty">List</span>&lt;<span class="ty">SearchResult</span>&gt; <span class="mt">search</span>(<span class="ty">String</span> query, <span class="ty">String</span> category, <span class="kw">int</span> topK)
+            <span class="kw">throws</span> <span class="ty">Exception</span> {
+
+        <span class="kw">float</span>[] queryVec = embedder.<span class="mt">embed</span>(query);
+
+        <span class="ty">List</span>&lt;<span class="ty">ScoredPoint</span>&gt; results = client.<span class="mt">searchAsync</span>(
+            <span class="ty">SearchPoints</span>.<span class="mt">newBuilder</span>()
+                .<span class="mt">setCollectionName</span>(COLLECTION)
+                .<span class="mt">addAllVector</span>(<span class="mt">toList</span>(queryVec))
+                .<span class="mt">setLimit</span>(topK)
+                .<span class="mt">setWithPayload</span>(<span class="ty">WithPayloadSelector</span>.<span class="mt">newBuilder</span>()
+                    .<span class="mt">setEnable</span>(<span class="kw">true</span>).<span class="mt">build</span>())
+                .<span class="mt">setFilter</span>(<span class="ty">Filter</span>.<span class="mt">newBuilder</span>()
+                    .<span class="mt">addMust</span>(<span class="ty">Condition</span>.<span class="mt">newBuilder</span>()
+                        .<span class="mt">setField</span>(<span class="ty">FieldCondition</span>.<span class="mt">newBuilder</span>()
+                            .<span class="mt">setKey</span>(<span class="st">"category"</span>)
+                            .<span class="mt">setMatch</span>(<span class="ty">Match</span>.<span class="mt">newBuilder</span>()
+                                .<span class="mt">setKeyword</span>(category).<span class="mt">build</span>())
+                            .<span class="mt">build</span>())
+                        .<span class="mt">build</span>())
+                    .<span class="mt">build</span>())
+                .<span class="mt">setParams</span>(<span class="ty">SearchParams</span>.<span class="mt">newBuilder</span>()
+                    .<span class="mt">setEf</span>(<span class="nu">128</span>)              <span class="cm">// higher ef → better recall</span>
+                    .<span class="mt">setExact</span>(<span class="kw">false</span>)         <span class="cm">// ANN (not brute force)</span>
+                    .<span class="mt">build</span>())
+                .<span class="mt">build</span>()
+        ).<span class="mt">get</span>();
+
+        <span class="kw">return</span> results.<span class="mt">stream</span>().<span class="mt">map</span>(sp -> <span class="kw">new</span> <span class="ty">SearchResult</span>(
+            sp.<span class="mt">getPayloadMap</span>().<span class="mt">get</span>(<span class="st">"title"</span>).<span class="mt">getStringValue</span>(),
+            sp.<span class="mt">getScore</span>()
+        )).<span class="mt">toList</span>();
+    }
+
+    <span class="cm">// ── Scroll — iterate all points (no query vector) ─────────────────</span>
+    <span class="kw">public void</span> <span class="mt">scrollAll</span>() <span class="kw">throws</span> <span class="ty">Exception</span> {
+        <span class="ty">ScrollResponse</span> response = client.<span class="mt">scrollAsync</span>(
+            <span class="ty">ScrollPoints</span>.<span class="mt">newBuilder</span>()
+                .<span class="mt">setCollectionName</span>(COLLECTION)
+                .<span class="mt">setLimit</span>(<span class="nu">100</span>)
+                .<span class="mt">build</span>()
+        ).<span class="mt">get</span>();
+        <span class="cm">// response.getNextPageOffset() for pagination</span>
+    }
+
+    <span class="cm">// ── Delete by filter ──────────────────────────────────────────────</span>
+    <span class="kw">public void</span> <span class="mt">deleteByCategory</span>(<span class="ty">String</span> category) <span class="kw">throws</span> <span class="ty">Exception</span> {
+        client.<span class="mt">deleteAsync</span>(
+            <span class="ty">DeletePoints</span>.<span class="mt">newBuilder</span>()
+                .<span class="mt">setCollectionName</span>(COLLECTION)
+                .<span class="mt">setPoints</span>(<span class="ty">PointsSelector</span>.<span class="mt">newBuilder</span>()
+                    .<span class="mt">setFilter</span>(<span class="ty">Filter</span>.<span class="mt">newBuilder</span>()
+                        .<span class="mt">addMust</span>(<span class="mt">matchKeyword</span>(<span class="st">"category"</span>, category))
+                        .<span class="mt">build</span>())
+                    .<span class="mt">build</span>())
+                .<span class="mt">build</span>()
+        ).<span class="mt">get</span>();
+    }
+}
+<div class="code-label">Java 17 — Qdrant Client</div></pre>
+
+  <div class="cl-box info"><div class="ci">ℹ️</div><div>
+    <strong>Qdrant Filtered Search:</strong> Qdrant's killer feature — it uses a <em>payload index</em> alongside the HNSW graph. During search, the filter is applied <em>inside</em> the graph traversal (not post-filter), so you get correct top-k results even with aggressive filters. Other DBs post-filter which can return fewer than k results.
+  </div></div>
+</section>
+
+<!-- ══════════════════════════════════════
+     8. PGVECTOR
+══════════════════════════════════════ -->
+<section id="pgvector">
+  <div class="sh"><div class="sn" style="background:var(--a2)">8</div><h2>pgvector — Vector Search Inside PostgreSQL</h2></div>
+
+<pre><span class="cm">-- ── pgvector setup ────────────────────────────────────────────────────</span>
+<span class="kw">CREATE EXTENSION IF NOT EXISTS</span> vector;
+
+<span class="cm">-- Create table with vector column</span>
+<span class="kw">CREATE TABLE</span> documents (
+    id          <span class="ty">BIGSERIAL</span>     <span class="kw">PRIMARY KEY</span>,
+    content     <span class="ty">TEXT</span>          <span class="kw">NOT NULL</span>,
+    category    <span class="ty">VARCHAR</span>(<span class="nu">50</span>),
+    source      <span class="ty">VARCHAR</span>(<span class="nu">255</span>),
+    embedding   <span class="ty">vector</span>(<span class="nu">1536</span>) <span class="kw">NOT NULL</span>,  <span class="cm">-- 1536-dim vector</span>
+    created_at  <span class="ty">TIMESTAMPTZ</span>   <span class="kw">DEFAULT</span> NOW()
+);
+
+<span class="cm">-- ── Create HNSW index (pgvector 0.5+) ─────────────────────────────────</span>
+<span class="kw">CREATE INDEX</span> idx_documents_hnsw <span class="kw">ON</span> documents
+    <span class="kw">USING</span> hnsw (embedding vector_cosine_ops)
+    <span class="kw">WITH</span> (m = <span class="nu">16</span>, ef_construction = <span class="nu">200</span>);
+<span class="cm">-- ops: vector_cosine_ops | vector_l2_ops | vector_ip_ops</span>
+
+<span class="cm">-- ── Create IVFFlat index (older, smaller memory) ─────────────────────</span>
+<span class="kw">CREATE INDEX</span> idx_documents_ivf <span class="kw">ON</span> documents
+    <span class="kw">USING</span> ivfflat (embedding vector_cosine_ops)
+    <span class="kw">WITH</span> (lists = <span class="nu">100</span>);  <span class="cm">-- lists = sqrt(row count)</span>
+<span class="cm">-- For IVF: SET ivfflat.probes = 10;  -- higher = better recall but slower</span>
+
+<span class="cm">-- ── Similarity search ─────────────────────────────────────────────────</span>
+<span class="cm">-- Cosine distance (lower = more similar)</span>
+<span class="kw">SELECT</span> id, content, category,
+       embedding <=> <span class="st">'[0.1,0.2,...,0.9]'</span> <span class="kw">AS</span> distance
+<span class="kw">FROM</span>   documents
+<span class="kw">WHERE</span>  category = <span class="st">'tech'</span>              <span class="cm">-- SQL filter!</span>
+<span class="kw">ORDER BY</span> embedding <=> <span class="st">'[0.1,0.2,...]'</span>
+<span class="kw">LIMIT</span>  <span class="nu">10</span>;
+
+<span class="cm">-- Operators:</span>
+<span class="cm">-- <=> cosine distance   (use for cosine similarity: 1 - distance)</span>
+<span class="cm">-- <-> L2/Euclidean distance</span>
+<span class="cm">-- <#> negative inner product (for dot product similarity: negate result)</span>
+
+<span class="cm">-- Cosine SIMILARITY (not distance):</span>
+<span class="kw">SELECT</span> id, content, <span class="nu">1</span> - (embedding <=> <span class="st">'[...]'</span>) <span class="kw">AS</span> similarity
+<span class="kw">FROM</span> documents
+<span class="kw">WHERE</span> <span class="nu">1</span> - (embedding <=> <span class="st">'[...]'</span>) > <span class="nu">0.8</span>  <span class="cm">-- min similarity threshold</span>
+<span class="kw">ORDER BY</span> similarity <span class="kw">DESC LIMIT</span> <span class="nu">10</span>;
+
+<span class="cm">-- Hybrid search: vector + full-text + filters</span>
+<span class="kw">SELECT</span>
+    d.id, d.content,
+    ts_rank(to_tsvector(<span class="st">'english'</span>, d.content), plainto_tsquery(<span class="st">'english'</span>, <span class="st">'machine learning'</span>)) <span class="kw">AS</span> text_score,
+    <span class="nu">1</span> - (d.embedding <=> <span class="st">'[...]'</span>) <span class="kw">AS</span> vector_score
+<span class="kw">FROM</span> documents d
+<span class="kw">WHERE</span>
+    d.category = <span class="st">'tech'</span>
+    <span class="kw">AND</span> to_tsvector(<span class="st">'english'</span>, d.content) @@ plainto_tsquery(<span class="st">'english'</span>, <span class="st">'machine learning'</span>)
+<span class="kw">ORDER BY</span>
+    (<span class="num">0.7</span> * (<span class="nu">1</span> - (d.embedding <=> <span class="st">'[...]'</span>)) + <span class="nu">0.3</span> * ts_rank(...)) <span class="kw">DESC</span>
+<span class="kw">LIMIT</span> <span class="nu">10</span>;
+<div class="code-label">PostgreSQL pgvector</div></pre>
+
+<pre><span class="cm">// ── Spring Boot + pgvector (JPA) ─────────────────────────────────────</span>
+
+<span class="an">@Entity</span>
+<span class="an">@Table</span>(name = <span class="st">"documents"</span>)
+<span class="kw">public class</span> <span class="ty">DocumentEntity</span> {
+    <span class="an">@Id</span> <span class="an">@GeneratedValue</span>(strategy = <span class="ty">GenerationType</span>.<span class="en">IDENTITY</span>)
+    <span class="kw">private</span> <span class="ty">Long</span> id;
+
+    <span class="an">@Column</span>(columnDefinition = <span class="st">"text"</span>)
+    <span class="kw">private</span> <span class="ty">String</span> content;
+
+    <span class="an">@Column</span>(columnDefinition = <span class="st">"vector(1536)"</span>)
+    <span class="kw">private</span> <span class="kw">float</span>[] embedding;  <span class="cm">// pgvector maps float[] ↔ vector</span>
+}
+
+<span class="an">@Repository</span>
+<span class="kw">public interface</span> <span class="ty">DocumentRepository</span> <span class="kw">extends</span> <span class="ty">JpaRepository</span>&lt;<span class="ty">DocumentEntity</span>, <span class="ty">Long</span>&gt; {
+
+    <span class="an">@Query</span>(value = <span class="st">"""
+        SELECT * FROM documents
+        WHERE category = :category
+        ORDER BY embedding <=> CAST(:queryVector AS vector)
+        LIMIT :limit
+        """</span>, nativeQuery = <span class="kw">true</span>)
+    <span class="ty">List</span>&lt;<span class="ty">DocumentEntity</span>&gt; <span class="mt">findSimilar</span>(
+        <span class="an">@Param</span>(<span class="st">"queryVector"</span>) <span class="ty">String</span> queryVector,  <span class="cm">// "[0.1,0.2,...]"</span>
+        <span class="an">@Param</span>(<span class="st">"category"</span>)    <span class="ty">String</span> category,
+        <span class="an">@Param</span>(<span class="st">"limit"</span>)       <span class="kw">int</span>    limit
+    );
+}
+
+<span class="cm">// Service layer:</span>
+<span class="kw">public</span> <span class="ty">List</span>&lt;<span class="ty">DocumentEntity</span>&gt; <span class="mt">searchSimilar</span>(<span class="ty">String</span> query, <span class="ty">String</span> category) {
+    <span class="kw">float</span>[] embedding = embedder.<span class="mt">embed</span>(query);
+    <span class="ty">String</span> vecStr = <span class="mt">toVectorString</span>(embedding); <span class="cm">// "[0.23,-0.84,...]"</span>
+    <span class="kw">return</span> documentRepository.<span class="mt">findSimilar</span>(vecStr, category, <span class="nu">10</span>);
+}
+<div class="code-label">Spring Boot + pgvector</div></pre>
+</section>
+
+<!-- ══════════════════════════════════════
+     9. USE CASES & PATTERNS
+══════════════════════════════════════ -->
+<section id="patterns">
+  <div class="sh"><div class="sn" style="background:var(--a3)">9</div><h2>Use Cases — When & Where to Use Vector DBs</h2></div>
+
+  <table>
+    <thead><tr><th>Use Case</th><th>What Gets Embedded</th><th>Query</th><th>Example</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Semantic Search</strong></td><td>Documents, articles</td><td>User question</td><td>Search knowledge base by meaning, not keywords</td></tr>
+      <tr><td><strong>RAG (LLM Context)</strong></td><td>Chunks of docs</td><td>User prompt</td><td>ChatGPT-style Q&A on private docs</td></tr>
+      <tr><td><strong>Recommendation</strong></td><td>Products, movies, users</td><td>User history</td><td>"You might also like..." similar items</td></tr>
+      <tr><td><strong>Duplicate Detection</strong></td><td>Text/images</td><td>New item</td><td>Detect near-duplicate news articles</td></tr>
+      <tr><td><strong>Anomaly Detection</strong></td><td>System logs, transactions</td><td>New event</td><td>Flag unusual events (far from cluster)</td></tr>
+      <tr><td><strong>Face Recognition</strong></td><td>Face images</td><td>Query face</td><td>Find matching face in database</td></tr>
+      <tr><td><strong>Code Search</strong></td><td>Code snippets</td><td>Natural language</td><td>"Find function that sorts by date"</td></tr>
+      <tr><td><strong>Customer Support</strong></td><td>Ticket history</td><td>New ticket</td><td>Suggest similar resolved tickets</td></tr>
+      <tr><td><strong>Multi-modal</strong></td><td>Images + text (CLIP)</td><td>Text or image</td><td>Search images by text description</td></tr>
+    </tbody>
+  </table>
+
+<pre><span class="cm">// ── Recommendation System — product similarity ────────────────────────</span>
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">ProductRecommendationService</span> {
+
+    <span class="kw">public</span> <span class="ty">List</span>&lt;<span class="ty">Product</span>&gt; <span class="mt">recommend</span>(<span class="ty">String</span> productId, <span class="kw">int</span> topK) <span class="kw">throws</span> <span class="ty">Exception</span> {
+        <span class="cm">// 1. Get the product's embedding (already stored)</span>
+        <span class="kw">var</span> existing = qdrantClient.<span class="mt">retrieveAsync</span>(
+            <span class="ty">GetPoints</span>.<span class="mt">newBuilder</span>()
+                .<span class="mt">setCollectionName</span>(<span class="st">"products"</span>)
+                .<span class="mt">addIds</span>(<span class="ty">PointId</span>.<span class="mt">newBuilder</span>().<span class="mt">setUuid</span>(productId).<span class="mt">build</span>())
+                .<span class="mt">setWithVectors</span>(<span class="ty">WithVectorsSelector</span>.<span class="mt">newBuilder</span>().<span class="mt">setEnable</span>(<span class="kw">true</span>).<span class="mt">build</span>())
+                .<span class="mt">build</span>()
+        ).<span class="mt">get</span>();
+
+        <span class="cm">// 2. Use "recommend by id" — Qdrant feature: no need to re-embed</span>
+        <span class="kw">var</span> results = qdrantClient.<span class="mt">recommendAsync</span>(
+            <span class="ty">RecommendPoints</span>.<span class="mt">newBuilder</span>()
+                .<span class="mt">setCollectionName</span>(<span class="st">"products"</span>)
+                .<span class="mt">addPositive</span>(<span class="ty">PointId</span>.<span class="mt">newBuilder</span>().<span class="mt">setUuid</span>(productId).<span class="mt">build</span>()) <span class="cm">// similar to this</span>
+                .<span class="mt">setLimit</span>(topK + <span class="nu">1</span>)   <span class="cm">// +1 to exclude self</span>
+                .<span class="mt">setWithPayload</span>(<span class="ty">WithPayloadSelector</span>.<span class="mt">newBuilder</span>().<span class="mt">setEnable</span>(<span class="kw">true</span>).<span class="mt">build</span>())
+                .<span class="mt">build</span>()
+        ).<span class="mt">get</span>();
+
+        <span class="kw">return</span> results.<span class="mt">stream</span>()
+            .<span class="mt">filter</span>(r -> !r.<span class="mt">getId</span>().<span class="mt">getUuid</span>().<span class="mt">equals</span>(productId)) <span class="cm">// exclude self</span>
+            .<span class="mt">map</span>(<span class="kw">this</span>::<span class="mt">toProduct</span>)
+            .<span class="mt">toList</span>();
+    }
+
+    <span class="cm">// Negative example — "more like this but NOT like that"</span>
+    <span class="kw">public</span> <span class="ty">List</span>&lt;<span class="ty">Product</span>&gt; <span class="mt">recommendWithNegative</span>(<span class="ty">String</span> likeId, <span class="ty">String</span> notLikeId) <span class="kw">throws</span> <span class="ty">Exception</span> {
+        <span class="kw">return</span> qdrantClient.<span class="mt">recommendAsync</span>(
+            <span class="ty">RecommendPoints</span>.<span class="mt">newBuilder</span>()
+                .<span class="mt">setCollectionName</span>(<span class="st">"products"</span>)
+                .<span class="mt">addPositive</span>(<span class="ty">PointId</span>.<span class="mt">newBuilder</span>().<span class="mt">setUuid</span>(likeId).<span class="mt">build</span>())
+                .<span class="mt">addNegative</span>(<span class="ty">PointId</span>.<span class="mt">newBuilder</span>().<span class="mt">setUuid</span>(notLikeId).<span class="mt">build</span>())
+                .<span class="mt">setLimit</span>(<span class="nu">10</span>)
+                .<span class="mt">build</span>()
+        ).<span class="mt">get</span>().<span class="mt">stream</span>().<span class="mt">map</span>(<span class="kw">this</span>::<span class="mt">toProduct</span>).<span class="mt">toList</span>();
+    }
+}
+<div class="code-label">Java 17 — Recommendations</div></pre>
+</section>
+
+<!-- ══════════════════════════════════════
+     10. RAG PATTERN
+══════════════════════════════════════ -->
+<section id="rag">
+  <div class="sh"><div class="sn" style="background:var(--purple)">10</div><h2>RAG Pattern — Retrieval Augmented Generation</h2></div>
+
+  <p>RAG solves the problem of LLMs not knowing your private data. Instead of fine-tuning, you retrieve relevant context at query time and inject it into the LLM prompt.</p>
+
+  <div class="arch">
+    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.8rem">RAG Pipeline — Indexing Phase (one-time)</div>
+    <div class="arch-row">
+      <div class="arch-box ab-g">Private Docs (PDF/HTML/DB)</div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box ab-y">Chunk (512 tokens, 50% overlap)</div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box ab-b">Embed (OpenAI / local)</div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box ab-v">Store in Qdrant</div>
+    </div>
+
+    <div style="margin-top:1rem;color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.8rem">RAG Pipeline — Query Phase (per request)</div>
+    <div class="arch-row">
+      <div class="arch-box ab-g">User Question</div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box ab-b">Embed Question</div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box ab-v">Vector Search top-5</div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box ab-y">Build Prompt</div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box ab-t">LLM (GPT-4)</div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box ab-g">Answer</div>
+    </div>
+  </div>
+
+<pre><span class="cm">// ── Complete RAG Pipeline — Java 17 ──────────────────────────────────</span>
+
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">RagService</span> {
+
+    <span class="kw">private final</span> <span class="ty">QdrantService</span>   vectorStore;
+    <span class="kw">private final</span> <span class="ty">EmbeddingService</span> embedder;
+    <span class="kw">private final</span> <span class="ty">OpenAiService</span>   llm;
+
+    <span class="cm">// ── INDEXING PHASE ─────────────────────────────────────────────────</span>
+    <span class="kw">public void</span> <span class="mt">indexDocument</span>(<span class="ty">String</span> content, <span class="ty">String</span> source) <span class="kw">throws</span> <span class="ty">Exception</span> {
+        <span class="ty">List</span>&lt;<span class="ty">String</span>&gt; chunks = <span class="mt">chunkText</span>(content, <span class="nu">512</span>, <span class="nu">50</span>);  <span class="cm">// 512 tokens, 50 overlap</span>
+
+        <span class="ty">List</span>&lt;<span class="ty">Document</span>&gt; docs = <span class="ty">IntStream</span>.<span class="mt">range</span>(<span class="nu">0</span>, chunks.<span class="mt">size</span>())
+            .<span class="mt">mapToObj</span>(i -> <span class="kw">new</span> <span class="ty">Document</span>(
+                <span class="ty">UUID</span>.<span class="mt">randomUUID</span>(),
+                chunks.<span class="mt">get</span>(i),
+                source,
+                <span class="st">"chunk-"</span> + i
+            )).<span class="mt">toList</span>();
+
+        vectorStore.<span class="mt">upsertDocuments</span>(docs);  <span class="cm">// embeds and stores</span>
+    }
+
+    <span class="cm">// ── QUERY PHASE ────────────────────────────────────────────────────</span>
+    <span class="kw">public</span> <span class="ty">String</span> <span class="mt">answer</span>(<span class="ty">String</span> question) <span class="kw">throws</span> <span class="ty">Exception</span> {
+
+        <span class="cm">// Step 1: Retrieve relevant context</span>
+        <span class="ty">List</span>&lt;<span class="ty">SearchResult</span>&gt; relevant = vectorStore.<span class="mt">search</span>(question, <span class="kw">null</span>, <span class="nu">5</span>);
+
+        <span class="cm">// Step 2: Build augmented prompt</span>
+        <span class="ty">String</span> context = relevant.<span class="mt">stream</span>()
+            .<span class="mt">map</span>(<span class="ty">SearchResult</span>::<span class="mt">content</span>)
+            .<span class="mt">collect</span>(<span class="ty">Collectors</span>.<span class="mt">joining</span>(<span class="st">"\n\n---\n\n"</span>));
+
+        <span class="ty">String</span> prompt = <span class="st">"""
+            You are a helpful assistant. Answer the question based ONLY on the
+            provided context. If the answer is not in the context, say so.
+
+            CONTEXT:
+            %s
+
+            QUESTION: %s
+
+            ANSWER:
+            """</span>.<span class="mt">formatted</span>(context, question);
+
+        <span class="cm">// Step 3: Call LLM with context</span>
+        <span class="ty">ChatCompletionRequest</span> req = <span class="ty">ChatCompletionRequest</span>.<span class="mt">builder</span>()
+            .<span class="mt">model</span>(<span class="st">"gpt-4o"</span>)
+            .<span class="mt">messages</span>(<span class="ty">List</span>.<span class="mt">of</span>(
+                <span class="ty">ChatMessage</span>.<span class="mt">builder</span>().<span class="mt">role</span>(<span class="st">"user"</span>).<span class="mt">content</span>(prompt).<span class="mt">build</span>()
+            ))
+            .<span class="mt">temperature</span>(<span class="nu">0.1</span>)   <span class="cm">// low temperature for factual answers</span>
+            .<span class="mt">maxTokens</span>(<span class="nu">500</span>)
+            .<span class="mt">build</span>();
+
+        <span class="kw">return</span> llm.<span class="mt">createChatCompletion</span>(req)
+            .<span class="mt">getChoices</span>().<span class="mt">get</span>(<span class="nu">0</span>)
+            .<span class="mt">getMessage</span>().<span class="mt">getContent</span>();
+    }
+
+    <span class="cm">// ── Text chunking with overlap ─────────────────────────────────────</span>
+    <span class="kw">private</span> <span class="ty">List</span>&lt;<span class="ty">String</span>&gt; <span class="mt">chunkText</span>(<span class="ty">String</span> text, <span class="kw">int</span> chunkSize, <span class="kw">int</span> overlap) {
+        <span class="ty">String</span>[] words  = text.<span class="mt">split</span>(<span class="st">"\\s+"</span>);
+        <span class="ty">List</span>&lt;<span class="ty">String</span>&gt; chunks = <span class="kw">new</span> <span class="ty">ArrayList</span>&lt;&gt;();
+        <span class="kw">int</span> step = chunkSize - overlap;
+
+        <span class="kw">for</span> (<span class="kw">int</span> i = <span class="nu">0</span>; i < words.length; i += step) {
+            <span class="kw">int</span> end = <span class="ty">Math</span>.<span class="mt">min</span>(i + chunkSize, words.length);
+            chunks.<span class="mt">add</span>(<span class="ty">String</span>.<span class="mt">join</span>(<span class="st">" "</span>, <span class="ty">Arrays</span>.<span class="mt">copyOfRange</span>(words, i, end)));
+            <span class="kw">if</span> (end == words.length) <span class="kw">break</span>;
+        }
+        <span class="kw">return</span> chunks;
+    }
+}
+<div class="code-label">Java 17 — RAG Pipeline</div></pre>
+
+  <div class="g2">
+    <div class="card ag">
+      <div class="ct" style="color:var(--green)">RAG Best Practices</div>
+      <ul>
+        <li>Chunk size: 256-512 tokens for most docs</li>
+        <li>Overlap: 10-15% of chunk size</li>
+        <li>Retrieve top 3-7 chunks (more = LLM confusion)</li>
+        <li>Re-rank results with cross-encoder model</li>
+        <li>Include source metadata in results</li>
+        <li>Hybrid search (vector + BM25) for better recall</li>
+      </ul>
+    </div>
+    <div class="card ar">
+      <div class="ct" style="color:var(--red)">Common RAG Failures</div>
+      <ul>
+        <li>Chunks too large → diluted context</li>
+        <li>Chunks too small → missing context</li>
+        <li>Wrong similarity metric → poor results</li>
+        <li>No overlap → information lost at boundaries</li>
+        <li>Not filtering by tenant/user → data leakage</li>
+        <li>Stale embeddings after doc updates</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     11. SPRING AI
+══════════════════════════════════════ -->
+<section id="spring">
+  <div class="sh"><div class="sn" style="background:var(--green)">11</div><h2>Spring AI — Vector Store Integration</h2></div>
+
+<pre><span class="cm">// ── Spring AI dependencies (pom.xml) ─────────────────────────────────</span>
+<span class="cm">&lt;dependency&gt;
+    &lt;groupId&gt;org.springframework.ai&lt;/groupId&gt;
+    &lt;artifactId&gt;spring-ai-openai-spring-boot-starter&lt;/artifactId&gt;
+&lt;/dependency&gt;
+&lt;dependency&gt;
+    &lt;groupId&gt;org.springframework.ai&lt;/groupId&gt;
+    &lt;artifactId&gt;spring-ai-qdrant-store-spring-boot-starter&lt;/artifactId&gt;
+    &lt;!-- OR: spring-ai-pgvector-store-spring-boot-starter --&gt;
+    &lt;!-- OR: spring-ai-redis-store-spring-boot-starter --&gt;
+&lt;/dependency&gt;</span>
+
+<span class="cm">// ── application.yml ───────────────────────────────────────────────────</span>
+<span class="cm">spring:
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY}
+      embedding:
+        options:
+          model: text-embedding-3-small
+    vectorstore:
+      qdrant:
+        host: localhost
+        port: 6334
+        collection-name: documents
+        initialize-schema: true</span>
+
+<span class="cm">// ── Using Spring AI VectorStore ───────────────────────────────────────</span>
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">SpringAiRagService</span> {
+
+    <span class="kw">private final</span> <span class="ty">VectorStore</span>      vectorStore;
+    <span class="kw">private final</span> <span class="ty">ChatClient</span>       chatClient;
+    <span class="kw">private final</span> <span class="ty">EmbeddingModel</span>   embeddingModel;
+
+    <span class="cm">// Index documents</span>
+    <span class="kw">public void</span> <span class="mt">addDocuments</span>(<span class="ty">List</span>&lt;<span class="ty">String</span>&gt; texts, <span class="ty">String</span> source) {
+        <span class="ty">List</span>&lt;<span class="ty">Document</span>&gt; documents = texts.<span class="mt">stream</span>()
+            .<span class="mt">map</span>(text -> <span class="kw">new</span> <span class="ty">Document</span>(text, <span class="ty">Map</span>.<span class="mt">of</span>(<span class="st">"source"</span>, source)))
+            .<span class="mt">toList</span>();
+
+        <span class="ty">TokenTextSplitter</span> splitter = <span class="kw">new</span> <span class="ty">TokenTextSplitter</span>(<span class="nu">512</span>, <span class="nu">64</span>, <span class="nu">5</span>, <span class="nu">10000</span>, <span class="kw">true</span>);
+        <span class="ty">List</span>&lt;<span class="ty">Document</span>&gt; chunks = splitter.<span class="mt">apply</span>(documents);
+
+        vectorStore.<span class="mt">add</span>(chunks); <span class="cm">// auto-embeds and stores</span>
+    }
+
+    <span class="cm">// Search</span>
+    <span class="kw">public</span> <span class="ty">List</span>&lt;<span class="ty">Document</span>&gt; <span class="mt">search</span>(<span class="ty">String</span> query, <span class="ty">String</span> sourceFilter) {
+        <span class="kw">return</span> vectorStore.<span class="mt">similaritySearch</span>(
+            <span class="ty">SearchRequest</span>.<span class="mt">query</span>(query)
+                .<span class="mt">withTopK</span>(<span class="nu">5</span>)
+                .<span class="mt">withSimilarityThreshold</span>(<span class="nu">0.75</span>)  <span class="cm">// min similarity score</span>
+                .<span class="mt">withFilterExpression</span>(<span class="st">"source == '"</span> + sourceFilter + <span class="st">"'"</span>)
+        );
+    }
+
+    <span class="cm">// Full RAG answer</span>
+    <span class="kw">public</span> <span class="ty">String</span> <span class="mt">ragAnswer</span>(<span class="ty">String</span> question) {
+        <span class="kw">return</span> chatClient.<span class="mt">prompt</span>()
+            .<span class="mt">advisors</span>(<span class="kw">new</span> <span class="ty">QuestionAnswerAdvisor</span>(vectorStore,
+                <span class="ty">SearchRequest</span>.<span class="mt">defaults</span>().<span class="mt">withTopK</span>(<span class="nu">5</span>)))
+            .<span class="mt">user</span>(question)
+            .<span class="mt">call</span>()
+            .<span class="mt">content</span>();
+    }
+}
+<div class="code-label">Spring AI — VectorStore</div></pre>
+</section>
+
+<!-- ══════════════════════════════════════
+     12. PERFORMANCE TUNING
+══════════════════════════════════════ -->
+<section id="perf">
+  <div class="sh"><div class="sn" style="background:var(--a6)">12</div><h2>Performance Tuning & Production Best Practices</h2></div>
+
+<pre><span class="cm">// ── Memory planning for vector databases ─────────────────────────────</span>
+<span class="cm">//</span>
+<span class="cm">// Raw vector size:  1M vectors × 1536 dims × 4 bytes = 6.1 GB</span>
+<span class="cm">// HNSW graph extra: 1M × M=16 × 8 bytes × 2 layers = 256 MB</span>
+<span class="cm">// Payload (metadata): 1M × ~500 bytes = 500 MB</span>
+<span class="cm">// Total: ~7 GB RAM for 1M vectors</span>
+<span class="cm">//</span>
+<span class="cm">// With Scalar Quantization (Int8): 6.1 GB → 1.5 GB (4x reduction)</span>
+<span class="cm">// With Binary Quantization:        6.1 GB → 0.19 GB (32x reduction, more recall loss)</span>
+<span class="cm">// With Product Quantization:       6.1 GB → 0.05 GB (120x reduction, biggest recall loss)</span>
+
+<span class="cm">// ── Qdrant — Scalar Quantization config ──────────────────────────────</span>
+<span class="cm">//
+// quantization_config:
+//   scalar:
+//     type: int8         # compress float32 → int8 (4x smaller)
+//     quantile: 0.99     # clip outliers
+//     always_ram: true   # keep quantized vectors in RAM
+//                        # full-precision on disk (rescore on top-k)
+//
+// Qdrant search with rescore:
+// SearchPoints.params.quantization.rescore = true  # rescore top-k with full vectors</span>
+
+<span class="cm">// ── Batch upsert for high ingestion ──────────────────────────────────</span>
+<span class="kw">public void</span> <span class="mt">batchUpsert</span>(<span class="ty">List</span>&lt;<span class="ty">Document</span>&gt; docs) <span class="kw">throws</span> <span class="ty">Exception</span> {
+    <span class="kw">int</span> batchSize = <span class="nu">100</span>;
+    <span class="kw">for</span> (<span class="kw">int</span> i = <span class="nu">0</span>; i < docs.<span class="mt">size</span>(); i += batchSize) {
+        <span class="ty">List</span>&lt;<span class="ty">Document</span>&gt; batch = docs.<span class="mt">subList</span>(i, <span class="ty">Math</span>.<span class="mt">min</span>(i + batchSize, docs.<span class="mt">size</span>()));
+
+        <span class="cm">// Embed entire batch in one API call</span>
+        <span class="ty">List</span>&lt;<span class="kw">float</span>[]&gt; embeddings = embedder.<span class="mt">embedBatch</span>(
+            batch.<span class="mt">stream</span>().<span class="mt">map</span>(<span class="ty">Document</span>::<span class="mt">getContent</span>).<span class="mt">toList</span>()
+        );
+
+        <span class="cm">// Upsert batch to vector store</span>
+        vectorStore.<span class="mt">upsertBatch</span>(batch, embeddings);
+
+        <span class="ty">Thread</span>.<span class="mt">sleep</span>(<span class="nu">100</span>); <span class="cm">// rate limiting for embedding API</span>
+    }
+}
+
+<span class="cm">// ── Caching embeddings — don't re-embed same text ─────────────────────</span>
+<span class="kw">private final</span> <span class="ty">Cache</span>&lt;<span class="ty">String</span>, <span class="kw">float</span>[]&gt; embeddingCache = <span class="ty">Caffeine</span>.<span class="mt">newBuilder</span>()
+    .<span class="mt">maximumSize</span>(<span class="nu">10_000</span>)
+    .<span class="mt">expireAfterWrite</span>(<span class="ty">Duration</span>.<span class="mt">ofHours</span>(<span class="nu">1</span>))
+    .<span class="mt">build</span>();
+
+<span class="kw">public</span> <span class="kw">float</span>[] <span class="mt">embedCached</span>(<span class="ty">String</span> text) {
+    <span class="kw">return</span> embeddingCache.<span class="mt">get</span>(text, t -> embedder.<span class="mt">embed</span>(t));
+}
+<div class="code-label">Performance Tuning</div></pre>
+
+  <table>
+    <thead><tr><th>Scenario</th><th>Recommendation</th><th>Config</th></tr></thead>
+    <tbody>
+      <tr><td>Highest recall</td><td>Increase ef at query time</td><td><code>SearchParams.ef = 256</code></td></tr>
+      <tr><td>Lowest latency</td><td>Reduce ef, use quantization</td><td><code>ef = 32, quantization = int8</code></td></tr>
+      <tr><td>Memory limited</td><td>Product quantization + on-disk</td><td><code>PQ, memmap_threshold = 10000</code></td></tr>
+      <tr><td>Billion-scale</td><td>Use Milvus/Pinecone + IVF+PQ</td><td>nlist=4096, nprobe=64</td></tr>
+      <tr><td>Fresh inserts</td><td>HNSW supports incremental</td><td>No rebuild needed</td></tr>
+      <tr><td>Exact results needed</td><td>Brute-force / FLAT index</td><td>Only for &lt;50K vectors</td></tr>
+      <tr><td>Hybrid text+vector</td><td>Elasticsearch or Qdrant sparse</td><td>BM25 + dense vector combined</td></tr>
+      <tr><td>Multi-tenant</td><td>Filter by tenant_id payload</td><td>Qdrant payload index on tenant_id</td></tr>
+    </tbody>
+  </table>
+
+  <h3>Master Decision Tree</h3>
+  <div class="flow">
+    <div class="fr">
+      <div class="bx a">Start: Need similarity search?</div>
+    </div>
+    <div class="fr" style="margin-left:1rem">
+      <div class="fa">↓ YES</div>
+    </div>
+    <div class="fr" style="margin-left:1rem">
+      <div class="bx y">Already using PostgreSQL?</div>
+      <div class="fa">→ YES →</div>
+      <div class="bx g">pgvector (&lt;5M vectors)</div>
+    </div>
+    <div class="fr" style="margin-left:1rem">
+      <div class="fa">↓ NO</div>
+    </div>
+    <div class="fr" style="margin-left:1rem">
+      <div class="bx y">Need managed, zero ops?</div>
+      <div class="fa">→ YES →</div>
+      <div class="bx g">Pinecone or Qdrant Cloud</div>
+    </div>
+    <div class="fr" style="margin-left:1rem">
+      <div class="fa">↓ NO</div>
+    </div>
+    <div class="fr" style="margin-left:1rem">
+      <div class="bx y">Self-hosted, &lt;100M vectors?</div>
+      <div class="fa">→ YES →</div>
+      <div class="bx g">Qdrant (best performance/features)</div>
+    </div>
+    <div class="fr" style="margin-left:1rem">
+      <div class="fa">↓ NO (billions of vectors)</div>
+    </div>
+    <div class="fr" style="margin-left:1rem">
+      <div class="bx y">Need Kubernetes native?</div>
+      <div class="fa">→ YES →</div>
+      <div class="bx g">Milvus + DiskANN</div>
+      <div class="fa">→ NO →</div>
+      <div class="bx g">Pinecone (serverless)</div>
+    </div>
+  </div>
+</section>
+
+<!-- SUMMARY TABLE -->
+<section>
+  <div class="sh"><div class="sn" style="background:var(--accent)">✓</div><h2>Quick Reference Summary</h2></div>
+
+  <table>
+    <thead><tr><th>Topic</th><th>Key Rule</th></tr></thead>
+    <tbody>
+      <tr><td>What are vectors</td><td>High-dimensional float arrays. Similar meaning = geometrically close in vector space.</td></tr>
+      <tr><td>Best embedding model</td><td>OpenAI text-embedding-3-small (paid, best), bge-large-en-v1.5 (free, excellent quality)</td></tr>
+      <tr><td>Best similarity metric</td><td>Cosine for text, Dot Product for scoring/recommendations, Euclidean for images</td></tr>
+      <tr><td>Best ANN algorithm</td><td>HNSW for most cases. IVF+PQ for billion-scale or memory-constrained.</td></tr>
+      <tr><td>HNSW tuning</td><td>M=16 (connections), ef_construct=200 (build), ef=128 (query time recall)</td></tr>
+      <tr><td>Best vector DB for Java</td><td>Qdrant (self-hosted), Pinecone (managed), pgvector (already on Postgres)</td></tr>
+      <tr><td>RAG chunk size</td><td>256-512 tokens with 10-15% overlap. Retrieve top 3-7 chunks.</td></tr>
+      <tr><td>Memory savings</td><td>Int8 quantization: 4x reduction. Binary: 32x reduction. PQ: 120x reduction.</td></tr>
+      <tr><td>Filtered search</td><td>Use Qdrant (filter inside graph) not post-filtering (can return &lt;k results)</td></tr>
+      <tr><td>Hybrid search</td><td>Combine vector similarity (dense) + BM25 keyword (sparse) for best results</td></tr>
+      <tr><td>Spring AI</td><td>QuestionAnswerAdvisor handles full RAG pipeline. Supports Qdrant, pgvector, Redis.</td></tr>
+      <tr><td>Batch ingestion</td><td>Embed in batches of 100-500. Cache embeddings. Don't re-embed unchanged content.</td></tr>
+    </tbody>
+  </table>
+
+  <div class="cl-box tip"><div class="ci">💡</div><div>
+    <strong>Golden rules:</strong>
+    <ul style="margin-top:.5rem">
+      <li>Start with <strong>pgvector</strong> if you have PostgreSQL — add a vector DB only when you need filtering performance or &gt;10M vectors</li>
+      <li>Always <strong>normalize vectors</strong> for cosine similarity — dot product on normalized = cosine, 40% faster</li>
+      <li>Use <strong>Matryoshka embeddings</strong> (OpenAI 3-small supports it) — can truncate to 256 dims at query time for 6x speedup</li>
+      <li><strong>RAG quality</strong> depends more on chunking strategy and retrieval quality than on the LLM model</li>
+      <li><strong>Quantize always in production</strong> — Int8 has &lt;1% recall loss but 4x memory savings</li>
+    </ul>
+  </div></div>
+</section>
+
+</div>
+</body>
+</html>

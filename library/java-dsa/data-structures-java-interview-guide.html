@@ -1,0 +1,1614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Data Structures Interview Guide — Java Edition · Library · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../../assets/style.css">
+<script>try{if(localStorage.getItem('sd-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="../../index.html">SystemDesign<span>.hinglish</span></a><div class="toplinks"><a href="../../index.html#chapters">Chapters</a><a href="../../library/index.html">Library</a><a href="../../index.html#how">Kaise padhein</a><a href="../../links.html">URL Guide</a></div><button class="theme-toggle" aria-label="theme">◐</button></header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="../index.html"><span class="num">⌂</span> Library home</a></li></ul>
+<div class="group">System Design &amp; Architecture</div><ul>
+<li><a href="../system-design/system-design-mastery.html"><span class="num">📘</span> System Design Mastery</a></li>
+<li><a href="../system-design/smart-parking-system-hld-lld.html"><span class="num">📘</span> Smart Parking System</a></li>
+<li><a href="../system-design/98-system-design-concepts.html"><span class="num">📝</span> 98 System Design Concepts</a></li>
+<li><a href="../system-design/email-notification-scheduler-design.html"><span class="num">📄</span> Email Notification Scheduler</a></li>
+<li><a href="../system-design/schedule-reminder-2m-scale-architecture.html"><span class="num">📝</span> Scale-Ready Schedule Reminder System</a></li>
+</ul>
+<div class="group">Java Core &amp; DSA</div><ul>
+<li><a href="../java-dsa/java-core-mastery-guide.html"><span class="num">📘</span> Java Core Mastery Guide</a></li>
+<li><a href="../java-dsa/java-garbage-collection-guide.html"><span class="num">📘</span> Java Garbage Collection</a></li>
+<li><a href="../java-dsa/java-ds-leetcode-mastery.html"><span class="num">📘</span> Java Data Structures for LeetCode</a></li>
+<li><a class="active" href="../java-dsa/data-structures-java-interview-guide.html"><span class="num">📄</span> Data Structures Interview Guide</a></li>
+<li><a href="../java-dsa/lru-cache-java-visual-explainer.html"><span class="num">📘</span> LRU Cache</a></li>
+</ul>
+<div class="group">Spring Boot &amp; Microservices</div><ul>
+<li><a href="../spring-boot/spring-bean-lifecycle.html"><span class="num">📘</span> Spring Bean Lifecycle</a></li>
+<li><a href="../spring-boot/spring-transactional-guide.html"><span class="num">📘</span> @Transactional</a></li>
+<li><a href="../spring-boot/spring-circuit-breaker-resilience4j.html"><span class="num">📘</span> Circuit Breaker (Resilience4j)</a></li>
+<li><a href="../spring-boot/spring-security-jwt-logging-deploy.html"><span class="num">📘</span> Spring Security · JWT · AOP · Logging · Blue-Green</a></li>
+<li><a href="../spring-boot/saga-pattern-complete-guide.html"><span class="num">📄</span> Saga Pattern — Complete Guide</a></li>
+<li><a href="../spring-boot/saga-pattern-spring-boot-quick-reference.html"><span class="num">📄</span> Saga — Quick Reference</a></li>
+</ul>
+<div class="group">Kafka · Redis · Cassandra &amp; Data</div><ul>
+<li><a href="../data-messaging/kafka-redis-cassandra-mastery.html"><span class="num">📘</span> Kafka · Redis · Cassandra</a></li>
+<li><a href="../data-messaging/northguard-xinfra-linkedin-kafka-replacement.html"><span class="num">📘</span> Northguard &amp; Xinfra</a></li>
+</ul>
+<div class="group">GenAI &amp; AI</div><ul>
+<li><a href="../genai/java-genai-complete-guide.html"><span class="num">📄</span> Java + Generative AI</a></li>
+<li><a href="../genai/vector-database-mastery.html"><span class="num">📘</span> Vector Databases</a></li>
+</ul>
+<div class="group">Payments &amp; Interview Prep</div><ul>
+<li><a href="../interview-prep/paytm-backend-interview-guide.html"><span class="num">📄</span> Paytm Backend Interview Guide</a></li>
+<li><a href="../interview-prep/paytm-dsa-questions.html"><span class="num">📄</span> Paytm DSA Questions</a></li>
+</ul>
+</nav>
+<main class="content lib-doc">
+<div class="chapter-hero"><span class="chapter-num">Java Core &amp; DSA</span><h1>Data Structures Interview Guide — Java Edition</h1><p class="lead">12 chapters (arrays se DP tak): core concepts, commented Java solutions, complexity cheat sheet, interview strategy + 8-week study plan. / Full DSA prep book with explained code.</p><div class="lib-meta"><span class="badge fmt-pdf">📄 PDF → Web</span><span class="badge time">⏱ ~65 min read</span><span class="badge pages">42 pages (original)</span></div><div class="tags"><span class="tag">12 chapters</span><span class="tag">Java</span><span class="tag">LeetCode patterns</span><span class="tag">Study plan</span></div><div class="lib-dl"><a class="btn small" href="../files/data-structures-java-interview-guide.pdf" download>⬇ Download PDF</a></div></div>
+<div class="callout tip"><strong>Study note</strong>Ye page original document se auto-convert kiya gaya hai (headings, tables, code preserve). Exact original layout / diagrams ke liye upar se file download karo.</div>
+<h2>JAVA EDITION — Beautified with Comments &amp; Explanations</h2>
+<p><i>Arrays • Strings • Linked Lists • Stacks • Queues</i></p>
+<p><i>Trees • Graphs • Hash Maps • Heaps • Tries • DP</i></p>
+<p><i>Every code block is annotated with // WHY comments explaining the reasoning,</i></p>
+<p><i>data-structure choices, and algorithmic insights for each step.</i></p>
+<h2>JAVA COLLECTIONS — QUICK REFERENCE</h2>
+<h3>Essential classes and when to use each one:</h3>
+<p class="lbl"><b>Java Collections Cheat-Sheet</b></p>
+<pre><code>// ARRAY (fixed size, O(1) access)
+int[] arr = new int[n];
+// WHY int[]: fastest option when size is known; no boxing overhead
+// DYNAMIC ARRAY (resizable, amortized O(1) append)
+List&lt;Integer&gt; list = new ArrayList&lt;&gt;();
+// WHY ArrayList: use when you need dynamic size but still O(1) random access
+// STACK (LIFO — Last In First Out)
+Deque&lt;Integer&gt; stack = new ArrayDeque&lt;&gt;();
+stack.push(x); // add to top O(1)
+stack.pop(); // remove top O(1)
+stack.peek(); // view top O(1)
+// WHY ArrayDeque over Stack: ArrayDeque is faster (no synchronization overhead)
+// QUEUE (FIFO — First In First Out)
+Queue&lt;Integer&gt; queue = new LinkedList&lt;&gt;();
+queue.offer(x); // enqueue O(1)
+queue.poll(); // dequeue O(1)
+queue.peek(); // front O(1)
+// WHY Queue for BFS: processes nodes level by level (breadth-first)
+// DEQUE (double-ended — both Stack + Queue)
+Deque&lt;Integer&gt; dq = new ArrayDeque&lt;&gt;();
+dq.offerFirst(x); dq.offerLast(x);
+dq.pollFirst(); dq.pollLast();
+// WHY Deque: sliding window max problems need add/remove from both ends
+// MIN-HEAP (smallest element always at root)
+PriorityQueue&lt;Integer&gt; minHeap = new PriorityQueue&lt;&gt;();
+// WHY PriorityQueue: O(log n) insert/extract — perfect for Top-K problems
+// MAX-HEAP (largest element always at root)
+PriorityQueue&lt;Integer&gt; maxHeap = new PriorityQueue&lt;&gt;(Collections.reverseOrder());
+// CUSTOM HEAP (e.g. sort int[] by first element)
+PriorityQueue&lt;int[]&gt; pq = new PriorityQueue&lt;&gt;((a, b) -&gt; a[0] - b[0]);
+// WHY lambda comparator: a[0]-b[0] = ascending (min-heap); b[0]-a[0] = descending
+// HASHMAP (O(1) avg for get/put/containsKey)
+Map&lt;Integer, Integer&gt; map = new HashMap&lt;&gt;();
+map.getOrDefault(key, 0); // safe read — avoids NullPointerException
+map.merge(key, 1, Integer::sum); // increment count in one line
+map.computeIfAbsent(key, k -&gt; new ArrayList&lt;&gt;()).add(val); // group items
+// WHY HashMap: frequency counting, two-sum lookup, memoization
+// TREEMAP (sorted by key, O(log n))
+TreeMap&lt;Integer, Integer&gt; tm = new TreeMap&lt;&gt;();
+tm.floorKey(k); // largest key &lt;= k
+tm.ceilingKey(k); // smallest key &gt;= k
+// WHY TreeMap: when you need sorted order + range queries (e.g. time-based store)
+// LINKEDHASHMAP (insertion-order OR access-order)
+Map&lt;Integer, Integer&gt; lhm = new LinkedHashMap&lt;&gt;(16, 0.75f, true);
+// WHY accessOrder=true: moves recently used entry to tail -&gt; perfect for LRU Cache</code></pre>
+<h2>1. ARRAYS</h2>
+<h3>Core Concepts</h3>
+<p>Contiguous memory — O(1) random access by index, O(n) insert/delete int[] in Java is fixed size. Use ArrayList&lt;Integer&gt; for dynamic resizing Arrays.sort(arr) — O(n log n). For primitives: Dual-Pivot QuickSort. For objects: TimSort (stable) Most array interview problems reduce to: Two Pointers, Sliding Window, or Prefix Sum</p>
+<p class="lbl"><b>Two Pointers — Two Sum on Sorted Array</b></p>
+<pre><code>// PATTERN: Two Pointers — O(n) time, O(1) space
+// PROBLEM: Given sorted array, find two numbers that sum to target
+// WHY Two Pointers: sorting gives us order; we exploit it to skip O(n^2) brute force
+public int[] twoSumSorted(int[] arr, int target) {
+    // STEP 1: Place one pointer at start, one at end
+    // WHY: If sum is too small, move left pointer right (increase sum)
+    // If sum is too big, move right pointer left (decrease sum)
+    int left = 0;
+    int right = arr.length - 1;
+    while (left &lt; right) {
+        int sum = arr[left] + arr[right];
+        if (sum == target) {
+            return new int[]{left, right}; // found it
+        } else if (sum &lt; target) {
+            left++; // WHY: need bigger sum, advance left
+        } else {
+            right--; // WHY: need smaller sum, retreat right
+        }
+    }
+    return new int[]{-1, -1}; // no pair found
+}
+// TIME: O(n) — single pass SPACE: O(1) — no extra memory</code></pre>
+<p><b>WHY THIS WORKS: Sorting creates monotone structure. Two pointers exploit it — moving left increases sum, moving right decreases it. This turns O(n²) brute force into O(n).</b></p>
+<p class="lbl"><b>Sliding Window — Max Sum Subarray of Size K</b></p>
+<pre><code>// PATTERN: Sliding Window (Fixed Size) — O(n) time, O(1) space
+// PROBLEM: Find maximum sum subarray of exactly size k
+// WHY Sliding Window: instead of recalculating sum from scratch each time,
+// we slide the window — subtract the element leaving, add element entering
+public int maxSumSubarray(int[] arr, int k) {
+    // STEP 1: Compute sum of first window [0 .. k-1]
+    int windowSum = 0;
+    for (int i = 0; i &lt; k; i++) {
+        windowSum += arr[i];
+    }
+    int best = windowSum;
+    // STEP 2: Slide window one position at a time
+    // WHY: arr[i] enters the window, arr[i-k] leaves the window
+    for (int i = k; i &lt; arr.length; i++) {
+        windowSum += arr[i]; // new element enters from right
+        windowSum -= arr[i - k]; // old element leaves from left
+        best = Math.max(best, windowSum);
+    }
+    return best;
+}
+// TIME: O(n) — two passes SPACE: O(1)</code></pre>
+<p><b>WHY THIS WORKS: Naive approach: O(n*k) — recalculate full sum each time. Sliding window reuses previous sum: O(n). We only process each element once (in + out).</b></p>
+<p class="lbl"><b>Prefix Sum + HashMap — Subarray Sum Equals K</b></p>
+<pre><code>// PATTERN: Prefix Sum + HashMap — O(n) time, O(n) space
+// PROBLEM: Count subarrays with sum exactly equal to k
+// WHY: We can&#x27;t use sliding window (negative numbers possible)
+// Instead, prefix sum trick: if prefixSum[j] - prefixSum[i] == k
+// then subarray [i+1..j] sums to k
+public int subarraySum(int[] nums, int k) {
+    // STEP 1: HashMap stores (prefixSum -&gt; how many times we&#x27;ve seen it)
+    // WHY: We need to count, not just detect, so we store frequency
+    Map&lt;Integer, Integer&gt; freq = new HashMap&lt;&gt;();
+    freq.put(0, 1); // WHY put(0,1): handles subarrays starting at index 0
+    int count = 0;
+    int prefixSum = 0;
+    for (int n : nums) {
+        prefixSum += n;
+        // STEP 2: Check if (prefixSum - k) was seen before
+        // WHY: If prefixSum - k exists, the subarray between those points sums to k
+        count += freq.getOrDefault(prefixSum - k, 0);
+        // STEP 3: Record current prefixSum in map
+        freq.merge(prefixSum, 1, Integer::sum);
+    }
+    return count;
+}
+// TIME: O(n) SPACE: O(n) for the HashMap</code></pre>
+<p><b>WHY THIS WORKS: Key insight: sum(i..j) = prefix[j] - prefix[i-1]. So if prefix[j] - k appeared before as a prefix, that subarray sums to k. HashMap gives O(1) lookup.</b></p>
+<p class="lbl"><b>Kadane's Algorithm — Maximum Subarray Sum</b></p>
+<pre><code>// PATTERN: Kadane&#x27;s Algorithm — O(n) time, O(1) space
+// PROBLEM: Find the contiguous subarray with the largest sum
+// WHY Kadane&#x27;s: At each position, we make a greedy choice:
+// - Extend the current subarray (add current element)
+// - OR start a fresh subarray from current element
+// Whichever gives more is kept
+public int maxSubArray(int[] nums) {
+    // STEP 1: Start with first element as both current and global max
+    int maxCurrent = nums[0]; // best subarray ending exactly at current index
+    int maxGlobal = nums[0]; // best subarray seen anywhere so far
+    for (int i = 1; i &lt; nums.length; i++) {
+        // STEP 2: Greedy choice — extend existing or start fresh?
+        // WHY Math.max: if maxCurrent went negative, it HURTS to extend it
+        // starting fresh gives nums[i] alone, which is better
+        maxCurrent = Math.max(nums[i], maxCurrent + nums[i]);
+        // STEP 3: Update global maximum if current subarray is best so far
+        maxGlobal = Math.max(maxGlobal, maxCurrent);
+    }
+    return maxGlobal;
+}
+// TIME: O(n) SPACE: O(1) — only 2 variables, no array needed</code></pre>
+<p><b>WHY THIS WORKS: Greedy insight: a negative prefix sum always hurts — discard it and restart. maxCurrent tracks best ending here; maxGlobal is the answer.</b></p>
+<h3>Top Array Interview Questions</h3>
+<p class="lbl"><b>Two Sum (unsorted — HashMap)</b></p>
+<p>Use map to store value→index. For each num, check if target-num is in map. O(n) time, O(n) space</p>
+<p class="lbl"><b>Container With Most Water</b></p>
+<p>Two pointers. area = min(height[l], height[r]) * (r - l). Move the shorter side inward</p>
+<p class="lbl"><b>3Sum</b></p>
+<p>Sort array. Fix index i, then two-pointer on [i+1, n-1]. Skip duplicates carefully</p>
+<p class="lbl"><b>Product of Array Except Self</b></p>
+<p>Left pass: product of all elements to the left. Right pass: multiply by product to the right. No division needed</p>
+<p class="lbl"><b>Trapping Rain Water</b></p>
+<p>For each cell: water = min(maxLeft, maxRight) - height[i]. Precompute leftMax[] and rightMax[] arrays</p>
+<p class="lbl"><b>Jump Game</b></p>
+<p>Greedy. Track maxReach. If i &gt; maxReach at any point, return false</p>
+<p class="lbl"><b>Merge Intervals</b></p>
+<p>Sort by start time. For each interval, if it overlaps with last in result, extend end. Else add new interval</p>
+<p class="lbl"><b>Rotate Array by K</b></p>
+<p>Reverse all → reverse first k → reverse rest. O(n) time, O(1) space</p>
+<p class="lbl"><b>Find Duplicate (Floyd's Cycle)</b></p>
+<p>Treat array as linked list (val = next node). Detect cycle with slow/fast pointers</p>
+<p class="lbl"><b>Maximum Product Subarray</b></p>
+<p>Track both maxProd and minProd (negatives can flip sign). Update at each step</p>
+<h2>2. STRINGS</h2>
+<h3>Core Concepts in Java</h3>
+<p>String is IMMUTABLE — every + creates a new object. Use StringBuilder for building s.charAt(i) not s[i] | s.length() not s.length | s.toCharArray() for char manipulation int[26] count array is fastest for lowercase letter frequency (no HashMap overhead) Character utility: Character.isLetterOrDigit(c) Character.toLowerCase(c)</p>
+<p class="lbl"><b>Sliding Window — Longest Substring Without Repeating Characters</b></p>
+<pre><code>// PATTERN: Sliding Window (Variable Size) — O(n) time, O(1) space (26-char map)
+// PROBLEM: Find the length of the longest substring without repeating characters
+// WHY Sliding Window: we grow the window right, shrink from left when duplicate found
+// The key insight: we only ever MOVE FORWARD — no nested loops needed
+public int lengthOfLongestSubstring(String s) {
+    // STEP 1: Map stores char -&gt; its most recent index
+    // WHY HashMap not array: handles any Unicode char, not just lowercase
+    Map&lt;Character, Integer&gt; seen = new HashMap&lt;&gt;();
+    int left = 0; // left boundary of current valid window
+    int best = 0;
+    for (int right = 0; right &lt; s.length(); right++) {
+        char c = s.charAt(right);
+        // STEP 2: If char was seen AND is still inside our current window
+        // WHY seen.get(c) &gt;= left: char might have appeared before the window — ignore it
+        if (seen.containsKey(c) &amp;&amp; seen.get(c) &gt;= left) {
+            left = seen.get(c) + 1; // shrink window from left
+        }
+        // STEP 3: Record/update most recent position of this char
+        seen.put(c, right);
+        // STEP 4: Update answer — window size is right - left + 1
+        best = Math.max(best, right - left + 1);
+    }
+    return best;
+}
+// TIME: O(n) — each char processed once SPACE: O(min(n, alphabet))</code></pre>
+<p><b>WHY THIS WORKS: Key insight: when a duplicate is found, we don't restart from scratch. We jump left pointer just past the previous occurrence. Each character is visited at most twice — O(n) total.</b></p>
+<p class="lbl"><b>Frequency Array — Valid Anagram</b></p>
+<pre><code>// PATTERN: Frequency Array — O(n) time, O(1) space
+// PROBLEM: Check if two strings are anagrams of each other
+// WHY int[26]: anagram means same chars same counts. int array is faster than HashMap
+// because array access is O(1) with no hashing overhead
+public boolean isAnagram(String s, String t) {
+    // STEP 1: Length check — different lengths can&#x27;t be anagrams
+    if (s.length() != t.length()) return false;
+    // STEP 2: Single frequency array — increment for s, decrement for t
+    // WHY one array: equivalent to comparing two separate count arrays but O(1) space
+    int[] count = new int[26]; // slots 0-25 for &#x27;a&#x27;-&#x27;z&#x27;
+    for (char c : s.toCharArray()) count[c - &#x27;a&#x27;]++; // +1 for each char in s
+    for (char c : t.toCharArray()) count[c - &#x27;a&#x27;]--; // -1 for each char in t
+    // STEP 3: If all counts are 0, every char balanced out — perfect anagram
+    for (int x : count) {
+        if (x != 0) return false; // imbalance means chars don&#x27;t match
+    }
+    return true;
+}
+// TIME: O(n) SPACE: O(1) — array size fixed at 26, independent of input</code></pre>
+<p class="lbl"><b>Two Pointers — Valid Palindrome</b></p>
+<pre><code>// PATTERN: Two Pointers + char filtering — O(n) time, O(1) space
+// PROBLEM: Check if a string is a palindrome (ignore non-alphanumeric, case-insensitive)
+public boolean isPalindrome(String s) {
+    int left = 0;
+    int right = s.length() - 1;
+    while (left &lt; right) {
+        // STEP 1: Skip non-alphanumeric chars on both sides
+        // WHY: Problem says &quot;only consider alphanumeric characters&quot;
+        while (left &lt; right &amp;&amp; !Character.isLetterOrDigit(s.charAt(left))) left++;
+        while (left &lt; right &amp;&amp; !Character.isLetterOrDigit(s.charAt(right))) right--;
+        // STEP 2: Compare chars (case-insensitive)
+        if (Character.toLowerCase(s.charAt(left)) !=
+        Character.toLowerCase(s.charAt(right))) {
+            return false; // mismatch found — not a palindrome
+        }
+        left++;
+        right--;
+    }
+    return true; // all pairs matched
+}
+// TIME: O(n) SPACE: O(1) — no extra data structures</code></pre>
+<p class="lbl"><b>HashMap Grouping — Group Anagrams</b></p>
+<pre><code>// PATTERN: Sorting + HashMap grouping — O(n * k log k) where k = max word length
+// PROBLEM: Group strings that are anagrams of each other
+// WHY sorting: two strings are anagrams iff their sorted forms are identical
+// Sorted form becomes the &quot;canonical key&quot; for grouping
+public List&lt;List&lt;String&gt;&gt; groupAnagrams(String[] strs) {
+    // STEP 1: Map from canonical key -&gt; list of words with that key
+    // WHY computeIfAbsent: creates list on first encounter, avoids null check
+    Map&lt;String, List&lt;String&gt;&gt; groups = new HashMap&lt;&gt;();
+    for (String word : strs) {
+        // STEP 2: Sort the characters to get the canonical form
+        char[] chars = word.toCharArray();
+        Arrays.sort(chars); // &quot;eat&quot;,&quot;tea&quot;,&quot;ate&quot; all -&gt; &quot;aet&quot;
+        String key = new String(chars); // WHY new String: convert array back to string
+        // STEP 3: Add word to its group (create group if first time)
+        groups.computeIfAbsent(key, k -&gt; new ArrayList&lt;&gt;()).add(word);
+    }
+    return new ArrayList&lt;&gt;(groups.values());
+}
+// TIME: O(n * k log k) SPACE: O(n * k) for the map</code></pre>
+<h3>Top String Interview Questions</h3>
+<p class="lbl"><b>Minimum Window Substring</b></p>
+<p>Sliding window. need=freq of target chars. when have==need, shrink from left while valid. Track min window</p>
+<p class="lbl"><b>Longest Palindromic Substring</b></p>
+<p>Expand from center. Two cases: odd length (center=i) and even (center=i,i+1). Track best start+length</p>
+<p class="lbl"><b>Palindromic Substrings (count)</b></p>
+<p>Same expand-from-center. Count each valid palindrome during expansion</p>
+<p class="lbl"><b>Word Break (DP)</b></p>
+<p>boolean[] dp where dp[i]=true if s[0..i-1] can be formed. Use HashSet for O(1) word lookup</p>
+<p class="lbl"><b>Valid Parentheses</b></p>
+<p>Deque as stack. Push open brackets. On close: if stack empty or top doesn't match → false</p>
+<p class="lbl"><b>Encode &amp; Decode Strings</b></p>
+<p>Length-prefix encoding: '4#word'. Encode: len+'#'+str. Decode: scan for '#', extract length</p>
+<p class="lbl"><b>Longest Repeating Char Replacement</b></p>
+<p>Sliding window. Key: (windowSize - maxFreqChar) &lt;= k. If not, shrink from left</p>
+<p class="lbl"><b>Reverse Words in String</b></p>
+<p>s.trim().split('\\s+') then reverse array then String.join(' ', parts)</p>
+<h2>3. LINKED LISTS</h2>
+<p class="lbl"><b>ListNode Definition &amp; Setup Patterns</b></p>
+<pre><code>// NODE DEFINITION — memorize this for every linked list problem
+class ListNode {
+    int val; // the data stored in this node
+    ListNode next; // pointer to the next node (null if last)
+    ListNode(int val) { this.val = val; }
+}
+// COMMON SETUP PATTERNS:
+// WHY dummy head: many ops change head (insert before, remove head)
+// dummy.next = head avoids special-casing the head node
+ListNode dummy = new ListNode(0);
+dummy.next = head;
+ListNode curr = dummy;
+// WHY two-pointer naming: descriptive names prevent pointer confusion
+ListNode slow = head; // moves 1 step at a time
+ListNode fast = head; // moves 2 steps at a time</code></pre>
+<p class="lbl"><b>In-place Reversal — Reverse Linked List</b></p>
+<pre><code>// PATTERN: In-place Iterative Reversal — O(n) time, O(1) space
+// PROBLEM: Reverse a singly linked list
+// WHY iterative over recursive: recursive uses O(n) call stack space
+// KEY INSIGHT: we must save next before overwriting the .next pointer
+public ListNode reverseList(ListNode head) {
+    ListNode prev = null; // will become the new tail (points to null)
+    ListNode curr = head; // starts at original head
+    // BEFORE: null &lt;- ? ... prev curr -&gt; next -&gt; ...
+    // AFTER: null &lt;- [reversed chain] prev curr=null
+    while (curr != null) {
+        // STEP 1: Save next BEFORE we overwrite curr.next
+        // WHY: once we set curr.next = prev, we&#x27;d lose reference to the rest
+        ListNode nextNode = curr.next;
+        // STEP 2: Reverse the pointer
+        curr.next = prev; // point current node backward
+        // STEP 3: Advance both pointers one step forward
+        prev = curr; // prev moves to current node
+        curr = nextNode; // curr moves to saved next
+    }
+    // After loop: curr == null, prev == new head
+    return prev;
+}
+// TIME: O(n) SPACE: O(1) — only 3 pointer variables</code></pre>
+<p><b>WHY THIS WORKS: Three-pointer dance: nextNode saves the link we're about to break. prev accumulates the reversed chain. curr advances through the original. No extra memory needed.</b></p>
+<p class="lbl"><b>Floyd's Algorithm — Detect Cycle in Linked List</b></p>
+<pre><code>// PATTERN: Fast &amp; Slow Pointers (Floyd&#x27;s Cycle Detection) — O(n) time, O(1) space
+// PROBLEM: Detect if a linked list has a cycle
+// WHY fast/slow: if there IS a cycle, fast will eventually lap slow
+// Think of it like two runners on a circular track — faster always catches slower
+public boolean hasCycle(ListNode head) {
+    ListNode slow = head; // moves 1 step per iteration
+    ListNode fast = head; // moves 2 steps per iteration
+    while (fast != null &amp;&amp; fast.next != null) {
+        // WHY check fast.next too: fast moves 2 steps, so next must exist
+        slow = slow.next; // advance 1
+        fast = fast.next.next; // advance 2
+        // If pointers meet, there&#x27;s a cycle
+        // WHY they meet: in a cycle of length C, fast gains 1 step per iteration
+        // so they meet after at most C iterations
+        if (slow == fast) return true;
+    }
+    // fast hit null -&gt; no cycle (list terminates)
+    return false;
+}
+// TIME: O(n) SPACE: O(1) — no HashSet needed (unlike naive approach)</code></pre>
+<p><b>WHY THIS WORKS: Naive: use HashSet to record visited nodes — O(n) space. Floyd's: mathematical insight that in a cycle, fast pointer ALWAYS catches slow. O(1) space.</b></p>
+<p class="lbl"><b>Dummy Head + Merge — Merge Two Sorted Lists</b></p>
+<pre><code>// PATTERN: Dummy Head + Merge — O(n+m) time, O(1) space
+// PROBLEM: Merge two sorted linked lists into one sorted list
+// WHY dummy head: the merged list&#x27;s head is unknown initially
+// dummy.next will be our answer — avoids null checks for empty list
+public ListNode mergeTwoLists(ListNode l1, ListNode l2) {
+    // STEP 1: Dummy head — gives us a stable starting point
+    ListNode dummy = new ListNode(0);
+    ListNode curr = dummy; // curr builds the merged list
+    // STEP 2: While both lists have nodes, pick the smaller one
+    // WHY compare val: both are sorted, so smaller head is next in merged order
+    while (l1 != null &amp;&amp; l2 != null) {
+        if (l1.val &lt;= l2.val) {
+            curr.next = l1; // attach l1 node
+            l1 = l1.next; // advance l1
+        } else {
+            curr.next = l2; // attach l2 node
+            l2 = l2.next; // advance l2
+        }
+        curr = curr.next; // advance merged list pointer
+    }
+    // STEP 3: Attach remaining nodes (at most one list is non-empty)
+    // WHY ternary: avoids if-else; one of them is null, other is remaining chain
+    curr.next = (l1 != null) ? l1 : l2;
+    return dummy.next; // skip the dummy — return actual head
+}
+// TIME: O(n + m) SPACE: O(1) — no new nodes created, just pointer rewiring</code></pre>
+<p class="lbl"><b>LRU Cache — LinkedHashMap with Access-Order</b></p>
+<pre><code>// PATTERN: LinkedHashMap LRU Cache — O(1) get and put
+// PROBLEM: Design a cache that evicts the Least Recently Used item when full
+// WHY LinkedHashMap(accessOrder=true): automatically moves accessed entries to tail
+// Eldest (head) = least recently used = evict this one
+class LRUCache extends LinkedHashMap&lt;Integer, Integer&gt; {
+    private final int capacity;
+    // STEP 1: Constructor — enable access-order mode
+    // WHY accessOrder=true: on every get() or put(), that entry moves to the END
+    // So the FRONT is always the Least Recently Used
+    public LRUCache(int capacity) {
+        super(capacity, 0.75f, true); // initialCap, loadFactor, accessOrder
+        this.capacity = capacity;
+    }
+    public int get(int key) {
+        // LinkedHashMap.get() already moves key to tail (most-recent position)
+        return super.getOrDefault(key, -1);
+    }
+    public void put(int key, int value) {
+        // LinkedHashMap.put() also moves key to tail
+        super.put(key, value);
+    }
+    // STEP 2: Override to auto-evict when over capacity
+    // WHY removeEldestEntry: called after every put(); eldest = LRU = head
+    @Override
+    protected boolean removeEldestEntry(Map.Entry&lt;Integer, Integer&gt; eldest) {
+        return size() &gt; capacity; // true means: please remove eldest
+    }
+}
+// TIME: O(1) for both get() and put() SPACE: O(capacity)</code></pre>
+<p><b>WHY THIS WORKS: LinkedHashMap maintains a doubly-linked list internally. With accessOrder=true, every access moves that node to the tail. The head is always the LRU item. removeEldestEntry auto-evicts it when we exceed capacity.</b></p>
+<h3>Top Linked List Interview Questions</h3>
+<p class="lbl"><b>Find Middle of Linked List</b></p>
+<p>Fast/slow: when fast reaches end, slow is at middle. For even-length, slow lands at second middle</p>
+<p class="lbl"><b>Remove Nth Node from End</b></p>
+<p>Two pointers n apart. Move both until first hits null. Second is at (n+1)th from end — remove its next</p>
+<p class="lbl"><b>Merge K Sorted Lists</b></p>
+<p>PriorityQueue&lt;ListNode&gt; sorted by val. Poll min node, advance that list, offer next node</p>
+<p class="lbl"><b>Reorder List</b></p>
+<ol><li>Find middle 2) Reverse second half 3) Merge two halves alternately</li></ol>
+<p class="lbl"><b>Palindrome Linked List</b></p>
+<p>Find middle, reverse second half, compare both halves node-by-node</p>
+<p class="lbl"><b>Copy List with Random Pointer</b></p>
+<p>HashMap&lt;Node,Node&gt; old→new. Two passes: first create all nodes, then set .next and .random</p>
+<p class="lbl"><b>Add Two Numbers</b></p>
+<p>Dummy head + carry variable. Handle lists of different lengths + carry overflow</p>
+<p class="lbl"><b>Sort List</b></p>
+<p>Merge sort: findMiddle, split, sortList(left), sortList(right), merge. O(n log n) time O(log n) space</p>
+<p class="lbl"><b>Find Cycle Entry Point</b></p>
+<p>After slow==fast, reset one pointer to head. Advance both 1 step — they meet at cycle entry</p>
+<p class="lbl"><b>Intersection of Two Lists</b></p>
+<p>Two pointers switch to other head on null. They meet after traversing equal total distance</p>
+<h2>4. STACKS &amp; QUEUES</h2>
+<p class="lbl"><b>Stack — Valid Parentheses</b></p>
+<pre><code>// PATTERN: Stack (Deque) for bracket matching — O(n) time, O(n) space
+// PROBLEM: Determine if string of brackets is valid
+// WHY Stack: brackets must close in LIFO order — last opened must close first
+// &#x27;(&#x27; pushed; when &#x27;)&#x27; seen, it must match the most-recently-pushed &#x27;(&#x27;
+public boolean isValid(String s) {
+    // WHY ArrayDeque: faster than Stack class (no synchronization)
+    Deque&lt;Character&gt; stack = new ArrayDeque&lt;&gt;();
+    for (char c : s.toCharArray()) {
+        // STEP 1: Push opening brackets onto stack
+        if (c == &#x27;(&#x27; || c == &#x27;[&#x27; || c == &#x27;{&#x27;) {
+            stack.push(c);
+            // STEP 2: For closing brackets, stack top MUST be matching open bracket
+        } else {
+            // WHY isEmpty() check first: prevents EmptyDequeException
+            if (stack.isEmpty()) return false;
+            char top = stack.pop();
+            // Verify pair matches
+            if (c == &#x27;)&#x27; &amp;&amp; top != &#x27;(&#x27;) return false;
+            if (c == &#x27;]&#x27; &amp;&amp; top != &#x27;[&#x27;) return false;
+            if (c == &#x27;}&#x27; &amp;&amp; top != &#x27;{&#x27;) return false;
+        }
+    }
+    // STEP 3: Stack must be empty — all brackets closed
+    // WHY: unclosed brackets remain on stack
+    return stack.isEmpty();
+}
+// TIME: O(n) SPACE: O(n) worst case (all opening brackets)</code></pre>
+<p><b>WHY THIS WORKS: Stack naturally models LIFO bracket pairing. Each ')' must match its most recent '('. If the stack top doesn't match, the sequence is invalid. Empty stack at end = all brackets closed.</b></p>
+<p class="lbl"><b>Monotonic Stack — Daily Temperatures</b></p>
+<pre><code>// PATTERN: Monotonic Stack (decreasing) — O(n) time, O(n) space
+// PROBLEM: For each element, find the next element that is greater than it
+// WHY Monotonic Stack: maintain elements in decreasing order
+// When a larger element arrives, it IS the &quot;next greater&quot; for all smaller elements
+// currently in the stack — pop them and record their answer
+public int[] dailyTemperatures(int[] temps) {
+    int n = temps.length;
+    int[] result = new int[n]; // default 0 = no warmer day
+    Deque&lt;Integer&gt; stack = new ArrayDeque&lt;&gt;(); // stores INDICES (not values)
+    // WHY store indices: we need to calculate distances (j - i)
+    for (int i = 0; i &lt; n; i++) {
+        // STEP 1: While stack not empty AND current temp &gt; temp at stack&#x27;s top index
+        // WHY pop: current day is the &quot;first warmer day&quot; for the popped day
+        while (!stack.isEmpty() &amp;&amp; temps[i] &gt; temps[stack.peek()]) {
+            int prevDay = stack.pop();
+            result[prevDay] = i - prevDay; // days to wait = current index - that day&#x27;s index
+        }
+        // STEP 2: Push current index — we don&#x27;t know its answer yet
+        stack.push(i);
+    }
+    // Any index left in stack never finds a warmer day    remains 0
+    return result;
+}
+// TIME: O(n) — each element pushed and popped at most once SPACE: O(n)</code></pre>
+<p><b>WHY THIS WORKS: Monotonic stack amortizes cost: each element is pushed ONCE and popped ONCE — O(n) total, not O(n²). Stack always holds 'unsettled' days waiting for their warmer answer.</b></p>
+<p class="lbl"><b>Monotonic Deque — Sliding Window Maximum</b></p>
+<pre><code>// PATTERN: Monotonic Deque for Sliding Window — O(n) time, O(k) space
+// PROBLEM: Find maximum in every sliding window of size k
+// WHY Deque: we need to add/remove from BOTH ends
+// - Remove from FRONT: when window moves past an old index
+// - Remove from BACK: when new element is bigger (old smaller elements useless)
+public int[] maxSlidingWindow(int[] nums, int k) {
+    int n = nums.length;
+    int[] result = new int[n - k + 1];
+    int ri = 0;
+    // STEP 1: Deque stores INDICES in decreasing order of their VALUES
+    // WHY indices not values: we need to check if index is still within window
+    Deque&lt;Integer&gt; dq = new ArrayDeque&lt;&gt;();
+    for (int i = 0; i &lt; n; i++) {
+        // STEP 2: Remove indices no longer in current window from FRONT
+        // WHY: window is [i-k+1, i]; anything older is out of scope
+        while (!dq.isEmpty() &amp;&amp; dq.peekFirst() &lt; i - k + 1) {
+            dq.pollFirst();
+        }
+        // STEP 3: Remove from BACK any index with smaller value than nums[i]
+        // WHY: those elements can NEVER be the max — nums[i] is bigger AND newer
+        // They won&#x27;t be the answer for any future window either
+        while (!dq.isEmpty() &amp;&amp; nums[dq.peekLast()] &lt; nums[i]) {
+            dq.pollLast();
+        }
+        dq.offerLast(i); // add current index to back
+        // STEP 4: Once we have a full window, record max (front of deque)
+        // WHY front is max: deque is in decreasing order, front = largest
+        if (i &gt;= k - 1) {
+            result[ri++] = nums[dq.peekFirst()];
+        }
+    }
+    return result;
+}
+// TIME: O(n) — each element added and removed from deque at most once</code></pre>
+<p class="lbl"><b>Auxiliary Stack — Min Stack</b></p>
+<pre><code>// PATTERN: Auxiliary Min-Stack — O(1) for all operations
+// PROBLEM: Design a stack that also supports getMin() in O(1)
+// WHY second stack: regular stack loses track of previous minimums on pop()
+// Parallel minStack mirrors main stack, storing the current min AT EACH LEVEL
+class MinStack {
+    // WHY two stacks: main holds actual values; minStack holds running minimum
+    Deque&lt;Integer&gt; stack = new ArrayDeque&lt;&gt;();
+    Deque&lt;Integer&gt; minStack = new ArrayDeque&lt;&gt;();
+    public void push(int val) {
+        stack.push(val);
+        // STEP: Push current minimum to minStack
+        // WHY: if val is smaller, update min; otherwise carry forward the same min
+        int currentMin = minStack.isEmpty() ? val : Math.min(val, minStack.peek());
+        minStack.push(currentMin);
+    }
+    public void pop() {
+        stack.pop();
+        minStack.pop(); // WHY: pop both to keep them synchronized
+    }
+    public int top() { return stack.peek(); }
+    public int getMin() { return minStack.peek(); }
+    // WHY O(1): minStack always has the answer at its top — no scanning needed
+}
+// TIME: O(1) all operations SPACE: O(n) — minStack mirrors main stack</code></pre>
+<p><b>WHY THIS WORKS: The trick: at every push, we record what the minimum IS at that stack depth. On pop, both stacks shrink together, restoring the previous minimum instantly.</b></p>
+<h3>Top Stack &amp; Queue Interview Questions</h3>
+<p class="lbl"><b>Evaluate Reverse Polish Notation</b></p>
+<p>Stack: if number push it; if operator pop two, compute, push result</p>
+<p class="lbl"><b>Implement Queue Using Two Stacks</b></p>
+<p>inStack for push. On poll/peek, if outStack empty: transfer all from inStack. Amortized O(1)</p>
+<p class="lbl"><b>Largest Rectangle in Histogram</b></p>
+<p>Monotonic increasing stack of indices. On smaller bar, pop and calculate area = h * (i - stack.peek() - 1)</p>
+<p class="lbl"><b>Basic Calculator I/II</b></p>
+<p>Stack for numbers + signs. Handle spaces, +/- with sign variable, */ directly</p>
+<p class="lbl"><b>Decode String</b></p>
+<p>Stack for (repeatCount, builtString). On ']', pop and repeat current string</p>
+<p class="lbl"><b>Asteroid Collision</b></p>
+<p>Stack. Positive: push. Negative: resolve collisions with stack top until stable</p>
+<p class="lbl"><b>Remove K Digits</b></p>
+<p>Monotonic increasing stack. Pop when next digit is smaller. Remove remaining from top</p>
+<p class="lbl"><b>Design Circular Queue</b></p>
+<p>int[] with front, rear, size. (rear+1) % capacity to wrap around</p>
+<p class="lbl"><b>Number of Recent Calls</b></p>
+<p>ArrayDeque queue. Offer t. Poll all &lt; t-3000. Size = answer</p>
+<p class="lbl"><b>Trapping Rain Water (Stack)</b></p>
+<p>Monotonic stack. On taller bar: pop, calculate water using height diff and width</p>
+<h2>5. TREES</h2>
+<p class="lbl"><b>TreeNode Definition &amp; Traversal Overview</b></p>
+<pre><code>// NODE DEFINITION — standard for all tree problems
+class TreeNode {
+    int val;
+    TreeNode left; // left subtree (values smaller in BST)
+    TreeNode right; // right subtree (values larger in BST)
+    TreeNode(int val) { this.val = val; }
+}
+// TRAVERSAL TEMPLATES (memorize all three)
+// Inorder (Left    Root   Right)    gives SORTED sequence for BST
+// Preorder (Root    Left   Right)    used for serialization / copy
+// Postorder (Left    Right   Root)    used for deletion / bottom-up info</code></pre>
+<p class="lbl"><b>Recursive DFS — Maximum Depth of Binary Tree</b></p>
+<pre><code>// PATTERN: Recursive DFS (Post-order) — O(n) time, O(h) space (h = height)
+// PROBLEM: Find the maximum depth (height) of a binary tree
+// WHY Recursion: tree structure is naturally recursive — each subtree is a tree
+// WHY Post-order: we need children&#x27;s depths BEFORE we can compute parent&#x27;s depth
+public int maxDepth(TreeNode root) {
+    // BASE CASE: null node contributes 0 to depth
+    // WHY: recursion must stop when we fall off a leaf
+    if (root == null) return 0;
+    // STEP 1: Recursively get depth of left and right subtrees
+    int leftDepth = maxDepth(root.left);
+    int rightDepth = maxDepth(root.right);
+    // STEP 2: Current node adds 1 to the deeper of the two subtrees
+    // WHY Math.max: we take the LONGEST path to any leaf
+    return 1 + Math.max(leftDepth, rightDepth);
+}
+// TIME: O(n) — visit every node once SPACE: O(h) — call stack depth = tree height
+// For balanced tree h = O(log n); skewed tree h = O(n)</code></pre>
+<p><b>WHY THIS WORKS: Post-order is natural here: compute left depth, compute right depth, then combine. The recursion elegantly handles all cases — no special handling for leaves needed.</b></p>
+<p class="lbl"><b>BFS Level-Order Traversal — Binary Tree</b></p>
+<pre><code>// PATTERN: BFS Level-Order (Queue) — O(n) time, O(w) space (w = max width)
+// PROBLEM: Return nodes grouped by level
+// WHY Queue: BFS explores layer by layer — exactly what we need for level-order
+// Process all nodes at depth d before any node at depth d+1
+public List&lt;List&lt;Integer&gt;&gt; levelOrder(TreeNode root) {
+    List&lt;List&lt;Integer&gt;&gt; result = new ArrayList&lt;&gt;();
+    if (root == null) return result;
+    // STEP 1: Queue starts with just the root
+    Queue&lt;TreeNode&gt; queue = new LinkedList&lt;&gt;();
+    queue.offer(root);
+    while (!queue.isEmpty()) {
+        // STEP 2: Snapshot the current level size BEFORE we process it
+        // WHY: during processing we add children (next level) to queue
+        // We must process exactly &#x27;levelSize&#x27; nodes for this level
+        int levelSize = queue.size();
+        List&lt;Integer&gt; level = new ArrayList&lt;&gt;();
+        for (int i = 0; i &lt; levelSize; i++) {
+            TreeNode node = queue.poll();
+            level.add(node.val);
+            // STEP 3: Enqueue children for next level
+            if (node.left != null) queue.offer(node.left);
+            if (node.right != null) queue.offer(node.right);
+        }
+        result.add(level);
+    }
+    return result;
+}
+// TIME: O(n) SPACE: O(w) where w = max width (bottom level can have n/2 nodes)</code></pre>
+<p><b>WHY THIS WORKS: Key trick: capture queue.size() BEFORE the inner loop. This is the exact number of nodes at the current level. Adding children during the loop doesn't affect this count.</b></p>
+<p class="lbl"><b>DFS with Bounds — Validate BST</b></p>
+<pre><code>// PATTERN: DFS with bounds — O(n) time, O(h) space
+// PROBLEM: Validate that a binary tree satisfies the BST property
+// WHY pass bounds (not just compare to parent): the classic mistake is checking
+// only parent — but a right subtree node must be &gt; ALL ancestors on the left path
+// EXAMPLE of why naive fails:
+// 5
+// / \
+// 1 4 &lt;- 4 &lt; 5 OK superficially
+// / \
+// 3 6 &lt;- but 3 &lt; 5 violates BST! (must be &gt; 5 in right subtree of 5)
+public boolean isValidBST(TreeNode root) {
+    return validate(root, Long.MIN_VALUE, Long.MAX_VALUE);
+    // WHY Long: handles edge case where node.val == Integer.MIN/MAX_VALUE
+}
+private boolean validate(TreeNode node, long lo, long hi) {
+    // BASE CASE: null nodes are always valid
+    if (node == null) return true;
+    // STEP 1: Current node must be strictly within (lo, hi)
+    if (node.val &lt;= lo || node.val &gt;= hi) return false;
+    // STEP 2: Narrow bounds and recurse
+    // WHY node.val as new bound: all nodes in LEFT subtree must be &lt; node.val
+    // all nodes in RIGHT subtree must be &gt; node.val
+    return validate(node.left, lo, node.val) &amp;&amp;
+    validate(node.right, node.val, hi);
+}
+// TIME: O(n) SPACE: O(h) — bounds passed on call stack</code></pre>
+<p><b>WHY THIS WORKS: Passing (lo, hi) bounds threads the full BST constraint through every recursive call. Without this, you'd only check parent-child relationship, missing transitive violations.</b></p>
+<p class="lbl"><b>Post-order DFS — Lowest Common Ancestor</b></p>
+<pre><code>// PATTERN: Post-order DFS with global tracking — O(n) time, O(h) space
+// PROBLEM: Find the Lowest Common Ancestor of two nodes p and q
+// WHY post-order: we need to know what&#x27;s in LEFT and RIGHT before deciding
+// if current node is the LCA
+public TreeNode lowestCommonAncestor(TreeNode root, TreeNode p, TreeNode q) {
+    // BASE CASE 1: fell off tree — neither p nor q here
+    // BASE CASE 2: found p or q — return it immediately
+    // WHY return early on p or q: if both are in same subtree, the one found
+    // first will bubble up; if in different subtrees, the split point is LCA
+    if (root == null || root == p || root == q) return root;
+    // STEP 1: Search both subtrees
+    TreeNode leftResult = lowestCommonAncestor(root.left, p, q);
+    TreeNode rightResult = lowestCommonAncestor(root.right, p, q);
+    // STEP 2: If both sides returned non-null, p and q are in DIFFERENT subtrees
+    // WHY: current root is the meeting point — it IS the LCA
+    if (leftResult != null &amp;&amp; rightResult != null) return root;
+    // STEP 3: Otherwise, LCA is in whichever side returned a non-null value
+    return leftResult != null ? leftResult : rightResult;
+}
+// TIME: O(n) SPACE: O(h) call stack</code></pre>
+<h3>Top Tree Interview Questions</h3>
+<p class="lbl"><b>Invert Binary Tree</b></p>
+<p>Swap node.left and node.right, then recurse into both. One-liner with ternary</p>
+<p class="lbl"><b>Diameter of Binary Tree</b></p>
+<p>int[] max = {0}. At each node: max[0] = Math.max(max[0], leftH + rightH)</p>
+<p class="lbl"><b>Balanced Binary Tree</b></p>
+<p>Return -1 from helper if unbalanced. Check Math.abs(l-r) &gt; 1</p>
+<p class="lbl"><b>Same Tree</b></p>
+<p>root1==null &amp;&amp; root2==null → true. Either null → false. Check val, recurse left, recurse right</p>
+<p class="lbl"><b>Subtree of Another Tree</b></p>
+<p>isSameTree(root, sub) || isSubtree(root.left) || isSubtree(root.right)</p>
+<p class="lbl"><b>LCA of BST</b></p>
+<p>If both p.val and q.val &lt; root.val → go left. Both &gt; root.val → go right. Else root IS LCA</p>
+<p class="lbl"><b>Binary Tree Right Side View</b></p>
+<p>Level order BFS. Take last node of each level</p>
+<p class="lbl"><b>Count Good Nodes</b></p>
+<p>DFS passing maxSoFar. Node is good if node.val &gt;= maxSoFar</p>
+<p class="lbl"><b>Kth Smallest in BST</b></p>
+<p>Iterative inorder with counter. When count==k, that's the answer</p>
+<p class="lbl"><b>Construct BT from Preorder+Inorder</b></p>
+<p>Root = preorder[0]. Find root in inorder — left of it is left subtree</p>
+<p class="lbl"><b>Serialize &amp; Deserialize BT</b></p>
+<p>Preorder DFS with 'N' for null, comma delimiter. Decode with Queue&lt;String&gt;</p>
+<p class="lbl"><b>Binary Tree Max Path Sum</b></p>
+<p>At each node: gain = node.val + max(0,leftGain) + max(0,rightGain). Update global max</p>
+<h2>6. GRAPHS</h2>
+<p class="lbl"><b>Graph Setup — Adjacency List &amp; Grid</b></p>
+<pre><code>// GRAPH SETUP — two most common representations
+// WHY adjacency list: space-efficient for sparse graphs (most interview problems)
+// Space: O(V + E) vs O(V^2) for adjacency matrix
+// Option A: List of Lists
+int n = 5;
+List&lt;List&lt;Integer&gt;&gt; graph = new ArrayList&lt;&gt;();
+for (int i = 0; i &lt; n; i++) graph.add(new ArrayList&lt;&gt;());
+graph.get(u).add(v); // directed edge u -&gt; v
+graph.get(v).add(u); // undirected: add both directions
+// Option B: Weighted graph (store pairs {neighbor, weight})
+List&lt;int[]&gt;[] wGraph = new List[n];
+for (int i = 0; i &lt; n; i++) wGraph[i] = new ArrayList&lt;&gt;();
+wGraph[u].add(new int[]{v, weight});
+// Option C: Grid as graph (4-directional)
+int[][] DIRS = {{0,1},{0,-1},{1,0},{-1,0}}; // right, left, down, up
+// WHY array of pairs: clean way to iterate over 4 neighbors
+for (int[] d : DIRS) {
+    int nr = row + d[0], nc = col + d[1];
+    if (nr &gt;= 0 &amp;&amp; nr &lt; ROWS &amp;&amp; nc &gt;= 0 &amp;&amp; nc &lt; COLS) {
+        // valid neighbor at (nr, nc)
+    }
+}</code></pre>
+<p class="lbl"><b>DFS — Count Connected Components</b></p>
+<pre><code>// PATTERN: DFS + visited array — O(V+E) time, O(V) space
+// PROBLEM: Count number of connected components
+// WHY DFS: naturally explores all reachable nodes from a starting point
+// One DFS call = one connected component
+public int countComponents(int n, int[][] edges) {
+    // STEP 1: Build adjacency list
+    List&lt;List&lt;Integer&gt;&gt; graph = new ArrayList&lt;&gt;();
+    for (int i = 0; i &lt; n; i++) graph.add(new ArrayList&lt;&gt;());
+    for (int[] e : edges) {
+        graph.get(e[0]).add(e[1]);
+        graph.get(e[1]).add(e[0]); // undirected
+    }
+    // STEP 2: Track visited nodes to avoid revisiting
+    // WHY boolean[]: faster than HashSet for integer node IDs
+    boolean[] visited = new boolean[n];
+    int components = 0;
+    for (int i = 0; i &lt; n; i++) {
+        if (!visited[i]) {
+            // STEP 3: Start DFS from any unvisited node
+            // WHY: each unvisited node starts a new component
+            dfs(graph, visited, i);
+            components++;
+        }
+    }
+    return components;
+}
+private void dfs(List&lt;List&lt;Integer&gt;&gt; graph, boolean[] visited, int node) {
+    visited[node] = true; // mark before recursing — prevents infinite loop in cycles
+    for (int neighbor : graph.get(node)) {
+        if (!visited[neighbor]) {
+            dfs(graph, visited, neighbor);
+        }
+    }
+}
+// TIME: O(V+E) — each node and edge visited once SPACE: O(V) visited + O(V) stack</code></pre>
+<p class="lbl"><b>Union-Find (DSU) — Path Compression + Union by Rank</b></p>
+<pre><code>// PATTERN: Union-Find (DSU) — nearly O(1) per operation
+// PROBLEM: Detect cycles / find connected components efficiently
+// WHY Union-Find: optimized with path compression + union by rank
+// Makes find() nearly O(1) amortized — faster than DFS for repeated queries
+// KEY IDEA: each component has a &quot;root&quot; representative;
+// union merges two components; find returns the root
+class UnionFind {
+    int[] parent; // parent[i] = i&#x27;s parent in the tree
+    int[] rank; // rank[i] = approximate depth of subtree at i
+    UnionFind(int n) {
+        parent = new int[n];
+        rank = new int[n];
+        // STEP 1: Initially each node is its own root
+        for (int i = 0; i &lt; n; i++) parent[i] = i;
+    }
+    // Find root with PATH COMPRESSION
+    // WHY path compression: flatten the tree so all nodes point directly to root
+    // makes subsequent find() calls O(1)
+    int find(int x) {
+        if (parent[x] != x) {
+            parent[x] = find(parent[x]); // compress: point directly to root
+        }
+        return parent[x];
+    }
+    // Union by RANK (merge smaller tree under larger)
+    // WHY rank: keeps trees shallow — prevents degenerate O(n) chains
+    boolean union(int x, int y) {
+        int px = find(x), py = find(y);
+        if (px == py) return false; // already in same component
+        if (rank[px] &lt; rank[py]) parent[px] = py;
+        else if (rank[px] &gt; rank[py]) parent[py] = px;
+        else { parent[py] = px; rank[px]++; } // equal height: increment one
+        return true;
+    }
+}
+// TIME: O(alpha(n)) per op — alpha is inverse Ackermann, effectively O(1)
+// SPACE: O(n) for parent and rank arrays</code></pre>
+<p><b>WHY THIS WORKS: Two optimizations make Union-Find nearly O(1): (1) Path compression flattens trees during find(). (2) Union by rank keeps trees balanced. Together they achieve inverse-Ackermann time — practically constant.</b></p>
+<p class="lbl"><b>Kahn's BFS — Topological Sort / Course Schedule</b></p>
+<pre><code>// PATTERN: BFS Topological Sort (Kahn&#x27;s Algorithm) — O(V+E) time, O(V) space
+// PROBLEM: Return valid ordering of courses given prerequisites (Course Schedule II)
+// WHY BFS topo sort: processes nodes in dependency order
+// Nodes with no incoming edges (in-degree=0) have no prerequisites — start there
+// Also detects cycles: if we can&#x27;t process all nodes, a cycle exists
+public int[] findOrder(int numCourses, int[][] prerequisites) {
+    // STEP 1: Build graph and compute in-degrees
+    List&lt;List&lt;Integer&gt;&gt; graph = new ArrayList&lt;&gt;();
+    int[] inDegree = new int[numCourses];
+    for (int i = 0; i &lt; numCourses; i++) graph.add(new ArrayList&lt;&gt;());
+    for (int[] pre : prerequisites) {
+        graph.get(pre[1]).add(pre[0]); // pre[1] must come before pre[0]
+        inDegree[pre[0]]++;
+    }
+    // STEP 2: Start BFS from all nodes with no prerequisites (in-degree == 0)
+    Queue&lt;Integer&gt; queue = new LinkedList&lt;&gt;();
+    for (int i = 0; i &lt; numCourses; i++) {
+        if (inDegree[i] == 0) queue.offer(i);
+    }
+    int[] order = new int[numCourses];
+    int idx = 0;
+    while (!queue.isEmpty()) {
+        int course = queue.poll();
+        order[idx++] = course;
+        // STEP 3: &quot;Remove&quot; this course — reduce in-degree of dependent courses
+        // WHY: if in-degree reaches 0, all prerequisites satisfied    can take it
+        for (int next : graph.get(course)) {
+            if (--inDegree[next] == 0) {
+                queue.offer(next);
+            }
+        }
+    }
+    // STEP 4: Cycle check — if we processed all courses, no cycle exists
+    return idx == numCourses ? order : new int[0];
+}
+// TIME: O(V+E) SPACE: O(V+E)</code></pre>
+<p><b>WHY THIS WORKS: Kahn's insight: nodes with in-degree 0 have no blockers — process them first. As you process each node, reduce neighbors' in-degrees. New zeros are now unblocked. Cycle = some nodes never reach in-degree 0.</b></p>
+<p class="lbl"><b>Dijkstra's Algorithm — Network Delay Time</b></p>
+<pre><code>// PATTERN: Dijkstra&#x27;s Shortest Path — O((V+E) log V) time, O(V) space
+// PROBLEM: Find shortest time for signal to reach all nodes (Network Delay Time)
+// WHY Dijkstra: greedy with min-heap — always processes nearest unvisited node
+// Correct for non-negative weights (negative weights need Bellman-Ford)
+public int networkDelayTime(int[][] times, int n, int k) {
+    // STEP 1: Build weighted adjacency list
+    List&lt;int[]&gt;[] graph = new List[n + 1];
+    for (int i = 0; i &lt;= n; i++) graph[i] = new ArrayList&lt;&gt;();
+    for (int[] t : times) {
+        graph[t[0]].add(new int[]{t[1], t[2]}); // {destination, weight}
+    }
+    // STEP 2: Min-heap ordered by distance: {dist, node}
+    // WHY min-heap: always greedily processes the closest unvisited node
+    PriorityQueue&lt;int[]&gt; pq = new PriorityQueue&lt;&gt;((a, b) -&gt; a[0] - b[0]);
+    int[] dist = new int[n + 1];
+    Arrays.fill(dist, Integer.MAX_VALUE);
+    dist[k] = 0; // source node: distance 0
+    pq.offer(new int[]{0, k});
+    while (!pq.isEmpty()) {
+        int[] curr = pq.poll();
+        int d = curr[0];
+        int node = curr[1];
+        // WHY skip stale entries: heap may have outdated distances
+        if (d &gt; dist[node]) continue;
+        for (int[] neighbor : graph[node]) {
+            int newDist = dist[node] + neighbor[1];
+            if (newDist &lt; dist[neighbor[0]]) {
+                dist[neighbor[0]] = newDist;
+                pq.offer(new int[]{newDist, neighbor[0]});
+            }
+        }
+    }
+    int maxDist = 0;
+    for (int i = 1; i &lt;= n; i++) {
+        if (dist[i] == Integer.MAX_VALUE) return -1; // unreachable node
+        maxDist = Math.max(maxDist, dist[i]);
+    }
+    return maxDist;
+}
+// TIME: O((V+E) log V) SPACE: O(V+E)</code></pre>
+<h3>Top Graph Interview Questions</h3>
+<p class="lbl"><b>Number of Islands (Grid DFS)</b></p>
+<p>DFS from each '1', mark all connected land as '0'. Count DFS calls</p>
+<p class="lbl"><b>Clone Graph</b></p>
+<p>HashMap&lt;Node,Node&gt;. DFS: if in map return clone; else create clone, add to map, clone neighbors</p>
+<p class="lbl"><b>Max Area of Island</b></p>
+<p>DFS returns 1 + sum of 4 neighbor DFS calls. Track global max</p>
+<p class="lbl"><b>Pacific Atlantic Water Flow</b></p>
+<p>BFS from Pacific borders (top+left) and Atlantic (bottom+right). Return intersection</p>
+<p class="lbl"><b>Word Ladder (BFS shortest path)</b></p>
+<p>BFS. For each word, try all 26 substitutions. If in wordSet, add to queue. Count levels</p>
+<p class="lbl"><b>Graph Valid Tree</b></p>
+<p>Must have exactly n-1 edges AND be connected (no cycle). Use Union-Find or DFS</p>
+<p class="lbl"><b>Accounts Merge</b></p>
+<p>Union-Find on emails. Group emails by root. Map root→owner for final result</p>
+<p class="lbl"><b>Swim in Rising Water</b></p>
+<p>Binary search on answer time + BFS feasibility, OR Dijkstra treating time as weight</p>
+<p class="lbl"><b>Cheapest Flights Within K Stops</b></p>
+<p>Modified Bellman-Ford: relax exactly k+1 times. Copy dist[] each iteration</p>
+<p class="lbl"><b>Bipartite Check</b></p>
+<p>BFS/DFS 2-coloring. If adjacent nodes have same color → not bipartite</p>
+<h2>7. HASH MAPS &amp; HASH SETS</h2>
+<p class="lbl"><b>HashMap — Two Sum</b></p>
+<pre><code>// PATTERN: HashMap Two-Pass — O(n) time, O(n) space
+// PROBLEM: Two Sum — find indices of two numbers that add to target
+// WHY HashMap: for each element x, we need O(1) lookup of &quot;has target-x been seen?&quot;
+// Brute force is O(n^2) with nested loops
+public int[] twoSum(int[] nums, int target) {
+    // STEP 1: Map stores value -&gt; index
+    // WHY value as key: we search by VALUE (target - current), retrieve INDEX
+    Map&lt;Integer, Integer&gt; valueToIndex = new HashMap&lt;&gt;();
+    for (int i = 0; i &lt; nums.length; i++) {
+        int complement = target - nums[i];
+        // STEP 2: Check if complement already exists in map
+        // WHY check BEFORE inserting: avoids using same index twice (e.g. target=6, num=3)
+        if (valueToIndex.containsKey(complement)) {
+            return new int[]{valueToIndex.get(complement), i};
+        }
+        // STEP 3: Record this number&#x27;s index for future lookups
+        valueToIndex.put(nums[i], i);
+    }
+    return new int[]{-1, -1}; // no solution found
+}
+// TIME: O(n) single pass SPACE: O(n) for the map</code></pre>
+<p><b>WHY THIS WORKS: HashMap converts 'have I seen X before?' from O(n) scan to O(1) lookup. We check complement BEFORE inserting to avoid using the same element twice.</b></p>
+<p class="lbl"><b>HashSet — Longest Consecutive Sequence</b></p>
+<pre><code>// PATTERN: HashSet for O(1) membership + smart chain start — O(n) time, O(n) space
+// PROBLEM: Find length of longest consecutive sequence (unsorted array allowed)
+// WHY HashSet: O(1) lookup lets us check neighbors without sorting (which would be O(n log n))
+// KEY INSIGHT: only START a chain when num-1 does NOT exist
+// This ensures each chain is counted exactly once
+public int longestConsecutive(int[] nums) {
+    // STEP 1: Load all numbers into a set for O(1) lookup
+    Set&lt;Integer&gt; numSet = new HashSet&lt;&gt;();
+    for (int n : nums) numSet.add(n);
+    int longest = 0;
+    for (int n : numSet) {
+        // STEP 2: Only start counting from a sequence&#x27;s beginning
+        // WHY check !numSet.contains(n-1): if n-1 exists, n is NOT the start
+        // skip it — we&#x27;ll count it when we process the actual start
+        // Without this, we&#x27;d recount every subsequence: O(n) per element = O(n^2) total
+        if (!numSet.contains(n - 1)) {
+            int currentNum = n;
+            int currentLength = 1;
+            // STEP 3: Extend chain as long as consecutive numbers exist
+            while (numSet.contains(currentNum + 1)) {
+                currentNum++;
+                currentLength++;
+            }
+            longest = Math.max(longest, currentLength);
+        }
+    }
+    return longest;
+}
+// TIME: O(n) — each number checked at most twice (once outer, once inner)
+// SPACE: O(n) for the HashSet</code></pre>
+<p><b>WHY THIS WORKS: The 'start of sequence' check is the key optimization. Without it, we'd extend chains from every element: O(n²). With it, each element participates in exactly one chain extension: O(n).</b></p>
+<p class="lbl"><b>HashMap + PriorityQueue — Top K Frequent Elements</b></p>
+<pre><code>// PATTERN: Prefix Sum + HashMap — O(n) time, O(n) space
+// PROBLEM: Find if array can be split into k consecutive number groups of size groupSize
+// GENERAL VERSION: Count subarrays with exact property using cumulative state
+// SIMPLER: Top K Frequent Elements — HashMap + PriorityQueue
+public int[] topKFrequent(int[] nums, int k) {
+    // STEP 1: Count frequency of each number
+    // WHY HashMap: arbitrary integer keys, O(1) increment with merge()
+    Map&lt;Integer, Integer&gt; count = new HashMap&lt;&gt;();
+    for (int n : nums) count.merge(n, 1, Integer::sum);
+    // STEP 2: Min-heap of size k ordered by frequency
+    // WHY min-heap of size k (not max-heap): we only keep top k
+    // When heap exceeds k, we remove the LEAST frequent (min) — correct!
+    // Max-heap would require sorting everything first: O(n log n)
+    PriorityQueue&lt;Integer&gt; minHeap =
+    new PriorityQueue&lt;&gt;((a, b) -&gt; count.get(a) - count.get(b));
+    for (int key : count.keySet()) {
+        minHeap.offer(key);
+        // STEP 3: Keep heap size exactly k by removing the least frequent
+        if (minHeap.size() &gt; k) minHeap.poll();
+    }
+    // STEP 4: Extract results (min-heap, so build result in reverse)
+    int[] result = new int[k];
+    for (int i = k - 1; i &gt;= 0; i--) result[i] = minHeap.poll();
+    return result;
+}
+// TIME: O(n log k) SPACE: O(n) for map + O(k) for heap</code></pre>
+<h3>Top HashMap/HashSet Interview Questions</h3>
+<p class="lbl"><b>Valid Anagram</b></p>
+<p>int[26] count array. Increment for s, decrement for t. Check all zeros</p>
+<p class="lbl"><b>Group Anagrams</b></p>
+<p>Sort each word's chars as key. computeIfAbsent(key, k-&gt;new ArrayList&lt;&gt;()).add(word)</p>
+<p class="lbl"><b>Contains Duplicate</b></p>
+<p>HashSet: return !set.add(num). add() returns false if already present</p>
+<p class="lbl"><b>First Unique Character</b></p>
+<p>Two-pass: int[26] frequency, then find first with count==1</p>
+<p class="lbl"><b>Intersection of Two Arrays</b></p>
+<p>Set from arr1. For arr2, if set.contains → add to result set</p>
+<p class="lbl"><b>Happy Number</b></p>
+<p>HashSet of seen sums. If sum==1 → true. If seen before → cycle → false</p>
+<p class="lbl"><b>Isomorphic Strings</b></p>
+<p>Two maps: s-char→t-char and t-char→s-char. Check bidirectional consistency</p>
+<p class="lbl"><b>4Sum II</b></p>
+<p>Two-pass: count all (a+b) in map. For each (c+d), count map[-(c+d)]</p>
+<p class="lbl"><b>Subarray Sum Equals K</b></p>
+<p>Prefix sum + HashMap&lt;Integer,Integer&gt; freq. count+=freq.get(prefix-k)</p>
+<p class="lbl"><b>Minimum Window Substring</b></p>
+<p>need map + have counter. When have==need, shrink from left. Track min window</p>
+<h2>8. HEAPS (PRIORITY QUEUES)</h2>
+<p class="lbl"><b>Min-Heap of Size K — Kth Largest Element</b></p>
+<pre><code>// PATTERN: Min-Heap of size K — O(n log k) time, O(k) space
+// PROBLEM: Find the Kth largest element in an array
+// WHY min-heap of size k: root of min-heap = smallest of top-k
+// = Kth largest overall. Heap size never exceeds k    space efficient.
+// WHY NOT sort: O(n log n) vs O(n log k). For small k, log k &lt;&lt; log n
+public int findKthLargest(int[] nums, int k) {
+    // STEP 1: Min-heap stores the k largest elements seen so far
+    // WHY min-heap: root is the smallest of our k candidates
+    // When a new element beats the root, it replaces it
+    PriorityQueue&lt;Integer&gt; minHeap = new PriorityQueue&lt;&gt;();
+    for (int n : nums) {
+        minHeap.offer(n); // always add the current element
+        // STEP 2: If heap grows beyond k, remove the smallest
+        // WHY: we only care about top k. Removing the minimum preserves the k largest
+        if (minHeap.size() &gt; k) {
+            minHeap.poll(); // evict the current minimum (weakest of top-k)
+        }
+    }
+    // STEP 3: Root of min-heap = smallest of the k largest = Kth largest
+    return minHeap.peek();
+}
+// TIME: O(n log k) — n insertions each costing O(log k)
+// SPACE: O(k) — heap never exceeds size k</code></pre>
+<p><b>WHY THIS WORKS: Counter-intuitive: to find Kth LARGEST, we use a MIN-heap. The heap maintains the top-k elements. Its root (minimum of top-k) is exactly the Kth largest. When we see a bigger element, we swap out the current minimum.</b></p>
+<p class="lbl"><b>Two Heaps — Find Median from Data Stream</b></p>
+<pre><code>// PATTERN: Two Heaps (Max + Min) — O(log n) add, O(1) median
+// PROBLEM: Find median from a stream of numbers at any time
+// WHY two heaps: we need the MIDDLE element dynamically
+// Split data into lower half (max-heap) and upper half (min-heap)
+// Median is always at the boundary between the two halves
+class MedianFinder {
+    // lo = max-heap holding the LOWER half of numbers
+    // WHY max-heap: we want quick access to the LARGEST of the lower half (left middle)
+    PriorityQueue&lt;Integer&gt; lo = new PriorityQueue&lt;&gt;(Collections.reverseOrder());
+    // hi = min-heap holding the UPPER half of numbers
+    // WHY min-heap: we want quick access to the SMALLEST of the upper half (right middle)
+    PriorityQueue&lt;Integer&gt; hi = new PriorityQueue&lt;&gt;();
+    public void addNum(int num) {
+        // STEP 1: Route all numbers through lo first (always add to lo)
+        lo.offer(num);
+        // STEP 2: Balance: ensure lo&#x27;s max &lt;= hi&#x27;s min
+        // WHY: lo.peek() might be &gt; hi.peek() after adding num
+        // If so, move lo&#x27;s max to hi
+        if (!hi.isEmpty() &amp;&amp; lo.peek() &gt; hi.peek()) {
+            hi.offer(lo.poll());
+        }
+        // STEP 3: Rebalance sizes — lo is allowed to have 1 extra element
+        // WHY: ensures lo.size() == hi.size() or lo.size() == hi.size() + 1
+        if (lo.size() &gt; hi.size() + 1) hi.offer(lo.poll());
+        if (hi.size() &gt; lo.size()) lo.offer(hi.poll());
+    }
+    public double findMedian() {
+        // WHY lo has the median when sizes differ: lo is the &quot;extra&quot; element
+        if (lo.size() &gt; hi.size()) return lo.peek();
+        // Even total: median is average of two middle elements
+        return (lo.peek() + hi.peek()) / 2.0;
+    }
+}
+// add: O(log n) findMedian: O(1) Space: O(n)</code></pre>
+<p><b>WHY THIS WORKS: Two heaps partition data at the median. lo (max-heap) = lower half; hi (min-heap) = upper half. Median is always at their boundary. Balancing invariant: lo.size() == hi.size() or lo.size() == hi.size()+1.</b></p>
+<p class="lbl"><b>Min-Heap K-Way Merge — Merge K Sorted Lists</b></p>
+<pre><code>// PATTERN: Min-Heap for K-way merge — O(n log k) time, O(k) space
+// PROBLEM: Merge k sorted linked lists into one sorted list
+// WHY min-heap: when merging k sorted lists, we need the global minimum
+// at each step. Heap gives us that in O(log k) instead of O(k) linear scan
+public ListNode mergeKLists(ListNode[] lists) {
+    // STEP 1: Custom min-heap comparing ListNodes by their val
+    PriorityQueue&lt;ListNode&gt; minHeap =
+    new PriorityQueue&lt;&gt;((a, b) -&gt; a.val - b.val);
+    // STEP 2: Seed heap with the HEAD of each list
+    // WHY only heads: smallest elements come first; we&#x27;ll add successors as we go
+    for (ListNode head : lists) {
+        if (head != null) minHeap.offer(head);
+    }
+    ListNode dummy = new ListNode(0); // WHY dummy: avoids null check for first node
+    ListNode curr = dummy;
+    while (!minHeap.isEmpty()) {
+        // STEP 3: Extract globally smallest node
+        ListNode smallest = minHeap.poll();
+        curr.next = smallest;
+        curr = curr.next;
+        // STEP 4: Advance that list — push its next node into heap
+        // WHY: heap must always contain the FRONT of each unfinished list
+        if (smallest.next != null) {
+            minHeap.offer(smallest.next);
+        }
+    }
+    return dummy.next;
+}
+// TIME: O(n log k) where n=total nodes, k=number of lists
+// SPACE: O(k) for the heap (at most k nodes at a time)</code></pre>
+<h3>Top Heap Interview Questions</h3>
+<p class="lbl"><b>Top K Frequent Elements</b></p>
+<p>HashMap for counts + min-heap of size k keyed by count. O(n log k)</p>
+<p class="lbl"><b>K Closest Points to Origin</b></p>
+<p>Max-heap of size k on distance. Evict farthest when size exceeds k</p>
+<p class="lbl"><b>Task Scheduler (Idle time)</b></p>
+<p>Max-heap of task frequencies. Simulate CPU cycles. Idle when heap empty mid-round</p>
+<p class="lbl"><b>Kth Smallest in Sorted Matrix</b></p>
+<p>Min-heap BFS from (0,0). PQ stores {val, row, col}. Poll k times</p>
+<p class="lbl"><b>Ugly Number II</b></p>
+<p>Three variables: i2, i3, i5. Next ugly = min(uglies[i2]*2, uglies[i3]*3, uglies[i5]*5)</p>
+<p class="lbl"><b>IPO (Two-heap greedy)</b></p>
+<p>Min-heap for capital; max-heap for profit. For each round, unlock available projects and pick max profit</p>
+<h2>9. TRIES (PREFIX TREES)</h2>
+<p class="lbl"><b>Full Trie Implementation — Insert, Search, StartsWith</b></p>
+<pre><code>// PATTERN: Trie (Prefix Tree) — O(m) per operation where m = word length
+// WHY Trie over HashMap: Trie shares prefixes among words saving memory
+// and enables O(m) prefix search — HashMap would need full key match
+// WHY TrieNode[26]: faster than HashMap&amp;lt;Character,TrieNode&amp;gt; for lowercase letters
+// Fixed-size array avoids hashing overhead
+class Trie {
+    // INNER NODE CLASS
+    class TrieNode {
+        TrieNode[] children = new TrieNode[26]; // one slot per letter &#x27;a&#x27;-&#x27;z&#x27;
+        boolean isEnd = false; // true if a word ends at this node
+        // WHY isEnd: nodes are shared between words — &quot;app&quot; and &quot;apple&quot; share a-p-p
+        // isEnd distinguishes where actual words end
+    }
+    private TrieNode root = new TrieNode(); // empty root = no character
+    // INSERT — O(m) time, O(m) space (at most m new nodes)
+    public void insert(String word) {
+        TrieNode node = root;
+        for (char c : word.toCharArray()) {
+            int idx = c - &#x27;a&#x27;; // map char to 0-25
+            // Create child node if this path doesn&#x27;t exist yet
+            if (node.children[idx] == null) {
+                node.children[idx] = new TrieNode();
+            }
+            node = node.children[idx]; // descend
+        }
+        node.isEnd = true; // mark end of this word
+    }
+    // SEARCH — O(m) time
+    public boolean search(String word) {
+        TrieNode node = root;
+        for (char c : word.toCharArray()) {
+            int idx = c - &#x27;a&#x27;;
+            if (node.children[idx] == null) return false; // path broken
+            node = node.children[idx];
+        }
+        return node.isEnd; // WHY check isEnd: &quot;app&quot; should NOT match if only &quot;apple&quot; inserted
+    }
+    // STARTSWITH — O(m) time
+    public boolean startsWith(String prefix) {
+        TrieNode node = root;
+        for (char c : prefix.toCharArray()) {
+            int idx = c - &#x27;a&#x27;;
+            if (node.children[idx] == null) return false;
+            node = node.children[idx];
+        }
+        return true; // WHY no isEnd check: prefix doesn&#x27;t need to be a complete word
+    }
+}
+// SPACE: O(ALPHABET * N * M) where N=number of words, M=avg word length</code></pre>
+<p><b>WHY THIS WORKS: Trie shines when many words share prefixes. 'cat', 'car', 'card' share 'ca' — stored once. Search is O(m) regardless of how many words are stored. HashMap would need a separate key for each word.</b></p>
+<p class="lbl"><b>Trie + Backtracking — Word Search II</b></p>
+<pre><code>// PATTERN: Trie + DFS Backtracking — O(m * 4^m) where m = word length
+// PROBLEM: Word Search II — find all words from a list that exist in the board
+// WHY Trie over checking each word separately:
+// Searching board for W words individually = O(W * m * 4^m)
+// Trie prunes paths that can&#x27;t lead to any word = much faster in practice
+class WordSearch2 {
+    public List&lt;String&gt; findWords(char[][] board, String[] words) {
+        // STEP 1: Build Trie from all target words
+        // WHY Trie: during board DFS, we navigate Trie simultaneously
+        // If current path isn&#x27;t a Trie prefix, prune entire branch
+        Trie trie = new Trie();
+        for (String w : words) trie.insert(w);
+        Set&lt;String&gt; result = new HashSet&lt;&gt;(); // WHY Set: avoid duplicate results
+        int ROWS = board.length, COLS = board[0].length;
+        // STEP 2: Start DFS from every cell as potential word start
+        for (int r = 0; r &lt; ROWS; r++) {
+            for (int c = 0; c &lt; COLS; c++) {
+                dfs(board, trie.root, r, c, new StringBuilder(), result);
+            }
+        }
+        return new ArrayList&lt;&gt;(result);
+    }
+    private void dfs(char[][] board, Trie.TrieNode node, int r, int c,
+    StringBuilder path, Set&lt;String&gt; result) {
+        // Boundary or visited-cell check
+        if (r &lt; 0 || r &gt;= board.length || c &lt; 0 || c &gt;= board[0].length
+        || board[r][c] == &#x27;#&#x27;) return;
+        char ch = board[r][c];
+        int idx = ch - &#x27;a&#x27;;
+        // STEP 3: Prune — if no Trie child for this char, stop this path
+        // WHY: current path can&#x27;t lead to any target word
+        if (node.children[idx] == null) return;
+        Trie.TrieNode next = node.children[idx];
+        path.append(ch);
+        // STEP 4: If this node marks a word end, collect it
+        if (next.isEnd) result.add(path.toString());
+        // STEP 5: Mark cell as visited, explore 4 neighbors, then restore
+        board[r][c] = &#x27;#&#x27;; // WHY #: prevents revisiting same cell in this path
+        dfs(board, next, r+1, c, path, result);
+        dfs(board, next, r-1, c, path, result);
+        dfs(board, next, r, c+1, path, result);
+        dfs(board, next, r, c-1, path, result);
+        board[r][c] = ch; // RESTORE: backtrack (unmark visited)
+        path.deleteCharAt(path.length() - 1); // backtrack path string
+    }
+}</code></pre>
+<h3>Top Trie Interview Questions</h3>
+<p class="lbl"><b>Implement Trie</b></p>
+<p>TrieNode with TrieNode[26] children and boolean isEnd. Insert/Search/StartsWith each O(m)</p>
+<p class="lbl"><b>Design Add and Search Words</b></p>
+<p>Trie + DFS for '.' wildcard. On '.', try all 26 children recursively</p>
+<p class="lbl"><b>Replace Words</b></p>
+<p>Insert all roots. For each word, walk Trie — stop at first isEnd node (shortest root)</p>
+<p class="lbl"><b>Map Sum Pairs</b></p>
+<p>TrieNode stores int val. prefix sum = DFS summing all vals in subtree</p>
+<p class="lbl"><b>Longest Word in Dictionary</b></p>
+<p>Insert all words. BFS/DFS — only traverse nodes where isEnd==true</p>
+<p class="lbl"><b>Autocomplete System</b></p>
+<p>Trie + frequency HashMap per TrieNode. On '#', insert full sentence. On char, DFS for top-3</p>
+<h2>10. BINARY SEARCH</h2>
+<p class="lbl"><b>Binary Search Templates — Exact, Left Bound, Right Bound</b></p>
+<pre><code>// PATTERN: Classic Binary Search — O(log n) time, O(1) space
+// WHY Binary Search: on a sorted/monotone space, we can eliminate HALF the candidates
+// each step. log2(10^9) = ~30 steps — incredibly fast
+// TEMPLATE 1: Find exact value
+public int binarySearch(int[] arr, int target) {
+    int lo = 0, hi = arr.length - 1;
+    while (lo &lt;= hi) {
+        // WHY lo + (hi-lo)/2 instead of (lo+hi)/2:
+        // (lo+hi) can OVERFLOW for large values! Safe formula avoids it.
+        int mid = lo + (hi - lo) / 2;
+        if (arr[mid] == target) return mid; // found
+        else if (arr[mid] &lt; target) lo = mid + 1; // target in right half
+        else hi = mid - 1; // target in left half
+    }
+    return -1; // not found
+}
+// TEMPLATE 2: Find LEFTMOST position satisfying a condition (lower_bound)
+// WHY needed: when there are duplicates and we want first occurrence
+public int leftBound(int[] arr, int target) {
+    int lo = 0, hi = arr.length; // WHY hi = length (not length-1): allows insertion at end
+    while (lo &lt; hi) { // WHY lo &lt; hi (not lo &lt;= hi): we want lo == hi at end
+        int mid = lo + (hi - lo) / 2;
+        if (arr[mid] &lt; target) lo = mid + 1; // target is to the right
+        else hi = mid; // mid could be answer, keep it
+    }
+    return lo; // lo == hi == first position where arr[pos] &gt;= target
+}
+// TEMPLATE 3: Find RIGHTMOST position (upper_bound)
+public int rightBound(int[] arr, int target) {
+    int lo = 0, hi = arr.length;
+    while (lo &lt; hi) {
+        int mid = lo + (hi - lo) / 2;
+        if (arr[mid] &lt;= target) lo = mid + 1; // mid could be answer but check right
+        else hi = mid;
+    }
+    return lo - 1; // lo-1 = last position where arr[pos] &lt;= target
+}</code></pre>
+<p><b>WHY THIS WORKS: Three templates cover all cases. Template 1: exact match. Template 2: first occurrence (lo &lt; hi, hi=mid). Template 3: last occurrence (lo &lt;= mid moves lo past). Safe mid formula prevents integer overflow.</b></p>
+<p class="lbl"><b>Binary Search on Answer — Koko Eating Bananas</b></p>
+<pre><code>// PATTERN: Binary Search on Answer — O(n log(max-min)) time
+// PROBLEM: Find minimum eating speed for Koko to finish all bananas in h hours
+// WHY search on answer: we don&#x27;t search in the array — we search in the ANSWER SPACE
+// The answer (speed) is monotone: if speed k works, any speed &gt; k also works
+// This monotonicity lets us binary search on k directly
+public int minEatingSpeed(int[] piles, int h) {
+    // STEP 1: Define search space
+    // WHY 1 to max(piles): min possible speed=1 (eat 1/hr), max=largest pile (finish in 1hr)
+    int lo = 1;
+    int hi = Arrays.stream(piles).max().getAsInt();
+    while (lo &lt; hi) {
+        int mid = lo + (hi - lo) / 2; // candidate speed
+        // STEP 2: Check if speed &#x27;mid&#x27; can finish in h hours
+        // WHY Math.ceil(pile/speed) = (pile + speed - 1) / speed in integer arithmetic
+        if (canFinish(piles, mid, h)) {
+            hi = mid; // mid works, but maybe something smaller also works    try left
+        } else {
+            lo = mid + 1; // mid too slow, must go faster
+        }
+    }
+    return lo; // minimum speed that works
+}
+private boolean canFinish(int[] piles, int speed, int h) {
+    int hours = 0;
+    for (int pile : piles) {
+        // WHY ceiling division: partial hours round up (eat pile in ceil(pile/speed) hours)
+        hours += (pile + speed - 1) / speed;
+    }
+    return hours &lt;= h; // can we finish within h hours at this speed?
+}
+// TIME: O(n log(max_pile)) SPACE: O(1)</code></pre>
+<p><b>WHY THIS WORKS: 'Search on answer' pattern: instead of searching in data, we search in the answer range. Key requirement: the answer space must be MONOTONE (if k works, k+1 also works). Then binary search finds the boundary.</b></p>
+<p class="lbl"><b>Binary Search on Rotated Array</b></p>
+<pre><code>// PATTERN: Binary Search on Rotated Array — O(log n) time, O(1) space
+// PROBLEM: Search for target in a sorted array that was rotated at some pivot
+// WHY Binary Search still works: ONE of the two halves is ALWAYS sorted
+// We identify the sorted half and check if target falls in it
+public int search(int[] nums, int target) {
+    int lo = 0, hi = nums.length - 1;
+    while (lo &lt;= hi) {
+        int mid = lo + (hi - lo) / 2;
+        if (nums[mid] == target) return mid;
+        // STEP 1: Determine which half is sorted
+        // WHY: in any rotation, one half is always sorted
+        if (nums[lo] &lt;= nums[mid]) {
+            // LEFT half [lo..mid] is sorted
+            // STEP 2a: Is target in the sorted left half?
+            if (nums[lo] &lt;= target &amp;&amp; target &lt; nums[mid]) {
+                hi = mid - 1; // target in left half
+            } else {
+                lo = mid + 1; // target in right half
+            }
+        } else {
+            // RIGHT half [mid..hi] is sorted
+            // STEP 2b: Is target in the sorted right half?
+            if (nums[mid] &lt; target &amp;&amp; target &lt;= nums[hi]) {
+                lo = mid + 1; // target in right half
+            } else {
+                hi = mid - 1; // target in left half
+            }
+        }
+    }
+    return -1;
+}
+// TIME: O(log n) SPACE: O(1)</code></pre>
+<h3>Top Binary Search Interview Questions</h3>
+<p class="lbl"><b>Search a 2D Matrix</b></p>
+<p>Treat as 1D sorted array. row = mid/cols, col = mid%cols</p>
+<p class="lbl"><b>Find Minimum in Rotated Sorted Array</b></p>
+<p>If nums[mid] &gt; nums[right], min is in right half. Else left half</p>
+<p class="lbl"><b>Time Based Key-Value Store</b></p>
+<p>TreeMap&lt;Integer,String&gt; per key. get() uses floorEntry(timestamp)</p>
+<p class="lbl"><b>Capacity to Ship in D Days</b></p>
+<p>Binary search on capacity [maxWeight, sumWeight]. canShip() checks days needed</p>
+<p class="lbl"><b>Find Peak Element</b></p>
+<p>Binary search: if nums[mid] &lt; nums[mid+1], peak is to the right; else left</p>
+<p class="lbl"><b>Median of Two Sorted Arrays</b></p>
+<p>Binary search partition on smaller array. Hard but O(log(min(m,n)))</p>
+<p class="lbl"><b>Split Array Largest Sum</b></p>
+<p>Binary search on max subarray sum. canSplit() checks if k subarrays fit</p>
+<p class="lbl"><b>LIS in O(n log n)</b></p>
+<p>Maintain tails[] array. Binary search (leftBound) for each element's placement</p>
+<h2>11. DYNAMIC PROGRAMMING</h2>
+<h3>Framework: State → Transition → Base Case → Optimize Space</h3>
+<ol><li>Define STATE: what variables completely describe a subproblem?</li><li>Define TRANSITION: dp[state] = f(dp[smaller states])</li><li>Define BASE CASE: smallest/trivial subproblems with known answers</li><li>OPTIMIZE: can you reduce 2D dp to 1D? 1D to O(1)?</li></ol>
+<p class="lbl"><b>1D DP + Space Optimization — Climbing Stairs</b></p>
+<pre><code>// PATTERN: 1D DP with O(1) Space Optimization — O(n) time
+// PROBLEM: Climbing stairs — how many distinct ways to reach step n (1 or 2 steps)?
+// WHY DP: overlapping subproblems — ways(n) = ways(n-1) + ways(n-2) (Fibonacci pattern)
+// WHY O(1) space: dp[i] only depends on dp[i-1] and dp[i-2] — keep only last two
+public int climbStairs(int n) {
+    if (n &lt;= 2) return n; // base cases: 1 way for n=1, 2 ways for n=2
+    // STEP 1: Instead of int[] dp array, use two variables
+    // WHY: dp[i] = dp[i-1] + dp[i-2]    only need previous two values
+    int prev2 = 1; // dp[1] = 1 way to reach step 1
+    int prev1 = 2; // dp[2] = 2 ways to reach step 2
+    for (int i = 3; i &lt;= n; i++) {
+        // STEP 2: Current = sum of two previous (Fibonacci recurrence)
+        int curr = prev1 + prev2;
+        prev2 = prev1; // slide window forward
+        prev1 = curr;
+    }
+    return prev1;
+}
+// TIME: O(n) SPACE: O(1) — reduced from O(n) array to 2 variables</code></pre>
+<p class="lbl"><b>Unbounded Knapsack DP — Coin Change</b></p>
+<pre><code>// PATTERN: Bottom-Up DP (Unbounded Knapsack) — O(amount * coins) time, O(amount) space
+// PROBLEM: Coin Change — minimum coins to make exact amount
+// WHY DP: optimal substructure — min coins for amount a = 1 + min coins for (a - coin)
+// for all coins that fit. Subproblems overlap massively — DP avoids recomputation
+public int coinChange(int[] coins, int amount) {
+    // STEP 1: dp[a] = minimum number of coins to make amount a
+    // WHY amount+1 as infinity: impossible to need more than amount coins (all 1s)
+    int[] dp = new int[amount + 1];
+    Arrays.fill(dp, amount + 1); // initialize to &quot;infinity&quot;
+    dp[0] = 0; // WHY dp[0]=0: 0 coins needed to make amount 0 (base case)
+    // STEP 2: Build solution for each amount from 1 to amount
+    for (int a = 1; a &lt;= amount; a++) {
+        // STEP 3: Try every coin denomination
+        for (int coin : coins) {
+            // WHY coin &lt;= a: can only use coin if it doesn&#x27;t exceed current amount
+            if (coin &lt;= a) {
+                // TRANSITION: dp[a] = min(dp[a], 1 + dp[a - coin])
+                // WHY 1 + dp[a-coin]: use one coin, solve remaining (a-coin)
+                dp[a] = Math.min(dp[a], 1 + dp[a - coin]);
+            }
+        }
+    }
+    // STEP 4: If dp[amount] still &gt; amount, no solution exists
+    return dp[amount] &gt; amount ? -1 : dp[amount];
+}
+// TIME: O(amount * |coins|) SPACE: O(amount)</code></pre>
+<p><b>WHY THIS WORKS: Unbounded knapsack: each coin can be used unlimited times. Bottom-up builds answers for smaller amounts first. dp[a] depends on dp[a-coin] which is already computed when we process amount a.</b></p>
+<p class="lbl"><b>2D DP — Longest Common Subsequence</b></p>
+<pre><code>// PATTERN: 2D DP for two sequences — O(m*n) time, O(m*n) or O(n) space
+// PROBLEM: Longest Common Subsequence of two strings
+// WHY 2D DP: need to track state for BOTH strings simultaneously
+// dp[i][j] = LCS length of s1[0..i-1] and s2[0..j-1]
+public int longestCommonSubsequence(String s1, String s2) {
+    int m = s1.length(), n = s2.length();
+    // STEP 1: dp table — extra row/col of zeros = base case (empty string LCS = 0)
+    int[][] dp = new int[m + 1][n + 1];
+    for (int i = 1; i &lt;= m; i++) {
+        for (int j = 1; j &lt;= n; j++) {
+            // STEP 2: Two cases based on whether current chars match
+            if (s1.charAt(i - 1) == s2.charAt(j - 1)) {
+                // CASE A: chars match — extend LCS by 1
+                // WHY dp[i-1][j-1]: LCS of strings WITHOUT these matching chars, plus 1
+                dp[i][j] = 1 + dp[i - 1][j - 1];
+            } else {
+                // CASE B: chars don&#x27;t match — take best of skipping one char from either
+                // WHY max: we try removing last char of s1 OR last char of s2
+                dp[i][j] = Math.max(dp[i - 1][j], // skip last char of s1
+                dp[i][j - 1]); // skip last char of s2
+            }
+        }
+    }
+    return dp[m][n];
+}
+// TIME: O(m*n) SPACE: O(m*n) — can optimize to O(n) using rolling array</code></pre>
+<p class="lbl"><b>0/1 Knapsack DP — Partition Equal Subset Sum</b></p>
+<pre><code>// PATTERN: 0/1 Knapsack DP — O(n * capacity) time, O(capacity) space
+// PROBLEM: Partition array into two equal-sum subsets
+// WHY Knapsack: each number is either IN or NOT IN the subset (0/1 choice)
+// dp[w] = can we form sum w using numbers seen so far?
+public boolean canPartition(int[] nums) {
+    int total = Arrays.stream(nums).sum();
+    // STEP 1: Odd sum    impossible to split into equal halves
+    if (total % 2 != 0) return false;
+    int target = total / 2;
+    // STEP 2: boolean dp[w] = &quot;can we form sum w from some subset?&quot;
+    boolean[] dp = new boolean[target + 1];
+    dp[0] = true; // WHY dp[0]=true: empty subset forms sum 0 (always possible)
+    for (int num : nums) {
+        // STEP 3: CRITICAL — iterate RIGHT to LEFT to prevent reusing same element
+        // WHY right to left: ensures we use each num at most ONCE (0/1 knapsack)
+        // Left to right would allow a number to be used multiple times
+        for (int w = target; w &gt;= num; w--) {
+            // TRANSITION: can we form sum w by EITHER not taking num (dp[w])
+            // OR taking num and forming (w - num) with remaining?
+            dp[w] = dp[w] || dp[w - num];
+        }
+    }
+    return dp[target];
+}
+// TIME: O(n * target) SPACE: O(target) — reduced from O(n * target) 2D</code></pre>
+<p><b>WHY THIS WORKS: Iterating RIGHT to LEFT is the crucial optimization for 0/1 Knapsack with a 1D array. It ensures dp[w-num] refers to the state BEFORE processing current num — preventing using it twice.</b></p>
+<p class="lbl"><b>Word Break DP</b></p>
+<pre><code>// PATTERN: Word Break DP — O(n^2 * L) time where L = avg word length
+// PROBLEM: Can string s be segmented into words from wordDict?
+// WHY DP: overlapping subproblems — same prefix validated multiple times in recursion
+// WHY HashSet: O(1) word lookup vs O(L) list contains
+public boolean wordBreak(String s, List&lt;String&gt; wordDict) {
+    // STEP 1: HashSet for O(1) lookup
+    Set&lt;String&gt; wordSet = new HashSet&lt;&gt;(wordDict);
+    // STEP 2: dp[i] = &quot;can s[0..i-1] be formed from dictionary words?&quot;
+    boolean[] dp = new boolean[s.length() + 1];
+    dp[0] = true; // WHY true: empty string is trivially segmentable (base case)
+    for (int i = 1; i &lt;= s.length(); i++) {
+        // STEP 3: Try every possible last word ending at position i
+        // WHY j from 0 to i: check if s[j..i-1] is in dict AND s[0..j-1] was valid
+        for (int j = 0; j &lt; i; j++) {
+            if (dp[j] &amp;&amp; wordSet.contains(s.substring(j, i))) {
+                dp[i] = true;
+                break; // WHY break: found one valid segmentation — no need to continue
+            }
+        }
+    }
+    return dp[s.length()];
+}
+// TIME: O(n^2 * L) where L = substring comparison cost SPACE: O(n + dict size)</code></pre>
+<h3>Top DP Interview Questions</h3>
+<p class="lbl"><b>House Robber</b></p>
+<p>dp[i] = Math.max(dp[i-1], dp[i-2]+nums[i]). Optimize to O(1): prev2, prev1 variables</p>
+<p class="lbl"><b>House Robber II (circular)</b></p>
+<p>Run rob() twice: on nums[0..n-2] and nums[1..n-1]. Return max</p>
+<p class="lbl"><b>Longest Increasing Subsequence O(n log n)</b></p>
+<p>tails[] array + binary search. Replace first element &gt;= current. tails.size() = LIS length</p>
+<p class="lbl"><b>Edit Distance</b></p>
+<p>dp[i][j] = min(insert, delete, replace). If chars match, dp[i][j]=dp[i-1][j-1]</p>
+<p class="lbl"><b>Unique Paths</b></p>
+<p>dp[i][j] = dp[i-1][j] + dp[i][j-1]. Optimize to 1D: dp[j] += dp[j-1]</p>
+<p class="lbl"><b>Combination Sum IV (order matters)</b></p>
+<p>dp[target] += dp[target-num] for each target. Different from knapsack — order matters</p>
+<p class="lbl"><b>Decode Ways</b></p>
+<p>dp[i] = ways to decode s[0..i-1]. Check single digit and two-digit validity</p>
+<p class="lbl"><b>Best Time Stock with Cooldown</b></p>
+<p>States: HELD, SOLD, REST. Transition between states at each price</p>
+<p class="lbl"><b>Longest Palindromic Substring</b></p>
+<p>Expand from center (2 cases). Track best start + maxLen. O(n^2) time O(1) space</p>
+<p class="lbl"><b>Regular Expression Matching</b></p>
+<p>dp[i][j] = s[0..i-1] matches p[0..j-1]. Handle '.' and '*' transitions carefully</p>
+<p class="lbl"><b>Burst Balloons (Interval DP)</b></p>
+<p>dp[i][j] = max coins from balloons i..j. Try each as LAST burst: balloon*left*right</p>
+<p class="lbl"><b>Jump Game II (min jumps)</b></p>
+<p>Greedy: curEnd = farthest reachable now; farthest = max reachable from here. Jump at curEnd</p>
+<h2>12. CHEAT SHEET &amp; INTERVIEW STRATEGY</h2>
+<h3>Big-O Reference</h3>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Complexity</th><th>Name</th><th>Typical Use Cases</th><th>n=10^6 Result</th></tr></thead><tbody><tr><td>O(1)</td><td>Constant</td><td>HashMap get, array[i]</td><td>~1 op — instant</td></tr><tr><td>O(log n)</td><td>Logarithmic</td><td>Binary search, heap ops</td><td>~20 ops — fast</td></tr><tr><td>O(n)</td><td>Linear</td><td>Single loop, BFS/DFS</td><td>10^6 — OK</td></tr><tr><td>O(n log n)</td><td>Linearithmic</td><td>Merge sort, heap sort</td><td>~2x10^7 — OK</td></tr><tr><td>O(n^2)</td><td>Quadratic</td><td>Nested loops, bubble sort</td><td>10^12 — TOO SLOW</td></tr><tr><td>O(2^n)</td><td>Exponential</td><td>Subsets, naive recursion</td><td>HUGE — avoid</td></tr><tr><td>O(n!)</td><td>Factorial</td><td>Permutations</td><td>MASSIVE — avoid</td></tr></tbody></table></div>
+<h3>Problem Signal → Pattern Map</h3>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>When You See...</th><th>Use This Pattern</th><th>Java Collection</th></tr></thead><tbody><tr><td>Find pair/triplet summing to X (sorted)</td><td>Two Pointers</td><td>int lo, hi</td></tr><tr><td>Subarray with max/min of size k</td><td>Sliding Window</td><td>int l, r</td></tr><tr><td>Range queries on array</td><td>Prefix Sum</td><td>int[] prefix</td></tr><tr><td>Sorted array, find target</td><td>Binary Search</td><td>lo + (hi-lo)/2</td></tr><tr><td>Tree paths, depth, diameter</td><td>DFS (recursion)</td><td>recursive helper</td></tr><tr><td>Level-by-level, shortest path</td><td>BFS</td><td>Queue (LinkedList)</td></tr><tr><td>All combinations, permutations</td><td>Backtracking</td><td>boolean[] used</td></tr><tr><td>Optimal with overlapping subproblems</td><td>Dynamic Programming</td><td>int[] or int[][] dp</td></tr><tr><td>Connected components, cycle detect</td><td>Union-Find / DFS</td><td>UnionFind class</td></tr><tr><td>Top K elements</td><td>Heap</td><td>PriorityQueue&amp;lt;Integer&amp;gt;</td></tr><tr><td>Next greater/smaller</td><td>Monotonic Stack</td><td>Deque&amp;lt;Integer&amp;gt; stack</td></tr><tr><td>Prefix string search / autocomplete</td><td>Trie</td><td>TrieNode[26]</td></tr><tr><td>Dependency ordering</td><td>Topological Sort (Kahn's)</td><td>Queue + inDegree[]</td></tr><tr><td>Frequency counting</td><td>HashMap</td><td>map.merge(k,1,Integer::sum)</td></tr><tr><td>Duplicate check, membership</td><td>HashSet</td><td>set.add() / set.contains()</td></tr></tbody></table></div>
+<h3>Java One-Liners Worth Memorizing</h3>
+<p class="lbl"><b>Java Interview One-Liners</b></p>
+<pre><code>// Safe binary search mid (prevents integer overflow)
+int mid = lo + (hi - lo) / 2;
+// Integer ceiling division (avoids Math.ceil and double cast)
+int ceil = (dividend + divisor - 1) / divisor;
+// Swap two elements in array
+int tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+// Increment map count safely (no null check needed)
+map.merge(key, 1, Integer::sum);
+map.put(key, map.getOrDefault(key, 0) + 1); // equivalent
+// Group into map (create list on first encounter)
+map.computeIfAbsent(key, k -&gt; new ArrayList&lt;&gt;()).add(value);
+// Reverse a portion of array in-place (e.g., for rotate array)
+for (int lo = 0, hi = end; lo &lt; hi; lo++, hi--) {
+    int tmp = arr[lo]; arr[lo] = arr[hi]; arr[hi] = tmp;
+}
+// Sort 2D array by first element, break ties by second (ascending)
+Arrays.sort(intervals, (a, b) -&gt; a[0] != b[0] ? a[0]-b[0] : a[1]-b[1]);
+// Sort array of strings by length, then alphabetically
+Arrays.sort(words, (a, b) -&gt; a.length() != b.length() ?
+a.length()-b.length() : a.compareTo(b));
+// Char to index mapping (lowercase only)
+int idx = c - &#x27;a&#x27;; // &#x27;a&#x27;-&gt;0, &#x27;b&#x27;-&gt;1, ..., &#x27;z&#x27;-&gt;25
+char c = (char)(&#x27;a&#x27; + idx); // reverse
+// Long multiplication to avoid int overflow
+long product = (long) a * b; // cast BEFORE multiplication
+// Integer bounds for comparison init
+int best = Integer.MIN_VALUE; // for finding maximum
+int best = Integer.MAX_VALUE; // for finding minimum
+// Check if number is power of 2
+boolean isPow2 = (n &gt; 0) &amp;&amp; ((n &amp; (n-1)) == 0); // WHY: powers of 2 have single set bit</code></pre>
+<h3>Interview Problem-Solving Steps</h3>
+<ol><li><b>CLARIFY</b>: Ask about constraints (n size, negative numbers, duplicates, null input). Confirm return type. Understand</li></ol>
+<p>edge cases.</p>
+<ol><li><b>EXAMPLES</b>: Walk through 2-3 examples manually. Include edge cases: empty input, single element, all same.</li><li><b>BRUTE FORCE</b>: State the naive O(n²) or O(n!) solution first. Explain why it's too slow. Then optimize.</li><li><b>PATTERN MATCH</b>: Identify which DS/algorithm pattern applies. Explain your reasoning.</li><li><b>CODE</b>: Write clean Java. Use descriptive variable names. Handle edge cases. Add brief inline comments.</li><li><b>COMPLEXITY</b>: State Time and Space complexity. Justify each.</li><li><b>TEST</b>: Trace through your code with the given example. Then test 1-2 edge cases mentally.</li></ol>
+<h3>Top 25 Must-Solve Problems</h3>
+<p>Two Sum | Maximum Subarray (Kadane's) Longest Substring Without Repeating Chars | Valid Parentheses Reverse Linked List | Linked List Cycle (Floyd's) Merge Two Sorted Lists | LRU Cache (LinkedHashMap) Invert Binary Tree | Max Depth of Binary Tree Validate BST | Lowest Common Ancestor Binary Tree Level Order (BFS) | Max Path Sum Number of Islands | Course Schedule (Topological Sort)</p>
+<p>Binary Search | Search in Rotated Array Top K Frequent Elements | Find Median from Data Stream Climbing Stairs | House Robber | Coin Change Longest Common Subsequence | Word Break 3Sum | Container With Most Water Merge Intervals | Non-overlapping Intervals Implement Trie | Word Search II</p>
+<div class="callout tip"><p>TIP: Consistency beats intensity. Solve 2-3 LeetCode problems DAILY. After each problem: optimize → test edge cases → analyze O() complexity → understand the PATTERN not just the solution. Master 12 patterns and you can solve 90% of interview questions. Good luck!</p></div>
+<h2>Bonus — 8-Week Java DSA Study Plan</h2>
+<p class="lbl"><i>(From the shorter “DS Interview Java Guide” edition — the only section not already covered above.)</i></p>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Week</th><th>Focus Topic</th><th>Key Java Classes</th><th>Target</th></tr></thead><tbody>
+<tr><td>1</td><td>Arrays + Strings</td><td>int[], String, StringBuilder, int[26]</td><td>20 problems</td></tr>
+<tr><td>2</td><td>HashMap + HashSet + Sliding Window</td><td>HashMap, HashSet, LinkedHashMap</td><td>20 problems</td></tr>
+<tr><td>3</td><td>Linked List + Stack + Queue</td><td>ListNode, ArrayDeque, LinkedList</td><td>20 problems</td></tr>
+<tr><td>4</td><td>Trees (BT + BST)</td><td>TreeNode, Queue for BFS, Deque for DFS</td><td>25 problems</td></tr>
+<tr><td>5</td><td>Graphs + Union-Find</td><td>List&lt;List&lt;&gt;&gt;, boolean[], UnionFind class</td><td>20 problems</td></tr>
+<tr><td>6</td><td>Heap + Binary Search</td><td>PriorityQueue, Arrays.binarySearch</td><td>20 problems</td></tr>
+<tr><td>7</td><td>Dynamic Programming</td><td>int[] dp, int[][] dp, HashMap memo</td><td>25 problems</td></tr>
+<tr><td>8</td><td>Trie + Mock Interviews</td><td>TrieNode[26], Mixed patterns</td><td>Review all</td></tr>
+</tbody></table></div>
+<div class="callout tip"><p>Solve 2–3 LeetCode problems daily. Master the ~15 core patterns — most interview problems are variants of them. Always state time &amp; space complexity. Consistency beats intensity: 30 days of daily practice beats one weekend marathon.</p></div>
+
+<div class="chapter-nav"><a class="prev" href="java-ds-leetcode-mastery.html">← Java Data Structures for LeetCode</a><a class="next" href="lru-cache-java-visual-explainer.html">LRU Cache →</a></div>
+</main>
+<aside class="toc"></aside>
+</div>
+<footer class="footer">SystemDesign.hinglish · Library · Personal study material</footer>
+<script src="../../assets/app.js"></script>
+</body>
+</html>

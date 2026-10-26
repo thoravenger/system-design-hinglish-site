@@ -1,0 +1,1518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Kafka · Redis · Cassandra – Deep Dive</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#07080e;--surface:#0e1420;--surface2:#141e2e;
+    --border:#1a2a3e;--ka:#e8442a;--re:#dc382d;--ca:#2196f3;
+    --accent:#00d4aa;--a2:#f59e0b;--a3:#8b5cf6;
+    --text:#e2e8f0;--muted:#64748b;--code-bg:#0c1017;
+    --green:#22c55e;--red:#ef4444;--purple:#a78bfa;
+    --teal:#2dd4bf;--orange:#f97316;--cyan:#06b6d4;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;line-height:1.7;font-size:15px}
+
+  nav{position:sticky;top:0;z-index:100;background:rgba(7,8,14,.96);backdrop-filter:blur(14px);border-bottom:1px solid var(--border);padding:0 1.5rem;display:flex;align-items:center;gap:1rem;height:52px;overflow-x:auto;scrollbar-width:none}
+  nav::-webkit-scrollbar{display:none}
+  .nav-logo{color:var(--accent);font-weight:800;font-size:12px;letter-spacing:.04em;margin-right:auto;white-space:nowrap;flex-shrink:0}
+  nav a{color:var(--muted);text-decoration:none;font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;white-space:nowrap;padding:.2rem .4rem;border-radius:4px;transition:color .2s}
+  nav a:hover{color:var(--accent)}
+  .nav-sep{color:var(--border);font-size:14px;flex-shrink:0}
+
+  .hero{padding:4rem 2rem 3rem;max-width:980px;margin:0 auto;text-align:center}
+  .hero-badge{display:inline-block;background:linear-gradient(135deg,#e8442a22,#2196f322);border:1px solid #e8442a40;color:var(--ka);font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;padding:.3rem .9rem;border-radius:999px;margin-bottom:1.4rem}
+  .hero h1{font-size:clamp(2rem,5.5vw,3.4rem);font-weight:800;line-height:1.1;background:linear-gradient(135deg,#e2e8f0 20%,#e8442a 50%,#2196f3 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:1rem}
+  .hero p{color:var(--muted);font-size:1rem;max-width:720px;margin:0 auto}
+
+  .container{max-width:980px;margin:0 auto;padding:0 1.5rem 6rem}
+  section{margin-bottom:4.5rem;scroll-margin-top:60px}
+  .sh{display:flex;align-items:center;gap:1rem;margin-bottom:1.8rem;padding-bottom:.8rem;border-bottom:1px solid var(--border)}
+  .sn{width:32px;height:32px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0;color:#fff}
+  .sh h2{font-size:1.4rem;font-weight:700;color:#fff}
+
+  /* Brand headers */
+  .kafka-hdr{background:linear-gradient(90deg,#e8442a33,transparent);border-left:3px solid var(--ka);padding:.8rem 1.2rem;border-radius:0 8px 8px 0;margin-bottom:1.5rem}
+  .redis-hdr{background:linear-gradient(90deg,#dc382d33,transparent);border-left:3px solid var(--re);padding:.8rem 1.2rem;border-radius:0 8px 8px 0;margin-bottom:1.5rem}
+  .cassandra-hdr{background:linear-gradient(90deg,#2196f333,transparent);border-left:3px solid var(--ca);padding:.8rem 1.2rem;border-radius:0 8px 8px 0;margin-bottom:1.5rem}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.4rem;margin-bottom:1.1rem}
+  .ct{font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.7rem}
+  .card.ag{border-left:3px solid var(--green)}.card.ar{border-left:3px solid var(--red)}
+  .card.ay{border-left:3px solid var(--a2)}.card.ab{border-left:3px solid var(--cyan)}
+  .card.ap{border-left:3px solid var(--purple)}.card.at{border-left:3px solid var(--accent)}
+  .card.ao{border-left:3px solid var(--orange)}.card.ak{border-left:3px solid var(--ka)}
+  .card.are{border-left:3px solid var(--re)}.card.aca{border-left:3px solid var(--ca)}
+
+  .g2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+  .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:.9rem}
+  .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:.8rem}
+  @media(max-width:680px){.g2,.g3,.g4{grid-template-columns:1fr}}
+
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:1.3rem;overflow-x:auto;margin:1rem 0 1.3rem;position:relative;font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.85}
+  .cl{position:absolute;top:.6rem;right:.8rem;font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-family:'JetBrains Mono',monospace}
+  .kw{color:#ff79c6}.an{color:#50fa7b}.ty{color:#8be9fd}.st{color:#f1fa8c}
+  .cm{color:#6272a4;font-style:italic}.nu{color:#bd93f9}.mt{color:#ffb86c}
+  .en{color:#ff5555}.pr{color:#00d4aa}.cf{color:#8be9fd}.cv{color:#f1fa8c}
+
+  table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin:1rem 0 1.4rem;font-size:12.5px}
+  th{background:var(--surface2);padding:.65rem 1rem;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:700;border-bottom:1px solid var(--border)}
+  td{padding:.6rem 1rem;border-bottom:1px solid var(--border);vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:var(--surface2)}
+  code{background:#fff1;border:1px solid #fff2;border-radius:4px;padding:.1rem .4rem;font-family:'JetBrains Mono',monospace;font-size:.84em;color:var(--accent)}
+
+  .cl-box{border-radius:10px;padding:.9rem 1.1rem;margin:1rem 0;display:flex;gap:.7rem;align-items:flex-start;font-size:.89rem}
+  .ci{font-size:1rem;flex-shrink:0;margin-top:.05rem}
+  .cl-box.tip{background:#00d4aa10;border:1px solid #00d4aa30}
+  .cl-box.warn{background:#f59e0b15;border:1px solid #f59e0b30}
+  .cl-box.danger{background:#ef444415;border:1px solid #ef444430}
+  .cl-box.info{background:#2196f315;border:1px solid #2196f330}
+  .cl-box.kafka{background:#e8442a10;border:1px solid #e8442a30}
+  .cl-box.redis{background:#dc382d10;border:1px solid #dc382d30}
+  .cl-box.cass{background:#2196f310;border:1px solid #2196f330}
+
+  .flow{background:var(--code-bg);border:1px solid var(--border);border-radius:11px;padding:1.3rem;margin:1rem 0 1.3rem;font-family:'JetBrains Mono',monospace;font-size:11.5px;overflow-x:auto}
+  .fr{display:flex;align-items:center;gap:.5rem;padding:.28rem 0;flex-wrap:wrap}
+  .bx{background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:.25rem .7rem;white-space:nowrap;font-weight:600;font-size:11px}
+  .bx.g{background:#14532d30;border-color:var(--green);color:var(--green)}
+  .bx.b{background:#1e3a5f30;border-color:var(--cyan);color:var(--cyan)}
+  .bx.v{background:#3b076430;border-color:var(--purple);color:var(--purple)}
+  .bx.y{background:#78350f30;border-color:var(--a2);color:var(--a2)}
+  .bx.r{background:#7f1d1d30;border-color:var(--red);color:var(--red)}
+  .bx.t{background:#0d393630;border-color:var(--teal);color:var(--teal)}
+  .bx.o{background:#7c2d1230;border-color:var(--orange);color:var(--orange)}
+  .bx.a{background:#06d6a010;border-color:var(--accent);color:var(--accent)}
+  .bx.ka{background:#e8442a20;border-color:var(--ka);color:var(--ka)}
+  .bx.re{background:#dc382d20;border-color:var(--re);color:var(--re)}
+  .bx.ca{background:#2196f320;border-color:var(--ca);color:var(--ca)}
+  .fa{color:var(--muted);font-size:12px}
+
+  .pl{display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:.12rem .5rem;border-radius:999px;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
+  .pl-g{background:#14532d50;color:var(--green);border:1px solid #22c55e40}
+  .pl-r{background:#7f1d1d50;color:var(--red);border:1px solid #ef444440}
+  .pl-y{background:#78350f50;color:var(--a2);border:1px solid #f59e0b40}
+  .pl-b{background:#1e3a5f50;color:var(--cyan);border:1px solid #06b6d440}
+
+  /* Diagram boxes */
+  .arch{background:var(--code-bg);border:1px solid var(--border);border-radius:14px;padding:1.8rem;margin:1rem 0 1.5rem;overflow-x:auto}
+  .arch-row{display:flex;gap:.6rem;align-items:center;margin:.35rem 0;flex-wrap:wrap}
+  .arch-box{border:1.5px solid;border-radius:7px;padding:.35rem .8rem;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:700;white-space:nowrap}
+  .ab-ka{border-color:var(--ka);color:var(--ka);background:#e8442a18}
+  .ab-re{border-color:var(--re);color:var(--re);background:#dc382d18}
+  .ab-ca{border-color:var(--ca);color:var(--ca);background:#2196f318}
+  .ab-g{border-color:var(--green);color:var(--green);background:#22c55e18}
+  .ab-y{border-color:var(--a2);color:var(--a2);background:#f59e0b18}
+  .ab-p{border-color:var(--purple);color:var(--purple);background:#8b5cf618}
+  .ab-t{border-color:var(--teal);color:var(--teal);background:#2dd4bf18}
+  .ab-c{border-color:var(--cyan);color:var(--cyan);background:#06b6d418}
+  .arch-arrow{color:var(--muted);font-size:14px;padding:0 .2rem}
+  .arch-label{font-size:10px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-top:.2rem}
+
+  /* Version badge */
+  .vb{display:inline-block;font-size:9.5px;font-weight:800;padding:.12rem .45rem;border-radius:4px;margin-right:.3rem;font-family:'JetBrains Mono',monospace}
+  .v-new{background:#14532d;color:#4ade80;border:1px solid #22c55e40}
+  .v-old{background:#7f1d1d;color:#fca5a5;border:1px solid #ef444440}
+
+  p{margin-bottom:.85rem;color:#cbd5e1}
+  ul,ol{padding-left:1.4rem;color:#cbd5e1}
+  li{margin-bottom:.35rem}
+  strong{color:#fff}
+  .muted{color:var(--muted);font-size:.87em}
+  h3{color:#fff;font-size:1rem;font-weight:700;margin:.9rem 0 .4rem}
+
+  .topic-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:.6rem;margin:1.5rem 0 3rem}
+  .tp{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.6rem .8rem;font-size:11px;font-weight:700;text-align:center;text-decoration:none;color:var(--text);display:block;transition:all .2s}
+  .tp:hover{border-color:var(--accent);color:var(--accent);background:#00d4aa08;transform:translateY(-1px)}
+  .tp.ka:hover{border-color:var(--ka);color:var(--ka);background:#e8442a08}
+  .tp.re:hover{border-color:var(--re);color:var(--re);background:#dc382d08}
+  .tp.ca:hover{border-color:var(--ca);color:var(--ca);background:#2196f308}
+
+  .cfg{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:1.3rem;font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.85;margin:1rem 0 1.4rem;overflow-x:auto;position:relative}
+</style>
+</head>
+<body>
+<div id="sdh-libbar" style="position:relative;z-index:2147483000;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0;padding:8px 16px;background:#0f172a;color:#cbd5e1;font:600 13px/1.5 Inter,'Segoe UI',system-ui,-apple-system,sans-serif;border-bottom:2px solid #4f46e5;box-sizing:border-box;width:100%;text-align:left;letter-spacing:0"><a href="../../index.html" style="color:#fff;text-decoration:none;font-weight:800">SystemDesign<span style="color:#8b8cff">.hinglish</span></a><span style="opacity:.45">/</span><a href="../index.html" style="color:#fff;text-decoration:none">📚 Library</a><span style="opacity:.45">/</span><a href="../index.html#data-messaging" style="color:#cbd5e1;text-decoration:none">Kafka · Redis · Cassandra &amp; Data</a><span style="margin-left:auto;font-size:11px;padding:2px 9px;border-radius:999px;border:1px solid #6366f1;color:#c7d2fe">📘 HTML ebook</span></div>
+
+<nav>
+  <span class="nav-logo">⚡ Kafka · Redis · Cassandra</span>
+  <a href="#kafka-arch">Kafka Arch</a>
+  <a href="#kafka-threads">Kafka Threads</a>
+  <a href="#kafka-prod-cons">Producer/Consumer</a>
+  <a href="#kafka-versions">Kafka Versions</a>
+  <span class="nav-sep">|</span>
+  <a href="#redis-arch">Redis Arch</a>
+  <a href="#redis-multi">Redis Multi-Server</a>
+  <a href="#redis-atomic">Redis Atomicity</a>
+  <a href="#redis-threads">Redis Threads</a>
+  <span class="nav-sep">|</span>
+  <a href="#cass-arch">Cassandra Arch</a>
+  <a href="#cass-hashing">Hashing</a>
+  <a href="#cass-scaling">Scaling</a>
+</nav>
+
+<div class="hero">
+  <div class="hero-badge">Kafka · Redis · Cassandra · Deep Dive · Java 17</div>
+  <h1>Kafka · Redis · Cassandra<br/>Complete Mastery</h1>
+  <p>Everything: Kafka threads, multi-producer/consumer, new version changes, Redis cross-server consistency, atomicity, thread model, Cassandra consistent hashing, data storage, and dynamic scaling.</p>
+</div>
+
+<div class="container">
+
+<div class="topic-grid">
+  <a class="tp ka" href="#kafka-arch">🟠 Kafka Architecture</a>
+  <a class="tp ka" href="#kafka-threads">🧵 Kafka Threads</a>
+  <a class="tp ka" href="#kafka-prod-cons">📨 Multi Producer/Consumer</a>
+  <a class="tp ka" href="#kafka-spring">🌱 Spring Kafka</a>
+  <a class="tp ka" href="#kafka-versions">🆕 Kafka Versions</a>
+  <a class="tp re" href="#redis-arch">🔴 Redis Architecture</a>
+  <a class="tp re" href="#redis-multi">🔁 Redis Multi-Server</a>
+  <a class="tp re" href="#redis-atomic">⚛️ Redis Atomicity</a>
+  <a class="tp re" href="#redis-threads">⚙️ Redis Threads</a>
+  <a class="tp ca" href="#cass-arch">🔵 Cassandra Architecture</a>
+  <a class="tp ca" href="#cass-hashing">🔑 Consistent Hashing</a>
+  <a class="tp ca" href="#cass-scaling">📈 Cassandra Scaling</a>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════
+     KAFKA SECTION
+═══════════════════════════════════════════════════════ -->
+
+<section id="kafka-arch">
+  <div class="kafka-hdr">
+    <div style="font-size:1.5rem;font-weight:800;color:var(--ka)">🟠 KAFKA</div>
+    <div style="color:var(--muted);font-size:.9rem">Distributed event streaming platform — high throughput, durable, fault-tolerant</div>
+  </div>
+  <div class="sh"><div class="sn" style="background:var(--ka)">1</div><h2>Kafka Architecture — Every Component</h2></div>
+
+  <div class="arch">
+    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:1rem">Kafka Cluster Architecture</div>
+
+    <div class="arch-row">
+      <div class="arch-box ab-g">Producer App 1</div>
+      <div class="arch-box ab-g">Producer App 2</div>
+      <div class="arch-box ab-g">Producer App N</div>
+    </div>
+    <div class="arch-row"><div class="arch-arrow" style="margin-left:1rem">↓ write (topic + key + value + headers)</div></div>
+    <div class="arch-row">
+      <div class="arch-box ab-ka">Broker 1 (Leader P0,P1)</div>
+      <div class="arch-arrow">⇌</div>
+      <div class="arch-box ab-ka">Broker 2 (Leader P2, Follower P0)</div>
+      <div class="arch-arrow">⇌</div>
+      <div class="arch-box ab-ka">Broker 3 (Leader P3, Follower P1)</div>
+    </div>
+    <div class="arch-row"><div class="arch-label" style="margin-left:1rem">↑ KRaft (Kafka 3.3+) or ZooKeeper — cluster metadata, leader election</div></div>
+    <div class="arch-row" style="margin-top:.5rem">
+      <div class="arch-box ab-y">Controller (KRaft)</div>
+      <div class="arch-arrow">manages →</div>
+      <div class="arch-box ab-y">Partition Leader Election</div>
+      <div class="arch-arrow">+</div>
+      <div class="arch-box ab-y">ISR Tracking</div>
+    </div>
+    <div class="arch-row" style="margin-top:.5rem">
+      <div class="arch-arrow">↓ read (offset, consumer group)</div>
+    </div>
+    <div class="arch-row">
+      <div class="arch-box ab-c">Consumer Group A: [C1,C2,C3]</div>
+      <div class="arch-arrow">‖</div>
+      <div class="arch-box ab-c">Consumer Group B: [C1,C2]</div>
+    </div>
+  </div>
+
+  <div class="g3">
+    <div class="card ak">
+      <div class="ct" style="color:var(--ka)">Topic & Partitions</div>
+      <p>A <strong>topic</strong> is a logical stream of records. Split into <strong>partitions</strong> — the unit of parallelism. Each partition is an append-only log, ordered by offset.</p>
+      <ul>
+        <li>Records within a partition are <strong>totally ordered</strong></li>
+        <li>Across partitions — only ordering if same key</li>
+        <li>Partition count = max parallelism</li>
+      </ul>
+    </div>
+    <div class="card ay">
+      <div class="ct" style="color:var(--a2)">Replication & ISR</div>
+      <p>Each partition has 1 <strong>leader</strong> + N-1 <strong>followers</strong>. Replication factor controls durability. <strong>ISR</strong> (In-Sync Replicas) = followers caught up with leader.</p>
+      <ul>
+        <li><code>replication.factor=3</code> → survives 2 broker failures</li>
+        <li><code>min.insync.replicas=2</code> → needs 2 acks to commit</li>
+        <li>Leader fails → one ISR promoted</li>
+      </ul>
+    </div>
+    <div class="card at">
+      <div class="ct" style="color:var(--accent)">Offset & Log</div>
+      <p>Each message has a monotonically increasing <strong>offset</strong> per partition. Consumers track their own offset. Kafka retains messages by time or size — not by consumption.</p>
+      <ul>
+        <li><code>auto.offset.reset=earliest/latest</code></li>
+        <li>Replay possible by resetting offset</li>
+        <li>Compacted topics — keep last per key</li>
+      </ul>
+    </div>
+  </div>
+
+<pre><span class="cm">// ── Kafka Record structure ────────────────────────────────────────────</span>
+<span class="cm">// ProducerRecord&lt;K,V&gt;</span>
+<span class="kw">new</span> <span class="ty">ProducerRecord</span>&lt;&gt;(
+    topic,         <span class="cm">// "orders"</span>
+    partition,     <span class="cm">// null = auto-route by key hash</span>
+    timestamp,     <span class="cm">// null = broker timestamp</span>
+    key,           <span class="cm">// "order-123" — determines partition routing</span>
+    value,         <span class="cm">// serialized payload</span>
+    headers        <span class="cm">// optional metadata (correlation-id, trace-id)</span>
+);
+
+<span class="cm">// ── Partition routing algorithm ──────────────────────────────────────</span>
+<span class="cm">// If key is null     → round-robin across partitions (batched)</span>
+<span class="cm">// If key is not null → murmur2(key) % numPartitions</span>
+<span class="cm">// Same key ALWAYS goes to same partition → ordering guarantee</span>
+<span class="cm">// Custom partitioner → implement Partitioner interface</span>
+<div class="code-label">Kafka Concepts</div></pre>
+</section>
+
+<section id="kafka-threads">
+  <div class="sh"><div class="sn" style="background:var(--ka)">2</div><h2>Kafka Threading Model — Producer & Consumer Threads</h2></div>
+
+  <div class="arch">
+    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.8rem">Producer Internal Thread Model</div>
+    <div class="arch-row">
+      <div class="arch-box ab-g">App Thread 1 (send)</div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box ab-y">RecordAccumulator (buffer)</div>
+      <div class="arch-arrow">←</div>
+      <div class="arch-box ab-ka">Sender Thread (I/O)</div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box ab-ka">Kafka Brokers</div>
+    </div>
+    <div class="arch-row">
+      <div class="arch-box ab-g">App Thread 2 (send)</div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-label">↑ batches by topic-partition</div>
+    </div>
+    <div style="margin-top:1rem;color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.8rem">Consumer Internal Thread Model</div>
+    <div class="arch-row">
+      <div class="arch-box ab-ca">Consumer Thread (poll loop)</div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box ab-c">Fetcher (background)</div>
+      <div class="arch-arrow">→</div>
+      <div class="arch-box ab-ka">Broker</div>
+    </div>
+    <div class="arch-row">
+      <div class="arch-label">Consumer is NOT thread-safe. One thread per KafkaConsumer instance.</div>
+    </div>
+  </div>
+
+  <div class="g2">
+    <div class="card ak">
+      <div class="ct" style="color:var(--ka)">Producer Threads</div>
+      <ul>
+        <li><strong>Application threads:</strong> call <code>producer.send()</code> — adds to RecordAccumulator</li>
+        <li><strong>Sender thread:</strong> ONE background thread drains batches to brokers</li>
+        <li><strong>KafkaProducer IS thread-safe</strong> — share one producer across threads</li>
+        <li>Batching: <code>batch.size</code> + <code>linger.ms</code> control flush frequency</li>
+      </ul>
+    </div>
+    <div class="card aca">
+      <div class="ct" style="color:var(--ca)">Consumer Threads</div>
+      <ul>
+        <li><strong>KafkaConsumer is NOT thread-safe</strong> — one thread only</li>
+        <li>Internal: <strong>poll thread</strong> + background <strong>heartbeat thread</strong></li>
+        <li>Heartbeat: sends <code>heartbeat.interval.ms</code> to GroupCoordinator</li>
+        <li>If no heartbeat for <code>session.timeout.ms</code> → rebalance triggered</li>
+      </ul>
+    </div>
+  </div>
+
+<pre><span class="cm">// ── Producer — thread-safe, share ONE instance ────────────────────────</span>
+
+<span class="an">@Bean</span>
+<span class="kw">public</span> <span class="ty">KafkaProducer</span>&lt;<span class="ty">String</span>, <span class="ty">String</span>&gt; <span class="mt">sharedProducer</span>() {
+    <span class="ty">Properties</span> props = <span class="kw">new</span> <span class="ty">Properties</span>();
+    props.<span class="mt">put</span>(<span class="st">"bootstrap.servers"</span>,  <span class="st">"broker1:9092,broker2:9092"</span>);
+    props.<span class="mt">put</span>(<span class="st">"key.serializer"</span>,     <span class="st">"...StringSerializer"</span>);
+    props.<span class="mt">put</span>(<span class="st">"value.serializer"</span>,   <span class="st">"...StringSerializer"</span>);
+
+    <span class="cm">// Throughput tuning</span>
+    props.<span class="mt">put</span>(<span class="st">"batch.size"</span>,         <span class="nu">65536</span>);   <span class="cm">// 64 KB batch</span>
+    props.<span class="mt">put</span>(<span class="st">"linger.ms"</span>,          <span class="nu">10</span>);      <span class="cm">// wait 10ms to fill batch</span>
+    props.<span class="mt">put</span>(<span class="st">"compression.type"</span>,   <span class="st">"snappy"</span>);<span class="cm">// compress batches</span>
+    props.<span class="mt">put</span>(<span class="st">"buffer.memory"</span>,       <span class="nu">33554432</span>);<span class="cm">// 32MB accumulator buffer</span>
+
+    <span class="cm">// Reliability tuning</span>
+    props.<span class="mt">put</span>(<span class="st">"acks"</span>,               <span class="st">"all"</span>);   <span class="cm">// wait for all ISR to ack</span>
+    props.<span class="mt">put</span>(<span class="st">"retries"</span>,            <span class="ty">Integer</span>.<span class="en">MAX_VALUE</span>);
+    props.<span class="mt">put</span>(<span class="st">"enable.idempotence"</span>, <span class="kw">true</span>);    <span class="cm">// exactly-once at producer</span>
+    props.<span class="mt">put</span>(<span class="st">"max.in.flight.requests.per.connection"</span>, <span class="nu">5</span>);
+
+    <span class="kw">return new</span> <span class="ty">KafkaProducer</span>&lt;&gt;(props);
+}
+
+<span class="cm">// Multiple app threads safely sharing ONE producer:</span>
+<span class="kw">class</span> <span class="ty">OrderEventPublisher</span> {
+    <span class="kw">private final</span> <span class="ty">KafkaProducer</span>&lt;<span class="ty">String</span>, <span class="ty">String</span>&gt; producer; <span class="cm">// shared, thread-safe</span>
+
+    <span class="kw">public</span> <span class="ty">Future</span>&lt;<span class="ty">RecordMetadata</span>&gt; <span class="mt">send</span>(<span class="ty">Order</span> order) {
+        <span class="ty">ProducerRecord</span>&lt;<span class="ty">String</span>, <span class="ty">String</span>&gt; rec =
+            <span class="kw">new</span> <span class="ty">ProducerRecord</span>&lt;&gt;(<span class="st">"orders"</span>, order.<span class="mt">id</span>(), toJson(order));
+
+        <span class="cm">// Async send with callback</span>
+        <span class="kw">return</span> producer.<span class="mt">send</span>(rec, (metadata, ex) -> {
+            <span class="kw">if</span> (ex != <span class="kw">null</span>) {
+                log.<span class="mt">error</span>(<span class="st">"Send failed: {}"</span>, ex.<span class="mt">getMessage</span>());
+            } <span class="kw">else</span> {
+                log.<span class="mt">debug</span>(<span class="st">"Sent to partition={} offset={}"</span>,
+                    metadata.<span class="mt">partition</span>(), metadata.<span class="mt">offset</span>());
+            }
+        });
+    }
+}
+<div class="code-label">Java 17 — Kafka Producer</div></pre>
+
+<pre><span class="cm">// ── Consumer — NOT thread-safe, multi-thread patterns ────────────────</span>
+
+<span class="cm">// Pattern 1: One consumer per thread (simplest, recommended)</span>
+<span class="kw">class</span> <span class="ty">ConsumerRunnable</span> <span class="kw">implements</span> <span class="ty">Runnable</span> {
+    <span class="kw">private final</span> <span class="ty">KafkaConsumer</span>&lt;<span class="ty">String</span>, <span class="ty">String</span>&gt; consumer;
+
+    <span class="ty">ConsumerRunnable</span>(<span class="ty">String</span> groupId) {
+        <span class="ty">Properties</span> props = <span class="kw">new</span> <span class="ty">Properties</span>();
+        props.<span class="mt">put</span>(<span class="st">"bootstrap.servers"</span>,         <span class="st">"broker1:9092"</span>);
+        props.<span class="mt">put</span>(<span class="st">"group.id"</span>,                  groupId);
+        props.<span class="mt">put</span>(<span class="st">"key.deserializer"</span>,           <span class="st">"...StringDeserializer"</span>);
+        props.<span class="mt">put</span>(<span class="st">"value.deserializer"</span>,         <span class="st">"...StringDeserializer"</span>);
+        props.<span class="mt">put</span>(<span class="st">"auto.offset.reset"</span>,          <span class="st">"earliest"</span>);
+        props.<span class="mt">put</span>(<span class="st">"enable.auto.commit"</span>,         <span class="kw">false</span>);     <span class="cm">// manual commit!</span>
+        props.<span class="mt">put</span>(<span class="st">"max.poll.records"</span>,           <span class="nu">500</span>);       <span class="cm">// batch size</span>
+        props.<span class="mt">put</span>(<span class="st">"max.poll.interval.ms"</span>,       <span class="nu">300000</span>);    <span class="cm">// 5 min processing time</span>
+        props.<span class="mt">put</span>(<span class="st">"session.timeout.ms"</span>,         <span class="nu">45000</span>);
+        props.<span class="mt">put</span>(<span class="st">"heartbeat.interval.ms"</span>,      <span class="nu">15000</span>);
+        consumer = <span class="kw">new</span> <span class="ty">KafkaConsumer</span>&lt;&gt;(props);
+    }
+
+    <span class="an">@Override</span>
+    <span class="kw">public void</span> <span class="mt">run</span>() {
+        consumer.<span class="mt">subscribe</span>(<span class="ty">List</span>.<span class="mt">of</span>(<span class="st">"orders"</span>));
+        <span class="kw">try</span> {
+            <span class="kw">while</span> (!<span class="ty">Thread</span>.<span class="mt">currentThread</span>().<span class="mt">isInterrupted</span>()) {
+                <span class="ty">ConsumerRecords</span>&lt;<span class="ty">String</span>, <span class="ty">String</span>&gt; records =
+                    consumer.<span class="mt">poll</span>(<span class="ty">Duration</span>.<span class="mt">ofMillis</span>(<span class="nu">100</span>));
+
+                <span class="kw">for</span> (<span class="ty">ConsumerRecord</span>&lt;<span class="ty">String</span>, <span class="ty">String</span>&gt; record : records) {
+                    <span class="mt">process</span>(record);  <span class="cm">// must finish before max.poll.interval.ms</span>
+                }
+
+                <span class="cm">// Manual commit AFTER processing</span>
+                consumer.<span class="mt">commitSync</span>();  <span class="cm">// or commitAsync()</span>
+            }
+        } <span class="kw">finally</span> {
+            consumer.<span class="mt">close</span>();  <span class="cm">// triggers rebalance, commits offsets</span>
+        }
+    }
+}
+
+<span class="cm">// Pattern 2: Consumer + Worker thread pool (decouple I/O from processing)</span>
+<span class="kw">class</span> <span class="ty">ConsumerWithWorkers</span> {
+    <span class="kw">private final</span> <span class="ty">ExecutorService</span> workers = <span class="ty">Executors</span>.<span class="mt">newFixedThreadPool</span>(<span class="nu">8</span>);
+
+    <span class="kw">void</span> <span class="mt">run</span>() {
+        <span class="kw">while</span> (<span class="kw">true</span>) {
+            <span class="ty">ConsumerRecords</span>&lt;<span class="ty">String</span>, <span class="ty">String</span>&gt; records = consumer.<span class="mt">poll</span>(<span class="ty">Duration</span>.<span class="mt">ofMillis</span>(<span class="nu">100</span>));
+            <span class="cm">// ⚠️  Do NOT commit until workers finish — track futures!</span>
+            <span class="ty">List</span>&lt;<span class="ty">Future</span>&lt;?&gt;&gt; futures = <span class="kw">new</span> <span class="ty">ArrayList</span>&lt;&gt;();
+            <span class="kw">for</span> (<span class="ty">ConsumerRecord</span>&lt;<span class="ty">String</span>, <span class="ty">String</span>&gt; r : records)
+                futures.<span class="mt">add</span>(workers.<span class="mt">submit</span>(() -> <span class="mt">process</span>(r)));
+            <span class="kw">for</span> (<span class="ty">Future</span>&lt;?&gt; f : futures) f.<span class="mt">get</span>(); <span class="cm">// wait all workers done</span>
+            consumer.<span class="mt">commitSync</span>();
+        }
+    }
+}
+<div class="code-label">Java 17 — Kafka Consumer Threading</div></pre>
+</section>
+
+<section id="kafka-prod-cons">
+  <div class="sh"><div class="sn" style="background:var(--ka)">3</div><h2>Multiple Producers & Consumers — Patterns & Guarantees</h2></div>
+
+  <div class="arch">
+    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.8rem">Consumer Group — Partition Assignment</div>
+    <div class="arch-row">
+      <div class="arch-box ab-ka">Topic: orders (6 partitions: P0-P5)</div>
+    </div>
+    <div class="arch-row" style="margin-top:.5rem">
+      <div class="arch-box ab-c">Group A — 3 consumers</div>
+      <div class="arch-label" style="margin-left:.5rem">C1→[P0,P1] C2→[P2,P3] C3→[P4,P5] — 2 partitions each</div>
+    </div>
+    <div class="arch-row">
+      <div class="arch-box ab-c">Group A — 6 consumers</div>
+      <div class="arch-label" style="margin-left:.5rem">C1→[P0] C2→[P1] ... C6→[P5] — 1 partition each (max parallelism)</div>
+    </div>
+    <div class="arch-row">
+      <div class="arch-box ab-c">Group A — 7 consumers</div>
+      <div class="arch-label" style="margin-left:.5rem">C7 → IDLE! (consumers &gt; partitions = wasted resource)</div>
+    </div>
+    <div class="arch-row" style="margin-top:.5rem">
+      <div class="arch-box ab-t">Group B — independent</div>
+      <div class="arch-label" style="margin-left:.5rem">Reads ALL partitions independently — separate offset tracking</div>
+    </div>
+  </div>
+
+<pre><span class="cm">// ── Multiple Producers — different strategies ────────────────────────</span>
+
+<span class="cm">// Strategy 1: Ordered producer (same key → same partition)</span>
+<span class="kw">class</span> <span class="ty">OrderedProducer</span> {
+    <span class="kw">private final</span> <span class="ty">KafkaProducer</span>&lt;<span class="ty">String</span>, <span class="ty">String</span>&gt; producer;
+
+    <span class="kw">void</span> <span class="mt">sendOrder</span>(<span class="ty">Order</span> order) {
+        <span class="cm">// Same customerId → same partition → ordered delivery for that customer</span>
+        producer.<span class="mt">send</span>(<span class="kw">new</span> <span class="ty">ProducerRecord</span>&lt;&gt;(
+            <span class="st">"orders"</span>,
+            order.<span class="mt">customerId</span>(),   <span class="cm">// KEY determines partition</span>
+            toJson(order)
+        ));
+    }
+}
+
+<span class="cm">// Strategy 2: Transactional producer (exactly-once)</span>
+<span class="kw">class</span> <span class="ty">TransactionalProducer</span> {
+    <span class="kw">private final</span> <span class="ty">KafkaProducer</span>&lt;<span class="ty">String</span>, <span class="ty">String</span>&gt; producer;
+
+    <span class="ty">TransactionalProducer</span>() {
+        <span class="ty">Properties</span> p = <span class="kw">new</span> <span class="ty">Properties</span>();
+        p.<span class="mt">put</span>(<span class="st">"transactional.id"</span>, <span class="st">"order-producer-1"</span>); <span class="cm">// unique per producer</span>
+        p.<span class="mt">put</span>(<span class="st">"enable.idempotence"</span>, <span class="kw">true</span>);
+        p.<span class="mt">put</span>(<span class="st">"acks"</span>, <span class="st">"all"</span>);
+        producer = <span class="kw">new</span> <span class="ty">KafkaProducer</span>&lt;&gt;(p);
+        producer.<span class="mt">initTransactions</span>();
+    }
+
+    <span class="kw">void</span> <span class="mt">sendAtomically</span>(<span class="ty">List</span>&lt;<span class="ty">Order</span>&gt; orders) {
+        producer.<span class="mt">beginTransaction</span>();
+        <span class="kw">try</span> {
+            <span class="kw">for</span> (<span class="ty">Order</span> o : orders) {
+                producer.<span class="mt">send</span>(<span class="kw">new</span> <span class="ty">ProducerRecord</span>&lt;&gt;(<span class="st">"orders"</span>, o.<span class="mt">id</span>(), toJson(o)));
+                producer.<span class="mt">send</span>(<span class="kw">new</span> <span class="ty">ProducerRecord</span>&lt;&gt;(<span class="st">"audit"</span>, o.<span class="mt">id</span>(), <span class="st">"CREATED"</span>));
+            }
+            producer.<span class="mt">commitTransaction</span>(); <span class="cm">// atomic: all or nothing</span>
+        } <span class="kw">catch</span> (<span class="ty">Exception</span> e) {
+            producer.<span class="mt">abortTransaction</span>();  <span class="cm">// none visible to consumers</span>
+            <span class="kw">throw</span> e;
+        }
+    }
+}
+
+<span class="cm">// Consumer reading only committed transactions:</span>
+props.<span class="mt">put</span>(<span class="st">"isolation.level"</span>, <span class="st">"read_committed"</span>); <span class="cm">// skip uncommitted messages</span>
+<div class="code-label">Java 17 — Kafka Transactions</div></pre>
+
+<pre><span class="cm">// ── Consumer Group Rebalancing ────────────────────────────────────────</span>
+<span class="cm">//</span>
+<span class="cm">// Rebalance triggered by:</span>
+<span class="cm">// - Consumer joins/leaves the group</span>
+<span class="cm">// - Consumer misses heartbeat (crashes)</span>
+<span class="cm">// - max.poll.interval.ms exceeded (processing too slow)</span>
+<span class="cm">// - Topic partition count changes</span>
+<span class="cm">//</span>
+<span class="cm">// During rebalance: ALL consumers STOP consuming (STW equivalent!)</span>
+<span class="cm">// Kafka 2.4+: Cooperative Sticky Assignor — incremental rebalance</span>
+<span class="cm">// Only partitions that need to move are revoked, not ALL</span>
+
+props.<span class="mt">put</span>(<span class="st">"partition.assignment.strategy"</span>,
+    <span class="st">"org.apache.kafka.clients.consumer.CooperativeStickyAssignor"</span>);
+
+<span class="cm">// Handle rebalance events for clean offset commit:</span>
+consumer.<span class="mt">subscribe</span>(<span class="ty">List</span>.<span class="mt">of</span>(<span class="st">"orders"</span>), <span class="kw">new</span> <span class="ty">ConsumerRebalanceListener</span>() {
+    <span class="an">@Override</span>
+    <span class="kw">public void</span> <span class="mt">onPartitionsRevoked</span>(<span class="ty">Collection</span>&lt;<span class="ty">TopicPartition</span>&gt; partitions) {
+        <span class="cm">// ✅ Commit offsets for partitions being taken away</span>
+        consumer.<span class="mt">commitSync</span>(currentOffsets);
+    }
+    <span class="an">@Override</span>
+    <span class="kw">public void</span> <span class="mt">onPartitionsAssigned</span>(<span class="ty">Collection</span>&lt;<span class="ty">TopicPartition</span>&gt; partitions) {
+        <span class="cm">// Load state for newly assigned partitions</span>
+    }
+});
+<div class="code-label">Java 17 — Rebalancing</div></pre>
+
+<pre><span class="cm">// ── Delivery Semantics — the 3 guarantees ────────────────────────────</span>
+
+<span class="cm">// AT MOST ONCE (may lose messages)</span>
+props.<span class="mt">put</span>(<span class="st">"acks"</span>, <span class="st">"0"</span>);               <span class="cm">// fire and forget</span>
+consumer.<span class="mt">commitAsync</span>();              <span class="cm">// commit before process</span>
+
+<span class="cm">// AT LEAST ONCE (may duplicate — most common)</span>
+props.<span class="mt">put</span>(<span class="st">"acks"</span>, <span class="st">"all"</span>);
+props.<span class="mt">put</span>(<span class="st">"retries"</span>, <span class="ty">Integer</span>.<span class="en">MAX_VALUE</span>);
+consumer.<span class="mt">commitSync</span>();              <span class="cm">// commit AFTER process</span>
+<span class="cm">// Make consumers idempotent: check DB before insert</span>
+
+<span class="cm">// EXACTLY ONCE (no loss, no duplicate)</span>
+props.<span class="mt">put</span>(<span class="st">"enable.idempotence"</span>, <span class="kw">true</span>);
+props.<span class="mt">put</span>(<span class="st">"transactional.id"</span>, <span class="st">"unique-id"</span>);
+<span class="cm">// Consumer: isolation.level=read_committed</span>
+<span class="cm">// Offset stored in Kafka transaction (not external DB)</span>
+
+<span class="cm">// ── Dead Letter Queue pattern ─────────────────────────────────────────</span>
+<span class="kw">void</span> <span class="mt">processWithDLQ</span>(<span class="ty">ConsumerRecord</span>&lt;<span class="ty">String</span>, <span class="ty">String</span>&gt; record) {
+    <span class="kw">try</span> {
+        <span class="mt">processRecord</span>(record);
+    } <span class="kw">catch</span> (<span class="ty">NonRetryableException</span> e) {
+        <span class="cm">// Send to DLQ for human inspection</span>
+        producer.<span class="mt">send</span>(<span class="kw">new</span> <span class="ty">ProducerRecord</span>&lt;&gt;(
+            <span class="st">"orders.DLQ"</span>,
+            record.<span class="mt">key</span>(),
+            record.<span class="mt">value</span>()
+        ));
+        log.<span class="mt">error</span>(<span class="st">"Sent to DLQ: key={} error={}"</span>, record.<span class="mt">key</span>(), e.<span class="mt">getMessage</span>());
+    }
+}
+<div class="code-label">Java 17 — Delivery Semantics</div></pre>
+</section>
+
+<section id="kafka-spring">
+  <div class="sh"><div class="sn" style="background:var(--ka)">4</div><h2>Spring Kafka — @KafkaListener, Concurrency & Config</h2></div>
+
+<pre><span class="cm">// ── Spring Kafka — full production setup ─────────────────────────────</span>
+
+<span class="an">@Configuration</span>
+<span class="kw">public class</span> <span class="ty">KafkaConfig</span> {
+
+    <span class="an">@Bean</span>
+    <span class="kw">public</span> <span class="ty">ConsumerFactory</span>&lt;<span class="ty">String</span>, <span class="ty">OrderEvent</span>&gt; <span class="mt">consumerFactory</span>() {
+        <span class="ty">Map</span>&lt;<span class="ty">String</span>, <span class="ty">Object</span>&gt; config = <span class="kw">new</span> <span class="ty">HashMap</span>&lt;&gt;();
+        config.<span class="mt">put</span>(<span class="ty">ConsumerConfig</span>.<span class="en">BOOTSTRAP_SERVERS_CONFIG</span>,  <span class="st">"broker1:9092"</span>);
+        config.<span class="mt">put</span>(<span class="ty">ConsumerConfig</span>.<span class="en">GROUP_ID_CONFIG</span>,           <span class="st">"order-service"</span>);
+        config.<span class="mt">put</span>(<span class="ty">ConsumerConfig</span>.<span class="en">AUTO_OFFSET_RESET_CONFIG</span>,   <span class="st">"earliest"</span>);
+        config.<span class="mt">put</span>(<span class="ty">ConsumerConfig</span>.<span class="en">ENABLE_AUTO_COMMIT_CONFIG</span>,  <span class="kw">false</span>);
+        config.<span class="mt">put</span>(<span class="ty">ConsumerConfig</span>.<span class="en">MAX_POLL_RECORDS_CONFIG</span>,    <span class="nu">100</span>);
+        <span class="kw">return new</span> <span class="ty">DefaultKafkaConsumerFactory</span>&lt;&gt;(config,
+            <span class="kw">new</span> <span class="ty">StringDeserializer</span>(),
+            <span class="kw">new</span> <span class="ty">JsonDeserializer</span>&lt;&gt;(<span class="ty">OrderEvent</span>.<span class="kw">class</span>));
+    }
+
+    <span class="an">@Bean</span>
+    <span class="kw">public</span> <span class="ty">ConcurrentKafkaListenerContainerFactory</span>&lt;<span class="ty">String</span>, <span class="ty">OrderEvent</span>&gt; <span class="mt">listenerFactory</span>() {
+        <span class="kw">var</span> factory = <span class="kw">new</span> <span class="ty">ConcurrentKafkaListenerContainerFactory</span>&lt;<span class="ty">String</span>, <span class="ty">OrderEvent</span>&gt;();
+        factory.<span class="mt">setConsumerFactory</span>(<span class="mt">consumerFactory</span>());
+        factory.<span class="mt">setConcurrency</span>(<span class="nu">3</span>);   <span class="cm">// 3 consumer threads = 3 KafkaConsumer instances</span>
+        factory.<span class="mt">getContainerProperties</span>().<span class="mt">setAckMode</span>(<span class="ty">AckMode</span>.<span class="en">MANUAL_IMMEDIATE</span>);
+
+        <span class="cm">// Error handler with retry + DLQ</span>
+        factory.<span class="mt">setCommonErrorHandler</span>(
+            <span class="kw">new</span> <span class="ty">DefaultErrorHandler</span>(
+                <span class="kw">new</span> <span class="ty">DeadLetterPublishingRecoverer</span>(kafkaTemplate), <span class="cm">// send to .DLT topic</span>
+                <span class="kw">new</span> <span class="ty">FixedBackOff</span>(<span class="nu">1000L</span>, <span class="nu">3</span>)  <span class="cm">// retry 3 times, 1s apart</span>
+            )
+        );
+        <span class="kw">return</span> factory;
+    }
+}
+
+<span class="cm">// ── @KafkaListener — all options ─────────────────────────────────────</span>
+
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">OrderConsumer</span> {
+
+    <span class="cm">// Basic listener</span>
+    <span class="an">@KafkaListener</span>(topics = <span class="st">"orders"</span>, groupId = <span class="st">"order-service"</span>)
+    <span class="kw">public void</span> <span class="mt">consume</span>(<span class="ty">OrderEvent</span> event) {
+        <span class="mt">processOrder</span>(event);
+    }
+
+    <span class="cm">// Manual ack + full record access</span>
+    <span class="an">@KafkaListener</span>(
+        topics = <span class="st">"orders"</span>,
+        groupId = <span class="st">"order-service"</span>,
+        concurrency = <span class="st">"3"</span>   <span class="cm">// overrides factory — 3 threads for THIS listener</span>
+    )
+    <span class="kw">public void</span> <span class="mt">consumeWithAck</span>(
+            <span class="an">@Payload</span>  <span class="ty">OrderEvent</span>       event,
+            <span class="an">@Header</span>(<span class="ty">KafkaHeaders</span>.<span class="en">RECEIVED_PARTITION</span>) <span class="kw">int</span> partition,
+            <span class="an">@Header</span>(<span class="ty">KafkaHeaders</span>.<span class="en">OFFSET</span>) <span class="kw">long</span> offset,
+            <span class="ty">Acknowledgment</span> ack) {
+        <span class="kw">try</span> {
+            <span class="mt">processOrder</span>(event);
+            ack.<span class="mt">acknowledge</span>(); <span class="cm">// commit only on success</span>
+        } <span class="kw">catch</span> (<span class="ty">Exception</span> e) {
+            log.<span class="mt">error</span>(<span class="st">"Failed partition={} offset={}"</span>, partition, offset, e);
+            <span class="cm">// Don't ack → will be redelivered</span>
+        }
+    }
+
+    <span class="cm">// Batch listener</span>
+    <span class="an">@KafkaListener</span>(topics = <span class="st">"orders"</span>, containerFactory = <span class="st">"batchListenerFactory"</span>)
+    <span class="kw">public void</span> <span class="mt">consumeBatch</span>(<span class="ty">List</span>&lt;<span class="ty">OrderEvent</span>&gt; events) {
+        <span class="mt">processInBatch</span>(events);     <span class="cm">// up to max.poll.records at once</span>
+    }
+}
+<div class="code-label">Spring Boot + Kafka</div></pre>
+</section>
+
+<section id="kafka-versions">
+  <div class="sh"><div class="sn" style="background:var(--ka)">5</div><h2>Kafka Version Changes — What's New</h2></div>
+
+  <table>
+    <thead><tr><th>Version</th><th>Key Features</th><th>Impact</th></tr></thead>
+    <tbody>
+      <tr><td><span class="vb v-new">2.4</span></td><td>Incremental Cooperative Rebalancing</td><td>Fewer pauses during rebalance — only moved partitions revoked</td></tr>
+      <tr><td><span class="vb v-new">2.6</span></td><td>Kafka Streams improvement, compression snappy by default</td><td>Better throughput out of box</td></tr>
+      <tr><td><span class="vb v-new">2.8</span></td><td>KRaft mode preview (ZooKeeper removal starts)</td><td>Simpler ops — no separate ZK cluster</td></tr>
+      <tr><td><span class="vb v-new">3.0</span></td><td>KRaft stabilized, deprecated old APIs removed, Java 11 min</td><td>Cleaner API, better security defaults</td></tr>
+      <tr><td><span class="vb v-new">3.3</span></td><td>KRaft production-ready, new group protocol preview</td><td>Can run WITHOUT ZooKeeper in production</td></tr>
+      <tr><td><span class="vb v-new">3.5</span></td><td>ZooKeeper deprecated officially</td><td>Start migration to KRaft</td></tr>
+      <tr><td><span class="vb v-new">3.6</span></td><td>New consumer group protocol (server-side rebalance)</td><td>No more client-side rebalance pauses</td></tr>
+      <tr><td><span class="vb v-new">3.7/3.8</span></td><td>Tiered Storage GA, JBOD improvements</td><td>Infinite retention on S3/GCS cheaply</td></tr>
+      <tr><td><span class="vb v-new">4.0</span></td><td>ZooKeeper fully removed, KRaft only, Java 17 min</td><td>Major breaking change — ZK code gone</td></tr>
+    </tbody>
+  </table>
+
+<pre><span class="cm">// ── KRaft vs ZooKeeper ───────────────────────────────────────────────</span>
+<span class="cm">//</span>
+<span class="cm">// ZooKeeper (old) architecture:</span>
+<span class="cm">// Kafka Brokers → ZooKeeper cluster (separate JVM processes)</span>
+<span class="cm">// Problems: extra ops complexity, ZK write bottleneck, slow metadata changes</span>
+<span class="cm">//</span>
+<span class="cm">// KRaft (new) architecture:</span>
+<span class="cm">// Kafka Brokers → KRaft Controller (runs INSIDE Kafka process)</span>
+<span class="cm">// Benefits: single process, faster metadata propagation, millions of partitions</span>
+<span class="cm">//</span>
+<span class="cm">// KRaft supports 10x more partitions than ZooKeeper mode</span>
+<span class="cm">// ZooKeeper: ~200K partitions max</span>
+<span class="cm">// KRaft: millions of partitions</span>
+
+<span class="cm"># Kafka 4.0 startup without ZooKeeper:</span>
+<span class="cm"># Generate cluster ID</span>
+kafka-storage.<span class="mt">sh</span> random-uuid
+<span class="cm"># Format storage</span>
+kafka-storage.<span class="mt">sh</span> format -t $CLUSTER_ID -c server.properties
+<span class="cm"># Start (no ZK needed!)</span>
+kafka-server-start.<span class="mt">sh</span> server.properties
+
+<span class="cm">// ── Tiered Storage (Kafka 3.6+) ──────────────────────────────────────</span>
+<span class="cm">// Hot segments: local disk (fast, expensive)</span>
+<span class="cm">// Cold segments: S3/GCS/Azure Blob (slow, cheap, infinite)</span>
+<span class="cm">// Consumers read recent data from local disk</span>
+<span class="cm">// Old data fetched from object storage transparently</span>
+<span class="cm">// Enables years of retention without huge broker storage</span>
+
+<span class="cm">// ── New Consumer Group Protocol (Kafka 3.6+ preview, 4.0 stable) ─────</span>
+<span class="cm">// Old: client-side rebalance — ALL consumers pause while joining</span>
+<span class="cm">// New: server-side rebalance — broker manages assignments incrementally</span>
+<span class="cm">// Consumer sends "heartbeat" with desired assignments</span>
+<span class="cm">// Broker responds with incremental delta of assignments</span>
+<span class="cm">// No global pause — only affected partitions transition</span>
+
+props.<span class="mt">put</span>(<span class="st">"group.protocol"</span>, <span class="st">"consumer"</span>); <span class="cm">// new protocol (Kafka 4.0+)</span>
+<span class="cm">// Old: "classic" — ZooKeeper-era client-side protocol</span>
+<div class="code-label">Kafka Versions</div></pre>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════
+     REDIS SECTION
+═══════════════════════════════════════════════════════ -->
+
+<section id="redis-arch">
+  <div class="redis-hdr">
+    <div style="font-size:1.5rem;font-weight:800;color:var(--re)">🔴 REDIS</div>
+    <div style="color:var(--muted);font-size:.9rem">In-memory data structure store — single-threaded command execution, sub-millisecond latency</div>
+  </div>
+  <div class="sh"><div class="sn" style="background:var(--re)">6</div><h2>Redis Architecture — Data Types & Commands</h2></div>
+
+  <div class="g3">
+    <div class="card are">
+      <div class="ct" style="color:var(--re)">String</div>
+      <p>Binary-safe, max 512 MB. Integers auto-detected for INCR/DECR.</p>
+      <p class="muted">Use: cache, counters, feature flags, sessions</p>
+    </div>
+    <div class="card are">
+      <div class="ct" style="color:var(--re)">List</div>
+      <p>Doubly-linked list. O(1) push/pop at both ends. O(n) random access.</p>
+      <p class="muted">Use: queues, timelines, recent items</p>
+    </div>
+    <div class="card are">
+      <div class="ct" style="color:var(--re)">Hash</div>
+      <p>Field-value map inside one key. Up to 4B fields.</p>
+      <p class="muted">Use: objects, user profiles, configs</p>
+    </div>
+    <div class="card are">
+      <div class="ct" style="color:var(--re)">Set</div>
+      <p>Unordered unique strings. O(1) add/remove/contains. Set operations.</p>
+      <p class="muted">Use: tags, unique visitors, follows</p>
+    </div>
+    <div class="card are">
+      <div class="ct" style="color:var(--re)">Sorted Set (ZSet)</div>
+      <p>Unique members each with float score. Sorted by score. O(log n) ops.</p>
+      <p class="muted">Use: leaderboards, rate limiting, range queries</p>
+    </div>
+    <div class="card are">
+      <div class="ct" style="color:var(--re)">Stream</div>
+      <p>Append-only log with consumer groups. Like Kafka inside Redis.</p>
+      <p class="muted">Use: event sourcing, activity feeds, logs</p>
+    </div>
+  </div>
+
+<pre><span class="cm">// ── Spring Data Redis — all data type operations ──────────────────────</span>
+
+<span class="an">@Configuration</span>
+<span class="kw">public class</span> <span class="ty">RedisConfig</span> {
+    <span class="an">@Bean</span>
+    <span class="kw">public</span> <span class="ty">RedisTemplate</span>&lt;<span class="ty">String</span>, <span class="ty">Object</span>&gt; <span class="mt">redisTemplate</span>(<span class="ty">RedisConnectionFactory</span> cf) {
+        <span class="kw">var</span> template = <span class="kw">new</span> <span class="ty">RedisTemplate</span>&lt;<span class="ty">String</span>, <span class="ty">Object</span>&gt;();
+        template.<span class="mt">setConnectionFactory</span>(cf);
+        template.<span class="mt">setKeySerializer</span>(<span class="kw">new</span> <span class="ty">StringRedisSerializer</span>());
+        template.<span class="mt">setValueSerializer</span>(<span class="kw">new</span> <span class="ty">GenericJackson2JsonRedisSerializer</span>());
+        <span class="kw">return</span> template;
+    }
+}
+
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">RedisService</span> {
+    <span class="kw">private final</span> <span class="ty">RedisTemplate</span>&lt;<span class="ty">String</span>, <span class="ty">Object</span>&gt; redis;
+    <span class="kw">private final</span> <span class="ty">StringRedisTemplate</span>               srt;
+
+    <span class="cm">// ── String ops ──────────────────────────────────────────────────</span>
+    <span class="kw">void</span> <span class="mt">stringOps</span>() {
+        <span class="ty">ValueOperations</span>&lt;<span class="ty">String</span>, <span class="ty">Object</span>&gt; ops = redis.<span class="mt">opsForValue</span>();
+        ops.<span class="mt">set</span>(<span class="st">"user:1"</span>, user, <span class="ty">Duration</span>.<span class="mt">ofHours</span>(<span class="nu">1</span>));   <span class="cm">// with TTL</span>
+        <span class="ty">Object</span> val = ops.<span class="mt">get</span>(<span class="st">"user:1"</span>);
+        ops.<span class="mt">increment</span>(<span class="st">"counter:visits"</span>);              <span class="cm">// atomic INCR</span>
+        ops.<span class="mt">setIfAbsent</span>(<span class="st">"lock:order"</span>, <span class="st">"1"</span>, <span class="ty">Duration</span>.<span class="mt">ofSeconds</span>(<span class="nu">30</span>)); <span class="cm">// SETNX</span>
+    }
+
+    <span class="cm">// ── Hash ops ────────────────────────────────────────────────────</span>
+    <span class="kw">void</span> <span class="mt">hashOps</span>() {
+        <span class="ty">HashOperations</span>&lt;<span class="ty">String</span>, <span class="ty">String</span>, <span class="ty">Object</span>&gt; hash = redis.<span class="mt">opsForHash</span>();
+        hash.<span class="mt">put</span>(<span class="st">"user:1:profile"</span>, <span class="st">"name"</span>, <span class="st">"Alice"</span>);
+        hash.<span class="mt">put</span>(<span class="st">"user:1:profile"</span>, <span class="st">"age"</span>, <span class="nu">30</span>);
+        hash.<span class="mt">multiSet</span>(<span class="st">"user:1:profile"</span>, <span class="ty">Map</span>.<span class="mt">of</span>(<span class="st">"city"</span>,<span class="st">"NY"</span>,<span class="st">"plan"</span>,<span class="st">"PRO"</span>));
+        <span class="ty">Map</span>&lt;<span class="ty">String</span>,<span class="ty">Object</span>&gt; all = hash.<span class="mt">entries</span>(<span class="st">"user:1:profile"</span>);
+        hash.<span class="mt">increment</span>(<span class="st">"user:1:stats"</span>, <span class="st">"logins"</span>, <span class="nu">1</span>);
+    }
+
+    <span class="cm">// ── Sorted Set — Leaderboard ─────────────────────────────────────</span>
+    <span class="kw">void</span> <span class="mt">leaderboard</span>() {
+        <span class="ty">ZSetOperations</span>&lt;<span class="ty">String</span>, <span class="ty">Object</span>&gt; zset = redis.<span class="mt">opsForZSet</span>();
+        zset.<span class="mt">add</span>(<span class="st">"game:scores"</span>, <span class="st">"Alice"</span>, <span class="nu">9500.0</span>);
+        zset.<span class="mt">incrementScore</span>(<span class="st">"game:scores"</span>, <span class="st">"Alice"</span>, <span class="nu">100.0</span>);
+        <span class="ty">Set</span>&lt;<span class="ty">Object</span>&gt; top10 = zset.<span class="mt">reverseRange</span>(<span class="st">"game:scores"</span>, <span class="nu">0</span>, <span class="nu">9</span>);
+        <span class="ty">Long</span> rank = zset.<span class="mt">reverseRank</span>(<span class="st">"game:scores"</span>, <span class="st">"Alice"</span>);
+    }
+
+    <span class="cm">// ── List — Message Queue ─────────────────────────────────────────</span>
+    <span class="kw">void</span> <span class="mt">queue</span>() {
+        <span class="ty">ListOperations</span>&lt;<span class="ty">String</span>, <span class="ty">Object</span>&gt; list = redis.<span class="mt">opsForList</span>();
+        list.<span class="mt">rightPush</span>(<span class="st">"task:queue"</span>, task);         <span class="cm">// enqueue</span>
+        <span class="ty">Object</span> task = list.<span class="mt">leftPop</span>(<span class="st">"task:queue"</span>, <span class="ty">Duration</span>.<span class="mt">ofSeconds</span>(<span class="nu">5</span>)); <span class="cm">// blocking pop</span>
+    }
+}
+<div class="code-label">Spring Data Redis</div></pre>
+</section>
+
+<section id="redis-multi">
+  <div class="sh"><div class="sn" style="background:var(--re)">7</div><h2>Redis Multi-Server — Replication, Cluster & Consistency</h2></div>
+
+  <div class="arch">
+    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.8rem">Redis Deployment Options</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:1rem;font-family:'JetBrains Mono',monospace;font-size:11px">
+      <div>
+        <div style="color:var(--re);font-weight:700;margin-bottom:.4rem">Sentinel (HA)</div>
+        <div class="arch-box ab-re" style="margin:.2rem 0">Master (write+read)</div>
+        <div style="color:var(--muted);font-size:10px;margin:.2rem 0">↓ async replication</div>
+        <div class="arch-box ab-g" style="margin:.2rem 0">Replica 1 (read)</div>
+        <div class="arch-box ab-g" style="margin:.2rem 0">Replica 2 (read)</div>
+        <div style="color:var(--a2);font-weight:700;margin-top:.5rem;font-size:10px">3 Sentinels monitor, failover master</div>
+      </div>
+      <div>
+        <div style="color:var(--re);font-weight:700;margin-bottom:.4rem">Cluster (Sharding)</div>
+        <div class="arch-box ab-re" style="margin:.2rem 0">Master 1 (slots 0-5460)</div>
+        <div class="arch-box ab-re" style="margin:.2rem 0">Master 2 (slots 5461-10922)</div>
+        <div class="arch-box ab-re" style="margin:.2rem 0">Master 3 (slots 10923-16383)</div>
+        <div style="color:var(--a2);font-weight:700;margin-top:.5rem;font-size:10px">Each master has replicas. 16384 hash slots.</div>
+      </div>
+      <div>
+        <div style="color:var(--re);font-weight:700;margin-bottom:.4rem">Standalone + Read Replicas</div>
+        <div class="arch-box ab-re" style="margin:.2rem 0">Primary (write)</div>
+        <div style="color:var(--muted);font-size:10px;margin:.2rem 0">↓ async replication</div>
+        <div class="arch-box ab-g" style="margin:.2rem 0">Read Replica (read-only)</div>
+        <div style="color:var(--a2);font-weight:700;margin-top:.5rem;font-size:10px">Geo-distributed reads, single writer</div>
+      </div>
+    </div>
+  </div>
+
+<pre><span class="cm">// ── Redis Replication — how data syncs between servers ───────────────</span>
+<span class="cm">//</span>
+<span class="cm">// 1. FULL SYNC (initial or after long disconnect):</span>
+<span class="cm">//    Primary → BGSAVE → RDB snapshot → send to replica</span>
+<span class="cm">//    Replica → load RDB → ready</span>
+<span class="cm">//</span>
+<span class="cm">// 2. PARTIAL SYNC (replication backlog):</span>
+<span class="cm">//    Primary keeps a replication buffer (default 1MB)</span>
+<span class="cm">//    Replica reconnects → sends replication offset</span>
+<span class="cm">//    Primary sends only missed commands (no full RDB)</span>
+<span class="cm">//</span>
+<span class="cm">// 3. Command propagation:</span>
+<span class="cm">//    Every write command → logged in replication stream</span>
+<span class="cm">//    Sent to ALL replicas asynchronously</span>
+<span class="cm">//</span>
+<span class="cm">// CONSISTENCY: Redis replication is ASYNCHRONOUS by default!</span>
+<span class="cm">// Primary can acknowledge a write BEFORE replica has it</span>
+<span class="cm">// If primary crashes → replica missing last writes = DATA LOSS</span>
+<span class="cm">//</span>
+<span class="cm">// WAIT command — make replication synchronous for specific writes:</span>
+<span class="cm">// WAIT 1 1000   → wait for 1 replica to ack, timeout 1000ms</span>
+<span class="cm">// Returns number of replicas that acknowledged</span>
+
+<span class="cm">// Spring Data — using WAIT for critical writes:</span>
+<span class="kw">void</span> <span class="mt">criticalWrite</span>(<span class="ty">String</span> key, <span class="ty">Object</span> value) {
+    redis.<span class="mt">opsForValue</span>().<span class="mt">set</span>(key, value);
+    <span class="cm">// Ensure at least 1 replica has the data before confirming</span>
+    redis.<span class="mt">execute</span>(<span class="ty">RedisServerCommands</span>::<span class="mt">wait</span>, <span class="nu">1</span>, <span class="nu">1000</span>);
+}
+<div class="code-label">Redis Replication</div></pre>
+
+<pre><span class="cm">// ── Redis Cluster — consistent hashing with hash slots ───────────────</span>
+<span class="cm">//</span>
+<span class="cm">// Redis Cluster uses 16384 hash slots (not consistent hashing exactly)</span>
+<span class="cm">// slot = CRC16(key) % 16384</span>
+<span class="cm">// Each master node owns a range of slots</span>
+<span class="cm">//</span>
+<span class="cm">// Hash tags — force related keys to same slot:</span>
+<span class="cm">// {user:1}:profile  → CRC16("user:1") % 16384  → same slot as</span>
+<span class="cm">// {user:1}:orders   → CRC16("user:1") % 16384  → SAME slot!</span>
+<span class="cm">// Use {}: everything inside braces determines the slot</span>
+<span class="cm">// Required for MSET, MULTI, Lua scripts spanning multiple keys</span>
+
+<span class="cm">// Spring with Redis Cluster:</span>
+spring:
+  redis:
+    cluster:
+      nodes:
+        - redis-1:6379
+        - redis-2:6379
+        - redis-3:6379
+      max-redirects: 3  <span class="cm"># follow MOVED errors</span>
+
+<span class="cm">// Jedis/Lettuce automatically handle MOVED and ASK redirections</span>
+<span class="cm">// MOVED = data permanently on another node (after rebalancing)</span>
+<span class="cm">// ASK   = data temporarily being migrated</span>
+
+<span class="cm">// ── Two Redis servers — maintaining same data ────────────────────────</span>
+<span class="cm">//</span>
+<span class="cm">// Option 1: Sentinel (automatic failover)</span>
+<span class="cm">// Primary writes → async to Replica</span>
+<span class="cm">// If Primary down → Sentinel promotes Replica to Primary</span>
+<span class="cm">// Apps connect via Sentinel → get redirected to current primary</span>
+
+spring:
+  redis:
+    sentinel:
+      master: mymaster
+      nodes: sentinel1:26379,sentinel2:26379,sentinel3:26379
+
+<span class="cm">// Option 2: Active-Active (Redis Enterprise)</span>
+<span class="cm">// Both nodes accept writes (CRDT-based conflict resolution)</span>
+<span class="cm">// Last-Write-Wins or custom merge strategy</span>
+<span class="cm">// Higher consistency — not available in open-source Redis</span>
+<div class="code-label">Redis Cluster Config</div></pre>
+
+<pre><span class="cm">// ── Consistency between two Redis servers — practical patterns ────────</span>
+
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">ConsistentRedisService</span> {
+
+    <span class="cm">// Pattern 1: Write to primary, read from primary (strong consistency)</span>
+    <span class="an">@Autowired</span>
+    <span class="kw">private</span> <span class="ty">RedisTemplate</span>&lt;<span class="ty">String</span>, <span class="ty">Object</span>&gt; primaryTemplate;    <span class="cm">// write here</span>
+    <span class="an">@Autowired</span>
+    <span class="kw">private</span> <span class="ty">RedisTemplate</span>&lt;<span class="ty">String</span>, <span class="ty">Object</span>&gt; replicaTemplate;   <span class="cm">// read here (eventual)</span>
+
+    <span class="kw">public void</span> <span class="mt">write</span>(<span class="ty">String</span> key, <span class="ty">Object</span> val) {
+        primaryTemplate.<span class="mt">opsForValue</span>().<span class="mt">set</span>(key, val, <span class="ty">Duration</span>.<span class="mt">ofMinutes</span>(<span class="nu">30</span>));
+    }
+
+    <span class="kw">public</span> <span class="ty">Object</span> <span class="mt">readFromReplica</span>(<span class="ty">String</span> key) {
+        <span class="cm">// May return stale data if replication lagging</span>
+        <span class="kw">return</span> replicaTemplate.<span class="mt">opsForValue</span>().<span class="mt">get</span>(key);
+    }
+
+    <span class="cm">// Pattern 2: Cache-Aside — database is source of truth</span>
+    <span class="kw">public</span> <span class="ty">User</span> <span class="mt">getUser</span>(<span class="kw">long</span> id) {
+        <span class="ty">String</span> key = <span class="st">"user:"</span> + id;
+        <span class="ty">User</span> cached = (<span class="ty">User</span>) primaryTemplate.<span class="mt">opsForValue</span>().<span class="mt">get</span>(key);
+        <span class="kw">if</span> (cached != <span class="kw">null</span>) <span class="kw">return</span> cached;
+
+        <span class="ty">User</span> user = userRepo.<span class="mt">findById</span>(id).<span class="mt">orElseThrow</span>();
+        primaryTemplate.<span class="mt">opsForValue</span>().<span class="mt">set</span>(key, user, <span class="ty">Duration</span>.<span class="mt">ofMinutes</span>(<span class="nu">10</span>));
+        <span class="kw">return</span> user;
+    }
+
+    <span class="cm">// Cache invalidation — delete from BOTH nodes to maintain consistency</span>
+    <span class="kw">public void</span> <span class="mt">invalidate</span>(<span class="ty">String</span> key) {
+        primaryTemplate.<span class="mt">delete</span>(key);
+        <span class="cm">// Replica will sync automatically, but if you have direct replica access:</span>
+        replicaTemplate.<span class="mt">delete</span>(key); <span class="cm">// belt-and-suspenders approach</span>
+    }
+}
+<div class="code-label">Java 17 — Redis Consistency Patterns</div></pre>
+</section>
+
+<section id="redis-atomic">
+  <div class="sh"><div class="sn" style="background:var(--re)">8</div><h2>Redis Atomicity — Transactions, Lua Scripts & Patterns</h2></div>
+
+  <div class="cl-box redis"><div class="ci">🔑</div><div><strong>Redis atomicity insight:</strong> Redis is single-threaded for command execution. This means individual commands are ALWAYS atomic. The challenge is making <em>multiple commands</em> atomic together.</div></div>
+
+<pre><span class="cm">// ── Individual commands are atomic ────────────────────────────────────</span>
+<span class="cm">// INCR key          → atomic read-modify-write, no race condition</span>
+<span class="cm">// SETNX key value   → atomic check-then-set</span>
+<span class="cm">// GETSET key value  → atomic get old + set new</span>
+<span class="cm">// GETDEL key        → atomic get + delete</span>
+<span class="cm">// LPUSH + LLEN      → NOT atomic together (two separate commands)</span>
+
+<span class="cm">// ── MULTI/EXEC — Redis transactions ──────────────────────────────────</span>
+<span class="cm">// MULTI → queue commands</span>
+<span class="cm">// EXEC  → execute all atomically (no other commands can interleave)</span>
+<span class="cm">// DISCARD → abort the transaction</span>
+<span class="cm">//</span>
+<span class="cm">// ⚠️  NOT the same as SQL transactions!</span>
+<span class="cm">// - No rollback on runtime errors (wrong type etc)</span>
+<span class="cm">// - If one command fails, rest STILL execute</span>
+<span class="cm">// - No isolation between MULTI and EXEC (other clients can write)</span>
+
+<span class="cm">// Spring Data Redis — MULTI/EXEC:</span>
+<span class="ty">List</span>&lt;<span class="ty">Object</span>&gt; results = redis.<span class="mt">execute</span>(<span class="kw">new</span> <span class="ty">SessionCallback</span>&lt;&gt;() {
+    <span class="an">@Override</span>
+    <span class="kw">public</span> <span class="ty">List</span>&lt;<span class="ty">Object</span>&gt; <span class="mt">execute</span>(<span class="ty">RedisOperations</span> ops) {
+        ops.<span class="mt">multi</span>();                              <span class="cm">// BEGIN transaction</span>
+        ops.<span class="mt">opsForValue</span>().<span class="mt">set</span>(<span class="st">"balance:alice"</span>, -<span class="nu">100</span>);
+        ops.<span class="mt">opsForValue</span>().<span class="mt">set</span>(<span class="st">"balance:bob"</span>, +<span class="nu">100</span>);
+        <span class="kw">return</span> ops.<span class="mt">exec</span>();                        <span class="cm">// EXECUTE atomically</span>
+    }
+});
+
+<span class="cm">// ── WATCH — Optimistic locking (CAS pattern) ─────────────────────────</span>
+<span class="cm">// WATCH keys → if any key changes before EXEC → EXEC returns null (abort)</span>
+<span class="cm">// Retry in application code</span>
+
+<span class="kw">boolean</span> <span class="mt">debit</span>(<span class="ty">String</span> accountKey, <span class="kw">long</span> amount) {
+    <span class="kw">int</span> maxRetries = <span class="nu">5</span>;
+    <span class="kw">for</span> (<span class="kw">int</span> i = <span class="nu">0</span>; i < maxRetries; i++) {
+        <span class="ty">List</span>&lt;<span class="ty">Object</span>&gt; results = redis.<span class="mt">execute</span>(<span class="kw">new</span> <span class="ty">SessionCallback</span>&lt;&gt;() {
+            <span class="kw">public</span> <span class="ty">List</span>&lt;<span class="ty">Object</span>&gt; <span class="mt">execute</span>(<span class="ty">RedisOperations</span> ops) {
+                ops.<span class="mt">watch</span>(<span class="ty">List</span>.<span class="mt">of</span>(accountKey));           <span class="cm">// WATCH</span>
+                <span class="kw">long</span> balance = (<span class="ty">Long</span>) ops.<span class="mt">opsForValue</span>().<span class="mt">get</span>(accountKey);
+                <span class="kw">if</span> (balance < amount) <span class="kw">return null</span>;        <span class="cm">// insufficient funds</span>
+                ops.<span class="mt">multi</span>();
+                ops.<span class="mt">opsForValue</span>().<span class="mt">decrement</span>(accountKey, amount);
+                <span class="kw">return</span> ops.<span class="mt">exec</span>();                        <span class="cm">// null if WATCH triggered</span>
+            }
+        });
+        <span class="kw">if</span> (results != <span class="kw">null</span>) <span class="kw">return true</span>;   <span class="cm">// success</span>
+        <span class="cm">// null → someone else modified → retry</span>
+    }
+    <span class="kw">return false</span>; <span class="cm">// too many conflicts</span>
+}
+
+<span class="cm">// ── Lua Scripts — truly atomic, no interleaving possible ─────────────</span>
+<span class="cm">// Lua runs as a single atomic operation — BEST for complex atomic logic</span>
+
+<span class="kw">private static final</span> <span class="ty">String</span> TRANSFER_SCRIPT = <span class="st">"""
+    local from_bal = tonumber(redis.call('GET', KEYS[1]))
+    local amount   = tonumber(ARGV[1])
+    if from_bal < amount then
+        return {err = 'insufficient_funds'}
+    end
+    redis.call('DECRBY', KEYS[1], amount)
+    redis.call('INCRBY', KEYS[2], amount)
+    return 1
+    """</span>;
+
+<span class="kw">void</span> <span class="mt">transfer</span>(<span class="ty">String</span> from, <span class="ty">String</span> to, <span class="kw">long</span> amount) {
+    <span class="ty">DefaultRedisScript</span>&lt;<span class="ty">Long</span>&gt; script = <span class="kw">new</span> <span class="ty">DefaultRedisScript</span>&lt;&gt;(TRANSFER_SCRIPT, <span class="ty">Long</span>.<span class="kw">class</span>);
+    <span class="ty">Long</span> result = redis.<span class="mt">execute</span>(script,
+        <span class="ty">List</span>.<span class="mt">of</span>(<span class="st">"balance:"</span> + from, <span class="st">"balance:"</span> + to),
+        amount.<span class="mt">toString</span>()
+    );
+    <span class="kw">if</span> (result == <span class="kw">null</span>) <span class="kw">throw new</span> <span class="ty">InsufficientFundsException</span>();
+}
+
+<span class="cm">// ── Distributed Lock with Lua (Redlock pattern) ──────────────────────</span>
+<span class="kw">private static final</span> <span class="ty">String</span> UNLOCK_SCRIPT = <span class="st">"""
+    if redis.call('GET', KEYS[1]) == ARGV[1] then
+        return redis.call('DEL', KEYS[1])
+    else
+        return 0
+    end
+    """</span>;
+
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">RedisDistributedLock</span> {
+
+    <span class="kw">public boolean</span> <span class="mt">tryLock</span>(<span class="ty">String</span> lockKey, <span class="ty">String</span> lockValue, <span class="kw">long</span> ttlMs) {
+        <span class="ty">Boolean</span> acquired = redis.<span class="mt">opsForValue</span>()
+            .<span class="mt">setIfAbsent</span>(lockKey, lockValue, <span class="ty">Duration</span>.<span class="mt">ofMillis</span>(ttlMs));
+        <span class="kw">return</span> <span class="ty">Boolean</span>.<span class="en">TRUE</span>.<span class="mt">equals</span>(acquired);
+    }
+
+    <span class="kw">public void</span> <span class="mt">unlock</span>(<span class="ty">String</span> lockKey, <span class="ty">String</span> lockValue) {
+        <span class="cm">// Lua ensures we only delete OUR lock (not one acquired by another process)</span>
+        <span class="ty">DefaultRedisScript</span>&lt;<span class="ty">Long</span>&gt; script = <span class="kw">new</span> <span class="ty">DefaultRedisScript</span>&lt;&gt;(UNLOCK_SCRIPT, <span class="ty">Long</span>.<span class="kw">class</span>);
+        redis.<span class="mt">execute</span>(script, <span class="ty">List</span>.<span class="mt">of</span>(lockKey), lockValue);
+    }
+
+    <span class="cm">// Use Redisson for production distributed locks:</span>
+    <span class="kw">public void</span> <span class="mt">withRedisson</span>(<span class="ty">RedissonClient</span> redisson) <span class="kw">throws</span> <span class="ty">Exception</span> {
+        <span class="ty">RLock</span> lock = redisson.<span class="mt">getLock</span>(<span class="st">"order:lock:123"</span>);
+        lock.<span class="mt">lock</span>(<span class="nu">10</span>, <span class="ty">TimeUnit</span>.<span class="en">SECONDS</span>);    <span class="cm">// auto-expire after 10s</span>
+        <span class="kw">try</span> {
+            <span class="mt">processOrder</span>();
+        } <span class="kw">finally</span> {
+            lock.<span class="mt">unlock</span>();
+        }
+    }
+}
+<div class="code-label">Java 17 — Redis Atomicity</div></pre>
+</section>
+
+<section id="redis-threads">
+  <div class="sh"><div class="sn" style="background:var(--re)">9</div><h2>Redis Thread Model — Single Thread vs Multi-Thread</h2></div>
+
+  <div class="arch">
+    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.8rem">Redis 7+ Thread Architecture</div>
+    <div class="arch-row">
+      <div class="arch-box ab-re">Client 1 (TCP)</div>
+      <div class="arch-box ab-re">Client 2 (TCP)</div>
+      <div class="arch-box ab-re">Client N (TCP)</div>
+    </div>
+    <div class="arch-row"><div class="arch-arrow" style="margin-left:1rem">↓ I/O threads (Redis 6+ multithreaded I/O)</div></div>
+    <div class="arch-row">
+      <div class="arch-box ab-y">I/O Thread 1 (read network)</div>
+      <div class="arch-box ab-y">I/O Thread 2 (read network)</div>
+      <div class="arch-box ab-y">I/O Thread 3 (write responses)</div>
+    </div>
+    <div class="arch-row"><div class="arch-arrow" style="margin-left:1rem">↓ parse + enqueue commands</div></div>
+    <div class="arch-row">
+      <div class="arch-box ab-re" style="font-size:12px;padding:.4rem 1rem">⭐ SINGLE MAIN THREAD — all command EXECUTION</div>
+    </div>
+    <div class="arch-row"><div class="arch-label" style="margin-left:1rem">No locks needed — sequential execution guarantees atomicity</div></div>
+    <div class="arch-row" style="margin-top:.3rem">
+      <div class="arch-box ab-t">BIO Thread — fsync (AOF)</div>
+      <div class="arch-box ab-t">BIO Thread — lazy-free delete</div>
+      <div class="arch-box ab-t">BIO Thread — close sockets</div>
+    </div>
+  </div>
+
+  <table>
+    <thead><tr><th>Thread</th><th>Redis Version</th><th>What it does</th><th>Configurable</th></tr></thead>
+    <tbody>
+      <tr><td>Main event loop</td><td>All</td><td>Execute ALL commands. Exactly 1 thread. Single-threaded guarantee.</td><td>❌ Always 1</td></tr>
+      <tr><td>I/O threads</td><td>6.0+</td><td>Read data from network buffers, parse commands, write responses</td><td>✅ <code>io-threads N</code></td></tr>
+      <tr><td>BIO threads</td><td>All</td><td>Blocking I/O: fsync, lazy delete, socket close</td><td>✅ 3 by default</td></tr>
+      <tr><td>Cluster bus threads</td><td>3.0+</td><td>Gossip protocol between cluster nodes</td><td>❌ Auto</td></tr>
+      <tr><td>Replication threads</td><td>7.0+</td><td>I/O for replication stream</td><td>✅ <code>repl-diskless-sync-threads</code></td></tr>
+    </tbody>
+  </table>
+
+<pre><span class="cm"># redis.conf — Threading configuration</span>
+
+<span class="cm"># Enable I/O multithreading (Redis 6+)</span>
+<span class="cf">io-threads</span>              <span class="cv">4</span>       <span class="cm"># default 1 (disabled). Use CPU count / 2</span>
+<span class="cf">io-threads-do-reads</span>     <span class="cv">yes</span>    <span class="cm"># also multithread reads (default: no)</span>
+
+<span class="cm"># Lazy deletion (don't block main thread on large key deletes)</span>
+<span class="cf">lazyfree-lazy-eviction</span>  <span class="cv">yes</span>    <span class="cm"># eviction uses BIO thread</span>
+<span class="cf">lazyfree-lazy-expire</span>    <span class="cv">yes</span>    <span class="cm"># TTL expiry uses BIO thread</span>
+<span class="cf">lazyfree-lazy-server-del</span><span class="cv">yes</span>    <span class="cm"># RENAME etc uses BIO thread</span>
+<span class="cf">lazyfree-lazy-user-del</span>  <span class="cv">yes</span>    <span class="cm"># UNLINK (async DEL) uses BIO thread</span>
+
+<span class="cm"># Use UNLINK instead of DEL for large keys (non-blocking)</span>
+<span class="cm"># DEL   → blocks main thread until key is freed</span>
+<span class="cm"># UNLINK → marks for deletion, BIO thread does actual work</span>
+
+<span class="cm"># Performance: Redis 6+ with io-threads=4 → ~2x throughput for network-bound workloads</span>
+<span class="cm"># CPU-bound workloads (small values, fast commands) → little benefit</span>
+<span class="cm"># Large values (>1KB) benefit most from I/O threads</span>
+<div class="code-label">redis.conf</div></pre>
+
+<pre><span class="cm">// ── Redis thread-safety for Java clients ─────────────────────────────</span>
+
+<span class="cm">// Lettuce (default Spring Boot client) — thread-safe, single connection</span>
+<span class="cm">// Uses Netty (async, non-blocking) → one TCP connection shared by all threads</span>
+<span class="cm">// Connection pool NOT needed (but can be configured for blocking ops)</span>
+
+<span class="cm">// Jedis — NOT thread-safe! Must use connection pool</span>
+<span class="ty">JedisPool</span> pool = <span class="kw">new</span> <span class="ty">JedisPool</span>(
+    <span class="kw">new</span> <span class="ty">JedisPoolConfig</span>() {{
+        setMaxTotal(<span class="nu">128</span>);        <span class="cm">// max connections</span>
+        setMaxIdle(<span class="nu">32</span>);          <span class="cm">// max idle connections</span>
+        setMinIdle(<span class="nu">8</span>);           <span class="cm">// min idle connections</span>
+    }},
+    <span class="st">"localhost"</span>, <span class="nu">6379</span>
+);
+<span class="kw">try</span> (<span class="ty">Jedis</span> jedis = pool.<span class="mt">getResource</span>()) {
+    jedis.<span class="mt">set</span>(<span class="st">"key"</span>, <span class="st">"value"</span>); <span class="cm">// each thread borrows from pool</span>
+}
+
+<span class="cm">// ── Rate Limiting with Redis (atomic via Lua) ─────────────────────────</span>
+<span class="kw">private static final</span> <span class="ty">String</span> RATE_LIMIT_SCRIPT = <span class="st">"""
+    local key     = KEYS[1]
+    local limit   = tonumber(ARGV[1])
+    local window  = tonumber(ARGV[2])
+    local current = redis.call('INCR', key)
+    if current == 1 then
+        redis.call('EXPIRE', key, window)
+    end
+    if current > limit then
+        return 0
+    end
+    return 1
+    """</span>;
+
+<span class="kw">boolean</span> <span class="mt">isAllowed</span>(<span class="ty">String</span> userId, <span class="kw">int</span> limit, <span class="kw">int</span> windowSeconds) {
+    <span class="ty">DefaultRedisScript</span>&lt;<span class="ty">Long</span>&gt; script = <span class="kw">new</span> <span class="ty">DefaultRedisScript</span>&lt;&gt;(RATE_LIMIT_SCRIPT, <span class="ty">Long</span>.<span class="kw">class</span>);
+    <span class="ty">Long</span> result = redis.<span class="mt">execute</span>(script,
+        <span class="ty">List</span>.<span class="mt">of</span>(<span class="st">"rate:"</span> + userId),
+        <span class="ty">String</span>.<span class="mt">valueOf</span>(limit),
+        <span class="ty">String</span>.<span class="mt">valueOf</span>(windowSeconds)
+    );
+    <span class="kw">return</span> <span class="ty">Long</span>.<span class="mt">valueOf</span>(<span class="nu">1</span>).<span class="mt">equals</span>(result);
+}
+<div class="code-label">Java 17 — Redis Thread Safety</div></pre>
+</section>
+
+<!-- ═══════════════════════════════════════════════════════
+     CASSANDRA SECTION
+═══════════════════════════════════════════════════════ -->
+
+<section id="cass-arch">
+  <div class="cassandra-hdr">
+    <div style="font-size:1.5rem;font-weight:800;color:var(--ca)">🔵 CASSANDRA</div>
+    <div style="color:var(--muted);font-size:.9rem">Wide-column distributed database — masterless, linear scalability, tunable consistency</div>
+  </div>
+  <div class="sh"><div class="sn" style="background:var(--ca)">10</div><h2>Cassandra Architecture — How Data is Stored</h2></div>
+
+  <div class="arch">
+    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.8rem">Cassandra Cluster — Ring Architecture (Masterless)</div>
+    <div style="text-align:center;padding:1rem;font-family:'JetBrains Mono',monospace;font-size:11px">
+      <div style="display:inline-flex;flex-direction:column;align-items:center;gap:.4rem">
+        <div class="arch-box ab-ca">Node 1 (tokens: 0-25%)</div>
+        <div style="display:flex;gap:2rem;align-items:center">
+          <div class="arch-box ab-ca">Node 4 (tokens: 75-100%)</div>
+          <span style="color:var(--ca);font-size:1.5rem">⟳</span>
+          <div class="arch-box ab-ca">Node 2 (tokens: 25-50%)</div>
+        </div>
+        <div class="arch-box ab-ca">Node 3 (tokens: 50-75%)</div>
+      </div>
+      <div style="margin-top:.8rem;color:var(--muted);font-size:10px">All nodes equal — no master. Gossip protocol for cluster state.</div>
+    </div>
+  </div>
+
+<pre><span class="cm">// ── How data is written to Cassandra ─────────────────────────────────</span>
+<span class="cm">//</span>
+<span class="cm">// Step 1: Client sends write to ANY node (Coordinator)</span>
+<span class="cm">// Step 2: Coordinator hashes partition key → determines replica nodes</span>
+<span class="cm">// Step 3: Coordinator sends write to ALL replica nodes</span>
+<span class="cm">// Step 4: Each replica node:</span>
+<span class="cm">//   a. Writes to Commit Log (WAL — sequential, always on disk)</span>
+<span class="cm">//   b. Writes to MemTable (in-memory sorted structure)</span>
+<span class="cm">//   c. Returns ACK when BOTH done</span>
+<span class="cm">// Step 5: MemTable flushes to SSTable (disk) when full</span>
+<span class="cm">// Step 6: SSTables compacted periodically (remove tombstones, merge)</span>
+<span class="cm">// Step 7: Coordinator waits for W replica ACKs (consistency level)</span>
+
+<span class="cm">// ── How data is READ from Cassandra ──────────────────────────────────</span>
+<span class="cm">// Step 1: Client sends read to Coordinator</span>
+<span class="cm">// Step 2: Coordinator determines replicas for partition key</span>
+<span class="cm">// Step 3: Coordinator sends digest request to R replicas</span>
+<span class="cm">// Step 4: All replicas check MemTable → Row cache → Block cache → SSTable</span>
+<span class="cm">// Step 5: If digests match → return data</span>
+<span class="cm">// Step 6: If digests differ → read repair: fetch full data from all, merge</span>
+
+<span class="cm">// ── SSTable structure ─────────────────────────────────────────────────</span>
+<span class="cm">// Data.db     — actual column data</span>
+<span class="cm">// Index.db    — partition key → offset in Data.db</span>
+<span class="cm">// Filter.db   — Bloom filter (is partition key in this file?)</span>
+<span class="cm">// Summary.db  — sparse index of Index.db</span>
+<span class="cm">// Statistics.db — partition size, column stats</span>
+<span class="cm">// Bloom filter prevents disk reads for non-existent keys (O(1) probably-no)</span>
+
+<span class="cm">// ── CQL Data Model ────────────────────────────────────────────────────</span>
+<span class="cm">-- Primary key = Partition key + Clustering columns</span>
+<span class="kw">CREATE TABLE</span> orders (
+    customer_id  <span class="ty">UUID</span>,              <span class="cm">-- partition key (which node?)</span>
+    order_id     <span class="ty">TIMEUUID</span>,          <span class="cm">-- clustering col (sort order within partition)</span>
+    created_at   <span class="ty">TIMESTAMP</span>,
+    total        <span class="ty">DECIMAL</span>,
+    status       <span class="ty">TEXT</span>,
+    <span class="kw">PRIMARY KEY</span> ((customer_id), order_id)  <span class="cm">-- (()) = partition key</span>
+) <span class="kw">WITH CLUSTERING ORDER BY</span> (order_id <span class="kw">DESC</span>);  <span class="cm">-- latest orders first</span>
+
+<span class="cm">-- All orders for a customer → ONE partition (collocated, fast)</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> orders <span class="kw">WHERE</span> customer_id = ? <span class="kw">LIMIT</span> <span class="nu">10</span>;
+
+<span class="cm">-- Bad: full scan (no partition key) → scatter gather → slow!</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> orders <span class="kw">WHERE</span> status = <span class="st">'PENDING'</span>;  <span class="cm">-- ❌ requires ALLOW FILTERING</span>
+<div class="code-label">Cassandra Data Model</div></pre>
+
+<pre><span class="cm">// ── Spring Data Cassandra — full setup ────────────────────────────────</span>
+
+<span class="an">@Table</span>(<span class="st">"orders"</span>)
+<span class="kw">public class</span> <span class="ty">Order</span> {
+    <span class="an">@PrimaryKeyColumn</span>(name = <span class="st">"customer_id"</span>, ordinal = <span class="nu">0</span>, type = <span class="ty">PrimaryKeyType</span>.<span class="en">PARTITIONED</span>)
+    <span class="kw">private</span> <span class="ty">UUID</span> customerId;
+
+    <span class="an">@PrimaryKeyColumn</span>(name = <span class="st">"order_id"</span>, ordinal = <span class="nu">1</span>, type = <span class="ty">PrimaryKeyType</span>.<span class="en">CLUSTERED</span>,
+                      ordering = <span class="ty">Ordering</span>.<span class="en">DESCENDING</span>)
+    <span class="kw">private</span> <span class="ty">UUID</span> orderId;
+
+    <span class="an">@Column</span> <span class="kw">private</span> <span class="ty">BigDecimal</span> total;
+    <span class="an">@Column</span> <span class="kw">private</span> <span class="ty">String</span>     status;
+    <span class="an">@Column</span> <span class="kw">private</span> <span class="ty">Instant</span>    createdAt;
+}
+
+<span class="an">@Repository</span>
+<span class="kw">public interface</span> <span class="ty">OrderRepository</span> <span class="kw">extends</span> <span class="ty">CassandraRepository</span>&lt;<span class="ty">Order</span>, <span class="ty">UUID</span>&gt; {
+    <span class="ty">List</span>&lt;<span class="ty">Order</span>&gt; <span class="mt">findByCustomerIdOrderByOrderIdDesc</span>(<span class="ty">UUID</span> customerId, <span class="ty">Pageable</span> p);
+
+    <span class="an">@Query</span>(<span class="st">"SELECT * FROM orders WHERE customer_id = ?0 AND order_id > ?1 LIMIT ?2"</span>)
+    <span class="ty">List</span>&lt;<span class="ty">Order</span>&gt; <span class="mt">findRecentOrders</span>(<span class="ty">UUID</span> customerId, <span class="ty">UUID</span> afterId, <span class="kw">int</span> limit);
+}
+<div class="code-label">Java 17 — Spring Data Cassandra</div></pre>
+</section>
+
+<section id="cass-hashing">
+  <div class="sh"><div class="sn" style="background:var(--ca)">11</div><h2>Consistent Hashing — How Cassandra Routes Data</h2></div>
+
+  <div class="arch">
+    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.8rem">Token Ring — Murmur3 Partitioner (default)</div>
+    <div style="font-family:'JetBrains Mono',monospace;font-size:11.5px;line-height:1.9">
+      <div style="color:var(--muted)">Token range: -2^63 to +2^63 (-9223372036854775808 to +9223372036854775807)</div>
+      <div style="margin:.5rem 0">
+        <span class="arch-box ab-ca">Node A owns: -9223... to -4611...</span>
+        <span style="margin:0 .5rem;color:var(--muted)">|</span>
+        <span class="arch-box ab-ca">Node B owns: -4611... to 0</span>
+      </div>
+      <div>
+        <span class="arch-box ab-ca">Node C owns: 0 to +4611...</span>
+        <span style="margin:0 .5rem;color:var(--muted)">|</span>
+        <span class="arch-box ab-ca">Node D owns: +4611... to +9223...</span>
+      </div>
+      <div style="margin-top:.8rem;color:var(--muted)">
+        Write("order:123") → murmur3("order:123") = -2847362... → falls in Node A's range → route to Node A (+ replicas B, C)
+      </div>
+    </div>
+  </div>
+
+<pre><span class="cm">// ── Partitioner types ─────────────────────────────────────────────────</span>
+<span class="cm">//</span>
+<span class="cm">// Murmur3Partitioner (DEFAULT, recommended)</span>
+<span class="cm">// - hash = murmur3(partition_key)</span>
+<span class="cm">// - Uniform distribution, fast</span>
+<span class="cm">// - NOT ordered → cannot do range queries on partition key</span>
+<span class="cm">//</span>
+<span class="cm">// ByteOrderedPartitioner (NOT recommended)</span>
+<span class="cm">// - Stores data in key order (lexicographic)</span>
+<span class="cm">// - Allows range queries on partition key</span>
+<span class="cm">// - Problem: hot spots — sequential keys all go to same node</span>
+<span class="cm">//   e.g. timestamps: 2024-01-01, 2024-01-02, ... all to same few nodes</span>
+<span class="cm">//</span>
+<span class="cm">// RandomPartitioner (legacy)</span>
+<span class="cm">// - MD5 hash — deprecated, use Murmur3</span>
+
+<span class="cm">// ── Virtual nodes (vnodes) — why they matter ──────────────────────────</span>
+<span class="cm">//</span>
+<span class="cm">// WITHOUT vnodes (old way):</span>
+<span class="cm">// Each physical node owns ONE contiguous token range</span>
+<span class="cm">// Add a node → must manually rebalance half the ring → slow, manual</span>
+<span class="cm">//</span>
+<span class="cm">// WITH vnodes (default since Cassandra 1.2):</span>
+<span class="cm">// Each physical node owns MANY small token ranges (256 by default)</span>
+<span class="cm">// Add a node → it takes a few vnodes from each existing node → automatic</span>
+<span class="cm">// Better load distribution even with heterogeneous hardware</span>
+<span class="cm">//</span>
+<span class="cm">// num_tokens: 256   ← in cassandra.yaml (vnodes per node)</span>
+
+<span class="cm">// ── Replication Strategy ──────────────────────────────────────────────</span>
+<span class="cm">--</span>
+<span class="cm">-- SimpleStrategy (single datacenter only)</span>
+<span class="kw">CREATE KEYSPACE</span> myapp <span class="kw">WITH replication</span> = {
+    <span class="st">'class'</span>: <span class="st">'SimpleStrategy'</span>,
+    <span class="st">'replication_factor'</span>: <span class="nu">3</span>   <span class="cm">-- 3 copies on next 3 clockwise nodes</span>
+};
+
+<span class="cm">-- NetworkTopologyStrategy (production, multi-DC)</span>
+<span class="kw">CREATE KEYSPACE</span> myapp <span class="kw">WITH replication</span> = {
+    <span class="st">'class'</span>: <span class="st">'NetworkTopologyStrategy'</span>,
+    <span class="st">'dc1'</span>: <span class="nu">3</span>,   <span class="cm">-- 3 replicas in datacenter 1</span>
+    <span class="st">'dc2'</span>: <span class="nu">2</span>    <span class="cm">-- 2 replicas in datacenter 2</span>
+};
+<span class="cm">-- Ensures replicas spread across racks within each DC</span>
+
+<span class="cm">// ── Consistency Levels — tunable per operation ────────────────────────</span>
+<span class="cm">//</span>
+<span class="cm">// ANY    — accept write even if only hinted handoff succeeds (low durability)</span>
+<span class="cm">// ONE    — 1 replica acks write / responds read</span>
+<span class="cm">// QUORUM — majority of replicas: ceil(RF/2) + 1</span>
+<span class="cm">// LOCAL_QUORUM — quorum within local DC (multi-DC deployments)</span>
+<span class="cm">// ALL    — ALL replicas must respond (highest consistency, lowest availability)</span>
+<span class="cm">//</span>
+<span class="cm">// Strong consistency: W + R > RF</span>
+<span class="cm">// With RF=3: QUORUM write (2) + QUORUM read (2) = 4 > 3 ✅ strongly consistent</span>
+<span class="cm">// With RF=3: ONE write + ONE read = 2 < 3 ❌ may read stale data</span>
+<div class="code-label">Cassandra Hashing & Replication</div></pre>
+
+<pre><span class="cm">// ── Consistency tuning in Spring Data Cassandra ───────────────────────</span>
+
+<span class="an">@Configuration</span>
+<span class="kw">public class</span> <span class="ty">CassandraConfig</span> <span class="kw">extends</span> <span class="ty">AbstractCassandraConfiguration</span> {
+
+    <span class="an">@Override</span>
+    <span class="kw">public</span> <span class="ty">DriverConfigLoaderBuilderCustomizer</span> <span class="mt">driverConfigLoaderBuilderCustomizer</span>() {
+        <span class="kw">return</span> builder -> builder
+            .<span class="mt">withString</span>(<span class="ty">DefaultDriverOption</span>.<span class="en">REQUEST_CONSISTENCY</span>, <span class="st">"LOCAL_QUORUM"</span>)
+            .<span class="mt">withString</span>(<span class="ty">DefaultDriverOption</span>.<span class="en">REQUEST_SERIAL_CONSISTENCY</span>, <span class="st">"LOCAL_SERIAL"</span>)
+            .<span class="mt">withDuration</span>(<span class="ty">DefaultDriverOption</span>.<span class="en">REQUEST_TIMEOUT</span>, <span class="ty">Duration</span>.<span class="mt">ofSeconds</span>(<span class="nu">5</span>));
+    }
+}
+
+<span class="cm">// Per-operation consistency level:</span>
+<span class="ty">QueryOptions</span> options = <span class="ty">QueryOptions</span>.<span class="mt">builder</span>()
+    .<span class="mt">consistencyLevel</span>(<span class="ty">ConsistencyLevel</span>.<span class="en">ALL</span>)  <span class="cm">// strong for this critical write</span>
+    .<span class="mt">build</span>();
+cassandraTemplate.<span class="mt">insert</span>(order, options);
+<div class="code-label">Spring Cassandra Consistency</div></pre>
+</section>
+
+<section id="cass-scaling">
+  <div class="sh"><div class="sn" style="background:var(--ca)">12</div><h2>Cassandra Scaling — Add & Remove Nodes Dynamically</h2></div>
+
+  <div class="g2">
+    <div class="card aca">
+      <div class="ct" style="color:var(--ca)">Adding a Node (Scale Out)</div>
+      <ol>
+        <li>Start new node pointing to any seed node</li>
+        <li>Node joins ring, gets assigned token ranges (vnodes)</li>
+        <li>Streaming begins: existing nodes stream data to new node</li>
+        <li>New node starts serving reads/writes for its ranges</li>
+        <li>Run <code>nodetool cleanup</code> on old nodes to remove migrated data</li>
+      </ol>
+      <p class="muted" style="margin-top:.5rem"><strong>Zero downtime</strong> — cluster serves traffic throughout</p>
+    </div>
+    <div class="card ay">
+      <div class="ct" style="color:var(--a2)">Removing a Node (Scale In)</div>
+      <ol>
+        <li><code>nodetool decommission</code> on the node being removed</li>
+        <li>Node streams its data to remaining nodes</li>
+        <li>Node leaves the ring once streaming complete</li>
+        <li>For dead nodes: <code>nodetool removenode &lt;host-id&gt;</code></li>
+        <li>Run <code>nodetool repair</code> to ensure full consistency</li>
+      </ol>
+      <p class="muted" style="margin-top:.5rem"><strong>Zero downtime</strong> — data re-distributed automatically</p>
+    </div>
+  </div>
+
+<pre><span class="cm"># ── Cassandra operations commands ────────────────────────────────────</span>
+
+<span class="cm"># Check cluster status and token distribution</span>
+nodetool status
+<span class="cm"># Output: UN (Up Normal), DN (Down Normal), UL (Up Leaving) etc</span>
+<span class="cm"># Shows: datacenter, IP, load, tokens, host-id</span>
+
+<span class="cm"># Add node — start the new node, it auto-joins</span>
+<span class="cm"># cassandra.yaml on new node:</span>
+<span class="cf">seeds:</span> <span class="cv">"node1:9042,node2:9042"</span>  <span class="cm"># at least 2 seeds</span>
+<span class="cf">num_tokens:</span> <span class="cv">256</span>                  <span class="cm"># virtual nodes</span>
+<span class="cf">auto_bootstrap:</span> <span class="cv">true</span>            <span class="cm"># automatically stream data (default)</span>
+
+<span class="cm"># Monitor streaming progress</span>
+nodetool netstats
+nodetool tpstats              <span class="cm"># thread pool stats</span>
+
+<span class="cm"># After adding: clean up data no longer owned by old nodes</span>
+nodetool cleanup              <span class="cm"># run on ALL existing nodes</span>
+
+<span class="cm"># Remove a live node gracefully</span>
+nodetool decommission         <span class="cm"># run ON the node being removed</span>
+
+<span class="cm"># Remove a dead node from another node</span>
+nodetool removenode &lt;host-id&gt;  <span class="cm"># get host-id from nodetool status</span>
+
+<span class="cm"># Repair — ensure all replicas are consistent</span>
+nodetool repair --full        <span class="cm"># full repair (slow, use during low traffic)</span>
+nodetool repair               <span class="cm"># incremental repair (faster, default in 4.0)</span>
+
+<span class="cm"># Check compaction progress</span>
+nodetool compactionstats
+
+<span class="cm"># Flush MemTable to SSTable (before backup)</span>
+nodetool flush
+
+<span class="cm"># Check read/write latency</span>
+nodetool proxyhistograms
+<div class="code-label">nodetool Commands</div></pre>
+
+<pre><span class="cm">// ── Cassandra Anti-Patterns — what NOT to do ─────────────────────────</span>
+
+<span class="cm">// ❌ Unbounded partitions — millions of rows in one partition</span>
+<span class="cm">// Partition too large → single node becomes hot spot</span>
+<span class="cm">// Fix: bucket by time period</span>
+<span class="kw">CREATE TABLE</span> events_by_day (
+    user_id    <span class="ty">UUID</span>,
+    day        <span class="ty">DATE</span>,          <span class="cm">-- bucket: partition per user per day</span>
+    event_id   <span class="ty">TIMEUUID</span>,
+    data       <span class="ty">TEXT</span>,
+    <span class="kw">PRIMARY KEY</span> ((user_id, day), event_id)  <span class="cm">-- compound partition key</span>
+);
+
+<span class="cm">// ❌ Secondary index on high-cardinality columns</span>
+<span class="cm">// Secondary index → scatter-gather across all nodes = slow</span>
+<span class="cm">// Fix: create a separate lookup table (denormalization is OK in Cassandra)</span>
+<span class="kw">CREATE TABLE</span> orders_by_status (
+    status     <span class="ty">TEXT</span>,          <span class="cm">-- partition key: limited cardinality</span>
+    order_id   <span class="ty">TIMEUUID</span>,
+    customer_id <span class="ty">UUID</span>,
+    <span class="kw">PRIMARY KEY</span> (status, order_id)
+);
+
+<span class="cm">// ❌ ALLOW FILTERING — forces coordinator to scan all nodes</span>
+<span class="kw">SELECT</span> * <span class="kw">FROM</span> orders <span class="kw">WHERE</span> total > <span class="nu">100</span> <span class="kw">ALLOW FILTERING</span>;  <span class="cm">// ❌ never in prod</span>
+
+<span class="cm">// ❌ Using BATCH for performance (Cassandra BATCH ≠ SQL BATCH)</span>
+<span class="cm">// Cassandra BATCH is only for atomicity on SAME partition</span>
+<span class="cm">// Multi-partition BATCH → coordinator bottleneck → slower than individual writes</span>
+<span class="cm">// Use LOGGED BATCH only for same-partition mutations needing atomicity</span>
+
+<span class="cm">// ── Data modeling rules for Cassandra ───────────────────────────────</span>
+<span class="cm">// 1. Model by query (not by entities) — design tables for access patterns</span>
+<span class="cm">// 2. Denormalize aggressively — storage is cheap, JOIN is impossible</span>
+<span class="cm">// 3. One table per query pattern — if you have 3 queries, you may need 3 tables</span>
+<span class="cm">// 4. Keep partitions under 100MB / 100K rows (sweet spot)</span>
+<span class="cm">// 5. Partition key should have high cardinality + uniform distribution</span>
+<div class="code-label">Cassandra Best Practices</div></pre>
+
+  <div class="cl-box cass"><div class="ci">💡</div><div>
+    <strong>Cassandra vs RDBMS mental model shift:</strong><br/>
+    In SQL: model entities → derive queries<br/>
+    In Cassandra: model queries → design tables to serve them<br/>
+    Cassandra reads are O(1) by partition key. Everything else is expensive.
+  </div></div>
+
+  <h3>Final Comparison — When to Use What</h3>
+  <table>
+    <thead><tr><th>Question</th><th>Kafka</th><th>Redis</th><th>Cassandra</th></tr></thead>
+    <tbody>
+      <tr><td>Primary use</td><td>Event streaming, async messaging</td><td>Cache, sessions, real-time ops</td><td>Time-series, IoT, user data, logs</td></tr>
+      <tr><td>Data durability</td><td>✅ Configurable retention</td><td>⚠️ Optional (AOF/RDB)</td><td>✅ Always durable (commit log)</td></tr>
+      <tr><td>Read latency</td><td>ms (consumer poll)</td><td>sub-ms (in-memory)</td><td>ms (disk + memory)</td></tr>
+      <tr><td>Write latency</td><td>ms (batch + async)</td><td>sub-ms</td><td>ms (commit log + memtable)</td></tr>
+      <tr><td>Ordering</td><td>✅ Per partition</td><td>✅ List/ZSet</td><td>✅ Per partition (clustering col)</td></tr>
+      <tr><td>Horizontal scale</td><td>✅ Add partitions/brokers</td><td>✅ Cluster sharding</td><td>✅ Add nodes, auto-rebalance</td></tr>
+      <tr><td>Transactions</td><td>✅ Exactly-once (Kafka TXN)</td><td>⚠️ MULTI/EXEC (limited)</td><td>✅ LWT (lightweight transactions)</td></tr>
+      <tr><td>Query flexibility</td><td>Consumer-side only</td><td>Key-based + sorted sets</td><td>Partition key + clustering cols</td></tr>
+      <tr><td>Max throughput</td><td>Millions/sec per partition</td><td>1M+ ops/sec</td><td>Millions writes/sec (linear scale)</td></tr>
+    </tbody>
+  </table>
+</section>
+
+</div>
+</body>
+</html>

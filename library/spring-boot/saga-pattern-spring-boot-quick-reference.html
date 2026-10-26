@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Saga Pattern — Quick Reference (Choreography vs Orchestration, vs 2PC) · Library · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../../assets/style.css">
+<script>try{if(localStorage.getItem('sd-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="../../index.html">SystemDesign<span>.hinglish</span></a><div class="toplinks"><a href="../../index.html#chapters">Chapters</a><a href="../../library/index.html">Library</a><a href="../../index.html#how">Kaise padhein</a><a href="../../links.html">URL Guide</a></div><button class="theme-toggle" aria-label="theme">◐</button></header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="../index.html"><span class="num">⌂</span> Library home</a></li></ul>
+<div class="group">System Design &amp; Architecture</div><ul>
+<li><a href="../system-design/system-design-mastery.html"><span class="num">📘</span> System Design Mastery</a></li>
+<li><a href="../system-design/smart-parking-system-hld-lld.html"><span class="num">📘</span> Smart Parking System</a></li>
+<li><a href="../system-design/98-system-design-concepts.html"><span class="num">📝</span> 98 System Design Concepts</a></li>
+<li><a href="../system-design/email-notification-scheduler-design.html"><span class="num">📄</span> Email Notification Scheduler</a></li>
+<li><a href="../system-design/schedule-reminder-2m-scale-architecture.html"><span class="num">📝</span> Scale-Ready Schedule Reminder System</a></li>
+</ul>
+<div class="group">Java Core &amp; DSA</div><ul>
+<li><a href="../java-dsa/java-core-mastery-guide.html"><span class="num">📘</span> Java Core Mastery Guide</a></li>
+<li><a href="../java-dsa/java-garbage-collection-guide.html"><span class="num">📘</span> Java Garbage Collection</a></li>
+<li><a href="../java-dsa/java-ds-leetcode-mastery.html"><span class="num">📘</span> Java Data Structures for LeetCode</a></li>
+<li><a href="../java-dsa/data-structures-java-interview-guide.html"><span class="num">📄</span> Data Structures Interview Guide</a></li>
+<li><a href="../java-dsa/lru-cache-java-visual-explainer.html"><span class="num">📘</span> LRU Cache</a></li>
+</ul>
+<div class="group">Spring Boot &amp; Microservices</div><ul>
+<li><a href="../spring-boot/spring-bean-lifecycle.html"><span class="num">📘</span> Spring Bean Lifecycle</a></li>
+<li><a href="../spring-boot/spring-transactional-guide.html"><span class="num">📘</span> @Transactional</a></li>
+<li><a href="../spring-boot/spring-circuit-breaker-resilience4j.html"><span class="num">📘</span> Circuit Breaker (Resilience4j)</a></li>
+<li><a href="../spring-boot/spring-security-jwt-logging-deploy.html"><span class="num">📘</span> Spring Security · JWT · AOP · Logging · Blue-Green</a></li>
+<li><a href="../spring-boot/saga-pattern-complete-guide.html"><span class="num">📄</span> Saga Pattern — Complete Guide</a></li>
+<li><a class="active" href="../spring-boot/saga-pattern-spring-boot-quick-reference.html"><span class="num">📄</span> Saga — Quick Reference</a></li>
+</ul>
+<div class="group">Kafka · Redis · Cassandra &amp; Data</div><ul>
+<li><a href="../data-messaging/kafka-redis-cassandra-mastery.html"><span class="num">📘</span> Kafka · Redis · Cassandra</a></li>
+<li><a href="../data-messaging/northguard-xinfra-linkedin-kafka-replacement.html"><span class="num">📘</span> Northguard &amp; Xinfra</a></li>
+</ul>
+<div class="group">GenAI &amp; AI</div><ul>
+<li><a href="../genai/java-genai-complete-guide.html"><span class="num">📄</span> Java + Generative AI</a></li>
+<li><a href="../genai/vector-database-mastery.html"><span class="num">📘</span> Vector Databases</a></li>
+</ul>
+<div class="group">Payments &amp; Interview Prep</div><ul>
+<li><a href="../interview-prep/paytm-backend-interview-guide.html"><span class="num">📄</span> Paytm Backend Interview Guide</a></li>
+<li><a href="../interview-prep/paytm-dsa-questions.html"><span class="num">📄</span> Paytm DSA Questions</a></li>
+</ul>
+</nav>
+<main class="content lib-doc">
+<div class="chapter-hero"><span class="chapter-num">Spring Boot &amp; Microservices</span><h1>Saga Pattern — Quick Reference (Choreography vs Orchestration, vs 2PC)</h1><p class="lead">Chhota companion: choreography vs orchestration, orchestrator code, Kafka config, best practices aur Saga vs 2PC comparison (jo main guide mein nahi hai). / Short reference with unique comparisons.</p><div class="lib-meta"><span class="badge fmt-pdf">📄 PDF → Web</span><span class="badge time">⏱ ~6 min read</span><span class="badge pages">9 pages (original)</span></div><div class="tags"><span class="tag">Choreography</span><span class="tag">Orchestration</span><span class="tag">2PC</span></div><div class="lib-dl"><a class="btn small" href="../files/saga-pattern-spring-boot-quick-reference.pdf" download>⬇ Download PDF</a></div></div>
+<div class="callout tip"><strong>Study note</strong>Ye page original document se auto-convert kiya gaya hai (headings, tables, code preserve). Exact original layout / diagrams ke liye upar se file download karo.</div>
+<h2>1. What is the Saga Pattern?</h2>
+<p>The <b>Saga Pattern</b> is a design pattern for managing <b>distributed transactions</b> across multiple microservices. Instead of a single ACID transaction spanning many services (which is impractical in a distributed system), a Saga breaks the transaction into a sequence of local transactions, each updating its own service's database and publishing an event or message.</p>
+<p>If one step fails, the Saga executes <b>compensating transactions</b> to undo the changes made by the preceding steps — maintaining data consistency without two-phase commit (2PC).</p>
+<h2>2. When to Use the Saga Pattern</h2>
+<div class="table-wrap"><table class="cmp"><thead><tr><th> USE Saga When</th><th> AVOID Saga When</th></tr></thead><tbody><tr><td>Multiple microservices must update</td><td>All data lives in a single database</td></tr><tr><td>their own databases atomically</td><td>(use regular ACID transactions)</td></tr><tr><td>You need eventual consistency</td><td>You need strong immediate consistency</td></tr><tr><td>across service boundaries</td><td>at all times</td></tr><tr><td>Services communicate via events</td><td>Low latency, synchronous workflows</td></tr><tr><td>or messages (async)</td><td>are required</td></tr><tr><td>Long-running business processes</td><td>Simple CRUD operations on</td></tr><tr><td>(orders, payments, shipping)</td><td>a single service</td></tr><tr><td>You want to avoid distributed</td><td>Team lacks experience with</td></tr><tr><td>two-phase commit (2PC)</td><td>eventual consistency</td></tr></tbody></table></div>
+<h2>3. Two Types of Saga</h2>
+<h3>3.1 Choreography-based Saga</h3>
+<p>Each service listens for events and decides what to do next. There is <b>no central coordinator</b>. Services communicate through domain events.</p>
+<ul><li>Pros: Simple, decoupled, no single point of failure</li><li>Cons: Hard to track overall workflow; business logic spread across services</li></ul>
+<h3>3.2 Orchestration-based Saga</h3>
+<p>A central <b>Saga Orchestrator</b> (often implemented as a state machine) tells each participant what to do and handles responses. This is the most common approach in Spring Boot using <b>Axon Framework</b> or custom orchestrators.</p>
+<ul><li>Pros: Clear workflow visibility; easier debugging and monitoring</li><li>Cons: Orchestrator can become a bottleneck; adds complexity</li></ul>
+<h2>4. Practical Example: Order Processing Saga</h2>
+<p>We'll build a classic e-commerce order saga involving three services: <b>Order Service</b>, <b>Inventory Service</b>, and <b>Payment Service</b>.</p>
+<h3>Step Flow:</h3>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Step</th><th>Action</th><th>On Failure (Compensate)</th></tr></thead><tbody><tr><td>1</td><td>Order Service creates order (PENDING)</td><td>—</td></tr><tr><td>2</td><td>Inventory Service reserves stock</td><td>Release stock reservation</td></tr><tr><td>3</td><td>Payment Service charges customer</td><td>Refund payment, release stock</td></tr><tr><td>4</td><td>Order Service marks order CONFIRMED</td><td>Cancel order</td></tr></tbody></table></div>
+<h2>5. Maven Dependencies (pom.xml)</h2>
+<pre><code>&lt;!-- Spring Boot + Kafka for event-driven Saga --&gt;
+&lt;dependencies&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+        &lt;artifactId&gt;spring-boot-starter-web&lt;/artifactId&gt;
+    &lt;/dependency&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+        &lt;artifactId&gt;spring-boot-starter-data-jpa&lt;/artifactId&gt;
+    &lt;/dependency&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;org.springframework.kafka&lt;/groupId&gt;
+        &lt;artifactId&gt;spring-kafka&lt;/artifactId&gt;
+    &lt;/dependency&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+        &lt;artifactId&gt;spring-boot-starter-actuator&lt;/artifactId&gt;
+    &lt;/dependency&gt;
+    &lt;dependency&gt;
+        &lt;groupId&gt;com.h2database&lt;/groupId&gt;
+        &lt;artifactId&gt;h2&lt;/artifactId&gt;
+        &lt;scope&gt;runtime&lt;/scope&gt;
+    &lt;/dependency&gt;
+&lt;/dependencies&gt;</code></pre>
+<h2>6. Order Service</h2>
+<h3>6.1 Order Entity</h3>
+<pre><code>@Entity
+@Table(name = &quot;orders&quot;)
+public class Order {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    private String productId;
+    private int quantity;
+    private double totalPrice;
+    @Enumerated(EnumType.STRING)
+    private OrderStatus status;  // PENDING, CONFIRMED, CANCELLED
+    // Getters and setters omitted for brevity
+}
+public enum OrderStatus {
+    PENDING, CONFIRMED, CANCELLED
+}</code></pre>
+<h3>6.2 Events Published by Order Service</h3>
+<pre><code>// Event sent to Inventory Service
+public class OrderCreatedEvent {
+    private Long orderId;
+    private String productId;
+    private int quantity;
+    // constructor, getters
+}
+// Compensating event if saga fails
+public class OrderCancelledEvent {
+    private Long orderId;
+    private String productId;
+    private int quantity;
+}</code></pre>
+<h3>6.3 Order Service (Orchestration)</h3>
+<pre><code>@Service
+public class OrderSagaOrchestrator {
+    @Autowired private KafkaTemplate&lt;String, Object&gt; kafkaTemplate;
+    @Autowired private OrderRepository orderRepository;
+    // Step 1: Start the saga
+    public Order startOrderSaga(CreateOrderRequest request) {
+        Order order = new Order();
+        order.setProductId(request.getProductId());
+        order.setQuantity(request.getQuantity());
+        order.setTotalPrice(request.getTotalPrice());
+        order.setStatus(OrderStatus.PENDING);
+        order = orderRepository.save(order);
+        // Trigger next step: reserve inventory
+        kafkaTemplate.send(&quot;reserve-inventory&quot;,
+            new OrderCreatedEvent(order.getId(),
+                                  order.getProductId(),
+                                  order.getQuantity()));
+        return order;
+    }
+    // Step 3 success: inventory reserved -&gt; charge payment
+    @KafkaListener(topics = &quot;inventory-reserved&quot;)
+    public void onInventoryReserved(InventoryReservedEvent event) {
+        kafkaTemplate.send(&quot;process-payment&quot;,
+            new ProcessPaymentEvent(event.getOrderId(),
+                                    getOrderTotal(event.getOrderId())));
+    }
+    // Step 3 fail: inventory failed -&gt; cancel order
+    @KafkaListener(topics = &quot;inventory-failed&quot;)
+    public void onInventoryFailed(InventoryFailedEvent event) {
+        cancelOrder(event.getOrderId(), &quot;Inventory unavailable&quot;);
+    }
+    // Step 4 success: payment done -&gt; confirm order
+    @KafkaListener(topics = &quot;payment-processed&quot;)
+    public void onPaymentProcessed(PaymentProcessedEvent event) {
+        orderRepository.findById(event.getOrderId()).ifPresent(order -&gt; {
+            order.setStatus(OrderStatus.CONFIRMED);
+            orderRepository.save(order);
+        });
+    }
+    // Step 4 fail: payment failed -&gt; compensate (release stock + cancel)
+    @KafkaListener(topics = &quot;payment-failed&quot;)
+    public void onPaymentFailed(PaymentFailedEvent event) {
+        // Compensating transaction: release reserved inventory
+        kafkaTemplate.send(&quot;release-inventory&quot;,
+            new OrderCancelledEvent(event.getOrderId(),
+                                    getProductId(event.getOrderId()),
+                                    getQuantity(event.getOrderId())));
+        cancelOrder(event.getOrderId(), &quot;Payment failed&quot;);
+    }
+    private void cancelOrder(Long orderId, String reason) {
+        orderRepository.findById(orderId).ifPresent(order -&gt; {
+            order.setStatus(OrderStatus.CANCELLED);
+            orderRepository.save(order);
+        });
+    }
+}</code></pre>
+<h2>7. Inventory Service</h2>
+<pre><code>@Service
+public class InventoryService {
+    @Autowired private InventoryRepository inventoryRepository;
+    @Autowired private KafkaTemplate&lt;String, Object&gt; kafkaTemplate;
+    @KafkaListener(topics = &quot;reserve-inventory&quot;)
+    public void reserveInventory(OrderCreatedEvent event) {
+        Inventory inventory = inventoryRepository
+            .findByProductId(event.getProductId())
+            .orElseThrow(() -&gt; new RuntimeException(&quot;Product not found&quot;));
+        if (inventory.getAvailableQuantity() &gt;= event.getQuantity()) {
+            // Reserve stock (local transaction)
+            inventory.setAvailableQuantity(
+                inventory.getAvailableQuantity() - event.getQuantity());
+            inventoryRepository.save(inventory);
+            // Publish success event
+            kafkaTemplate.send(&quot;inventory-reserved&quot;,
+                new InventoryReservedEvent(event.getOrderId(),
+                                           event.getProductId()));
+        } else {
+            // Publish failure event (triggers compensation)
+            kafkaTemplate.send(&quot;inventory-failed&quot;,
+                new InventoryFailedEvent(event.getOrderId(),
+                                         &quot;Insufficient stock&quot;));
+        }
+    }
+    // Compensating transaction: release reserved stock
+    @KafkaListener(topics = &quot;release-inventory&quot;)
+    public void releaseInventory(OrderCancelledEvent event) {
+        Inventory inventory = inventoryRepository
+            .findByProductId(event.getProductId()).get();
+        inventory.setAvailableQuantity(
+            inventory.getAvailableQuantity() + event.getQuantity());
+        inventoryRepository.save(inventory);
+    }
+}</code></pre>
+<h2>8. Payment Service</h2>
+<pre><code>@Service
+public class PaymentService {
+    @Autowired private PaymentRepository paymentRepository;
+    @Autowired private KafkaTemplate&lt;String, Object&gt; kafkaTemplate;
+    @KafkaListener(topics = &quot;process-payment&quot;)
+    public void processPayment(ProcessPaymentEvent event) {
+        try {
+            // Simulate payment gateway call
+            boolean success = chargeCustomer(event.getOrderId(),
+                                             event.getAmount());
+            if (success) {
+                Payment payment = new Payment(event.getOrderId(),
+                                              event.getAmount(),
+                                              PaymentStatus.COMPLETED);
+                paymentRepository.save(payment);
+                kafkaTemplate.send(&quot;payment-processed&quot;,
+                    new PaymentProcessedEvent(event.getOrderId()));
+            } else {
+                kafkaTemplate.send(&quot;payment-failed&quot;,
+                    new PaymentFailedEvent(event.getOrderId(),
+                                           &quot;Payment gateway declined&quot;));
+            }
+        } catch (Exception e) {
+            kafkaTemplate.send(&quot;payment-failed&quot;,
+                new PaymentFailedEvent(event.getOrderId(), e.getMessage()));
+        }
+    }
+    // Compensating transaction: refund payment
+    @KafkaListener(topics = &quot;refund-payment&quot;)
+    public void refundPayment(RefundPaymentEvent event) {
+        paymentRepository.findByOrderId(event.getOrderId())
+            .ifPresent(payment -&gt; {
+                payment.setStatus(PaymentStatus.REFUNDED);
+                paymentRepository.save(payment);
+                // Call payment gateway refund API here
+            });
+    }
+    private boolean chargeCustomer(Long orderId, double amount) {
+        // Integration with payment gateway (Stripe, PayPal, etc.)
+        return Math.random() &gt; 0.1; // 90% success for demo
+    }
+}</code></pre>
+<h2>9. Kafka Configuration</h2>
+<pre><code># application.yml
+spring:
+  kafka:
+    bootstrap-servers: localhost:9092
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+    consumer:
+      group-id: saga-group
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.JsonDeserializer
+      properties:
+        spring.json.trusted.packages: &quot;com.example.saga.events&quot;
+# Kafka Topics used in this Saga:
+# reserve-inventory   -&gt; OrderService  -&gt; InventoryService
+# inventory-reserved  -&gt; InventoryService -&gt; OrderService
+# inventory-failed    -&gt; InventoryService -&gt; OrderService
+# process-payment     -&gt; OrderService  -&gt; PaymentService
+# payment-processed   -&gt; PaymentService -&gt; OrderService
+# payment-failed      -&gt; PaymentService -&gt; OrderService
+# release-inventory   -&gt; OrderService  -&gt; InventoryService (compensation)</code></pre>
+<h2>10. Saga State &amp; Idempotency</h2>
+<p>To handle retries and duplicate events, track the saga state in a dedicated table. Each step is idempotent — processing the same event twice produces the same result.</p>
+<pre><code>@Entity
+public class SagaState {
+    @Id private Long orderId;
+
+    @Enumerated(EnumType.STRING)
+    private SagaStep currentStep;
+
+    @Enumerated(EnumType.STRING)
+    private SagaStatus status;    // IN_PROGRESS, COMPLETED, COMPENSATING, FAILED
+    private String failureReason;
+    private LocalDateTime updatedAt;
+}
+public enum SagaStep {
+    ORDER_CREATED,
+    INVENTORY_RESERVED,
+    PAYMENT_PROCESSED,
+    ORDER_CONFIRMED,
+    // Compensating steps
+    PAYMENT_REFUNDED,
+    INVENTORY_RELEASED,
+    ORDER_CANCELLED
+}</code></pre>
+<h2>11. Best Practices &amp; Key Principles</h2>
+<p><b>Idempotency</b>: Every step must be idempotent. Use a unique event/correlation ID to detect and ignore duplicate messages.</p>
+<p><b>Compensating Transactions</b>: Design compensation before implementing forward steps. Each action must have a defined undo operation.</p>
+<p><b>Outbox Pattern</b>: Save events to a local 'outbox' table in the same DB transaction as the business data, then publish from there to avoid dual-write problems.</p>
+<p><b>Dead Letter Queues</b>: Configure DLQs in Kafka for unprocessable messages. Monitor and alert on DLQ growth.</p>
+<p><b>Saga Timeout</b>: Add a saga timeout mechanism. If a saga doesn't complete within X minutes, auto-compensate.</p>
+<p><b>Observability</b>: Use distributed tracing (Zipkin/Jaeger) and correlation IDs across all services to trace a saga end-to-end.</p>
+<p><b>Testing</b>: Test both happy path and all compensation paths. Use embedded Kafka for integration tests.</p>
+<h2>12. Saga vs Two-Phase Commit (2PC)</h2>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Aspect</th><th>Saga Pattern</th><th>Two-Phase Commit (2PC)</th></tr></thead><tbody><tr><td><b>Consistency</b></td><td>Eventual consistency</td><td>Strong consistency</td></tr><tr><td><b>Coupling</b></td><td>Loosely coupled</td><td>Tightly coupled</td></tr><tr><td><b>Performance</b></td><td>High (async)</td><td>Low (blocking locks)</td></tr><tr><td><b>Availability</b></td><td>High</td><td>Lower (coordinator lock)</td></tr><tr><td><b>Complexity</b></td><td>Medium-High</td><td>Very High</td></tr><tr><td><b>Best for</b></td><td>Microservices</td><td>Monolith / same DB vendor</td></tr></tbody></table></div>
+<h2>13. Summary</h2>
+<p>The <b>Saga Pattern</b> is essential for managing distributed transactions in Spring Boot microservices. Use it when you need data consistency across multiple services without sacrificing availability or coupling.</p>
+<p class="lbl"><b>Key takeaways:</b></p>
+<ul><li>Break long transactions into local steps with compensating rollbacks</li><li>Choose <b>Choreography</b> for simple flows, <b>Orchestration</b> for complex ones</li><li>Always implement idempotency and the Outbox Pattern</li><li>Design compensation logic <i>before</i> forward logic</li><li>Add distributed tracing for visibility across services</li></ul>
+<div class="chapter-nav"><a class="prev" href="saga-pattern-complete-guide.html">← Saga Pattern</a><a class="next" href="../index.html">Back to Library →</a></div>
+</main>
+<aside class="toc"></aside>
+</div>
+<footer class="footer">SystemDesign.hinglish · Library · Personal study material</footer>
+<script src="../../assets/app.js"></script>
+</body>
+</html>
