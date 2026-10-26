@@ -1,0 +1,1188 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HLD + LLD Deep Dive — Hinglish Playbook</title>
+<style>
+  :root{
+    --bg:#0a0e14; --bg2:#121820; --bg3:#1a222d; --bg4:#232d3b;
+    --border:#2a3441; --border2:#3a4757;
+    --fg:#e6edf3; --fg2:#b8c4d0; --muted:#7d8b9c;
+    --blue:#4dabf7; --cyan:#22d3ee; --green:#51cf66; --yellow:#ffd43b;
+    --orange:#ff922b; --red:#ff6b6b; --purple:#b197fc; --pink:#f783ac;
+    --code-bg:#080b10;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--bg); color:var(--fg);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans",sans-serif;
+    line-height:1.7; font-size:15px;
+  }
+
+  /* ===== Layout ===== */
+  .wrap{display:flex; min-height:100vh}
+  aside{
+    width:300px; flex-shrink:0; background:var(--bg2);
+    border-right:1px solid var(--border); height:100vh;
+    position:sticky; top:0; overflow-y:auto; padding:22px 14px;
+  }
+  main{flex:1; padding:36px 44px; max-width:1150px; margin:0 auto; min-width:0}
+
+  /* ===== Sidebar ===== */
+  aside .brand{
+    font-size:16px; font-weight:700; margin-bottom:3px;
+    background:linear-gradient(135deg,var(--blue),var(--purple));
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+    background-clip:text;
+  }
+  aside .tagline{font-size:11px; color:var(--muted); margin-bottom:20px; letter-spacing:.3px}
+  .search{
+    width:100%; padding:10px 12px; border-radius:9px; border:1px solid var(--border);
+    background:var(--bg); color:var(--fg); font-size:13px; margin-bottom:18px; outline:none;
+    transition:.2s;
+  }
+  .search:focus{border-color:var(--blue); box-shadow:0 0 0 3px rgba(77,171,247,.1)}
+  .navsec{font-size:10px; text-transform:uppercase; letter-spacing:1.2px;
+          color:var(--muted); margin:18px 8px 8px; font-weight:700}
+  .navitem{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:9px 11px; border-radius:8px; cursor:pointer; font-size:13px;
+    color:var(--fg2); margin-bottom:2px; transition:.15s; border-left:2px solid transparent;
+  }
+  .navitem:hover{background:var(--bg3); color:var(--fg)}
+  .navitem.active{
+    background:linear-gradient(90deg,rgba(77,171,247,.15),transparent);
+    color:var(--blue); border-left-color:var(--blue); font-weight:600;
+  }
+  .navitem .cnt{font-size:11px; opacity:.6}
+
+  /* ===== Typography ===== */
+  h1.page{
+    font-size:30px; font-weight:800; margin-bottom:8px;
+    background:linear-gradient(135deg,var(--blue),var(--purple),var(--pink));
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+    background-clip:text; letter-spacing:-.5px;
+  }
+  .page-sub{color:var(--muted); font-size:14px; margin-bottom:36px; max-width:750px}
+
+  h2.section{
+    font-size:23px; font-weight:700; margin:52px 0 8px;
+    display:flex; align-items:center; gap:11px; letter-spacing:-.3px;
+  }
+  h2.section:first-of-type{margin-top:0}
+  h2.section .badge{
+    font-size:10px; padding:3px 9px; border-radius:20px; font-weight:700;
+    letter-spacing:.5px; text-transform:uppercase;
+  }
+  .badge.hld{background:rgba(77,171,247,.15); color:var(--blue); border:1px solid rgba(77,171,247,.3)}
+  .badge.lld{background:rgba(81,207,102,.15); color:var(--green); border:1px solid rgba(81,207,102,.3)}
+  .badge.meta{background:rgba(255,212,59,.15); color:var(--yellow); border:1px solid rgba(255,212,59,.3)}
+  .section-desc{color:var(--muted); font-size:13.5px; margin-bottom:22px; max-width:820px}
+
+  h3.topic{
+    font-size:18px; font-weight:700; margin:32px 0 12px;
+    padding-left:13px; border-left:3px solid var(--blue); color:var(--fg);
+  }
+  h3.topic.green{border-left-color:var(--green)}
+  h3.topic.purple{border-left-color:var(--purple)}
+  h3.topic.orange{border-left-color:var(--orange)}
+
+  /* ===== Cards ===== */
+  .card{
+    background:var(--bg2); border:1px solid var(--border); border-radius:13px;
+    padding:20px 22px; margin-bottom:16px;
+  }
+  .card.key{
+    background:linear-gradient(135deg,rgba(255,212,59,.06),rgba(255,146,43,.03));
+    border-color:rgba(255,212,59,.25);
+  }
+  .card.key .key-label{
+    font-size:10px; text-transform:uppercase; letter-spacing:1px;
+    color:var(--yellow); font-weight:800; margin-bottom:9px; display:flex;
+    align-items:center; gap:6px;
+  }
+  .card.common{
+    background:linear-gradient(135deg,rgba(177,151,252,.07),rgba(247,131,172,.03));
+    border-color:rgba(177,151,252,.25);
+  }
+  .card.common .key-label{color:var(--purple)}
+
+  .card p{margin-bottom:11px; color:var(--fg2); font-size:14px}
+  .card p:last-child{margin-bottom:0}
+  .card strong{color:var(--fg); font-weight:600}
+  .card em{color:var(--cyan); font-style:normal; font-weight:500}
+
+  ul.clean{list-style:none; margin:8px 0}
+  ul.clean li{
+    padding:5px 0 5px 24px; position:relative; color:var(--fg2); font-size:13.5px;
+  }
+  ul.clean li::before{
+    content:"▸"; position:absolute; left:6px; color:var(--blue); font-weight:700;
+  }
+  ul.clean.check li::before{content:"✓"; color:var(--green)}
+  ul.clean.cross li::before{content:"✗"; color:var(--red)}
+
+  /* ===== Inline code ===== */
+  code.inl{
+    background:var(--bg4); padding:2px 7px; border-radius:5px;
+    font-family:ui-monospace,"SF Mono",Consolas,monospace; font-size:12.5px;
+    color:var(--cyan); border:1px solid var(--border);
+  }
+
+  /* ===== Code block with line-by-line ===== */
+  .codewrap{
+    background:var(--code-bg); border:1px solid var(--border); border-radius:11px;
+    overflow:hidden; margin:14px 0;
+  }
+  .codewrap .code-head{
+    background:var(--bg3); padding:8px 14px; font-size:11px;
+    color:var(--muted); font-family:ui-monospace,monospace;
+    border-bottom:1px solid var(--border); display:flex; justify-content:space-between;
+    letter-spacing:.5px;
+  }
+  .codewrap .code-head .lang{color:var(--green); font-weight:700}
+  pre{
+    padding:16px 18px; overflow-x:auto; font-size:12.8px; line-height:1.75;
+    font-family:ui-monospace,"SF Mono",Consolas,monospace; color:#c9d1d9;
+  }
+  pre .cmt{color:#5c6d7e; font-style:italic}
+  pre .kw{color:#ff7b72}
+  pre .str{color:#a5d6ff}
+  pre .num{color:#79c0ff}
+  pre .fn{color:#d2a8ff}
+  pre .typ{color:#ffa657}
+
+  /* ===== Line-by-line table ===== */
+  .lbl{
+    width:100%; border-collapse:collapse; margin:12px 0; font-size:13px;
+    border:1px solid var(--border); border-radius:10px; overflow:hidden;
+  }
+  .lbl th{
+    background:var(--bg3); padding:10px 14px; text-align:left; font-size:11px;
+    text-transform:uppercase; letter-spacing:.8px; color:var(--muted); font-weight:700;
+    border-bottom:1px solid var(--border);
+  }
+  .lbl td{
+    padding:10px 14px; border-bottom:1px solid var(--border);
+    vertical-align:top; color:var(--fg2);
+  }
+  .lbl tr:last-child td{border-bottom:none}
+  .lbl tr:nth-child(even){background:rgba(255,255,255,.015)}
+  .lbl td:first-child{
+    font-family:ui-monospace,monospace; font-size:12px; color:var(--cyan);
+    white-space:nowrap; width:1%; background:rgba(34,211,238,.04);
+  }
+  .lbl td strong{color:var(--fg)}
+
+  /* ===== Diagram ===== */
+  .diagram{
+    background:var(--code-bg); border:1px solid var(--border); border-radius:11px;
+    padding:18px 20px; margin:14px 0; overflow-x:auto;
+    font-family:ui-monospace,monospace; font-size:12px; line-height:1.6;
+    color:var(--fg2); white-space:pre;
+  }
+
+  /* ===== Flow steps ===== */
+  .flow{counter-reset:step; margin:14px 0}
+  .flow .step{
+    position:relative; padding:10px 0 10px 44px; border-left:2px solid var(--border);
+    margin-left:14px; counter-increment:step;
+  }
+  .flow .step::before{
+    content:counter(step); position:absolute; left:-15px; top:10px;
+    width:28px; height:28px; border-radius:50%;
+    background:var(--bg2); border:2px solid var(--blue); color:var(--blue);
+    display:flex; align-items:center; justify-content:center;
+    font-size:12px; font-weight:800;
+  }
+  .flow .step:last-child{border-left-color:transparent}
+  .flow .step strong{color:var(--fg); display:block; margin-bottom:3px; font-size:13.5px}
+  .flow .step span{color:var(--fg2); font-size:13px}
+
+  /* ===== Pattern grid ===== */
+  .pgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(290px,1fr)); gap:13px; margin:16px 0}
+  .pcard{
+    background:var(--bg2); border:1px solid var(--border); border-radius:11px;
+    padding:15px 17px; transition:.2s; cursor:default;
+  }
+  .pcard:hover{border-color:var(--border2); transform:translateY(-2px)}
+  .pcard .ptitle{
+    font-size:14px; font-weight:700; margin-bottom:7px; color:var(--fg);
+    display:flex; align-items:center; gap:8px;
+  }
+  .pcard .pnum{
+    width:22px; height:22px; border-radius:6px; background:var(--bg4);
+    display:flex; align-items:center; justify-content:center;
+    font-size:11px; color:var(--blue); font-weight:800; flex-shrink:0;
+  }
+  .pcard .pdesc{font-size:12.5px; color:var(--muted); line-height:1.55}
+  .pcard .ptags{margin-top:9px; display:flex; flex-wrap:wrap; gap:5px}
+  .ptag{
+    font-size:10px; padding:2px 8px; border-radius:20px;
+    background:rgba(77,171,247,.1); color:var(--blue); border:1px solid rgba(77,171,247,.2);
+  }
+
+  /* ===== Callout ===== */
+  .callout{
+    border-left:3px solid var(--orange); background:rgba(255,146,43,.06);
+    padding:13px 17px; border-radius:0 9px 9px 0; margin:14px 0; font-size:13.5px;
+    color:var(--fg2);
+  }
+  .callout.tip{border-left-color:var(--green); background:rgba(81,207,102,.06)}
+  .callout.warn{border-left-color:var(--red); background:rgba(255,107,107,.06)}
+  .callout b{color:var(--fg)}
+
+  /* ===== Table compare ===== */
+  .cmp{width:100%; border-collapse:collapse; margin:14px 0; font-size:13px}
+  .cmp th{
+    background:var(--bg3); padding:11px 14px; text-align:left; font-size:11px;
+    text-transform:uppercase; letter-spacing:.8px; color:var(--muted);
+    border:1px solid var(--border);
+  }
+  .cmp td{padding:10px 14px; border:1px solid var(--border); color:var(--fg2); vertical-align:top}
+  .cmp tr:nth-child(even) td{background:rgba(255,255,255,.015)}
+  .cmp td strong{color:var(--fg)}
+
+  /* ===== Footer ===== */
+  footer{
+    margin-top:70px; padding:26px 0; border-top:1px solid var(--border);
+    color:var(--muted); font-size:12px; text-align:center;
+  }
+
+  /* ===== Responsive ===== */
+  @media(max-width:900px){
+    .wrap{flex-direction:column}
+    aside{width:100%; height:auto; position:relative; border-right:none;
+          border-bottom:1px solid var(--border); padding:16px}
+    .navitem{display:inline-flex; margin:2px}
+    main{padding:22px 18px}
+    h1.page{font-size:24px}
+    h2.section{font-size:19px}
+    .lbl td:first-child{white-space:normal}
+  }
+
+  /* scrollbar */
+  ::-webkit-scrollbar{width:9px; height:9px}
+  ::-webkit-scrollbar-track{background:var(--bg)}
+  ::-webkit-scrollbar-thumb{background:var(--bg4); border-radius:5px}
+  ::-webkit-scrollbar-thumb:hover{background:var(--border2)}
+</style>
+</head>
+<body>
+
+<div class="wrap">
+
+<!-- ================= SIDEBAR ================= -->
+<aside>
+  <div class="brand">⚡ HLD + LLD Deep Dive</div>
+  <div class="tagline">Hinglish Playbook · Line-by-Line</div>
+  <input class="search" id="search" placeholder="🔍 Search topics...">
+
+  <div class="navsec">Meta</div>
+  <div class="navitem active" data-target="common"><span>🧠 Common Patterns</span><span class="cnt">10</span></div>
+
+  <div class="navsec">HLD Deep Dive</div>
+  <div class="navitem" data-target="hld-payment"><span>💳 Payment Platform</span></div>
+  <div class="navitem" data-target="hld-chat"><span>💬 Real-time Chat</span></div>
+  <div class="navitem" data-target="hld-ratelimit"><span>🚦 Rate Limiter</span></div>
+  <div class="navitem" data-target="hld-fraud"><span>🕵️ Fraud Pipeline</span></div>
+  <div class="navitem" data-target="hld-consistency"><span>⚖️ Consistency Models</span></div>
+
+  <div class="navsec">LLD Deep Dive</div>
+  <div class="navitem" data-target="lld-lru"><span>📦 LRU Cache</span></div>
+  <div class="navitem" data-target="lld-blocking"><span>🚧 Blocking Queue</span></div>
+  <div class="navitem" data-target="lld-bucket"><span>🪣 Token Bucket</span></div>
+  <div class="navitem" data-target="lld-repo"><span>🗄️ Repository</span></div>
+  <div class="navitem" data-target="lld-orderbook"><span>📊 Order Book</span></div>
+  <div class="navitem" data-target="lld-idem"><span>🔑 Idempotent Transfer</span></div>
+
+  <div class="navsec">Reference</div>
+  <div class="navitem" data-target="cheatsheet"><span>📋 Cheat Sheet</span></div>
+</aside>
+
+<!-- ================= MAIN ================= -->
+<main>
+
+<h1 class="page">HLD + LLD — Deep Dive Playbook</h1>
+<p class="page-sub">
+  Yeh page sirf answers ki list nahi hai. Yahan har design ka <b>kyun</b>, har code ki <b>line</b>,
+  aur sab answers ke beech ka <b>common thread</b> samjhaya gaya hai — sab Hinglish mein.
+</p>
+
+<!-- ============================================================
+     SECTION 1: COMMON PATTERNS
+     ============================================================ -->
+<h2 class="section" id="common">
+  <span class="badge meta">Meta</span> Common Patterns — Sab Answers Ka Core
+</h2>
+<p class="section-desc">
+  Agar aap 124 questions ke answers ko dhyan se dekho, toh 10 patterns baar-baar repeat hote hain.
+  Interview mein yeh patterns pehchano — 80% answers inhi se ban jaate hain.
+</p>
+
+<div class="pgrid">
+
+  <div class="pcard">
+    <div class="ptitle"><span class="pnum">1</span> Idempotency</div>
+    <div class="pdesc">Har mutating operation ke saath ek unique key. Duplicate request aaye toh pehla result replay karo — dobara kaam na karo. Network retry ka default solution.</div>
+    <div class="ptags"><span class="ptag">payments</span><span class="ptag">APIs</span><span class="ptag">saga</span></div>
+  </div>
+
+  <div class="pcard">
+    <div class="ptitle"><span class="pnum">2</span> Lock Ordering</div>
+    <div class="pdesc">Do resources lock karne ho toh hamesha deterministic order (e.g. chhota ID pehle). Circular wait impossible ho jaata hai — deadlock khatam.</div>
+    <div class="ptags"><span class="ptag">transfer</span><span class="ptag">DB rows</span><span class="ptag">distributed locks</span></div>
+  </div>
+
+  <div class="pcard">
+    <div class="ptitle"><span class="pnum">3</span> Cache-Aside + TTL</div>
+    <div class="pdesc">Read pe cache check, miss pe DB se load + cache mein daalo. Write pe cache invalidate. TTL stale data ka safety net. Sabse sasta scaling win.</div>
+    <div class="ptags"><span class="ptag">read-heavy</span><span class="ptag">Redis</span><span class="ptag">CDN</span></div>
+  </div>
+
+  <div class="pcard">
+    <div class="ptitle"><span class="pnum">4</span> Outbox Pattern</div>
+    <div class="pdesc">DB write + event publish ko atomic banao. Event ko usi transaction mein <code class="inl">outbox</code> table mein daalo, background dispatcher publish kare. Dual-write problem solve.</div>
+    <div class="ptags"><span class="ptag">Kafka</span><span class="ptag">exactly-once</span><span class="ptag">microservices</span></div>
+  </div>
+
+  <div class="pcard">
+    <div class="ptitle"><span class="pnum">5</span> Bounded Resources</div>
+    <div class="pdesc">Queue, thread pool, connection pool, cache — sab pe upper limit. Backpressure se system gracefully degrade hota hai, crash nahi karta.</div>
+    <div class="ptags"><span class="ptag">backpressure</span><span class="ptag">bulkhead</span><span class="ptag">stability</span></div>
+  </div>
+
+  <div class="pcard">
+    <div class="ptitle"><span class="pnum">6</span> Consistent Hashing</div>
+    <div class="pdesc">Sharding ka default. Node add/remove pe sirf adjacent keys move hote hain — O(K/N) rebalance, not O(K). Virtual nodes se even distribution.</div>
+    <div class="ptags"><span class="ptag">sharding</span><span class="ptag">caching</span><span class="ptag">partitioning</span></div>
+  </div>
+
+  <div class="pcard">
+    <div class="ptitle"><span class="pnum">7</span> Async + Queue</div>
+    <div class="pdesc">Jo kaam request-response cycle mein zaroori nahi, usse queue mein daalo. Latency kam, throughput zyada, retry easy, failures isolate.</div>
+    <div class="ptags"><span class="ptag">Kafka</span><span class="ptag">SQS</span><span class="ptag">notifications</span></div>
+  </div>
+
+  <div class="pcard">
+    <div class="ptitle"><span class="pnum">8</span> Append-Only / Immutable</div>
+    <div class="pdesc">Ledger, audit log, event store — sab append-only. Update/delete nahi. Tamper-evident (hash chain), audit-friendly, concurrency-safe.</div>
+    <div class="ptags"><span class="ptag">ledger</span><span class="ptag">audit</span><span class="ptag">event sourcing</span></div>
+  </div>
+
+  <div class="pcard">
+    <div class="ptitle"><span class="pnum">9</span> Circuit Breaker + Retry + Bulkhead</div>
+    <div class="pdesc">Downstream fail ho toh fail-fast (breaker), transient errors pe retry with jitter, concurrency limit (bulkhead). Cascading failure rokta hai.</div>
+    <div class="ptags"><span class="ptag">resilience</span><span class="ptag">Resilience4j</span><span class="ptag">Hystrix</span></div>
+  </div>
+
+  <div class="pcard">
+    <div class="ptitle"><span class="pnum">10</span> Separation of Read/Write (CQRS)</div>
+    <div class="pdesc">Write path normalized + transactional. Read path denormalized + fast. Read replicas, materialized views, search indexes — alag alag optimize.</div>
+    <div class="ptags"><span class="ptag">CQRS</span><span class="ptag">read replicas</span><span class="ptag">scaling</span></div>
+  </div>
+
+</div>
+
+<div class="card common">
+  <div class="key-label">🔗 Sab Answers Ka Common Thread</div>
+  <p>Har design mein yeh 4 sawaal poocho:</p>
+  <ul class="clean">
+    <li><strong>Consistency chahiye ya availability?</strong> → CAP trade-off decide karo. Banking = CP, social feed = AP.</li>
+    <li><strong>Duplicate request aaye toh?</strong> → Idempotency key + result replay. Har mutating API pe.</li>
+    <li><strong>Ek cheez fail ho jaaye toh?</strong> → Retry with jitter, circuit breaker, fallback, degrade gracefully.</li>
+    <li><strong>Scale kaise karega?</strong> → Stateless app tier, sharded data, cached reads, async writes, bounded queues.</li>
+  </ul>
+  <p style="margin-top:12px">In 4 sawaalon ke jawab se 90% HLD design khud ban jaata hai. Baaki 10% domain-specific details hain.</p>
+</div>
+
+<!-- ============================================================
+     SECTION 2: HLD DEEP DIVE
+     ============================================================ -->
+<h2 class="section" id="hld">
+  <span class="badge hld">HLD</span> High-Level Design — Deep Dive
+</h2>
+<p class="section-desc">
+  Har design mein: <b>requirements → components → data flow → trade-offs → failure modes</b>.
+  Yeh 5-step framework har HLD question pe apply karo.
+</p>
+
+<!-- ---------- HLD: PAYMENT ---------- -->
+<h3 class="topic" id="hld-payment">💳 Payment Platform — End-to-End</h3>
+
+<div class="card">
+  <p><strong>Requirements:</strong> User A se B ko paisa transfer. Exactly-once (double charge nahi), ledger consistent (paise gayab nahi), audit trail, PCI compliant, multi-region HA.</p>
+</div>
+
+<div class="diagram">┌──────────┐   ┌──────────┐   ┌──────────────┐   ┌──────────┐   ┌─────────┐
+│  Client  │──▶│  API GW  │──▶│ Payment Svc  │──▶│  Ledger  │──▶│  Bank   │
+└──────────┘   └──────────┘   └──────┬───────┘   └────┬─────┘   └─────────┘
+                                     │                 │
+                              ┌──────▼───────┐   ┌────▼─────┐
+                              │  Idempotency │   │  Outbox  │
+                              │    Table     │   │  Table   │
+                              └──────────────┘   └────┬─────┘
+                                                      │
+                                              ┌───────▼────────┐
+                                              │    Kafka       │
+                                              └───────┬────────┘
+                                                      │
+                                        ┌─────────────▼─────────────┐
+                                        │  Notification / Audit /    │
+                                        │  Reconciliation consumers  │
+                                        └────────────────────────────┘</div>
+
+<h4 style="margin:18px 0 10px; font-size:14px; color:var(--cyan)">Data Flow (step by step):</h4>
+<div class="flow">
+  <div class="step"><strong>Client request</strong><span>Header mein <code class="inl">Idempotency-Key: uuid</code> bhejta hai. Yeh client generate karta hai, retry pe same key.</span></div>
+  <div class="step"><strong>Idempotency guard</strong><span>Payment service pehle <code class="inl">INSERT INTO idempotency(key, status)</code> karta hai. Duplicate key pe unique violation → purana result return. <b>Yeh exactly-once ka core hai.</b></span></div>
+  <div class="step"><strong>Lock accounts (ordered)</strong><span><code class="inl">SELECT ... FOR UPDATE</code> chhote ID pehle. Deadlock impossible.</span></div>
+  <div class="step"><strong>Business rules + double-entry</strong><span>Balance check → debit A → credit B → 2 ledger rows (debit + credit). Sum = 0, hamesha.</span></div>
+  <div class="step"><strong>Outbox insert</strong><span>Same DB transaction mein <code class="inl">outbox(event)</code> row. Atomic — ya dono ya koi nahi.</span></div>
+  <div class="step"><strong>Mark completed + commit</strong><span>Idempotency record COMPLETED + response store. Ek hi transaction commit.</span></div>
+  <div class="step"><strong>Outbox dispatcher (async)</strong><span>Background poller outbox rows padhta hai, Kafka pe publish karta hai, SENT mark karta hai. Crash-safe.</span></div>
+  <div class="step"><strong>Consumers</strong><span>Notification, audit log, reconciliation — sab idempotent (event id se dedup).</span></div>
+</div>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Exactly-once = at-least-once delivery + idempotent processing.</strong> Network pe true exactly-once impossible hai. Isliye:</p>
+  <ul class="clean">
+    <li>Idempotency key se duplicate suppress karo (unique constraint DB-level pe)</li>
+    <li>Outbox se event loss rokо (DB tx + event atomic)</li>
+    <li>Consumer-side dedup (event id table) se double processing rokо</li>
+  </ul>
+</div>
+
+<div class="card">
+  <p><strong>Failure modes & handling:</strong></p>
+  <table class="cmp">
+    <tr><th>Failure</th><th>Handling</th></tr>
+    <tr><td>Payment service crash after debit</td><td>Transaction rollback — kuch commit nahi hua. Idempotency record bhi rollback.</td></tr>
+    <tr><td>Crash after commit, before Kafka publish</td><td>Outbox row DB mein hai. Restart pe dispatcher uthata hai. Event lost nahi.</td></tr>
+    <tr><td>Kafka publish succeed, but ack lost</td><td>Dispatcher retry karega → duplicate event. Consumer dedup karega.</td></tr>
+    <tr><td>Downstream bank timeout</td><td>Circuit breaker open → async retry queue → user ko "processing" state.</td></tr>
+    <tr><td>Network partition (multi-region)</td><td>Home-region routing — key hash se region decide. Cross-region forward.</td></tr>
+  </table>
+</div>
+
+<!-- ---------- HLD: CHAT ---------- -->
+<h3 class="topic purple" id="hld-chat">💬 Real-time Chat — WhatsApp/Slack Class</h3>
+
+<div class="card">
+  <p><strong>Requirements:</strong> 1:1 + group chat, delivery/read receipts, media, presence, multi-device sync, E2E encryption, millions of concurrent connections.</p>
+</div>
+
+<div class="diagram">┌─────────┐    WSS     ┌──────────────┐    ┌──────────────┐
+│ Client  │◀──────────▶│  WS Gateway  │───▶│  Chat Service│
+└─────────┘            │  (Netty)     │    └──────┬───────┘
+                       └──────┬───────┘           │
+                              │                   │
+                       ┌──────▼───────┐    ┌──────▼───────┐
+                       │   Presence   │    │  Kafka       │
+                       │   (Redis)    │    │  (events)    │
+                       └──────────────┘    └──────┬───────┘
+                                                  │
+                       ┌──────────────────────────┼──────────────────┐
+                       │                          │                  │
+                 ┌─────▼─────┐            ┌───────▼──────┐    ┌──────▼──────┐
+                 │ Cassandra │            │  Fan-out Svc │    │  Push Svc   │
+                 │ (messages)│            │  (per conv)  │    │ (FCM/APNs)  │
+                 └───────────┘            └──────────────┘    └─────────────┘</div>
+
+<div class="card">
+  <p><strong>Key design decisions:</strong></p>
+  <table class="cmp">
+    <tr><th>Decision</th><th>Choice</th><th>Kyun</th></tr>
+    <tr><td>Transport</td><td>WebSocket (WSS)</td><td>Full-duplex, low overhead. Polling wasteful, long-polling connection churn.</td></tr>
+    <tr><td>Message store</td><td>Cassandra / ScyllaDB</td><td>Write-heavy, time-series, partition by conversation_id. Linear scale.</td></tr>
+    <tr><td>Presence</td><td>Redis with TTL</td><td>Ephemeral, fast, pub/sub for status changes. Not durable.</td></tr>
+    <tr><td>Fan-out (small group)</td><td>Fan-out on write</td><td>Message likhte waqt hi har member ka inbox mein daalo. Read fast.</td></tr>
+    <tr><td>Fan-out (large group)</td><td>Fan-out on read</td><td>100k members ke liye write amplification impossible. Read pe fetch.</td></tr>
+    <tr><td>Ordering</td><td>Per-conversation seq</td><td>Global ordering impossible + unnecessary. Client reorders.</td></tr>
+    <tr><td>Delivery guarantee</td><td>At-least-once + client dedup</td><td>Exactly-once over network impossible. Message id se dedup.</td></tr>
+    <tr><td>E2E encryption</td><td>Signal protocol</td><td>Server ciphertext only. Key management client-side.</td></tr>
+  </table>
+</div>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Chat ka core trade-off:</strong> <em>Fan-out cost vs read latency.</em></p>
+  <ul class="clean">
+    <li><strong>Fan-out on write:</strong> Write mehnga (N copies), read sasta (ek lookup). Small groups ke liye best.</li>
+    <li><strong>Fan-out on read:</strong> Write sasta (1 copy), read mehnga (N lookups). Large groups ke liye best.</li>
+    <li><strong>Hybrid:</strong> Threshold (e.g. 500 members) ke aage read fan-out. Real systems yahi karte hain.</li>
+  </ul>
+  <p style="margin-top:10px"><strong>Connection state:</strong> Millions of WebSocket connections = stateful gateways. Sticky routing by user_id. Gateway crash = reconnect storm — exponential backoff + jitter chahiye.</p>
+</div>
+
+<!-- ---------- HLD: RATE LIMITER ---------- -->
+<h3 class="topic orange" id="hld-ratelimit">🚦 Distributed Rate Limiter</h3>
+
+<div class="card">
+  <p><strong>Requirements:</strong> Cap QPS per user/API key. Distributed (multiple nodes). Low latency (&lt;5ms). Accurate enough.</p>
+</div>
+
+<table class="cmp">
+  <tr><th>Algorithm</th><th>How</th><th>Pros</th><th>Cons</th></tr>
+  <tr><td><strong>Fixed Window</strong></td><td>Counter per minute, reset at boundary</td><td>Simple, memory-light</td><td>Boundary burst — 2x limit possible</td></tr>
+  <tr><td><strong>Sliding Window Log</strong></td><td>Har request ka timestamp store</td><td>Accurate</td><td>Memory O(requests)</td></tr>
+  <tr><td><strong>Sliding Window Counter</strong></td><td>Do windows ka weighted avg</td><td>Memory-light, accurate enough</td><td>Approximate</td></tr>
+  <tr><td><strong>Token Bucket</strong></td><td>Tokens refill at rate R, cap B. Request = 1 token</td><td>Burst-friendly, smooth</td><td>2 params tune karne padte</td></tr>
+  <tr><td><strong>Leaky Bucket</strong></td><td>Queue, drain at fixed rate</td><td>Smooth output</td><td>Bursts dropped</td></tr>
+</table>
+
+<div class="card">
+  <p><strong>Distributed implementation (Redis):</strong></p>
+  <div class="codewrap">
+    <div class="code-head"><span>Lua script — atomic token bucket in Redis</span><span class="lang">LUA</span></div>
+<pre><span class="cmt">-- KEYS[1] = bucket key, ARGV = capacity, refill_rate, now, requested</span>
+<span class="kw">local</span> tokens = redis.call(<span class="str">'HGET'</span>, KEYS[<span class="num">1</span>], <span class="str">'tokens'</span>)
+<span class="kw">local</span> last   = redis.call(<span class="str">'HGET'</span>, KEYS[<span class="num">1</span>], <span class="str">'ts'</span>)
+<span class="kw">if</span> <span class="kw">not</span> tokens <span class="kw">then</span> tokens = ARGV[<span class="num">1</span>]; last = ARGV[<span class="num">3</span>] <span class="kw">end</span>
+
+<span class="cmt">-- refill: elapsed seconds * rate, capped at capacity</span>
+<span class="kw">local</span> elapsed = ARGV[<span class="num">3</span>] - last
+<span class="kw">local</span> refill  = elapsed * ARGV[<span class="num">2</span>]
+tokens = math.min(ARGV[<span class="num">1</span>], tokens + refill)
+
+<span class="cmt">-- consume or reject</span>
+<span class="kw">if</span> tokens &gt;= ARGV[<span class="num">4</span>] <span class="kw">then</span>
+  tokens = tokens - ARGV[<span class="num">4</span>]
+  redis.call(<span class="str">'HSET'</span>, KEYS[<span class="num">1</span>], <span class="str">'tokens'</span>, tokens, <span class="str">'ts'</span>, ARGV[<span class="num">3</span>])
+  <span class="kw">return</span> <span class="num">1</span>                    <span class="cmt">-- allowed</span>
+<span class="kw">else</span>
+  redis.call(<span class="str">'HSET'</span>, KEYS[<span class="num">1</span>], <span class="str">'tokens'</span>, tokens, <span class="str">'ts'</span>, ARGV[<span class="num">3</span>])
+  <span class="kw">return</span> <span class="num">0</span>                    <span class="cmt">-- rejected</span>
+<span class="kw">end</span></pre>
+  </div>
+  <p style="margin-top:12px"><strong>Kyun Lua?</strong> Redis single-threaded hai, Lua script atomically chalti hai. Read-modify-write race khatam. Warna two clients simultaneously read karke dono consume kar lete.</p>
+</div>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Distributed rate limiter ka core:</strong> Atomicity. Redis + Lua script se read-modify-write atomic hota hai. Alternatives:</p>
+  <ul class="clean">
+    <li><strong>Redis INCR + EXPIRE:</strong> Simple counter, but boundary burst issue. Sliding window ke liye 2 keys.</li>
+    <li><strong>Local + global hybrid:</strong> Har node pe local limit (fast), plus periodic global sync. Approximate but cheap.</li>
+    <li><strong>Central limiter service:</strong> Alag service, but ek aur hop = latency. Sirf jab strict global limit chahiye.</li>
+    <li><strong>Fail-open vs fail-closed:</strong> Redis down ho toh? Fail-open (allow) = risk, fail-closed (deny) = outage. Usually fail-open with local fallback limit.</li>
+  </ul>
+</div>
+
+<!-- ---------- HLD: FRAUD ---------- -->
+<h3 class="topic purple" id="hld-fraud">🕵️ Real-time Fraud Detection Pipeline</h3>
+
+<div class="card">
+  <p><strong>Requirements:</strong> Har transaction pe &lt;100ms mein fraud score. Rules + ML combine. Fail-safe (fail hone pe allow karo, block nahi — false positive costly). Auditability.</p>
+</div>
+
+<div class="diagram">Transaction ──▶ ┌─────────────┐
+                 │  Ingestion  │
+                 └──────┬──────┘
+                        │
+        ┌───────────────┼───────────────┐
+        │               │               │
+  ┌─────▼─────┐  ┌──────▼──────┐  ┌────▼─────┐
+  │  Rules    │  │  ML Model   │  │  Feature │
+  │  Engine   │  │  (online)   │  │  Store   │
+  └─────┬─────┘  └──────┬──────┘  └────┬─────┘
+        │               │               │
+        └───────┬───────┴───────────────┘
+                │
+         ┌──────▼──────┐
+         │  Decision   │──▶ ALLOW / REVIEW / BLOCK
+         │  Combiner   │
+         └──────┬──────┘
+                │
+         ┌──────▼──────┐
+         │ Audit Log   │ (immutable, hash-chained)
+         └─────────────┘</div>
+
+<div class="card">
+  <p><strong>Components:</strong></p>
+  <ul class="clean">
+    <li><strong>Rules engine:</strong> Velocity checks (10 tx in 1 min), geo anomaly, amount threshold, blacklist. Fast, explainable, easy to update.</li>
+    <li><strong>ML model:</strong> Gradient boosted trees / neural net. Features: historical spend, device, merchant category, time-of-day. Sub-50ms inference (ONNX/TensorRT).</li>
+    <li><strong>Feature store:</strong> Online (Redis/DynamoDB) for real-time features, offline (S3/warehouse) for training. Consistency critical — same features training aur serving mein.</li>
+    <li><strong>Decision combiner:</strong> Rules + ML score → final action. Thresholds tunable per merchant/region.</li>
+    <li><strong>Audit log:</strong> Har decision + features + model version + score. Immutable, hash-chained. Regulatory requirement.</li>
+  </ul>
+</div>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Fraud pipeline ka core:</strong> <em>Fail-safe behaviour + auditability.</em></p>
+  <ul class="clean">
+    <li><strong>Fail-open:</strong> ML service down ho toh rules pe fall back. Rules bhi down ho toh allow with flag for review. Block karna false positive se zyada costly hai.</li>
+    <li><strong>Latency budget:</strong> 100ms total. Rules 10ms, features 20ms, ML 50ms, overhead 20ms. Har component ka budget fixed.</li>
+    <li><strong>Explainability:</strong> Har decision ke saath top features + rule hits log karo. Regulator aur customer support ke liye.</li>
+    <li><strong>Model versioning:</strong> Kaunsa model kis decision pe chala — trace. Rollback easy.</li>
+    <li><strong>Feedback loop:</strong> Chargebacks / confirmed fraud → training data. Careful: label delay + class imbalance.</li>
+  </ul>
+</div>
+
+<!-- ---------- HLD: CONSISTENCY ---------- -->
+<h3 class="topic green" id="hld-consistency">⚖️ Consistency Models — Kaunsa Kab</h3>
+
+<table class="cmp">
+  <tr><th>Scenario</th><th>Model</th><th>Kyun</th></tr>
+  <tr><td>Video metadata (20ms API)</td><td><strong>Eventual</strong></td><td>Title/thumbnail stale ho toh chalega. CDN + replicas se latency kam.</td></tr>
+  <tr><td>Analytics click recording</td><td><strong>Eventual</strong></td><td>Approximate counts fine. High throughput > precision.</td></tr>
+  <tr><td>Banking deposit/payment</td><td><strong>Strong</strong></td><td>Paisa galat nahi ho sakta. Linearizable reads/writes. Latency trade-off OK.</td></tr>
+  <tr><td>Live cricket score</td><td><strong>Eventual (1-2s)</strong></td><td>Users ko farq nahi padta. Massive scale ke liye caching zaroori.</td></tr>
+  <tr><td>E-commerce price display</td><td><strong>Eventual + checkout strong</strong></td><td>Display stale OK, checkout pe authoritative price lock.</td></tr>
+  <tr><td>Inventory count</td><td><strong>Strong (on decrement)</strong></td><td>Oversell nahi ho sakta. Display approximate, reserve pe strong.</td></tr>
+  <tr><td>Chat message ordering</td><td><strong>Per-conversation strong</strong></td><td>Global ordering impossible. Ek conversation ke andar order chahiye.</td></tr>
+  <tr><td>User profile update</td><td><strong>Read-your-writes</strong></td><td>User apna update turant dekhe, dusre baad mein. Session stickiness ya version.</td></tr>
+</table>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Consistency decision framework:</strong></p>
+  <ul class="clean">
+    <li><strong>Paisa / legal / safety?</strong> → Strong consistency. Latency aur availability trade karo.</li>
+    <li><strong>UX / analytics / feed?</strong> → Eventual consistency. Scale aur latency jeeto.</li>
+    <li><strong>Mixed?</strong> → Alag-alag paths. Display eventual, action strong (checkout pe price lock).</li>
+  </ul>
+  <p style="margin-top:10px"><strong>PACELC:</strong> Partition ke waqt C vs A. Warna (Else) Latency vs Consistency. Real systems PACELC se describe hote hain, CAP se nahi.</p>
+</div>
+
+<!-- ============================================================
+     SECTION 3: LLD DEEP DIVE
+     ============================================================ -->
+<h2 class="section" id="lld">
+  <span class="badge lld">LLD</span> Low-Level Design — Line by Line
+</h2>
+<p class="section-desc">
+  Har code block ke saath <b>line-by-line explanation table</b>. Har line ka <b>kyun</b> samjho, sirf <b>kya</b> nahi.
+</p>
+
+<!-- ---------- LLD: LRU ---------- -->
+<h3 class="topic green" id="lld-lru">📦 LRU Cache — Line by Line</h3>
+
+<div class="card">
+  <p><strong>Design:</strong> <code class="inl">HashMap&lt;Key, Node&gt;</code> + <b>doubly linked list</b>. Map O(1) lookup, DLL O(1) move-to-front + O(1) tail removal. Dummy head/tail sentinels se null checks khatam.</p>
+</div>
+
+<div class="codewrap">
+  <div class="code-head"><span>LRUCache.java</span><span class="lang">JAVA</span></div>
+<pre><span class="kw">class</span> <span class="typ">LRUCache</span> {
+    <span class="kw">class</span> <span class="typ">Node</span> { <span class="kw">int</span> k, v; <span class="typ">Node</span> prev, next;
+        <span class="typ">Node</span>(<span class="kw">int</span> k, <span class="kw">int</span> v){ <span class="kw">this</span>.k=k; <span class="kw">this</span>.v=v; } }
+
+    <span class="kw">private final int</span> cap;
+    <span class="kw">private final</span> <span class="typ">Map</span>&lt;<span class="typ">Integer</span>,<span class="typ">Node</span>&gt; map = <span class="kw">new</span> <span class="typ">HashMap</span>&lt;&gt;();
+    <span class="kw">private final</span> <span class="typ">Node</span> head = <span class="kw">new</span> <span class="typ">Node</span>(<span class="num">0</span>,<span class="num">0</span>), tail = <span class="kw">new</span> <span class="typ">Node</span>(<span class="num">0</span>,<span class="num">0</span>);
+
+    <span class="kw">public</span> <span class="typ">LRUCache</span>(<span class="kw">int</span> capacity){
+        <span class="kw">this</span>.cap = capacity;
+        head.next = tail; tail.prev = head;
+    }
+
+    <span class="kw">private void</span> <span class="fn">addFirst</span>(<span class="typ">Node</span> n){
+        n.next = head.next; n.prev = head;
+        head.next.prev = n; head.next = n;
+    }
+    <span class="kw">private void</span> <span class="fn">remove</span>(<span class="typ">Node</span> n){
+        n.prev.next = n.next; n.next.prev = n.prev;
+    }
+
+    <span class="kw">public int</span> <span class="fn">get</span>(<span class="kw">int</span> key){
+        <span class="typ">Node</span> n = map.get(key);
+        <span class="kw">if</span>(n == <span class="kw">null</span>) <span class="kw">return</span> -<span class="num">1</span>;
+        remove(n); addFirst(n);
+        <span class="kw">return</span> n.v;
+    }
+
+    <span class="kw">public void</span> <span class="fn">put</span>(<span class="kw">int</span> key, <span class="kw">int</span> value){
+        <span class="typ">Node</span> n = map.get(key);
+        <span class="kw">if</span>(n != <span class="kw">null</span>){ n.v = value; remove(n); addFirst(n); <span class="kw">return</span>; }
+        <span class="kw">if</span>(map.size() == cap){
+            <span class="typ">Node</span> lru = tail.prev;
+            remove(lru); map.remove(lru.k);
+        }
+        <span class="typ">Node</span> node = <span class="kw">new</span> <span class="typ">Node</span>(key,value);
+        map.put(key,node); addFirst(node);
+    }
+}</pre>
+</div>
+
+<table class="lbl">
+  <tr><th>Line</th><th>Explanation</th></tr>
+  <tr><td>class Node { int k, v; Node prev, next; }</td><td>DLL ka node. <strong>Key bhi store karte hain</strong> — eviction ke waqt map se remove karne ke liye key chahiye. Agar sirf value store kare toh eviction pe map se key nikaalna impossible.</td></tr>
+  <tr><td>Map&lt;Integer,Node&gt; map</td><td>Key → Node reference. O(1) lookup. Node ke andar value + DLL pointers.</td></tr>
+  <tr><td>head, tail sentinels</td><td><strong>Dummy nodes.</strong> Real head/tail ke null checks khatam. <code class="inl">addFirst</code> aur <code class="inl">remove</code> mein koi if-null nahi. Clean code.</td></tr>
+  <tr><td>head.next = tail; tail.prev = head;</td><td>Constructor mein empty DLL link karo. Ab hamesha valid structure.</td></tr>
+  <tr><td>addFirst: n.next=head.next; n.prev=head;</td><td>Naye node ke pointers set karo. Pehle n ke pointers, phir neighbours ke.</td></tr>
+  <tr><td>head.next.prev=n; head.next=n;</td><td>Purane first node ka prev update, phir head ka next. <strong>Order matter karta hai</strong> — warna purana link tod jaata.</td></tr>
+  <tr><td>remove: n.prev.next=n.next; n.next.prev=n.prev;</td><td>Node ko DLL se unlink. Sentinels ki wajah se null checks nahi chahiye.</td></tr>
+  <tr><td>get: map.get(key)</td><td>O(1) lookup. Null pe -1 return (problem spec).</td></tr>
+  <tr><td>remove(n); addFirst(n);</td><td><strong>Move to front</strong> — most recently used. Yeh LRU ordering maintain karta hai.</td></tr>
+  <tr><td>put: existing node check</td><td>Key already hai toh value update + move to front. Naya node nahi banate.</td></tr>
+  <tr><td>if(map.size() == cap)</td><td>Capacity full. Evict karna padega.</td></tr>
+  <tr><td>Node lru = tail.prev</td><td><strong>LRU node = tail ke just pehle.</strong> Kyunki addFirst se MRU head ke paas, LRU tail ke paas.</td></tr>
+  <tr><td>remove(lru); map.remove(lru.k);</td><td>DLL se hatao + map se hatao. <strong>Dono zaroori</strong> — warna memory leak.</td></tr>
+  <tr><td>map.put(key,node); addFirst(node);</td><td>Naya node map mein + DLL ke front pe.</td></tr>
+</table>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Complexity:</strong> get O(1) avg, put O(1) avg, eviction O(1). Space O(capacity).</p>
+  <p><strong>Thread-safety:</strong> Yeh single-threaded version hai. Concurrent chahiye toh <code class="inl">ConcurrentHashMap</code> + per-node locks (complex), ya <strong>segmented LRU</strong> (N segments, har segment apna lock), ya <strong>Caffeine</strong> library (W-TinyLFU, lock-free reads).</p>
+</div>
+
+<!-- ---------- LLD: BLOCKING QUEUE ---------- -->
+<h3 class="topic green" id="lld-blocking">🚧 Bounded Blocking Queue — Line by Line</h3>
+
+<div class="card">
+  <p><strong>Design:</strong> <code class="inl">ReentrantLock</code> + 2 <code class="inl">Condition</code>s (<code class="inl">notFull</code>, <code class="inl">notEmpty</code>). Producer-consumer ka classic pattern.</p>
+</div>
+
+<div class="codewrap">
+  <div class="code-head"><span>BoundedQueue.java</span><span class="lang">JAVA</span></div>
+<pre><span class="kw">class</span> <span class="typ">BoundedQueue</span>&lt;T&gt; {
+    <span class="kw">private final</span> <span class="typ">Object</span>[] buf;
+    <span class="kw">private int</span> head, tail, count;
+    <span class="kw">private final</span> <span class="typ">ReentrantLock</span> lock = <span class="kw">new</span> <span class="typ">ReentrantLock</span>();
+    <span class="kw">private final</span> <span class="typ">Condition</span> notFull  = lock.newCondition();
+    <span class="kw">private final</span> <span class="typ">Condition</span> notEmpty = lock.newCondition();
+
+    <span class="kw">public</span> <span class="typ">BoundedQueue</span>(<span class="kw">int</span> cap){ buf = <span class="kw">new</span> <span class="typ">Object</span>[cap]; }
+
+    <span class="kw">public void</span> <span class="fn">put</span>(T item) <span class="kw">throws</span> <span class="typ">InterruptedException</span> {
+        lock.lock();
+        <span class="kw">try</span> {
+            <span class="kw">while</span> (count == buf.length) notFull.await();
+            buf[tail] = item;
+            tail = (tail + <span class="num">1</span>) % buf.length;
+            count++;
+            notEmpty.signal();
+        } <span class="kw">finally</span> { lock.unlock(); }
+    }
+
+    <span class="kw">public</span> T <span class="fn">take</span>() <span class="kw">throws</span> <span class="typ">InterruptedException</span> {
+        lock.lock();
+        <span class="kw">try</span> {
+            <span class="kw">while</span> (count == <span class="num">0</span>) notEmpty.await();
+            T item = (T) buf[head];
+            buf[head] = <span class="kw">null</span>;
+            head = (head + <span class="num">1</span>) % buf.length;
+            count--;
+            notFull.signal();
+            <span class="kw">return</span> item;
+        } <span class="kw">finally</span> { lock.unlock(); }
+    }
+}</pre>
+</div>
+
+<table class="lbl">
+  <tr><th>Line</th><th>Explanation</th></tr>
+  <tr><td>Object[] buf</td><td>Circular buffer. Array = O(1) index access. Generic type erasure ki wajah se Object[].</td></tr>
+  <tr><td>int head, tail, count</td><td>head = next take index, tail = next put index, count = current size. <strong>Count alag rakhte hain</strong> — head==tail ambiguous hai (empty ya full?).</td></tr>
+  <tr><td>ReentrantLock lock</td><td>Ek lock jo dono conditions ko guard karta hai. <strong>Single lock kyun?</strong> Kyunki head/tail/count shared state hai — alag locks se race conditions.</td></tr>
+  <tr><td>Condition notFull, notEmpty</td><td><strong>Do alag wait queues.</strong> Producer notFull pe wait, consumer notEmpty pe. <code class="inl">signal()</code> sirf relevant waiters ko uthata hai. Ek hi condition hoti toh thundering herd.</td></tr>
+  <tr><td>while (count == buf.length) await()</td><td><strong>While loop, if nahi.</strong> Spurious wakeup possible hai. Uthne ke baad dobara check karo. Yeh #1 interview trap hai.</td></tr>
+  <tr><td>buf[tail] = item</td><td>Circular buffer mein write.</td></tr>
+  <tr><td>tail = (tail + 1) % buf.length</td><td>Modulo se wrap-around. O(1), no shifting.</td></tr>
+  <tr><td>notEmpty.signal()</td><td><strong>Ek</strong> waiting consumer ko uthao. <code class="inl">signalAll</code> nahi — wasteful. Ek item daala, ek consumer kaafi hai.</td></tr>
+  <tr><td>finally { lock.unlock() }</td><td><strong>Hamesha finally mein unlock.</strong> Exception aaye toh bhi lock release. Warna deadlock.</td></tr>
+  <tr><td>buf[head] = null</td><td><strong>Null out karo</strong> — warna GC ko reference dikhta rahega, memory leak.</td></tr>
+  <tr><td>notFull.signal()</td><td>Ek waiting producer ko uthao — jagah ban gayi.</td></tr>
+</table>
+
+<div class="callout warn">
+  <b>Common bugs:</b> <code class="inl">if</code> instead of <code class="inl">while</code> (spurious wakeup), <code class="inl">signalAll</code> instead of <code class="inl">signal</code> (thundering herd), unlock bhool jaana (deadlock), null out na karna (memory leak).
+</div>
+
+<!-- ---------- LLD: TOKEN BUCKET ---------- -->
+<h3 class="topic green" id="lld-bucket">🪣 Token Bucket Rate Limiter — Line by Line</h3>
+
+<div class="codewrap">
+  <div class="code-head"><span>TokenBucket.java</span><span class="lang">JAVA</span></div>
+<pre><span class="kw">class</span> <span class="typ">TokenBucket</span> {
+    <span class="kw">private final long</span> capacity;
+    <span class="kw">private final double</span> refillPerSec;
+    <span class="kw">private double</span> tokens;
+    <span class="kw">private long</span> lastRefillNanos;
+
+    <span class="kw">public</span> <span class="typ">TokenBucket</span>(<span class="kw">long</span> capacity, <span class="kw">double</span> refillPerSec) {
+        <span class="kw">this</span>.capacity = capacity;
+        <span class="kw">this</span>.refillPerSec = refillPerSec;
+        <span class="kw">this</span>.tokens = capacity;
+        <span class="kw">this</span>.lastRefillNanos = <span class="typ">System</span>.nanoTime();
+    }
+
+    <span class="kw">public synchronized boolean</span> <span class="fn">allow</span>(<span class="kw">long</span> n) {
+        <span class="fn">refill</span>();
+        <span class="kw">if</span> (tokens &gt;= n) {
+            tokens -= n;
+            <span class="kw">return true</span>;
+        }
+        <span class="kw">return false</span>;
+    }
+
+    <span class="kw">private void</span> <span class="fn">refill</span>() {
+        <span class="kw">long</span> now = <span class="typ">System</span>.nanoTime();
+        <span class="kw">double</span> elapsedSec = (now - lastRefillNanos) / <span class="num">1_000_000_000.0</span>;
+        tokens = <span class="typ">Math</span>.min(capacity, tokens + elapsedSec * refillPerSec);
+        lastRefillNanos = now;
+    }
+}</pre>
+</div>
+
+<table class="lbl">
+  <tr><th>Line</th><th>Explanation</th></tr>
+  <tr><td>long capacity</td><td>Max tokens = max burst size. Bucket isse zyada nahi bhar sakta.</td></tr>
+  <tr><td>double refillPerSec</td><td>Sustained rate. E.g. 100 QPS = 100 tokens/sec refill.</td></tr>
+  <tr><td>double tokens</td><td>Current tokens. <strong>double kyun, int nahi?</strong> Fractional refill ke liye. 10ms mein 0.5 token bhi add ho sakta hai.</td></tr>
+  <tr><td>long lastRefillNanos</td><td>Last refill ka timestamp. <strong>nanoTime, currentTimeMillis nahi.</strong> nanoTime monotonic hai — clock skew se safe.</td></tr>
+  <tr><td>tokens = capacity (constructor)</td><td>Bucket full start hota hai — pehla burst allowed.</td></tr>
+  <tr><td>synchronized allow()</td><td><strong>Critical section.</strong> Read-modify-write tokens — race condition se bachne ke liye. Single node pe synchronized kaafi, distributed mein Redis+Lua.</td></tr>
+  <tr><td>refill() pehle</td><td>Har allow() se pehle refill karo. Lazy refill — background thread nahi chahiye.</td></tr>
+  <tr><td>tokens >= n</td><td>Enough tokens? Consume karo, warna reject.</td></tr>
+  <tr><td>elapsedSec = (now - last) / 1e9</td><td>Nanoseconds → seconds. Double division, precision theek hai.</td></tr>
+  <tr><td>Math.min(capacity, tokens + ...)</td><td><strong>Cap at capacity.</strong> Warna idle time ke baad bucket overflow ho jaata, unlimited burst allow hota.</td></tr>
+  <tr><td>lastRefillNanos = now</td><td>Timestamp update. Warna next refill double-count karega.</td></tr>
+</table>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Token bucket vs Leaky bucket:</strong></p>
+  <ul class="clean">
+    <li><strong>Token bucket:</strong> Bursts allowed (up to capacity). Average rate = refill rate. Most APIs yahi use karte hain.</li>
+    <li><strong>Leaky bucket:</strong> Output rate fixed, bursts smooth out. Queue-based. Bursts ke liye buffer chahiye.</li>
+  </ul>
+  <p><strong>Distributed:</strong> Redis + Lua script se atomic. Local bucket + periodic global sync = approximate but fast. Strict global = central Redis, latency cost.</p>
+</div>
+
+<!-- ---------- LLD: REPOSITORY ---------- -->
+<h3 class="topic green" id="lld-repo">🗄️ Generic Repository — Line by Line</h3>
+
+<div class="codewrap">
+  <div class="code-head"><span>Repository.java</span><span class="lang">JAVA</span></div>
+<pre><span class="kw">interface</span> <span class="typ">BaseEntity</span>&lt;ID&gt; {
+    ID <span class="fn">getId</span>();
+    <span class="kw">void</span> <span class="fn">setId</span>(ID id);
+}
+
+<span class="kw">interface</span> <span class="typ">Repository</span>&lt;T <span class="kw">extends</span> <span class="typ">BaseEntity</span>&lt;ID&gt;, ID <span class="kw">extends</span> <span class="typ">Serializable</span>&gt; {
+    T <span class="fn">save</span>(T entity);
+    <span class="typ">Optional</span>&lt;T&gt; <span class="fn">findById</span>(ID id);
+    <span class="typ">List</span>&lt;T&gt; <span class="fn">findAll</span>();
+    <span class="kw">void</span> <span class="fn">deleteById</span>(ID id);
+    <span class="typ">Page</span>&lt;T&gt; <span class="fn">findAll</span>(<span class="typ">Pageable</span> pageable);
+}
+
+<span class="kw">class</span> <span class="typ">Page</span>&lt;T&gt; {
+    <span class="kw">private final</span> <span class="typ">List</span>&lt;T&gt; content;
+    <span class="kw">private final int</span> page, size;
+    <span class="kw">private final long</span> totalElements;
+    <span class="cmt">// constructor, getters</span>
+    <span class="kw">public int</span> <span class="fn">totalPages</span>() {
+        <span class="kw">return</span> (<span class="kw">int</span>) <span class="typ">Math</span>.ceil((<span class="kw">double</span>) totalElements / size);
+    }
+}
+
+<span class="kw">class</span> <span class="typ">JpaUserRepository</span> <span class="kw">implements</span> <span class="typ">Repository</span>&lt;<span class="typ">User</span>, <span class="typ">Long</span>&gt; {
+    <span class="kw">private final</span> <span class="typ">EntityManager</span> em;
+    <span class="kw">public</span> <span class="typ">JpaUserRepository</span>(<span class="typ">EntityManager</span> em){ <span class="kw">this</span>.em = em; }
+
+    <span class="kw">public</span> <span class="typ">User</span> <span class="fn">save</span>(<span class="typ">User</span> u) {
+        <span class="kw">if</span> (u.getId() == <span class="kw">null</span>) { em.persist(u); <span class="kw">return</span> u; }
+        <span class="kw">return</span> em.merge(u);
+    }
+
+    <span class="kw">public</span> <span class="typ">Optional</span>&lt;<span class="typ">User</span>&gt; <span class="fn">findById</span>(<span class="typ">Long</span> id) {
+        <span class="kw">return</span> <span class="typ">Optional</span>.ofNullable(em.find(<span class="typ">User</span>.<span class="kw">class</span>, id));
+    }
+
+    <span class="kw">public</span> <span class="typ">List</span>&lt;<span class="typ">User</span>&gt; <span class="fn">findAll</span>() {
+        <span class="kw">return</span> em.createQuery(<span class="str">"SELECT u FROM User u"</span>, <span class="typ">User</span>.<span class="kw">class</span>)
+                 .getResultList();
+    }
+
+    <span class="kw">public void</span> <span class="fn">deleteById</span>(<span class="typ">Long</span> id) {
+        findById(id).ifPresent(em::remove);
+    }
+
+    <span class="kw">public</span> <span class="typ">Page</span>&lt;<span class="typ">User</span>&gt; <span class="fn">findAll</span>(<span class="typ">Pageable</span> p) {
+        <span class="typ">List</span>&lt;<span class="typ">User</span>&gt; content = em.createQuery(<span class="str">"SELECT u FROM User u"</span>, <span class="typ">User</span>.<span class="kw">class</span>)
+                .setFirstResult(p.page() * p.size())
+                .setMaxResults(p.size())
+                .getResultList();
+        <span class="kw">long</span> total = em.createQuery(<span class="str">"SELECT COUNT(u) FROM User u"</span>, <span class="typ">Long</span>.<span class="kw">class</span>)
+                       .getSingleResult();
+        <span class="kw">return new</span> <span class="typ">Page</span>&lt;&gt;(content, p.page(), p.size(), total);
+    }
+}</pre>
+</div>
+
+<table class="lbl">
+  <tr><th>Line</th><th>Explanation</th></tr>
+  <tr><td>BaseEntity&lt;ID&gt;</td><td><strong>Marker interface.</strong> Har entity ka id hona chahiye. Generic repository ko id access chahiye — yeh contract deta hai.</td></tr>
+  <tr><td>Repository&lt;T extends BaseEntity&lt;ID&gt;, ID extends Serializable&gt;</td><td><strong>Two type params.</strong> T = entity type, ID = id type. <code class="inl">extends</code> bounds ensure karte hain ki T mein getId() hai aur ID serializable hai (DB ke liye).</td></tr>
+  <tr><td>Optional&lt;T&gt; findById</td><td><strong>Optional, null nahi.</strong> Null return karne se caller bhool sakta hai. Optional explicit hai — caller ko handle karna padega.</td></tr>
+  <tr><td>Page&lt;T&gt; findAll(Pageable)</td><td>Pagination. <strong>Pageable</strong> = page number + size + sort. Ek object mein sab.</td></tr>
+  <tr><td>totalPages()</td><td>Math.ceil se round up. 101 elements, size 10 → 11 pages. Ceil zaroori, warna last page gayab.</td></tr>
+  <tr><td>save: if id == null persist else merge</td><td><strong>Insert vs update.</strong> Null id = naya entity = persist. Non-null = existing = merge (update). JPA ka standard pattern.</td></tr>
+  <tr><td>Optional.ofNullable(em.find(...))</td><td>em.find null return karta hai missing pe. Optional mein wrap karo.</td></tr>
+  <tr><td>deleteById: findById().ifPresent(remove)</td><td><strong>Safe delete.</strong> Exist nahi karta toh silently skip. Alternative: exception throw karo — depends on semantics.</td></tr>
+  <tr><td>setFirstResult / setMaxResults</td><td><strong>Offset pagination.</strong> page * size = offset. Simple but deep pages slow (OFFSET 1000000 = scan). Cursor pagination better for large datasets.</td></tr>
+  <tr><td>Separate COUNT query</td><td><strong>Do queries.</strong> Ek content ke liye, ek total ke liye. Count query alag se optimize kar sakte ho (index-only scan).</td></tr>
+</table>
+
+<div class="callout">
+  <b>Offset pagination ka problem:</b> Page 1,00,000 pe <code class="inl">OFFSET 1000000</code> — DB ko 1M rows scan karke skip karne padte hain. <b>Cursor/keyset pagination</b> better: <code class="inl">WHERE id > :lastId ORDER BY id LIMIT 10</code>. Index seek, O(log n).
+</div>
+
+<!-- ---------- LLD: ORDER BOOK ---------- -->
+<h3 class="topic green" id="lld-orderbook">📊 Order Book — Price-Time Priority</h3>
+
+<div class="codewrap">
+  <div class="code-head"><span>OrderBook.java</span><span class="lang">JAVA</span></div>
+<pre><span class="kw">class</span> <span class="typ">OrderBook</span> {
+    <span class="kw">record</span> <span class="typ">Order</span>(<span class="kw">long</span> id, <span class="typ">BigDecimal</span> price, <span class="kw">long</span> qty, <span class="kw">long</span> seq) {}
+
+    <span class="kw">private final</span> <span class="typ">TreeMap</span>&lt;<span class="typ">BigDecimal</span>, <span class="typ">Deque</span>&lt;<span class="typ">Order</span>&gt;&gt; bids =
+        <span class="kw">new</span> <span class="typ">TreeMap</span>&lt;&gt;(<span class="typ">Comparator</span>.reverseOrder());
+    <span class="kw">private final</span> <span class="typ">TreeMap</span>&lt;<span class="typ">BigDecimal</span>, <span class="typ">Deque</span>&lt;<span class="typ">Order</span>&gt;&gt; asks =
+        <span class="kw">new</span> <span class="typ">TreeMap</span>&lt;&gt;();
+    <span class="kw">private final</span> <span class="typ">AtomicLong</span> seqGen = <span class="kw">new</span> <span class="typ">AtomicLong</span>();
+
+    <span class="kw">void</span> <span class="fn">submit</span>(<span class="typ">Order</span> o) {
+        <span class="typ">Order</span> order = <span class="kw">new</span> <span class="typ">Order</span>(o.id(), o.price(), o.qty(), seqGen.incrementAndGet());
+        <span class="kw">if</span> (isBuy(order)) <span class="fn">matchBuy</span>(order);
+        <span class="kw">else</span> <span class="fn">matchSell</span>(order);
+    }
+
+    <span class="kw">private void</span> <span class="fn">matchBuy</span>(<span class="typ">Order</span> buy) {
+        <span class="kw">while</span> (buy.qty() &gt; <span class="num">0</span> && !asks.isEmpty()) {
+            <span class="typ">Map</span>.<span class="typ">Entry</span>&lt;<span class="typ">BigDecimal</span>, <span class="typ">Deque</span>&lt;<span class="typ">Order</span>&gt;&gt; bestAsk = asks.firstEntry();
+            <span class="kw">if</span> (bestAsk.getKey().compareTo(buy.price()) &gt; <span class="num">0</span>) <span class="kw">break</span>;
+            <span class="typ">Deque</span>&lt;<span class="typ">Order</span>&gt; q = bestAsk.getValue();
+            <span class="typ">Order</span> sell = q.peekFirst();
+            <span class="kw">long</span> fill = <span class="typ">Math</span>.min(buy.qty(), sell.qty());
+            <span class="cmt">// trade record, qty reduce, remove filled orders...</span>
+        }
+        <span class="kw">if</span> (buy.qty() &gt; <span class="num">0</span>) bids.computeIfAbsent(buy.price(), k -&gt; <span class="kw">new</span> <span class="typ">ArrayDeque</span>&lt;&gt;()).addLast(buy);
+    }
+}</pre>
+</div>
+
+<table class="lbl">
+  <tr><th>Line</th><th>Explanation</th></tr>
+  <tr><td>record Order(long id, BigDecimal price, long qty, long seq)</td><td><strong>Immutable order.</strong> seq = global sequence number for time priority. record = concise immutable class.</td></tr>
+  <tr><td>TreeMap bids with reverseOrder()</td><td><strong>Bids descending.</strong> Highest bid first = best bid. TreeMap sorted rehta hai — firstEntry() O(log n).</td></tr>
+  <tr><td>TreeMap asks (natural order)</td><td><strong>Asks ascending.</strong> Lowest ask first = best ask. firstEntry() O(log n).</td></tr>
+  <tr><td>Deque per price level</td><td><strong>FIFO queue.</strong> Same price pe orders time priority se. ArrayDeque O(1) add/remove both ends.</td></tr>
+  <tr><td>AtomicLong seqGen</td><td><strong>Monotonic sequence.</strong> Har order ko unique seq. Time priority ke liye. AtomicLong thread-safe increment.</td></tr>
+  <tr><td>submit: assign seq, route</td><td>Order ko seq assign karo, phir buy/sell match pe bhejo.</td></tr>
+  <tr><td>while (buy.qty > 0 && !asks.isEmpty())</td><td><strong>Match loop.</strong> Jab tak buy mein qty bachi hai aur asks available hain.</td></tr>
+  <tr><td>bestAsk = asks.firstEntry()</td><td>Lowest ask price. TreeMap firstEntry O(log n).</td></tr>
+  <tr><td>if (bestAsk > buy.price) break</td><td><strong>Price check.</strong> Ask buyer ke price se zyada hai toh match nahi. Buy order book mein rest karega.</td></tr>
+  <tr><td>sell = q.peekFirst()</td><td><strong>Time priority.</strong> Same price pe sabse pehla order. FIFO.</td></tr>
+  <tr><td>fill = min(buy.qty, sell.qty)</td><td><strong>Partial fill.</strong> Chhota qty match hoti hai. Bada order book mein reh jaata hai.</td></tr>
+  <tr><td>if (buy.qty > 0) bids...addLast(buy)</td><td><strong>Rest in book.</strong> Match nahi hua toh bid side mein add. addLast = time priority (naya order peeche).</td></tr>
+</table>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Price-time priority:</strong> Pehle best price, same price pe earliest order. TreeMap price levels ke liye, Deque per level time priority ke liye.</p>
+  <p><strong>Complexity:</strong> Insert O(log P) where P = price levels. Match O(log P + fills). Cancel O(1) with order id → node map.</p>
+  <p><strong>Real systems:</strong> LMAX Disruptor, Aeron — lock-free ring buffers, single-writer principle. Millions of orders/sec.</p>
+</div>
+
+<!-- ---------- LLD: IDEMPOTENT TRANSFER ---------- -->
+<h3 class="topic green" id="lld-idem">🔑 Idempotent Transfer — Line by Line</h3>
+
+<div class="codewrap">
+  <div class="code-head"><span>TransferService.java</span><span class="lang">JAVA</span></div>
+<pre><span class="kw">@Transactional</span>
+<span class="kw">public</span> <span class="typ">TransferResult</span> <span class="fn">transfer</span>(<span class="typ">String</span> key, <span class="typ">String</span> from, <span class="typ">String</span> to,
+                               <span class="typ">BigDecimal</span> amt) {
+    <span class="kw">try</span> {
+        idemRepo.insert(<span class="kw">new</span> <span class="typ">IdemRecord</span>(key, <span class="str">"PENDING"</span>));
+    } <span class="kw">catch</span> (<span class="typ">DuplicateKeyException</span> e) {
+        <span class="typ">IdemRecord</span> rec = idemRepo.find(key);
+        <span class="kw">if</span> (<span class="str">"COMPLETED"</span>.equals(rec.status)) <span class="kw">return</span> rec.result;
+        <span class="kw">throw new</span> <span class="typ">ConflictException</span>(<span class="str">"In flight"</span>);
+    }
+
+    <span class="typ">Account</span> f = repo.lockForUpdate(from);
+    <span class="typ">Account</span> t = repo.lockForUpdate(to);
+    <span class="kw">if</span> (f.id().compareTo(t.id()) &gt; <span class="num">0</span>) {
+        <span class="cmt">// re-lock in global order — see note</span>
+    }
+
+    <span class="kw">if</span> (f.balance().compareTo(amt) &lt; <span class="num">0</span>)
+        <span class="kw">throw new</span> <span class="typ">InsufficientFundsException</span>();
+    f.debit(amt);
+    t.credit(amt);
+    ledgerRepo.save(<span class="typ">Ledger</span>.doubleEntry(f, t, amt, key));
+    outboxRepo.save(<span class="kw">new</span> <span class="typ">Outbox</span>(<span class="str">"TRANSFER"</span>, key, payload(...)));
+
+    <span class="typ">TransferResult</span> res = <span class="typ">TransferResult</span>.success(key);
+    idemRepo.complete(key, res);
+    <span class="kw">return</span> res;
+}</pre>
+</div>
+
+<table class="lbl">
+  <tr><th>Line</th><th>Explanation</th></tr>
+  <tr><td>@Transactional</td><td><strong>Poora method ek DB transaction.</strong> Koi bhi exception = full rollback. Idempotency record bhi rollback.</td></tr>
+  <tr><td>idemRepo.insert(new IdemRecord(key, "PENDING"))</td><td><strong>Idempotency guard.</strong> Unique constraint DB-level pe. Duplicate key = duplicate request.</td></tr>
+  <tr><td>catch (DuplicateKeyException)</td><td><strong>Duplicate detect.</strong> Insert fail = key already exists. Ab dekho purana status kya tha.</td></tr>
+  <tr><td>if COMPLETED return rec.result</td><td><strong>Replay.</strong> Pehle successful tha, wahi response return. Client ko identical result.</td></tr>
+  <tr><td>throw ConflictException("In flight")</td><td><strong>PENDING = concurrent duplicate.</strong> Abhi process ho raha hai. Client retry kare thodi der baad.</td></tr>
+  <tr><td>repo.lockForUpdate(from)</td><td><strong>Pessimistic lock.</strong> SELECT ... FOR UPDATE. Row-level lock DB pe. Concurrent updates serialize.</td></tr>
+  <tr><td>repo.lockForUpdate(to)</td><td>Second account lock. <strong>Yahan deadlock risk hai</strong> agar order inconsistent ho.</td></tr>
+  <tr><td>if (f.id > t.id) re-lock</td><td><strong>Global lock ordering.</strong> Chhota ID pehle lock hona chahiye. Yeh code sketch hai — actual implementation mein pehle decide karo kaunsa chhota hai, phir usi order mein lock.</td></tr>
+  <tr><td>if balance < amt throw</td><td><strong>Business rule.</strong> Insufficient funds = rollback. Transaction fail.</td></tr>
+  <tr><td>f.debit(amt); t.credit(amt)</td><td><strong>Double-entry.</strong> Ek se ghata, dusre mein add. Sum conserved.</td></tr>
+  <tr><td>ledgerRepo.save(doubleEntry)</td><td><strong>Immutable ledger.</strong> Debit + credit dono rows. Audit trail. Idempotency key bhi include.</td></tr>
+  <tr><td>outboxRepo.save(new Outbox(...))</td><td><strong>Same transaction.</strong> Event DB mein. Dispatcher baad mein Kafka pe publish karega.</td></tr>
+  <tr><td>idemRepo.complete(key, res)</td><td><strong>Mark done.</strong> Status COMPLETED + response store. Ab duplicate aaye toh replay ho jaayega.</td></tr>
+  <tr><td>return res</td><td>Client ko success response.</td></tr>
+</table>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Exactly-once ka 3-layer defence:</strong></p>
+  <ul class="clean">
+    <li><strong>Layer 1 — Idempotency key:</strong> DB unique constraint se duplicate request block. Same key = same result replay.</li>
+    <li><strong>Layer 2 — Transaction:</strong> Debit + credit + ledger + outbox + idempotency complete — sab atomic. Partial state impossible.</li>
+    <li><strong>Layer 3 — Outbox + consumer dedup:</strong> Event loss nahi (outbox), double processing nahi (consumer event id check).</li>
+  </ul>
+  <p><strong>Deadlock prevention:</strong> Lock ordering (chhota ID pehle). Ya <code class="inl">SELECT ... FOR UPDATE ORDER BY id</code> — DB khud order maintain karega.</p>
+</div>
+
+<!-- ============================================================
+     SECTION 4: CHEAT SHEET
+     ============================================================ -->
+<h2 class="section" id="cheatsheet">
+  <span class="badge meta">Ref</span> Cheat Sheet — Interview Mein Yaad Rakhne Wali Baatein
+</h2>
+
+<h3 class="topic">🎯 HLD Answer Framework (5 Steps)</h3>
+<div class="card">
+  <div class="flow">
+    <div class="step"><strong>Requirements clarify karo</strong><span>Functional (kya karega) + non-functional (scale, latency, consistency, availability). Scale numbers poocho.</span></div>
+    <div class="step"><strong>High-level components</strong><span>Client → LB → App tier → Cache → DB → Queue → Workers. Boxes banao, arrows draw karo.</span></div>
+    <div class="step"><strong>Data flow</strong><span>Ek request end-to-end trace karo. Read path, write path. Kaun kya store karta hai.</span></div>
+    <div class="step"><strong>Scale & trade-offs</strong><span>Sharding, replication, caching, async. Har choice ka kyun batao. CAP trade-off clearly state karo.</span></div>
+    <div class="step"><strong>Failure modes</strong><span>Node down, network partition, DB fail, queue backlog. Har ek ka handling. Idempotency, retry, circuit breaker.</span></div>
+  </div>
+</div>
+
+<h3 class="topic">🎯 LLD Answer Framework (4 Steps)</h3>
+<div class="card">
+  <div class="flow">
+    <div class="step"><strong>Entities identify karo</strong><span>Classes, fields, relationships. Nouns = classes, verbs = methods.</span></div>
+    <div class="step"><strong>Interfaces define karo</strong><span>Public API pehle. Implementation baad mein. Method signatures sochо.</span></div>
+    <div class="step"><strong>Data structures choose karo</strong><span>HashMap + DLL (LRU), TreeMap + Deque (order book), Lock + Condition (blocking queue). Complexity justify karo.</span></div>
+    <div class="step"><strong>Concurrency & edge cases</strong><span>Thread-safe? Deadlock? Null? Empty? Boundary? Spurious wakeup? Yeh sab address karo.</span></div>
+  </div>
+</div>
+
+<h3 class="topic">📊 Complexity Quick Reference</h3>
+<table class="cmp">
+  <tr><th>Structure</th><th>get</th><th>put</th><th>Ordered</th><th>Use case</th></tr>
+  <tr><td>HashMap</td><td>O(1)*</td><td>O(1)*</td><td>No</td><td>Lookup, cache</td></tr>
+  <tr><td>TreeMap</td><td>O(log n)</td><td>O(log n)</td><td>Sorted</td><td>Range queries, order book</td></tr>
+  <tr><td>LinkedHashMap</td><td>O(1)*</td><td>O(1)*</td><td>Insertion/access</td><td>LRU (simple)</td></tr>
+  <tr><td>ArrayDeque</td><td>O(1) ends</td><td>O(1) ends</td><td>Insertion</td><td>Queue, stack, sliding window</td></tr>
+  <tr><td>PriorityQueue</td><td>O(1) peek</td><td>O(log n)</td><td>Heap order</td><td>Top-K, scheduler</td></tr>
+  <tr><td>ConcurrentHashMap</td><td>O(1)*</td><td>O(1)*</td><td>No</td><td>Thread-safe cache</td></tr>
+</table>
+<p style="font-size:12px; color:var(--muted); margin-top:6px">*amortized average. Worst case O(n) for hash collisions (Java 8+ O(log n) with tree bins).</p>
+
+<h3 class="topic">🔑 10 Golden Rules (Sab Answers Mein Repeat)</h3>
+<div class="card key">
+  <div class="key-label">🔑 Yaad Rakho</div>
+  <ol style="margin-left:20px; color:var(--fg2); font-size:13.5px; line-height:1.9">
+    <li><strong>Idempotency key</strong> har mutating API pe. Duplicate = replay, not re-execute.</li>
+    <li><strong>Lock ordering</strong> (chhota ID pehle) se deadlock khatam.</li>
+    <li><strong>Cache-aside + TTL</strong> — read scaling ka sasta tareeka.</li>
+    <li><strong>Outbox pattern</strong> — DB write + event publish atomic.</li>
+    <li><strong>Bounded everything</strong> — queue, pool, cache. Backpressure se stability.</li>
+    <li><strong>Consistent hashing</strong> — sharding ka default, smooth rebalance.</li>
+    <li><strong>Async + queue</strong> — latency kam, throughput zyada, retry easy.</li>
+    <li><strong>Append-only</strong> — ledger, audit, events. Immutable = audit-friendly.</li>
+    <li><strong>Circuit breaker + retry + bulkhead</strong> — cascading failure rokо.</li>
+    <li><strong>CQRS</strong> — write normalized, read denormalized. Alag optimize.</li>
+  </ol>
+</div>
+
+<h3 class="topic">⚠️ Common Interview Traps</h3>
+<div class="card">
+  <table class="cmp">
+    <tr><th>Trap</th><th>Correct Answer</th></tr>
+    <tr><td>LRU: <code class="inl">if</code> instead of <code class="inl">while</code> in wait</td><td>Spurious wakeup possible — <strong>while</strong> loop use karo.</td></tr>
+    <tr><td>Money mein <code class="inl">double</code></td><td><strong>BigDecimal</strong> (string constructor) ya long minor units. Double precision loss karta hai.</td></tr>
+    <tr><td>Distributed exactly-once</td><td>Impossible over network. <strong>At-least-once + idempotent processing</strong> = effective exactly-once.</td></tr>
+    <tr><td>CAP mein "teen mein se do"</td><td>P optional nahi. Real choice <strong>C vs A during partition</strong>. PACELC better framework.</td></tr>
+    <tr><td>Cache invalidation bhool jaana</td><td>Write pe cache invalidate ya TTL. Warna stale data forever.</td></tr>
+    <tr><td>Unbounded queue</td><td>OOM. <strong>Bounded queue + backpressure</strong> ya drop policy.</td></tr>
+    <tr><td>Global lock for thread-safety</td><td>High QPS pe bottleneck. <strong>Striping, per-node locks, lock-free structures</strong>.</td></tr>
+    <tr><td>N+1 queries</td><td>Batch fetch, join, ya cache. Per-row query = death by 1000 cuts.</td></tr>
+    <tr><td>Offset pagination deep pages pe</td><td>O(offset) scan. <strong>Cursor/keyset pagination</strong> use karo.</td></tr>
+    <tr><td>Synchronous fan-out to millions</td><td>Queue + async workers. <strong>Fan-out on read</strong> for large groups.</td></tr>
+  </table>
+</div>
+
+<footer>
+  HLD + LLD Deep Dive · Hinglish Playbook · Sab answers ka common thread: <strong>idempotency, lock ordering, caching, outbox, bounded resources</strong>
+</footer>
+
+</main>
+</div>
+
+<script>
+/* Search filter — simple text match over sections */
+const search = document.getElementById('search');
+const navItems = document.querySelectorAll('.navitem');
+
+search.addEventListener('input', () => {
+  const q = search.value.trim().toLowerCase();
+  if (!q) return;
+
+  // Find first matching section by heading text
+  const sections = document.querySelectorAll('h3.topic, h2.section');
+  for (const s of sections) {
+    if (s.textContent.toLowerCase().includes(q)) {
+      s.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      break;
+    }
+  }
+});
+
+/* Smooth scroll for nav */
+navItems.forEach(item => {
+  item.addEventListener('click', () => {
+    navItems.forEach(n => n.classList.remove('active'));
+    item.classList.add('active');
+    const target = document.getElementById(item.dataset.target);
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+});
+
+/* Highlight active section on scroll */
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting) {
+      const id = entry.target.id;
+      navItems.forEach(n => {
+        n.classList.toggle('active', n.dataset.target === id);
+      });
+    }
+  });
+}, { rootMargin: '-20% 0px -70% 0px' });
+
+document.querySelectorAll('h2.section[id], h3.topic[id]').forEach(el => observer.observe(el));
+</script>
+
+</body>
+</html>

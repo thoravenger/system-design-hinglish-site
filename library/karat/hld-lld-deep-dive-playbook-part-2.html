@@ -1,0 +1,2684 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HLD + LLD Deep Dive — Part 2 · Remaining Questions</title>
+<style>
+  :root{
+    --bg:#0a0e14; --bg2:#121820; --bg3:#1a222d; --bg4:#232d3b;
+    --border:#2a3441; --border2:#3a4757;
+    --fg:#e6edf3; --fg2:#b8c4d0; --muted:#7d8b9c;
+    --blue:#4dabf7; --cyan:#22d3ee; --green:#51cf66; --yellow:#ffd43b;
+    --orange:#ff922b; --red:#ff6b6b; --purple:#b197fc; --pink:#f783ac;
+    --code-bg:#080b10;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{
+    background:var(--bg); color:var(--fg);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans",sans-serif;
+    line-height:1.7; font-size:15px;
+  }
+  .wrap{display:flex; min-height:100vh}
+  aside{
+    width:310px; flex-shrink:0; background:var(--bg2);
+    border-right:1px solid var(--border); height:100vh;
+    position:sticky; top:0; overflow-y:auto; padding:22px 14px;
+  }
+  main{flex:1; padding:36px 44px; max-width:1150px; margin:0 auto; min-width:0}
+
+  aside .brand{
+    font-size:16px; font-weight:700; margin-bottom:3px;
+    background:linear-gradient(135deg,var(--cyan),var(--purple));
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+    background-clip:text;
+  }
+  aside .tagline{font-size:11px; color:var(--muted); margin-bottom:20px; letter-spacing:.3px}
+  .search{
+    width:100%; padding:10px 12px; border-radius:9px; border:1px solid var(--border);
+    background:var(--bg); color:var(--fg); font-size:13px; margin-bottom:18px; outline:none;
+    transition:.2s;
+  }
+  .search:focus{border-color:var(--cyan); box-shadow:0 0 0 3px rgba(34,211,238,.1)}
+  .navsec{font-size:10px; text-transform:uppercase; letter-spacing:1.2px;
+          color:var(--muted); margin:18px 8px 8px; font-weight:700}
+  .navitem{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:9px 11px; border-radius:8px; cursor:pointer; font-size:13px;
+    color:var(--fg2); margin-bottom:2px; transition:.15s; border-left:2px solid transparent;
+  }
+  .navitem:hover{background:var(--bg3); color:var(--fg)}
+  .navitem.active{
+    background:linear-gradient(90deg,rgba(34,211,238,.15),transparent);
+    color:var(--cyan); border-left-color:var(--cyan); font-weight:600;
+  }
+  .navitem .cnt{font-size:11px; opacity:.6}
+
+  h1.page{
+    font-size:30px; font-weight:800; margin-bottom:8px;
+    background:linear-gradient(135deg,var(--cyan),var(--purple),var(--pink));
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent;
+    background-clip:text; letter-spacing:-.5px;
+  }
+  .page-sub{color:var(--muted); font-size:14px; margin-bottom:36px; max-width:780px}
+
+  h2.section{
+    font-size:23px; font-weight:700; margin:52px 0 8px;
+    display:flex; align-items:center; gap:11px; letter-spacing:-.3px;
+    scroll-margin-top:20px;
+  }
+  h2.section:first-of-type{margin-top:0}
+  h2.section .badge{
+    font-size:10px; padding:3px 9px; border-radius:20px; font-weight:700;
+    letter-spacing:.5px; text-transform:uppercase;
+  }
+  .badge.dsa{background:rgba(255,212,59,.15); color:var(--yellow); border:1px solid rgba(255,212,59,.3)}
+  .badge.java{background:rgba(255,146,43,.15); color:var(--orange); border:1px solid rgba(255,146,43,.3)}
+  .badge.dist{background:rgba(77,171,247,.15); color:var(--blue); border:1px solid rgba(77,171,247,.3)}
+  .badge.pay{background:rgba(81,207,102,.15); color:var(--green); border:1px solid rgba(81,207,102,.3)}
+  .badge.sec{background:rgba(255,107,107,.15); color:var(--red); border:1px solid rgba(255,107,107,.3)}
+  .badge.ops{background:rgba(177,151,252,.15); color:var(--purple); border:1px solid rgba(177,151,252,.3)}
+  .badge.sd{background:rgba(34,211,238,.15); color:var(--cyan); border:1px solid rgba(34,211,238,.3)}
+  .badge.test{background:rgba(247,131,172,.15); color:var(--pink); border:1px solid rgba(247,131,172,.3)}
+  .section-desc{color:var(--muted); font-size:13.5px; margin-bottom:22px; max-width:820px}
+
+  h3.topic{
+    font-size:18px; font-weight:700; margin:32px 0 12px;
+    padding-left:13px; border-left:3px solid var(--cyan); color:var(--fg);
+    scroll-margin-top:20px;
+  }
+  h3.topic.yellow{border-left-color:var(--yellow)}
+  h3.topic.green{border-left-color:var(--green)}
+  h3.topic.purple{border-left-color:var(--purple)}
+  h3.topic.orange{border-left-color:var(--orange)}
+  h3.topic.red{border-left-color:var(--red)}
+  h3.topic.pink{border-left-color:var(--pink)}
+
+  .card{
+    background:var(--bg2); border:1px solid var(--border); border-radius:13px;
+    padding:20px 22px; margin-bottom:16px;
+  }
+  .card.key{
+    background:linear-gradient(135deg,rgba(255,212,59,.06),rgba(255,146,43,.03));
+    border-color:rgba(255,212,59,.25);
+  }
+  .card.key .key-label{
+    font-size:10px; text-transform:uppercase; letter-spacing:1px;
+    color:var(--yellow); font-weight:800; margin-bottom:9px; display:flex;
+    align-items:center; gap:6px;
+  }
+  .card.common{
+    background:linear-gradient(135deg,rgba(177,151,252,.07),rgba(247,131,172,.03));
+    border-color:rgba(177,151,252,.25);
+  }
+  .card.common .key-label{color:var(--purple)}
+
+  .card p{margin-bottom:11px; color:var(--fg2); font-size:14px}
+  .card p:last-child{margin-bottom:0}
+  .card strong{color:var(--fg); font-weight:600}
+  .card em{color:var(--cyan); font-style:normal; font-weight:500}
+
+  ul.clean{list-style:none; margin:8px 0}
+  ul.clean li{padding:5px 0 5px 24px; position:relative; color:var(--fg2); font-size:13.5px}
+  ul.clean li::before{content:"▸"; position:absolute; left:6px; color:var(--cyan); font-weight:700}
+  ul.clean.check li::before{content:"✓"; color:var(--green)}
+  ul.clean.cross li::before{content:"✗"; color:var(--red)}
+
+  code.inl{
+    background:var(--bg4); padding:2px 7px; border-radius:5px;
+    font-family:ui-monospace,"SF Mono",Consolas,monospace; font-size:12.5px;
+    color:var(--cyan); border:1px solid var(--border);
+  }
+
+  .codewrap{
+    background:var(--code-bg); border:1px solid var(--border); border-radius:11px;
+    overflow:hidden; margin:14px 0;
+  }
+  .codewrap .code-head{
+    background:var(--bg3); padding:8px 14px; font-size:11px;
+    color:var(--muted); font-family:ui-monospace,monospace;
+    border-bottom:1px solid var(--border); display:flex; justify-content:space-between;
+    letter-spacing:.5px;
+  }
+  .codewrap .code-head .lang{color:var(--green); font-weight:700}
+  pre{
+    padding:16px 18px; overflow-x:auto; font-size:12.8px; line-height:1.75;
+    font-family:ui-monospace,"SF Mono",Consolas,monospace; color:#c9d1d9;
+  }
+  pre .cmt{color:#5c6d7e; font-style:italic}
+  pre .kw{color:#ff7b72}
+  pre .str{color:#a5d6ff}
+  pre .num{color:#79c0ff}
+  pre .fn{color:#d2a8ff}
+  pre .typ{color:#ffa657}
+
+  .lbl{
+    width:100%; border-collapse:collapse; margin:12px 0; font-size:13px;
+    border:1px solid var(--border); border-radius:10px; overflow:hidden;
+  }
+  .lbl th{
+    background:var(--bg3); padding:10px 14px; text-align:left; font-size:11px;
+    text-transform:uppercase; letter-spacing:.8px; color:var(--muted); font-weight:700;
+    border-bottom:1px solid var(--border);
+  }
+  .lbl td{
+    padding:10px 14px; border-bottom:1px solid var(--border);
+    vertical-align:top; color:var(--fg2);
+  }
+  .lbl tr:last-child td{border-bottom:none}
+  .lbl tr:nth-child(even){background:rgba(255,255,255,.015)}
+  .lbl td:first-child{
+    font-family:ui-monospace,monospace; font-size:12px; color:var(--cyan);
+    white-space:nowrap; width:1%; background:rgba(34,211,238,.04);
+  }
+  .lbl td strong{color:var(--fg)}
+
+  .diagram{
+    background:var(--code-bg); border:1px solid var(--border); border-radius:11px;
+    padding:18px 20px; margin:14px 0; overflow-x:auto;
+    font-family:ui-monospace,monospace; font-size:12px; line-height:1.6;
+    color:var(--fg2); white-space:pre;
+  }
+
+  .flow{counter-reset:step; margin:14px 0}
+  .flow .step{
+    position:relative; padding:10px 0 10px 44px; border-left:2px solid var(--border);
+    margin-left:14px; counter-increment:step;
+  }
+  .flow .step::before{
+    content:counter(step); position:absolute; left:-15px; top:10px;
+    width:28px; height:28px; border-radius:50%;
+    background:var(--bg2); border:2px solid var(--cyan); color:var(--cyan);
+    display:flex; align-items:center; justify-content:center;
+    font-size:12px; font-weight:800;
+  }
+  .flow .step:last-child{border-left-color:transparent}
+  .flow .step strong{color:var(--fg); display:block; margin-bottom:3px; font-size:13.5px}
+  .flow .step span{color:var(--fg2); font-size:13px}
+
+  .callout{
+    border-left:3px solid var(--orange); background:rgba(255,146,43,.06);
+    padding:13px 17px; border-radius:0 9px 9px 0; margin:14px 0; font-size:13.5px;
+    color:var(--fg2);
+  }
+  .callout.tip{border-left-color:var(--green); background:rgba(81,207,102,.06)}
+  .callout.warn{border-left-color:var(--red); background:rgba(255,107,107,.06)}
+  .callout b{color:var(--fg)}
+
+  .cmp{width:100%; border-collapse:collapse; margin:14px 0; font-size:13px}
+  .cmp th{
+    background:var(--bg3); padding:11px 14px; text-align:left; font-size:11px;
+    text-transform:uppercase; letter-spacing:.8px; color:var(--muted);
+    border:1px solid var(--border);
+  }
+  .cmp td{padding:10px 14px; border:1px solid var(--border); color:var(--fg2); vertical-align:top}
+  .cmp tr:nth-child(even) td{background:rgba(255,255,255,.015)}
+  .cmp td strong{color:var(--fg)}
+
+  .pgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(290px,1fr)); gap:13px; margin:16px 0}
+  .pcard{
+    background:var(--bg2); border:1px solid var(--border); border-radius:11px;
+    padding:15px 17px; transition:.2s;
+  }
+  .pcard:hover{border-color:var(--border2); transform:translateY(-2px)}
+  .pcard .ptitle{
+    font-size:14px; font-weight:700; margin-bottom:7px; color:var(--fg);
+    display:flex; align-items:center; gap:8px;
+  }
+  .pcard .pnum{
+    width:22px; height:22px; border-radius:6px; background:var(--bg4);
+    display:flex; align-items:center; justify-content:center;
+    font-size:11px; color:var(--cyan); font-weight:800; flex-shrink:0;
+  }
+  .pcard .pdesc{font-size:12.5px; color:var(--muted); line-height:1.55}
+
+  footer{
+    margin-top:70px; padding:26px 0; border-top:1px solid var(--border);
+    color:var(--muted); font-size:12px; text-align:center;
+  }
+
+  @media(max-width:900px){
+    .wrap{flex-direction:column}
+    aside{width:100%; height:auto; position:relative; border-right:none;
+          border-bottom:1px solid var(--border); padding:16px}
+    .navitem{display:inline-flex; margin:2px}
+    main{padding:22px 18px}
+    h1.page{font-size:24px}
+    h2.section{font-size:19px}
+    .lbl td:first-child{white-space:normal}
+  }
+
+  ::-webkit-scrollbar{width:9px; height:9px}
+  ::-webkit-scrollbar-track{background:var(--bg)}
+  ::-webkit-scrollbar-thumb{background:var(--bg4); border-radius:5px}
+  ::-webkit-scrollbar-thumb:hover{background:var(--border2)}
+</style>
+</head>
+<body>
+<div id="sdh-libbar" style="position:relative;z-index:2147483000;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0;padding:8px 16px;background:#0f172a;color:#cbd5e1;font:600 13px/1.5 Inter,'Segoe UI',system-ui,-apple-system,sans-serif;border-bottom:2px solid #4f46e5;box-sizing:border-box;width:100%;text-align:left;letter-spacing:0"><a href="../../index.html" style="color:#fff;text-decoration:none;font-weight:800">SystemDesign<span style="color:#8b8cff">.hinglish</span></a><span style="opacity:.45">/</span><a href="../index.html" style="color:#fff;text-decoration:none">📚 Library</a><span style="opacity:.45">/</span><a href="../index.html#karat" style="color:#cbd5e1;text-decoration:none">Karat Rounds · HSBC GCB-4</a><a href="../files/hld-lld-deep-dive-playbook-part-2-original.html" download style="color:#a5b4fc;text-decoration:none;font-size:12px">⬇ Original</a><span style="margin-left:auto;font-size:11px;padding:2px 9px;border-radius:999px;border:1px solid #6366f1;color:#c7d2fe">📘 HTML ebook</span></div>
+
+<div class="wrap">
+
+<!-- ================= SIDEBAR ================= -->
+<aside>
+  <div class="brand">⚡ Deep Dive — Part 2</div>
+  <div class="tagline">Remaining Questions · Hinglish · Line-by-Line</div>
+  <input class="search" id="search" placeholder="🔍 Search topics...">
+
+  <div class="navsec">DSA & Algorithms</div>
+  <div class="navitem active" data-target="dsa-sorting"><span>🔢 Sorting Deep Dive</span></div>
+  <div class="navitem" data-target="dsa-arrays"><span>📐 Array Problems</span></div>
+  <div class="navitem" data-target="dsa-collections"><span>📚 Collections Complexity</span></div>
+  <div class="navitem" data-target="dsa-graph"><span>🕸️ Graph Algorithms</span></div>
+
+  <div class="navsec">Java & JVM</div>
+  <div class="navitem" data-target="java-gc"><span>🗑️ GC Latency</span></div>
+  <div class="navitem" data-target="java-oom"><span>💥 OOM Debugging</span></div>
+  <div class="navitem" data-target="java-classloader"><span>📦 Classloader Leaks</span></div>
+  <div class="navitem" data-target="java-exceptions"><span>⚠️ Exception & Arithmetic</span></div>
+
+  <div class="navsec">Streams & Data Processing</div>
+  <div class="navitem" data-target="streams-csv"><span>📄 CSV + Custom Collector</span></div>
+  <div class="navitem" data-target="streams-parallel"><span>⚡ parallelStream Pitfalls</span></div>
+  <div class="navitem" data-target="data-external"><span>💾 External Sort</span></div>
+  <div class="navitem" data-target="data-sliding"><span>🪟 Sliding Window</span></div>
+  <div class="navitem" data-target="data-xml"><span>📜 Large XML Parsing</span></div>
+
+  <div class="navsec">Payments Advanced</div>
+  <div class="navitem" data-target="pay-reconcile"><span>⚖️ Ledger Reconcile</span></div>
+  <div class="navitem" data-target="pay-fees"><span>💰 Fees & BigDecimal</span></div>
+  <div class="navitem" data-target="pay-urlkey"><span>🔑 URL-safe Idempotency</span></div>
+  <div class="navitem" data-target="pay-hashchain"><span>🔗 Audit Hash Chain</span></div>
+  <div class="navitem" data-target="pay-saga"><span>🧪 Saga Test Plan</span></div>
+  <div class="navitem" data-target="pay-multiregion"><span>🌍 Multi-region Idempotency</span></div>
+
+  <div class="navsec">Distributed Systems</div>
+  <div class="navitem" data-target="dist-cap-scenarios"><span>🎭 CAP Scenarios</span></div>
+  <div class="navitem" data-target="dist-fb-friends"><span>👥 FB Friend Count</span></div>
+  <div class="navitem" data-target="dist-gdocs"><span>📝 Google Docs Clone</span></div>
+  <div class="navitem" data-target="dist-roundrobin"><span>🔄 Round-robin LB</span></div>
+  <div class="navitem" data-target="dist-music"><span>🎵 Music Hashing</span></div>
+  <div class="navitem" data-target="dist-social"><span>🌏 Social Network WW</span></div>
+
+  <div class="navsec">Security & Compliance</div>
+  <div class="navitem" data-target="sec-card"><span>💳 Card Data + PII</span></div>
+  <div class="navitem" data-target="sec-sso"><span>🔐 SSO Step-up</span></div>
+  <div class="navitem" data-target="sec-secrets"><span>🗝️ Secrets Management</span></div>
+  <div class="navitem" data-target="sec-passwords"><span>🔒 Password Rules</span></div>
+  <div class="navitem" data-target="sec-audit"><span>📜 Immutable Audit Log</span></div>
+  <div class="navitem" data-target="sec-fuzz"><span>🎲 Fuzz Testing</span></div>
+
+  <div class="navsec">Ops & Reliability</div>
+  <div class="navitem" data-target="ops-resilience"><span>🛡️ Resilience Patterns</span></div>
+  <div class="navitem" data-target="ops-deploy"><span>🚀 Blue/Green + Canary</span></div>
+  <div class="navitem" data-target="ops-incident"><span>🚨 Preventing Incidents</span></div>
+  <div class="navitem" data-target="ops-rollback"><span>↩️ Rollback Trading Hours</span></div>
+  <div class="navitem" data-target="ops-quality"><span>⭐ Engineering Quality</span></div>
+
+  <div class="navsec">System Design Case Studies</div>
+  <div class="navitem" data-target="sd-gym"><span>🏋️ Gym</span></div>
+  <div class="navitem" data-target="sd-restaurant"><span>🍽️ Restaurant</span></div>
+  <div class="navitem" data-target="sd-dam"><span>🖼️ DAM</span></div>
+  <div class="navitem" data-target="sd-ev"><span>🔌 EV Charging</span></div>
+  <div class="navitem" data-target="sd-github"><span>🐙 GitHub Estimate</span></div>
+  <div class="navitem" data-target="sd-fileshare"><span>📁 File Sharing</span></div>
+  <div class="navitem" data-target="sd-photo"><span>📸 Photo Storage</span></div>
+  <div class="navitem" data-target="sd-freezer"><span>🧊 Smart Freezer</span></div>
+  <div class="navitem" data-target="sd-cooking"><span>🍳 Home-cooking</span></div>
+  <div class="navitem" data-target="sd-kids"><span>🎮 Kids Play Zone</span></div>
+  <div class="navitem" data-target="sd-search"><span>🔍 Search Engine</span></div>
+  <div class="navitem" data-target="sd-db"><span>🗄️ Centralized DB</span></div>
+  <div class="navitem" data-target="sd-logging"><span>📋 Centralized Logging</span></div>
+  <div class="navitem" data-target="sd-single"><span>🖥️ Single vs Multi Server</span></div>
+
+  <div class="navsec">Testing Deep Dive</div>
+  <div class="navitem" data-target="test-ebay"><span>🛒 eBay Size & Color</span></div>
+  <div class="navitem" data-target="test-maps"><span>🗺️ Maps Shortest Path</span></div>
+  <div class="navitem" data-target="test-crawler"><span>🕷️ Crawler Scenarios</span></div>
+  <div class="navitem" data-target="test-ip"><span>🌐 IP Validation</span></div>
+  <div class="navitem" data-target="test-function"><span>🧪 Function Test Scenarios</span></div>
+  <div class="navitem" data-target="test-testable"><span>🔧 Testable Class</span></div>
+
+  <div class="navsec">Coding Bugs & Fixes</div>
+  <div class="navitem" data-target="bug-stock"><span>📈 StockCollection</span></div>
+  <div class="navitem" data-target="bug-game"><span>🎮 GameManager</span></div>
+  <div class="navitem" data-target="bug-reservation"><span>📅 ReservationManager</span></div>
+  <div class="navitem" data-target="bug-account"><span>🏦 AccountManager</span></div>
+  <div class="navitem" data-target="bug-song"><span>🎵 Song Bug</span></div>
+  <div class="navitem" data-target="bug-toll"><span>🛣️ Toll Booth</span></div>
+  <div class="navitem" data-target="bug-speeders"><span>🚗 Catch Speeders</span></div>
+
+  <div class="navsec">Scenario-Based</div>
+  <div class="navitem" data-target="sc-gaming"><span>🎰 Gaming Station</span></div>
+  <div class="navitem" data-target="sc-doctor"><span>👨‍⚕️ Doctor Queue</span></div>
+  <div class="navitem" data-target="sc-live"><span>🏏 Live Scoring</span></div>
+  <div class="navitem" data-target="sc-notify"><span>📨 Missed Notifications</span></div>
+  <div class="navitem" data-target="sc-throughput"><span>📊 Breach Throughput</span></div>
+  <div class="navitem" data-target="sc-logs"><span>📝 Store Logs for App</span></div>
+  <div class="navitem" data-target="sc-upload"><span>📤 Upload/Download Dedup</span></div>
+  <div class="navitem" data-target="sc-youtube"><span>▶️ YouTube Thumbnail A/B</span></div>
+  <div class="navitem" data-target="sc-news"><span>📰 News IP Location</span></div>
+  <div class="navitem" data-target="sc-go"><span>⚫ Go Game Analysis</span></div>
+  <div class="navitem" data-target="sc-sports"><span>📰 Sports News Budget</span></div>
+  <div class="navitem" data-target="sc-risk"><span>⚡ Trader Risk Limit</span></div>
+  <div class="navitem" data-target="sc-expiry"><span>⏰ Product Expiry Priority</span></div>
+</aside>
+
+<!-- ================= MAIN ================= -->
+<main>
+
+<h1 class="page">HLD + LLD Deep Dive — Part 2</h1>
+<p class="page-sub">
+  HTML #2 ke baad ke <b>saare bache hue questions</b> — same Hinglish style, same line-by-line depth,
+  same "key answer" + "common thread" format. Yeh Part 1 ko complete karta hai.
+</p>
+
+<!-- ============================================================
+     SECTION 1: DSA & ALGORITHMS
+     ============================================================ -->
+<h2 class="section" id="dsa-sorting">
+  <span class="badge dsa">DSA</span> Sorting — Deep Dive
+</h2>
+<p class="section-desc">Selection vs bubble, merge sort, aur saare sorting mechanisms ka internal working + complexity.</p>
+
+<h3 class="topic yellow">🔢 int[] x = {1,9,2,5,3,4} — Selection vs Bubble?</h3>
+
+<div class="card">
+  <p><strong>Theoretical:</strong> Dono O(n²). Lekin <em>selection sort</em> hamesha n(n-1)/2 comparisons karta hai, aur swaps sirf O(n) — jab swaps costly ho (bade objects), selection better.</p>
+  <p><strong>Practical (is array pe):</strong> n=6 chhota hai, farq negligible. Bubble sort early-exit (already sorted detection) ke saath best case O(n) de sakta hai. Selection sort nahi.</p>
+  <p><strong>Real answer:</strong> Dono ko chhodo — <code class="inl">Arrays.sort()</code> use karo (Dual-Pivot Quicksort, O(n log n)). Interview mein yeh bolo aur justify karo.</p>
+</div>
+
+<div class="codewrap">
+  <div class="code-head"><span>Selection vs Bubble — side by side</span><span class="lang">JAVA</span></div>
+<pre><span class="cmt">// Selection sort — min nikaal ke aage rakho, O(n²) always</span>
+<span class="kw">void</span> <span class="fn">selectionSort</span>(<span class="kw">int</span>[] a) {
+    <span class="kw">for</span> (<span class="kw">int</span> i = <span class="num">0</span>; i &lt; a.length - <span class="num">1</span>; i++) {
+        <span class="kw">int</span> min = i;
+        <span class="kw">for</span> (<span class="kw">int</span> j = i + <span class="num">1</span>; j &lt; a.length; j++)
+            <span class="kw">if</span> (a[j] &lt; a[min]) min = j;         <span class="cmt">// find min index</span>
+        <span class="kw">int</span> t = a[i]; a[i] = a[min]; a[min] = t; <span class="cmt">// 1 swap per pass</span>
+    }
+}
+
+<span class="cmt">// Bubble sort with early exit — best case O(n)</span>
+<span class="kw">void</span> <span class="fn">bubbleSort</span>(<span class="kw">int</span>[] a) {
+    <span class="kw">for</span> (<span class="kw">int</span> i = <span class="num">0</span>; i &lt; a.length - <span class="num">1</span>; i++) {
+        <span class="kw">boolean</span> swapped = <span class="kw">false</span>;
+        <span class="kw">for</span> (<span class="kw">int</span> j = <span class="num">0</span>; j &lt; a.length - <span class="num">1</span> - i; j++) {
+            <span class="kw">if</span> (a[j] &gt; a[j+<span class="num">1</span>]) {
+                <span class="kw">int</span> t = a[j]; a[j] = a[j+<span class="num">1</span>]; a[j+<span class="num">1</span>] = t;
+                swapped = <span class="kw">true</span>;
+            }
+        }
+        <span class="kw">if</span> (!swapped) <span class="kw">break</span>;                    <span class="cmt">// already sorted — O(n)</span>
+    }
+}</pre>
+</div>
+
+<table class="lbl">
+  <tr><th>Line</th><th>Explanation</th></tr>
+  <tr><td>for (i = 0; i &lt; n-1; i++)</td><td>n-1 passes. Har pass mein ek element apni final position pe settle hota hai.</td></tr>
+  <tr><td>int min = i</td><td>Current position ko min maan lo. Har pass mein isse better mile toh update.</td></tr>
+  <tr><td>if (a[j] &lt; a[min]) min = j</td><td>Linear scan — <strong>hamesha poore remaining array ko dekhta hai</strong>. Isliye selection sort best case bhi O(n²) hai.</td></tr>
+  <tr><td>swap a[i] ↔ a[min]</td><td><strong>Sirf 1 swap per pass.</strong> Total O(n) swaps. Jab swap costly ho (large objects), yeh advantage hai.</td></tr>
+  <tr><td>bubble: swapped flag</td><td><strong>Early exit.</strong> Agar ek pass mein koi swap nahi hua, array sorted hai — break. Best case O(n).</td></tr>
+  <tr><td>inner loop: n-1-i</td><td>Har pass ke baad last i elements sorted hote hain — unhe dobara check nahi karte.</td></tr>
+</table>
+
+<h3 class="topic yellow">🔀 Merge Sort — Internal Working + Complexity</h3>
+
+<div class="card">
+  <p><strong>Merge sort:</strong> Divide and conquer. Array ko mid se do halves mein todo, recursively sort karo, phir merge karo.</p>
+  <ul class="clean">
+    <li><b>Time:</b> O(n log n) — <em>best, average, worst</em> sab mein (predictable)</li>
+    <li><b>Space:</b> O(n) auxiliary (arrays), O(log n) recursion stack</li>
+    <li><b>Stable:</b> Haan — equal elements ka relative order preserve</li>
+    <li><b>In-place:</b> Nahi (standard version)</li>
+    <li><b>External sorting:</b> Sequential disk access friendly — massive files ke liye ideal</li>
+  </ul>
+</div>
+
+<div class="codewrap">
+  <div class="code-head"><span>MergeSort.java</span><span class="lang">JAVA</span></div>
+<pre><span class="kw">void</span> <span class="fn">mergeSort</span>(<span class="kw">int</span>[] a, <span class="kw">int</span> lo, <span class="kw">int</span> hi) {
+    <span class="kw">if</span> (lo &gt;= hi) <span class="kw">return</span>;                  <span class="cmt">// base case: 0/1 element</span>
+    <span class="kw">int</span> mid = lo + (hi - lo) / <span class="num">2</span>;            <span class="cmt">// avoid overflow</span>
+    mergeSort(a, lo, mid);
+    mergeSort(a, mid + <span class="num">1</span>, hi);
+    <span class="fn">merge</span>(a, lo, mid, hi);
+}
+
+<span class="kw">void</span> <span class="fn">merge</span>(<span class="kw">int</span>[] a, <span class="kw">int</span> lo, <span class="kw">int</span> mid, <span class="kw">int</span> hi) {
+    <span class="kw">int</span>[] tmp = <span class="kw">new int</span>[hi - lo + <span class="num">1</span>];
+    <span class="kw">int</span> i = lo, j = mid + <span class="num">1</span>, k = <span class="num">0</span>;
+    <span class="kw">while</span> (i &lt;= mid && j &lt;= hi)
+        tmp[k++] = (a[i] &lt;= a[j]) ? a[i++] : a[j++];  <span class="cmt">// &lt;= keeps stable</span>
+    <span class="kw">while</span> (i &lt;= mid) tmp[k++] = a[i++];             <span class="cmt">// leftover left</span>
+    <span class="kw">while</span> (j &lt;= hi)  tmp[k++] = a[j++];             <span class="cmt">// leftover right</span>
+    <span class="typ">System</span>.arraycopy(tmp, <span class="num">0</span>, a, lo, tmp.length);
+}</pre>
+</div>
+
+<table class="lbl">
+  <tr><th>Line</th><th>Explanation</th></tr>
+  <tr><td>if (lo &gt;= hi) return</td><td><strong>Base case.</strong> 0 ya 1 element already sorted.</td></tr>
+  <tr><td>mid = lo + (hi-lo)/2</td><td><strong>Overflow-safe.</strong> (lo+hi)/2 large arrays pe overflow karta.</td></tr>
+  <tr><td>mergeSort(lo, mid), mergeSort(mid+1, hi)</td><td>Recursive halves. Depth = log n → O(log n) stack.</td></tr>
+  <tr><td>int[] tmp</td><td><strong>Auxiliary array.</strong> Merge ke liye O(n) space. In-place merge possible but complex.</td></tr>
+  <tr><td>a[i] &lt;= a[j]</td><td><strong>&lt;= for stability.</strong> Equal elements pe left se lo — relative order preserve. &lt; hota toh unstable.</td></tr>
+  <tr><td>while (i &lt;= mid) / while (j &lt;= hi)</td><td>Ek side khatam, dusri ka leftover copy karo.</td></tr>
+  <tr><td>System.arraycopy</td><td>Optimized native copy — loop se faster.</td></tr>
+</table>
+
+<h3 class="topic yellow">📊 Saare Sorting Algorithms — Comparison</h3>
+
+<table class="cmp">
+  <tr><th>Algorithm</th><th>Best</th><th>Avg</th><th>Worst</th><th>Space</th><th>Stable</th><th>Idea</th></tr>
+  <tr><td>Bubble</td><td>O(n)</td><td>O(n²)</td><td>O(n²)</td><td>O(1)</td><td>✅</td><td>Adjacent swap, early exit</td></tr>
+  <tr><td>Selection</td><td>O(n²)</td><td>O(n²)</td><td>O(n²)</td><td>O(1)</td><td>❌</td><td>Min nikaal ke aage, O(n) swaps</td></tr>
+  <tr><td>Insertion</td><td>O(n)</td><td>O(n²)</td><td>O(n²)</td><td>O(1)</td><td>✅</td><td>Sorted part mein insert</td></tr>
+  <tr><td>Merge</td><td>O(n log n)</td><td>O(n log n)</td><td>O(n log n)</td><td>O(n)</td><td>✅</td><td>Divide + merge, stable</td></tr>
+  <tr><td>Quick</td><td>O(n log n)</td><td>O(n log n)</td><td>O(n²)</td><td>O(log n)</td><td>❌</td><td>Pivot partition, in-place</td></tr>
+  <tr><td>Heap</td><td>O(n log n)</td><td>O(n log n)</td><td>O(n log n)</td><td>O(1)</td><td>❌</td><td>Binary heap, in-place</td></tr>
+  <tr><td>Counting</td><td>O(n+k)</td><td>O(n+k)</td><td>O(n+k)</td><td>O(k)</td><td>✅</td><td>Non-comparison, integer only</td></tr>
+  <tr><td>Radix</td><td>O(d(n+k))</td><td>O(d(n+k))</td><td>O(d(n+k))</td><td>O(n+k)</td><td>✅</td><td>Digit-wise counting</td></tr>
+  <tr><td>Timsort (Java)</td><td>O(n)</td><td>O(n log n)</td><td>O(n log n)</td><td>O(n)</td><td>✅</td><td>Merge+Insertion hybrid, real-world best</td></tr>
+</table>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Interview mein kya bolo:</strong> "Dono O(n²) hain, chhote arrays pe koi farq nahi. Production mein <code class="inl">Arrays.sort()</code> use karta — Java mein Dual-Pivot Quicksort (primitives) ya Timsort (objects). Timsort real-world data pe bahut fast hai kyunki partially-sorted data ka advantage uthata hai."</p>
+</div>
+
+<!-- ============================================================
+     DSA: ARRAY PROBLEMS
+     ============================================================ -->
+<h2 class="section" id="dsa-arrays">
+  <span class="badge dsa">DSA</span> Array Problems — Line by Line
+</h2>
+
+<h3 class="topic yellow">🔄 Rotate Array by K Positions</h3>
+
+<div class="card">
+  <p><strong>Best approach:</strong> Reversal algorithm — O(n) time, O(1) space. Teen baar reverse karo.</p>
+</div>
+
+<div class="codewrap">
+  <div class="code-head"><span>RotateArray.java</span><span class="lang">JAVA</span></div>
+<pre><span class="kw">void</span> <span class="fn">rotate</span>(<span class="kw">int</span>[] a, <span class="kw">int</span> k) {
+    <span class="kw">int</span> n = a.length;
+    <span class="kw">if</span> (n == <span class="num">0</span>) <span class="kw">return</span>;
+    k = ((k % n) + n) % n;              <span class="cmt">// handle negative & > n</span>
+    <span class="fn">reverse</span>(a, <span class="num">0</span>, n - <span class="num">1</span>);           <span class="cmt">// step 1: whole array</span>
+    <span class="fn">reverse</span>(a, <span class="num">0</span>, k - <span class="num">1</span>);           <span class="cmt">// step 2: first k</span>
+    <span class="fn">reverse</span>(a, k, n - <span class="num">1</span>);           <span class="cmt">// step 3: remaining</span>
+}
+
+<span class="kw">void</span> <span class="fn">reverse</span>(<span class="kw">int</span>[] a, <span class="kw">int</span> i, <span class="kw">int</span> j) {
+    <span class="kw">while</span> (i &lt; j) {
+        <span class="kw">int</span> t = a[i]; a[i++] = a[j]; a[j--] = t;
+    }
+}</pre>
+</div>
+
+<table class="lbl">
+  <tr><th>Line</th><th>Explanation</th></tr>
+  <tr><td>k = ((k % n) + n) % n</td><td><strong>Normalize k.</strong> k=15, n=7 → k=1. Negative k bhi handle (−3 → 4).</td></tr>
+  <tr><td>reverse(a, 0, n-1)</td><td>Poora array ulta karo. [1,2,3,4,5] → [5,4,3,2,1].</td></tr>
+  <tr><td>reverse(a, 0, k-1)</td><td>Pehle k elements ko wapas ulta. [5,4] → [4,5].</td></tr>
+  <tr><td>reverse(a, k, n-1)</td><td>Baaki ko wapas ulta. [3,2,1] → [1,2,3]. Result: [4,5,1,2,3].</td></tr>
+</table>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Complexity:</strong> O(n) time (2n swaps ≈ n operations), O(1) space. Alternatives: extra array copy (O(n) space), juggling algorithm (GCD-based, also O(n)/O(1)).</p>
+</div>
+
+<h3 class="topic yellow">🎵 Songs Summing to Exactly 7 Minutes</h3>
+
+<div class="codewrap">
+  <div class="code-head"><span>SongPair.java</span><span class="lang">JAVA</span></div>
+<pre><span class="kw">List</span>&lt;<span class="typ">String</span>&gt; <span class="fn">findPair</span>(<span class="typ">List</span>&lt;<span class="typ">Song</span>&gt; songs) {
+    <span class="kw">int</span> target = <span class="num">7</span> * <span class="num">60</span>;                  <span class="cmt">// seconds</span>
+    <span class="typ">Map</span>&lt;<span class="typ">Integer</span>, <span class="typ">String</span>&gt; seen = <span class="kw">new</span> <span class="typ">HashMap</span>&lt;&gt;();
+
+    <span class="kw">for</span> (<span class="typ">Song</span> s : songs) {
+        <span class="kw">int</span> need = target - s.durationSec();
+        <span class="kw">if</span> (seen.containsKey(need))
+            <span class="kw">return</span> <span class="typ">List</span>.of(seen.get(need), s.name());
+        seen.putIfAbsent(s.durationSec(), s.name());
+    }
+    <span class="kw">return</span> <span class="typ">List</span>.of();
+}</pre>
+</div>
+
+<table class="lbl">
+  <tr><th>Line</th><th>Explanation</th></tr>
+  <tr><td>target = 7 * 60</td><td>Seconds mein convert. Comparisons avoid float.</td></tr>
+  <tr><td>Map&lt;Integer, String&gt; seen</td><td>Duration → song name. O(1) lookup.</td></tr>
+  <tr><td>need = target - s.durationSec()</td><td><strong>Two-sum trick.</strong> Current song ke liye complement dhoondho.</td></tr>
+  <tr><td>if (seen.containsKey(need))</td><td>Complement pehle dikha tha? Pair mil gaya.</td></tr>
+  <tr><td>putIfAbsent</td><td><strong>Duplicate durations ke liye safe.</strong> Pehla song hi rakhо — distinct songs guarantee.</td></tr>
+</table>
+
+<h3 class="topic yellow">🔢 Count Repeating Elements in a List</h3>
+
+<div class="codewrap">
+  <div class="code-head"><span>RepeatingCount.java</span><span class="lang">JAVA</span></div>
+<pre><span class="cmt">// Distinct values that repeat (e.g. [a,b,a,c,b,b] → {a,b} → 2)</span>
+<span class="kw">long</span> <span class="fn">repeatingCount</span>(<span class="typ">List</span>&lt;<span class="typ">String</span>&gt; list) {
+    <span class="kw">return</span> list.stream()
+        .collect(<span class="typ">Collectors</span>.groupingBy(x -&gt; x, <span class="typ">Collectors</span>.counting()))
+        .values().stream()
+        .filter(c -&gt; c &gt; <span class="num">1</span>)
+        .count();
+}
+
+<span class="cmt">// Total extra occurrences (e.g. [a,a,a] → 2 extra)</span>
+<span class="kw">long</span> <span class="fn">totalRepeats</span>(<span class="typ">List</span>&lt;<span class="typ">String</span>&gt; list) {
+    <span class="typ">Map</span>&lt;<span class="typ">String</span>, <span class="typ">Long</span>&gt; freq = list.stream()
+        .collect(<span class="typ">Collectors</span>.groupingBy(x -&gt; x, <span class="typ">Collectors</span>.counting()));
+    <span class="kw">return</span> freq.values().stream().mapToLong(c -&gt; c - <span class="num">1</span>).sum();
+}</pre>
+</div>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>O(n) time, O(k) space</strong> where k = distinct elements. HashMap se frequency count — sabse simple aur efficient. Sorting se bhi ho sakta (O(n log n)) but unnecessary.</p>
+</div>
+
+<!-- ============================================================
+     DSA: COLLECTIONS COMPLEXITY
+     ============================================================ -->
+<h2 class="section" id="dsa-collections">
+  <span class="badge dsa">DSA</span> Collections Complexity — Full Reference
+</h2>
+
+<table class="cmp">
+  <tr><th>Collection</th><th>add</th><th>get(idx)</th><th>contains</th><th>remove</th><th>Ordered</th><th>Notes</th></tr>
+  <tr><td>ArrayList</td><td>O(1)*</td><td>O(1)</td><td>O(n)</td><td>O(n)</td><td>Insertion</td><td>Random access fast, insert/remove shift</td></tr>
+  <tr><td>LinkedList</td><td>O(1)</td><td>O(n)</td><td>O(n)</td><td>O(1)†</td><td>Insertion</td><td>Deque operations O(1)</td></tr>
+  <tr><td>HashMap</td><td>O(1)*</td><td>O(1)*</td><td>O(1)*</td><td>O(1)*</td><td>No</td><td>Java 8+ tree-bins O(log n) worst</td></tr>
+  <tr><td>LinkedHashMap</td><td>O(1)*</td><td>O(1)*</td><td>O(1)*</td><td>O(1)*</td><td>Insertion/access</td><td>LRU easy with accessOrder</td></tr>
+  <tr><td>TreeMap</td><td>O(log n)</td><td>O(log n)</td><td>O(log n)</td><td>O(log n)</td><td>Sorted</td><td>Range queries, firstKey/lastKey</td></tr>
+  <tr><td>HashSet</td><td>O(1)*</td><td>—</td><td>O(1)*</td><td>O(1)*</td><td>No</td><td>Dedup</td></tr>
+  <tr><td>TreeSet</td><td>O(log n)</td><td>—</td><td>O(log n)</td><td>O(log n)</td><td>Sorted</td><td>Sorted iteration</td></tr>
+  <tr><td>ArrayDeque</td><td>O(1) ends</td><td>O(1) ends</td><td>O(n)</td><td>O(1) ends</td><td>Insertion</td><td>Stack + Queue, no null</td></tr>
+  <tr><td>PriorityQueue</td><td>O(log n)</td><td>O(1) peek</td><td>O(n)</td><td>O(log n)</td><td>Heap order</td><td>Top-K, scheduler</td></tr>
+</table>
+<p style="font-size:12px; color:var(--muted); margin-top:6px">*amortized average. †agar node reference available ho. <strong>ConcurrentHashMap</strong> — O(1)* per operation, lock striping, weak iterator.</p>
+
+<h3 class="topic yellow">🧠 HashMap Implementation — Time/Space + Correctness</h3>
+
+<div class="card">
+  <p><strong>Typical implementation:</strong> Array of buckets + chaining.</p>
+  <ul class="clean">
+    <li><b>put/get/remove:</b> O(1) average, O(n) worst (all keys collide)</li>
+    <li><b>Resize:</b> O(n) amortized O(1) per op — load factor 0.75 pe double</li>
+    <li><b>Space:</b> O(n) — buckets + entries</li>
+    <li><b>Java 8+:</b> Long chains red-black tree mein convert (threshold 8) — worst case O(log n)</li>
+  </ul>
+  <p><strong>Correctness checks:</strong> equals/hashCode contract (equal objects → equal hash), rehashing during resize, tombstone handling (open addressing), concurrent modification.</p>
+</div>
+
+<!-- ============================================================
+     DSA: GRAPH ALGORITHMS
+     ============================================================ -->
+<h2 class="section" id="dsa-graph">
+  <span class="badge dsa">DSA</span> Graph Algorithms — Cycles + SCC
+</h2>
+
+<h3 class="topic yellow">🔁 Detect Cycle in Directed Transfer Graph</h3>
+
+<div class="card">
+  <p><strong>Approach:</strong> DFS with 3 colors — WHITE (unvisited), GRAY (in progress), BLACK (done). GRAY node pe wapas aana = back edge = cycle.</p>
+</div>
+
+<div class="codewrap">
+  <div class="code-head"><span>CycleDetect.java</span><span class="lang">JAVA</span></div>
+<pre><span class="kw">enum</span> <span class="typ">Color</span> { WHITE, GRAY, BLACK }
+
+<span class="kw">boolean</span> <span class="fn">hasCycle</span>(<span class="typ">Map</span>&lt;<span class="typ">String</span>, <span class="typ">List</span>&lt;<span class="typ">String</span>&gt;&gt; g) {
+    <span class="typ">Map</span>&lt;<span class="typ">String</span>, <span class="typ">Color</span>&gt; color = <span class="kw">new</span> <span class="typ">HashMap</span>&lt;&gt;();
+    <span class="kw">for</span> (<span class="typ">String</span> s : g.keySet()) color.put(s, <span class="typ">Color</span>.WHITE);
+
+    <span class="kw">for</span> (<span class="typ">String</span> s : g.keySet())
+        <span class="kw">if</span> (color.get(s) == <span class="typ">Color</span>.WHITE && <span class="fn">dfs</span>(s, g, color))
+            <span class="kw">return true</span>;
+    <span class="kw">return false</span>;
+}
+
+<span class="kw">boolean</span> <span class="fn">dfs</span>(<span class="typ">String</span> u, <span class="typ">Map</span>&lt;<span class="typ">String</span>, <span class="typ">List</span>&lt;<span class="typ">String</span>&gt;&gt; g,
+            <span class="typ">Map</span>&lt;<span class="typ">String</span>, <span class="typ">Color</span>&gt; color) {
+    color.put(u, <span class="typ">Color</span>.GRAY);
+    <span class="kw">for</span> (<span class="typ">String</span> v : g.getOrDefault(u, <span class="typ">List</span>.of())) {
+        <span class="kw">if</span> (color.get(v) == <span class="typ">Color</span>.GRAY) <span class="kw">return true</span>;   <span class="cmt">// back edge</span>
+        <span class="kw">if</span> (color.get(v) == <span class="typ">Color</span>.WHITE && <span class="fn">dfs</span>(v, g, color)) <span class="kw">return true</span>;
+    }
+    color.put(u, <span class="typ">Color</span>.BLACK);
+    <span class="kw">return false</span>;
+}</pre>
+</div>
+
+<table class="lbl">
+  <tr><th>Line</th><th>Explanation</th></tr>
+  <tr><td>Color { WHITE, GRAY, BLACK }</td><td><strong>3 states.</strong> GRAY = current DFS path mein hai. BLACK = explore ho chuka.</td></tr>
+  <tr><td>color.put(s, WHITE)</td><td>Sab unvisited init.</td></tr>
+  <tr><td>if (color.get(v) == GRAY) return true</td><td><strong>Back edge!</strong> Current DFS stack mein jo node hai, usse dobara visit = cycle.</td></tr>
+  <tr><td>color.put(u, BLACK) at end</td><td>Node fully explored. Ab koi cycle isse hoke nahi jaayegi.</td></tr>
+</table>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>O(V + E) time, O(V) space.</strong> Undirected graph mein union-find ya DFS with parent-tracking. Directed mein 3-color DFS sabse clean. Cycle return karna ho toh parent map maintain karo.</p>
+</div>
+
+<h3 class="topic yellow">🔗 Find SCCs — Tarjan's Algorithm</h3>
+
+<div class="codewrap">
+  <div class="code-head"><span>Tarjan.java</span><span class="lang">JAVA</span></div>
+<pre><span class="kw">class</span> <span class="typ">Tarjan</span> {
+    <span class="kw">int</span> time = <span class="num">0</span>;
+    <span class="typ">Map</span>&lt;<span class="typ">String</span>, <span class="typ">Integer</span>&gt; disc = <span class="kw">new</span> <span class="typ">HashMap</span>&lt;&gt;(), low = <span class="kw">new</span> <span class="typ">HashMap</span>&lt;&gt;();
+    <span class="typ">Deque</span>&lt;<span class="typ">String</span>&gt; stack = <span class="kw">new</span> <span class="typ">ArrayDeque</span>&lt;&gt;();
+    <span class="typ">Set</span>&lt;<span class="typ">String</span>&gt; onStack = <span class="kw">new</span> <span class="typ">HashSet</span>&lt;&gt;();
+    <span class="typ">List</span>&lt;<span class="typ">List</span>&lt;<span class="typ">String</span>&gt;&gt; sccs = <span class="kw">new</span> <span class="typ">ArrayList</span>&lt;&gt;();
+
+    <span class="kw">void</span> <span class="fn">dfs</span>(<span class="typ">String</span> u, <span class="typ">Map</span>&lt;<span class="typ">String</span>, <span class="typ">List</span>&lt;<span class="typ">String</span>&gt;&gt; g) {
+        disc.put(u, time); low.put(u, time); time++;
+        stack.push(u); onStack.add(u);
+
+        <span class="kw">for</span> (<span class="typ">String</span> v : g.getOrDefault(u, <span class="typ">List</span>.of())) {
+            <span class="kw">if</span> (!disc.containsKey(v)) {
+                dfs(v, g);
+                low.put(u, <span class="typ">Math</span>.min(low.get(u), low.get(v)));
+            } <span class="kw">else if</span> (onStack.contains(v)) {
+                low.put(u, <span class="typ">Math</span>.min(low.get(u), disc.get(v)));
+            }
+        }
+
+        <span class="kw">if</span> (low.get(u).equals(disc.get(u))) {
+            <span class="typ">List</span>&lt;<span class="typ">String</span>&gt; comp = <span class="kw">new</span> <span class="typ">ArrayList</span>&lt;&gt;();
+            <span class="typ">String</span> w;
+            <span class="kw">do</span> { w = stack.pop(); onStack.remove(w); comp.add(w); }
+            <span class="kw">while</span> (!w.equals(u));
+            sccs.add(comp);
+        }
+    }
+}</pre>
+</div>
+
+<table class="lbl">
+  <tr><th>Line</th><th>Explanation</th></tr>
+  <tr><td>disc.put(u, time); low.put(u, time)</td><td><strong>Discovery time + low-link.</strong> low = sabse chhota disc jo u se reachable (back edges ke through).</td></tr>
+  <tr><td>stack.push(u); onStack.add(u)</td><td>Current SCC candidates. onStack set for O(1) check.</td></tr>
+  <tr><td>if (!disc.containsKey(v)) dfs(v,g)</td><td>Unvisited — recursive call, phir low update.</td></tr>
+  <tr><td>else if (onStack.contains(v))</td><td><strong>Back edge to current SCC.</strong> low[u] = min(low[u], disc[v]).</td></tr>
+  <tr><td>low.get(u).equals(disc.get(u))</td><td><strong>Root of SCC.</strong> Isse stack pop karo jab tak u na mile — poora SCC.</td></tr>
+</table>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Tarjan's:</strong> O(V+E) single DFS. Alternative: <strong>Kosaraju's</strong> — 2 DFS passes (transpose graph pe second pass). Tarjan ek hi pass mein kaam kar deta.</p>
+  <p><strong>Use:</strong> Circular dependency detection, deadlock detection, financial transaction clusters.</p>
+</div>
+
+<!-- ============================================================
+     SECTION 2: JAVA & JVM
+     ============================================================ -->
+<h2 class="section" id="java-gc">
+  <span class="badge java">JVM</span> GC Latency — Diagnose + Tune
+</h2>
+
+<div class="card">
+  <p><strong>Diagnosis:</strong></p>
+  <ul class="clean">
+    <li>Enable GC logs: <code class="inl">-Xlog:gc*:file=gc.log:time,uptime:filecount=10,filesize=50M</code></li>
+    <li>Look for: long pause times (p99), full GC frequency, promotion failures, humongous allocations (G1)</li>
+    <li>Heap dumps + allocation profiling (async-profiler, JFR) — kaun allocate kar raha hai?</li>
+    <li>Metrics: pause time distribution, allocation rate (MB/s), live set size</li>
+  </ul>
+  <p><strong>Common causes:</strong> high allocation rate (temporary objects, boxing), large live set, humongous objects, insufficient heap, off-heap leak.</p>
+</div>
+
+<div class="codewrap">
+  <div class="code-head"><span>Low-latency JVM flags</span><span class="lang">BASH</span></div>
+<pre><span class="cmt"># ZGC — sub-millisecond pauses (Java 15+)</span>
+-XX:+UseZGC -Xms8g -Xmx8g
+
+<span class="cmt"># OR G1 with tuning</span>
+-XX:+UseG1GC
+-XX:MaxGCPauseMillis=20
+-XX:G1HeapRegionSize=16m
+-XX:InitiatingHeapOccupancyPercent=35
+
+<span class="cmt"># Always useful</span>
+-Xms8g -Xmx8g              <span class="cmt"># equal — no resize</span>
+-XX:+AlwaysPreTouch         <span class="cmt"># pre-fault pages, no runtime spikes</span>
+-XX:+HeapDumpOnOutOfMemoryError
+-XX:HeapDumpPath=/dumps
+-XX:+FlightRecorder</pre>
+</div>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Low-latency payment service ka mantra:</strong></p>
+  <ul class="clean">
+    <li><strong>ZGC</strong> — pauses &lt; 1ms, heap size se independent. Best for latency-sensitive.</li>
+    <li><strong>Allocation discipline</strong> — primitive collections, StringBuilder, avoid autoboxing, object pooling.</li>
+    <li><strong>JFR always-on</strong> — production profiling with &lt; 1% overhead.</li>
+    <li><strong>Separate JVMs</strong> — batch jobs alag, latency-critical services alag. GC contention shared nahi.</li>
+  </ul>
+</div>
+
+<!-- OOM -->
+<h2 class="section" id="java-oom">
+  <span class="badge java">JVM</span> Intermittent OOM in Batch Jobs
+</h2>
+
+<div class="card">
+  <p><strong>Diagnosis:</strong></p>
+  <ul class="clean">
+    <li><code class="inl">-XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/dumps</code></li>
+    <li>Eclipse MAT / JProfiler — dominator tree, leak suspects</li>
+    <li>Distinguish: heap OOM vs native/direct buffer vs metaspace vs GC overhead limit</li>
+    <li>Correlate with input size (data-dependent) or time (leak over runs)</li>
+  </ul>
+</div>
+
+<table class="cmp">
+  <tr><th>Cause</th><th>Fix</th></tr>
+  <tr><td>Loading entire dataset in memory</td><td><strong>Streaming/pagination</strong> — cursor-based iteration, JPA <code class="inl">@QueryHints</code></td></tr>
+  <tr><td>Unclosed resources</td><td><strong>try-with-resources</strong> everywhere (ResultSet, Stream, Connection)</td></tr>
+  <tr><td>Static collections growing</td><td><strong>Bounded caches</strong> (Caffeine with maxSize + weak refs)</td></tr>
+  <tr><td>ThreadLocal leaks</td><td><code class="inl">remove()</code> in finally block</td></tr>
+  <tr><td>Listener/observer leaks</td><td>Deregister on shutdown</td></tr>
+  <tr><td>Classloader leaks</td><td>See next section</td></tr>
+  <tr><td>Direct ByteBuffer</td><td>Netty leak detector, explicit <code class="inl">release()</code></td></tr>
+</table>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Intermittent = data-dependent ya time-dependent.</strong> Heap dump lo jab OOM ho, MAT se leak suspects dekho. Batch jobs ko separate JVM mein isolate karo, chunked processing karo (commit per N records), aur CI mein heap-limited run karo taaki leak pakde jaayein.</p>
+</div>
+
+<!-- CLASSLOADER -->
+<h2 class="section" id="java-classloader">
+  <span class="badge java">JVM</span> Classloader Leaks in Plugin System
+</h2>
+
+<div class="card">
+  <p><strong>Symptoms:</strong> Metaspace grows, redeploy ke baad Old Gen mein classes retained, <code class="inl">OutOfMemoryError: Metaspace</code>.</p>
+  <p><strong>Root causes:</strong></p>
+  <ul class="clean">
+    <li><strong>Static references</strong> — plugin class static field se long-lived object reference</li>
+    <li><strong>ThreadLocal</strong> — thread pool threads plugin class hold karte hain</li>
+    <li><strong>Threads</strong> — plugin ne thread spawn kiya, band nahi hua</li>
+    <li><strong>JDBC drivers / MBeans / shutdown hooks</strong> registered, deregister nahi hue</li>
+    <li><strong>Listener registrations</strong> — global event bus pe listener chhod diya</li>
+    <li><strong>Parent classloader caches</strong> holding plugin objects</li>
+  </ul>
+</div>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Fixes:</strong></p>
+  <ul class="clean">
+    <li><strong>Weak references</strong> everywhere parent points to plugin</li>
+    <li><strong>Plugin lifecycle</strong> — <code class="inl">start()</code> / <code class="inl">stop()</code> interface, stop must deregister everything</li>
+    <li><strong>Dedicated thread pool</strong> per plugin, shutdown on unload</li>
+    <li><strong>Isolate plugins</strong> in separate JVMs (strongest, costs resources)</li>
+    <li><strong>Integration test:</strong> load plugin → unload → force GC → assert classloader collected</li>
+    <li>OSGi or proper plugin framework with lifecycle guarantees</li>
+  </ul>
+</div>
+
+<!-- EXCEPTIONS -->
+<h2 class="section" id="java-exceptions">
+  <span class="badge java">Java</span> Exception Handling + Arithmetic Fixes
+</h2>
+
+<div class="codewrap">
+  <div class="code-head"><span>Common arithmetic exceptions + fixes</span><span class="lang">JAVA</span></div>
+<pre><span class="cmt">// 1. Divide by zero</span>
+<span class="kw">int</span> c = (b == <span class="num">0</span>) ? <span class="num">0</span> : a / b;
+
+<span class="cmt">// 2. Integer overflow (silent!)</span>
+<span class="kw">long</span> safe = (<span class="kw">long</span>) <span class="typ">Integer</span>.MAX_VALUE + <span class="num">1</span>;   <span class="cmt">// cast to long first</span>
+
+<span class="cmt">// 3. BigDecimal divide without scale</span>
+<span class="typ">BigDecimal</span> q = x.divide(y, <span class="num">2</span>, <span class="typ">RoundingMode</span>.HALF_EVEN);  <span class="cmt">// 3.33</span>
+
+<span class="cmt">// 4. Modulo by zero</span>
+<span class="kw">if</span> (divisor != <span class="num">0</span>) { ... }
+
+<span class="cmt">// 5. Parse errors</span>
+<span class="kw">try</span> { <span class="kw">int</span> n = <span class="typ">Integer</span>.parseInt(s); }
+<span class="kw">catch</span> (<span class="typ">NumberFormatException</span> e) { <span class="cmt">/* handle */</span> }</pre>
+</div>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Golden rules:</strong></p>
+  <ul class="clean">
+    <li>BigDecimal divide pe <strong>hamesha</strong> scale + RoundingMode do</li>
+    <li>Integer math mein overflow check karo (Math.addExact, ya long cast)</li>
+    <li>Money mein <strong>kabhi</strong> double/float nahi</li>
+    <li>Resources ke liye try-with-resources</li>
+    <li>Specific exceptions catch karo, generic Exception nahi</li>
+  </ul>
+</div>
+
+<!-- ============================================================
+     SECTION 3: STREAMS & DATA PROCESSING
+     ============================================================ -->
+<h2 class="section" id="streams-csv">
+  <span class="badge java">Java</span> CSV Aggregation + Custom Collector
+</h2>
+
+<h3 class="topic orange">📄 CSV → Per-customer Totals (malformed handling)</h3>
+
+<div class="codewrap">
+  <div class="code-head"><span>CsvAggregator.java</span><span class="lang">JAVA</span></div>
+<pre><span class="kw">Map</span>&lt;<span class="typ">String</span>, <span class="typ">BigDecimal</span>&gt; <span class="fn">totals</span>(<span class="typ">Path</span> csv) <span class="kw">throws</span> <span class="typ">IOException</span> {
+    <span class="kw">try</span> (<span class="typ">Stream</span>&lt;<span class="typ">String</span>&gt; lines = <span class="typ">Files</span>.lines(csv)) {
+        <span class="kw">return</span> lines
+            .skip(<span class="num">1</span>)                                    <span class="cmt">// header</span>
+            .map(<span class="typ">String</span>::trim)
+            .filter(s -&gt; !s.isEmpty())
+            .map(line -&gt; {
+                <span class="kw">try</span> {
+                    <span class="typ">String</span>[] p = line.split(<span class="str">","</span>);
+                    <span class="kw">if</span> (p.length &lt; <span class="num">2</span>) <span class="kw">return null</span>;
+                    <span class="kw">return new</span> <span class="typ">Tx</span>(p[<span class="num">0</span>].trim(), <span class="kw">new</span> <span class="typ">BigDecimal</span>(p[<span class="num">1</span>].trim()));
+                } <span class="kw">catch</span> (<span class="typ">Exception</span> e) {
+                    log.warn(<span class="str">"Bad line: {}"</span>, line);
+                    <span class="kw">return null</span>;                            <span class="cmt">// skip</span>
+                }
+            })
+            .filter(<span class="typ">Objects</span>::nonNull)
+            .collect(<span class="typ">Collectors</span>.groupingBy(
+                <span class="typ">Tx</span>::customer,
+                <span class="typ">Collectors</span>.reducing(<span class="typ">BigDecimal</span>.ZERO,
+                                    <span class="typ">Tx</span>::amount, <span class="typ">BigDecimal</span>::add)));
+    }
+}</pre>
+</div>
+
+<table class="lbl">
+  <tr><th>Line</th><th>Explanation</th></tr>
+  <tr><td>Files.lines(csv)</td><td><strong>Lazy line stream.</strong> Poora file memory mein nahi — streaming.</td></tr>
+  <tr><td>.skip(1)</td><td>Header skip.</td></tr>
+  <tr><td>try-catch per line</td><td><strong>Malformed line isolate.</strong> Poora job fail nahi hota — sirf woh line skip.</td></tr>
+  <tr><td>.filter(Objects::nonNull)</td><td>Bad lines null return karte hain — filter out.</td></tr>
+  <tr><td>Collectors.reducing(ZERO, amount, add)</td><td><strong>BigDecimal add.</strong> sum() nahi — primitive only. Reducing BigDecimal ke saath.</td></tr>
+</table>
+
+<h3 class="topic orange">📊 Custom Collector — {count, total, min, max}</h3>
+
+<div class="codewrap">
+  <div class="code-head"><span>StatsCollector.java</span><span class="lang">JAVA</span></div>
+<pre><span class="kw">record</span> <span class="typ">Stats</span>(<span class="kw">long</span> count, <span class="typ">BigDecimal</span> total,
+              <span class="typ">BigDecimal</span> min, <span class="typ">BigDecimal</span> max) {}
+
+<span class="kw">class</span> <span class="typ">StatsCollector</span> <span class="kw">implements</span> <span class="typ">Collector</span>&lt;<span class="typ">BigDecimal</span>, <span class="typ">StatsAcc</span>, <span class="typ">Stats</span>&gt; {
+
+    <span class="kw">public</span> <span class="typ">Supplier</span>&lt;<span class="typ">StatsAcc</span>&gt; <span class="fn">supplier</span>() { <span class="kw">return</span> <span class="typ">StatsAcc</span>::<span class="kw">new</span>; }
+
+    <span class="kw">public</span> <span class="typ">BiConsumer</span>&lt;<span class="typ">StatsAcc</span>, <span class="typ">BigDecimal</span>&gt; <span class="fn">accumulator</span>() {
+        <span class="kw">return</span> (acc, v) -&gt; {
+            acc.count++;
+            acc.total = acc.total.add(v);
+            <span class="kw">if</span> (acc.min == <span class="kw">null</span> || v.compareTo(acc.min) &lt; <span class="num">0</span>) acc.min = v;
+            <span class="kw">if</span> (acc.max == <span class="kw">null</span> || v.compareTo(acc.max) &gt; <span class="num">0</span>) acc.max = v;
+        };
+    }
+
+    <span class="kw">public</span> <span class="typ">BinaryOperator</span>&lt;<span class="typ">StatsAcc</span>&gt; <span class="fn">combiner</span>() {          <span class="cmt">// parallel ke liye</span>
+        <span class="kw">return</span> (a, b) -&gt; {
+            a.count += b.count;
+            a.total = a.total.add(b.total);
+            <span class="kw">if</span> (b.min != <span class="kw">null</span> && (a.min == <span class="kw">null</span> || b.min.compareTo(a.min) &lt; <span class="num">0</span>)) a.min = b.min;
+            <span class="kw">if</span> (b.max != <span class="kw">null</span> && (a.max == <span class="kw">null</span> || b.max.compareTo(a.max) &gt; <span class="num">0</span>)) a.max = b.max;
+            <span class="kw">return</span> a;
+        };
+    }
+
+    <span class="kw">public</span> <span class="typ">Function</span>&lt;<span class="typ">StatsAcc</span>, <span class="typ">Stats</span>&gt; <span class="fn">finisher</span>() {
+        <span class="kw">return</span> a -&gt; <span class="kw">new</span> <span class="typ">Stats</span>(a.count, a.total, a.min, a.max);
+    }
+
+    <span class="kw">public</span> <span class="typ">Set</span>&lt;<span class="typ">Characteristics</span>&gt; <span class="fn">characteristics</span>() {
+        <span class="kw">return</span> <span class="typ">EnumSet</span>.of(<span class="typ">Characteristics</span>.UNORDERED);
+    }
+
+    <span class="kw">static class</span> <span class="typ">StatsAcc</span> {
+        <span class="kw">long</span> count = <span class="num">0</span>;
+        <span class="typ">BigDecimal</span> total = <span class="typ">BigDecimal</span>.ZERO, min, max;
+    }
+}</pre>
+</div>
+
+<table class="lbl">
+  <tr><th>Line</th><th>Explanation</th></tr>
+  <tr><td>Collector&lt;T, A, R&gt;</td><td><strong>3 type params:</strong> T = input, A = accumulator (mutable), R = result.</td></tr>
+  <tr><td>supplier()</td><td>Naya accumulator banao. Har partition ke liye alag.</td></tr>
+  <tr><td>accumulator()</td><td>Ek element ko accumulator mein add karo. Mutable — fast.</td></tr>
+  <tr><td>combiner()</td><td><strong>Parallel ke liye.</strong> Do accumulators merge karo. Associative hona chahiye.</td></tr>
+  <tr><td>finisher()</td><td>Accumulator → final immutable result.</td></tr>
+  <tr><td>Characteristics.UNORDERED</td><td>Order matter nahi karta — parallel optimization hint. CONCURRENT hota toh single accumulator.</td></tr>
+</table>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Custom collector parallel-safe</strong> tab hai jab combiner associative ho. Yahaan min/max/total sab associative hain. <code class="inl">UNORDERED</code> characteristic parallel mein speedup deta hai. <code class="inl">CONCURRENT</code> + <code class="inl">UNORDERED</code> = single shared accumulator (sirf thread-safe accumulator ke saath).</p>
+</div>
+
+<!-- PARALLEL STREAMS -->
+<h2 class="section" id="streams-parallel">
+  <span class="badge java">Java</span> parallelStream() — Pitfalls
+</h2>
+
+<div class="card">
+  <p><strong>Pitfalls:</strong></p>
+  <ul class="clean cross">
+    <li><b>Ordering:</b> <code class="inl">parallelStream()</code> encounter order guarantee nahi karta unless <code class="inl">forEachOrdered</code> ya ordered collector. <code class="inl">findFirst</code> vs <code class="inl">findAny</code> ka farq.</li>
+    <li><b>Thread safety:</b> Shared mutable state (ArrayList, HashMap) mein parallel writes → data race. <code class="inl">Collectors.toList()</code> safe, manual <code class="inl">list.add()</code> nahi.</li>
+    <li><b>Stateful lambdas:</b> Non-deterministic results.</li>
+    <li><b>Performance:</b> Common ForkJoinPool use hota hai — blocking I/O poore pool ko starve kar deta.</li>
+    <li><b>False sharing:</b> Atomic counters pe cache contention.</li>
+    <li><b>Exceptions:</b> Worker threads mein propagate messy.</li>
+  </ul>
+  <p><strong>Rule of thumb:</strong> Parallel tabhi jab data bada (&gt;10k), CPU-bound, side-effect-free, aur benchmark se fayda dikhe.</p>
+</div>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Interview mein:</strong> "parallelStream by default common ForkJoinPool use karta hai — usse customize karo ya dedicated pool do (custom ForkJoinPool). Blocking I/O ke liye parallelStream bilkul mat use karo. Measurement ke bina parallelize mat karo."</p>
+</div>
+
+<!-- EXTERNAL SORT -->
+<h2 class="section" id="data-external">
+  <span class="badge java">Data</span> External Sort + Dedup
+</h2>
+
+<div class="card">
+  <p><strong>Problem:</strong> File RAM mein fit nahi hoti. Sort + dedup karna hai.</p>
+  <p><strong>External Merge Sort:</strong></p>
+</div>
+
+<div class="flow">
+  <div class="step"><strong>Chunk</strong><span>File ko blocks mein padho jo RAM mein fit ho (e.g. 100 MB).</span></div>
+  <div class="step"><strong>Sort + dedup in memory</strong><span>Har chunk ko sort karo, unique run file disk pe likho.</span></div>
+  <div class="step"><strong>K-way merge</strong><span>Saare runs ko min-heap se merge karo (k = number of runs).</span></div>
+  <div class="step"><strong>Dedup during merge</strong><span>Consecutive equal records skip karo.</span></div>
+</div>
+
+<div class="codewrap">
+  <div class="code-head"><span>K-way merge with dedup</span><span class="lang">JAVA</span></div>
+<pre><span class="typ">PriorityQueue</span>&lt;<span class="typ">Cursor</span>&gt; pq = <span class="kw">new</span> <span class="typ">PriorityQueue</span>&lt;&gt;(
+    <span class="typ">Comparator</span>.comparing(<span class="typ">Cursor</span>::peek));
+
+<span class="typ">String</span> lastEmitted = <span class="kw">null</span>;
+<span class="kw">try</span> (<span class="typ">BufferedWriter</span> w = ...) {
+    <span class="kw">while</span> (!pq.isEmpty()) {
+        <span class="typ">Cursor</span> c = pq.poll();
+        <span class="typ">String</span> line = c.next();
+        <span class="kw">if</span> (!line.equals(lastEmitted)) {      <span class="cmt">// dedup</span>
+            w.write(line); w.newLine();
+            lastEmitted = line;
+        }
+        <span class="kw">if</span> (c.hasNext()) pq.offer(c);
+    }
+}</pre>
+</div>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Complexity:</strong> O(N log N) time, O(N/B) I/O passes where B = buffer size. <strong>Unix equivalent:</strong> <code class="inl">sort -u -S 2G --parallel=4 big.csv</code> — exactly yahi karta hai.</p>
+  <p><strong>Dedup:</strong> Sort ke baad consecutive equal skip. Agar sort nahi chahiye toh Bloom filter + exact set.</p>
+</div>
+
+<!-- SLIDING WINDOW -->
+<h2 class="section" id="data-sliding">
+  <span class="badge java">Data</span> Sliding Window Total Spend
+</h2>
+
+<div class="card">
+  <p><strong>Problem:</strong> Har naye event pe, last N minutes ka total spend per customer.</p>
+  <p><strong>Approach:</strong> Per-minute buckets in a ring buffer of size N. Sum update O(1) amortized. Purane bucket subtract.</p>
+</div>
+
+<div class="codewrap">
+  <div class="code-head"><span>SlidingWindowSpend.java</span><span class="lang">JAVA</span></div>
+<pre><span class="kw">class</span> <span class="typ">SlidingWindowSpend</span> {
+    <span class="kw">private final int</span> windowMinutes;
+    <span class="kw">private final</span> <span class="typ">Map</span>&lt;<span class="typ">String</span>, <span class="typ">Deque</span>&lt;<span class="kw">long</span>[]&gt;&gt; byCustomer = <span class="kw">new</span> <span class="typ">HashMap</span>&lt;&gt;();
+    <span class="cmt">// each entry: [epochMinute, amountInMinorUnits]</span>
+
+    <span class="kw">synchronized</span> <span class="typ">BigDecimal</span> <span class="fn">onEvent</span>(<span class="typ">String</span> customer, <span class="typ">BigDecimal</span> amt,
+                                    <span class="kw">long</span> epochMillis) {
+        <span class="kw">long</span> minute = epochMillis / <span class="num">60_000</span>;
+        <span class="typ">Deque</span>&lt;<span class="kw">long</span>[]&gt; q = byCustomer.computeIfAbsent(customer, k -&gt; <span class="kw">new</span> <span class="typ">ArrayDeque</span>&lt;&gt;());
+        q.addLast(<span class="kw">new long</span>[]{ minute, amt.movePointRight(<span class="num">2</span>).longValueExact() });
+
+        <span class="kw">long</span> cutoff = minute - windowMinutes + <span class="num">1</span>;
+        <span class="kw">while</span> (!q.isEmpty() && q.peekFirst()[<span class="num">0</span>] &lt; cutoff) q.pollFirst();
+
+        <span class="kw">long</span> sum = q.stream().mapToLong(a -&gt; a[<span class="num">1</span>]).sum();
+        <span class="kw">return</span> <span class="typ">BigDecimal</span>.valueOf(sum, <span class="num">2</span>);
+    }
+}</pre>
+</div>
+
+<table class="lbl">
+  <tr><th>Line</th><th>Explanation</th></tr>
+  <tr><td>minute = epochMillis / 60000</td><td>Timestamp → minute bucket. Granularity tune karo (second bhi ho sakta).</td></tr>
+  <tr><td>amt.movePointRight(2).longValueExact()</td><td><strong>BigDecimal → long paise.</strong> Exact conversion, no float. Money in minor units.</td></tr>
+  <tr><td>cutoff = minute - window + 1</td><td>Oldest minute jo window mein hai.</td></tr>
+  <tr><td>while (peekFirst() < cutoff) pollFirst()</td><td><strong>Sliding.</strong> Purane buckets hatao. Deque sorted hai — O(1) amortized.</td></tr>
+</table>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>O(1) amortized per event</strong> (bucket approach). Sliding window sum maintain karne ke liye running total bhi rakh sakte — naya bucket add, purana subtract. <strong>Production:</strong> Flink/Kafka Streams windowed aggregation with watermarking.</p>
+</div>
+
+<!-- XML -->
+<h2 class="section" id="data-xml">
+  <span class="badge java">Data</span> Large XML Parsing — Not Stuck
+</h2>
+
+<div class="card">
+  <p><strong>Concerns:</strong></p>
+  <ul class="clean cross">
+    <li><b>DOM parser:</b> Poora XML RAM mein → OOM for GB-scale files</li>
+    <li><b>Single-threaded:</b> Slow for huge files</li>
+    <li><b>DB write throughput:</b> Per-record INSERT slow</li>
+    <li><b>Transaction size:</b> Millions of inserts ek transaction mein → lock/undo blowup</li>
+    <li><b>Malformed XML:</b> Parse fail mid-way → partial state</li>
+    <li><b>No checkpointing:</b> Crash → start over</li>
+  </ul>
+</div>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Actions:</strong></p>
+  <ul class="clean">
+    <li><strong>Streaming parser:</strong> SAX/StAX — constant memory, event-based</li>
+    <li><strong>Batch inserts:</strong> JDBC batch (1000-5000 rows) ya COPY/LOAD DATA</li>
+    <li><strong>Chunked transactions:</strong> Commit every N records — failure partial rollback</li>
+    <li><strong>Checkpointing:</strong> Last processed offset track karo, resume possible</li>
+    <li><strong>Idempotency:</strong> Unique key + upsert — reprocessing safe</li>
+    <li><strong>Backpressure:</strong> Bounded queue between parser and DB writer</li>
+    <li><strong>Error handling:</strong> Malformed records skip with logging</li>
+  </ul>
+</div>
+
+<!-- ============================================================
+     SECTION 4: PAYMENTS ADVANCED
+     ============================================================ -->
+<h2 class="section" id="pay-reconcile">
+  <span class="badge pay">Payments</span> Ledger Reconciliation
+</h2>
+
+<div class="codewrap">
+  <div class="code-head"><span>LedgerReconciler.java</span><span class="lang">JAVA</span></div>
+<pre><span class="kw">record</span> <span class="typ">Entry</span>(<span class="typ">String</span> id, <span class="typ">BigDecimal</span> amount) {}
+<span class="kw">record</span> <span class="typ">Diff</span>(<span class="typ">String</span> id, <span class="typ">BigDecimal</span> left, <span class="typ">BigDecimal</span> right,
+            <span class="typ">BigDecimal</span> delta, <span class="typ">String</span> status) {}
+
+<span class="typ">List</span>&lt;<span class="typ">Diff</span>&gt; <span class="fn">reconcile</span>(<span class="typ">List</span>&lt;<span class="typ">Entry</span>&gt; a, <span class="typ">List</span>&lt;<span class="typ">Entry</span>&gt; b) {
+    <span class="typ">Map</span>&lt;<span class="typ">String</span>, <span class="typ">BigDecimal</span>&gt; m1 = a.stream()
+        .collect(<span class="typ">Collectors</span>.toMap(<span class="typ">Entry</span>::id, <span class="typ">Entry</span>::amount,
+                                  <span class="typ">BigDecimal</span>::add, <span class="typ">LinkedHashMap</span>::<span class="kw">new</span>));
+    <span class="typ">Map</span>&lt;<span class="typ">String</span>, <span class="typ">BigDecimal</span>&gt; m2 = b.stream()
+        .collect(<span class="typ">Collectors</span>.toMap(<span class="typ">Entry</span>::id, <span class="typ">Entry</span>::amount,
+                                  <span class="typ">BigDecimal</span>::add, <span class="typ">LinkedHashMap</span>::<span class="kw">new</span>));
+
+    <span class="typ">Set</span>&lt;<span class="typ">String</span>&gt; ids = <span class="kw">new</span> <span class="typ">LinkedHashSet</span>&lt;&gt;();
+    ids.addAll(m1.keySet()); ids.addAll(m2.keySet());
+
+    <span class="typ">List</span>&lt;<span class="typ">Diff</span>&gt; out = <span class="kw">new</span> <span class="typ">ArrayList</span>&lt;&gt;();
+    <span class="kw">for</span> (<span class="typ">String</span> id : ids) {
+        <span class="typ">BigDecimal</span> l = m1.get(id), r = m2.get(id);
+        <span class="kw">if</span> (l == <span class="kw">null</span>)      out.add(<span class="kw">new</span> <span class="typ">Diff</span>(id, <span class="kw">null</span>, r, r, <span class="str">"MISSING_IN_A"</span>));
+        <span class="kw">else if</span> (r == <span class="kw">null</span>) out.add(<span class="kw">new</span> <span class="typ">Diff</span>(id, l, <span class="kw">null</span>, l.negate(), <span class="str">"MISSING_IN_B"</span>));
+        <span class="kw">else if</span> (l.compareTo(r) != <span class="num">0</span>)
+                            out.add(<span class="kw">new</span> <span class="typ">Diff</span>(id, l, r, r.subtract(l), <span class="str">"DELTA"</span>));
+    }
+    <span class="kw">return</span> out;
+}</pre>
+</div>
+
+<table class="lbl">
+  <tr><th>Line</th><th>Explanation</th></tr>
+  <tr><td>Collectors.toMap(id, amount, BigDecimal::add, LinkedHashMap::new)</td><td><strong>Duplicate IDs merge karo</strong> (BigDecimal::add). LinkedHashMap order preserve.</td></tr>
+  <tr><td>LinkedHashSet ids</td><td><strong>Union of keys.</strong> Dono ledgers ke saare IDs, order preserve.</td></tr>
+  <tr><td>l == null / r == null</td><td>Ek side missing. Delta = dusre side ka amount.</td></tr>
+  <tr><td>compareTo(r) != 0</td><td><strong>BigDecimal comparison.</strong> equals() scale-sensitive hai (1.0 != 1.00), compareTo value-based.</td></tr>
+  <tr><td>r.subtract(l)</td><td>Delta — right minus left.</td></tr>
+</table>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>O(n) time, O(n) space.</strong> Set-difference + amount compare. <strong>Scale pe:</strong> Dono ledgers ko id-sorted stream karo, merge-join karo — O(n) time, O(1) space (streaming).</p>
+</div>
+
+<!-- FEES -->
+<h2 class="section" id="pay-fees">
+  <span class="badge pay">Payments</span> Fees/Taxes + Why double Unsafe
+</h2>
+
+<div class="card">
+  <p><strong>Why double unsafe:</strong> IEEE-754 binary floating point 0.1, 0.2 ko exactly represent nahi kar sakta. <code class="inl">0.1 + 0.2 = 0.30000000000000004</code>. Iterative accumulation mein error compound. Payments mein ek paisa bhi mismatch audit fail.</p>
+</div>
+
+<div class="codewrap">
+  <div class="code-head"><span>Fees with BigDecimal</span><span class="lang">JAVA</span></div>
+<pre><span class="kw">public static</span> <span class="typ">BigDecimal</span> <span class="fn">applyFee</span>(<span class="typ">BigDecimal</span> amount,
+                                    <span class="typ">BigDecimal</span> feeRate,   <span class="cmt">// e.g. 0.015</span>
+                                    <span class="typ">BigDecimal</span> taxRate,   <span class="cmt">// e.g. 0.18</span>
+                                    <span class="typ">Currency</span> cur) {
+    <span class="kw">int</span> scale = cur.getDefaultFractionDigits();      <span class="cmt">// INR -> 2</span>
+    <span class="typ">BigDecimal</span> fee = amount.multiply(feeRate)
+                           .setScale(scale, <span class="typ">RoundingMode</span>.HALF_EVEN);
+    <span class="typ">BigDecimal</span> tax = fee.multiply(taxRate)
+                        .setScale(scale, <span class="typ">RoundingMode</span>.HALF_EVEN);
+    <span class="kw">return</span> amount.add(fee).add(tax)
+                 .setScale(scale, <span class="typ">RoundingMode</span>.HALF_EVEN);
+}</pre>
+</div>
+
+<table class="lbl">
+  <tr><th>Line</th><th>Explanation</th></tr>
+  <tr><td>cur.getDefaultFractionDigits()</td><td><strong>Currency-aware scale.</strong> INR=2, JPY=0, KWD=3. Hardcode mat karo.</td></tr>
+  <tr><td>RoundingMode.HALF_EVEN</td><td><strong>Banker's rounding.</strong> Statistically unbiased — financial standard. HALF_UP biased hai.</td></tr>
+  <tr><td>setScale after each step</td><td><strong>Har step pe round.</strong> Warna intermediate precision badh jaati, final round alag result deta.</td></tr>
+</table>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Money ke rules:</strong></p>
+  <ul class="clean">
+    <li><strong>BigDecimal</strong> (string constructor) ya <strong>long minor units</strong> (paise/cents)</li>
+    <li>Rounding <strong>HALF_EVEN</strong> — financial standard</li>
+    <li><strong>Har step pe setScale</strong> — intermediate values controlled</li>
+    <li>Currency-aware scale — hardcode nahi</li>
+    <li><code class="inl">compareTo()</code> for equality, <code class="inl">equals()</code> nahi (scale-sensitive)</li>
+  </ul>
+</div>
+
+<!-- URL-SAFE IDEMPOTENCY -->
+<h2 class="section" id="pay-urlkey">
+  <span class="badge pay">Payments</span> URL-safe Collision-resistant Idempotency Keys
+</h2>
+
+<div class="codewrap">
+  <div class="code-head"><span>IdempotencyKeyGenerator.java</span><span class="lang">JAVA</span></div>
+<pre><span class="kw">public final class</span> <span class="typ">IdempotencyKeyGenerator</span> {
+    <span class="kw">private static final</span> <span class="typ">SecureRandom</span> RNG = <span class="kw">new</span> <span class="typ">SecureRandom</span>();
+
+    <span class="cmt">/** 32 bytes = 256 bits of entropy, base64url encoded = ~43 chars. */</span>
+    <span class="kw">public static</span> <span class="typ">String</span> <span class="fn">generate</span>() {
+        <span class="kw">byte</span>[] bytes = <span class="kw">new byte</span>[<span class="num">32</span>];
+        RNG.nextBytes(bytes);
+        <span class="kw">return</span> <span class="typ">Base64</span>.getUrlEncoder()
+                     .withoutPadding()
+                     .encodeToString(bytes);
+    }
+
+    <span class="cmt">/** Deterministic key for same logical request (idempotency). */</span>
+    <span class="kw">public static</span> <span class="typ">String</span> <span class="fn">deterministic</span>(<span class="typ">String</span> clientId,
+                                              <span class="typ">String</span> requestId,
+                                              <span class="typ">BigDecimal</span> amount) {
+        <span class="kw">try</span> {
+            <span class="typ">MessageDigest</span> md = <span class="typ">MessageDigest</span>.getInstance(<span class="str">"SHA-256"</span>);
+            <span class="typ">String</span> input = clientId + <span class="str">"|"</span> + requestId + <span class="str">"|"</span> + amount.toPlainString();
+            <span class="kw">byte</span>[] hash = md.digest(input.getBytes(<span class="typ">StandardCharsets</span>.UTF_8));
+            <span class="kw">return</span> <span class="typ">Base64</span>.getUrlEncoder().withoutPadding()
+                         .encodeToString(hash).substring(<span class="num">0</span>, <span class="num">32</span>);
+        } <span class="kw">catch</span> (<span class="typ">NoSuchAlgorithmException</span> e) {
+            <span class="kw">throw new</span> <span class="typ">IllegalStateException</span>(e);
+        }
+    }
+}</pre>
+</div>
+
+<table class="lbl">
+  <tr><th>Line</th><th>Explanation</th></tr>
+  <tr><td>SecureRandom</td><td><strong>Crypto-secure RNG.</strong> Random nahi — predictable nahi hona chahiye.</td></tr>
+  <tr><td>new byte[32]</td><td><strong>256 bits entropy.</strong> Birthday paradox: 2^128 operations pe collision probability meaningful. Practically impossible.</td></tr>
+  <tr><td>Base64.getUrlEncoder()</td><td><strong>URL-safe.</strong> <code class="inl">+ / =</code> ki jagah <code class="inl">- _</code>. HTTP header/URL mein safe.</td></tr>
+  <tr><td>withoutPadding()</td><td>Trailing <code class="inl">=</code> hatao — shorter, URL-friendly.</td></tr>
+  <tr><td>deterministic()</td><td><strong>Same input → same key.</strong> Client-side generation ke liye — retry pe same key.</td></tr>
+  <tr><td>substring(0, 32)</td><td>Chhota key. 128 bits bhi practically collision-free.</td></tr>
+</table>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Requirements:</strong> URL-safe (base64url, no padding), collision-resistant (256 bits entropy), cryptographically random (SecureRandom), aur idempotency ke liye deterministic bhi possible.</p>
+  <p><strong>Best practice:</strong> Client <em>random</em> key generate kare (SecureRandom UUID v4), server usse store kare. Ya client deterministic derive kare (client_id + request_id hash). Dono valid hain.</p>
+</div>
+
+<!-- HASH CHAIN -->
+<h2 class="section" id="pay-hashchain">
+  <span class="badge pay">Payments</span> Audit Log Hash Chain
+</h2>
+
+<div class="codewrap">
+  <div class="code-head"><span>AuditHashChain.java</span><span class="lang">JAVA</span></div>
+<pre><span class="kw">record</span> <span class="typ">AuditEntry</span>(<span class="kw">long</span> seq, <span class="typ">String</span> actor, <span class="typ">String</span> action,
+                  <span class="typ">String</span> payload, <span class="typ">Instant</span> ts,
+                  <span class="typ">String</span> prevHash, <span class="typ">String</span> hash) {}
+
+<span class="kw">static</span> <span class="typ">String</span> <span class="fn">computeHash</span>(<span class="typ">AuditEntry</span> e) <span class="kw">throws</span> <span class="typ">Exception</span> {
+    <span class="typ">String</span> data = e.seq() + <span class="str">"|"</span> + e.actor() + <span class="str">"|"</span> + e.action() + <span class="str">"|"</span>
+                + e.payload() + <span class="str">"|"</span> + e.ts() + <span class="str">"|"</span> + e.prevHash();
+    <span class="typ">MessageDigest</span> md = <span class="typ">MessageDigest</span>.getInstance(<span class="str">"SHA-256"</span>);
+    <span class="kw">return</span> <span class="typ">HexFormat</span>.of().formatHex(
+        md.digest(data.getBytes(<span class="typ">StandardCharsets</span>.UTF_8)));
+}
+
+<span class="kw">static boolean</span> <span class="fn">verify</span>(<span class="typ">List</span>&lt;<span class="typ">AuditEntry</span>&gt; chain) <span class="kw">throws</span> <span class="typ">Exception</span> {
+    <span class="typ">String</span> prev = <span class="str">"GENESIS"</span>;
+    <span class="kw">for</span> (<span class="typ">AuditEntry</span> e : chain) {
+        <span class="kw">if</span> (!prev.equals(e.prevHash()))            <span class="kw">return false</span>;  <span class="cmt">// broken link</span>
+        <span class="kw">if</span> (!computeHash(e).equals(e.hash()))      <span class="kw">return false</span>;  <span class="cmt">// tampered</span>
+        prev = e.hash();
+    }
+    <span class="kw">return true</span>;
+}</pre>
+</div>
+
+<table class="lbl">
+  <tr><th>Line</th><th>Explanation</th></tr>
+  <tr><td>prevHash field</td><td><strong>Chain link.</strong> Har entry pichle ka hash rakhti hai. Koi bhi entry badlo, uske baad ki saari invalid.</td></tr>
+  <tr><td>computeHash: all fields + prevHash</td><td>Hash mein sab kuch include — koi field change nahi ho sakti without detection.</td></tr>
+  <tr><td>verify: prev.equals(e.prevHash())</td><td><strong>Chain continuity check.</strong> Link toota toh detect.</td></tr>
+  <tr><td>computeHash(e).equals(e.hash())</td><td><strong>Self-integrity check.</strong> Entry ka data badla toh hash mismatch.</td></tr>
+</table>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Immutability:</strong> Chain ki koi bhi entry badalne ke liye uske baad ki <em>saari</em> entries recompute karni padengi — computationally infeasible agar external anchor (daily signature, blockchain, notary) ho.</p>
+  <p><strong>Production:</strong> Append-only storage (S3 Object Lock), periodic Merkle root + signature, hash chain verification job.</p>
+</div>
+
+<!-- SAGA TEST -->
+<h2 class="section" id="pay-saga">
+  <span class="badge pay">Payments</span> Idempotent Saga — Test Plan
+</h2>
+
+<table class="cmp">
+  <tr><th>Test</th><th>Setup</th><th>Expected</th></tr>
+  <tr><td><strong>Happy path</strong></td><td>Normal transfer</td><td>1 payment, ledger balanced (debits == credits)</td></tr>
+  <tr><td><strong>Duplicate retry</strong></td><td>Same key 5x bhejo</td><td>Exactly 1 payment, identical response, 1 ledger entry</td></tr>
+  <tr><td><strong>Concurrent duplicates</strong></td><td>20 parallel same key</td><td>1 success, 19 replay/409, DB unique constraint verify</td></tr>
+  <tr><td><strong>Partial failure</strong></td><td>Debit succeed, credit fail</td><td>Saga compensation (reverse debit) chale, no money lost</td></tr>
+  <tr><td><strong>Timeout + retry</strong></td><td>Downstream timeout</td><td>Retry pe duplicate na ho</td></tr>
+  <tr><td><strong>Crash recovery</strong></td><td>Payment write ke baad kill</td><td>Restart pe outbox event publish</td></tr>
+  <tr><td><strong>Out-of-order events</strong></td><td>Kafka shuffled events</td><td>State consistent</td></tr>
+  <tr><td><strong>Poison message</strong></td><td>Malformed event</td><td>DLQ, main flow block nahi</td></tr>
+  <tr><td><strong>Reconciliation</strong></td><td>Time baad ledger vs bank</td><td>Zero drift</td></tr>
+</table>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Tools:</strong> Testcontainers (Kafka+Postgres), WireMock/Toxiproxy (fault injection), Chaos Monkey (random kills). <strong>Coverage:</strong> Idempotency, compensation, crash recovery, duplicate suppression, reconciliation.</p>
+</div>
+
+<!-- MULTI-REGION IDEMPOTENCY -->
+<h2 class="section" id="pay-multiregion">
+  <span class="badge pay">Payments</span> Multi-region Active-Active Idempotency
+</h2>
+
+<div class="card">
+  <p><strong>Problem:</strong> Same idempotency key do regions mein process ho sakti hai (network partition pe). Duplicate charge risk.</p>
+</div>
+
+<table class="cmp">
+  <tr><th>Approach</th><th>How</th><th>Pros</th><th>Cons</th></tr>
+  <tr><td><strong>Deterministic key routing</strong></td><td>Key hash → home region. Sirf wahi region process kare.</td><td>Simple, no cross-region coordination</td><td>Region down = key unavailable</td></tr>
+  <tr><td><strong>Global strongly-consistent store</strong></td><td>DynamoDB conditional write / Spanner / etcd</td><td>True global idempotency</td><td>Cross-region latency</td></tr>
+  <tr><td><strong>Region-scoped keys</strong></td><td>Client se <code class="inl">regionId:uuid</code></td><td>Collision impossible</td><td>Client-side change</td></tr>
+  <tr><td><strong>Two-phase</strong></td><td>Local claim + async reconcile with CRDT</td><td>Fast local</td><td>Complex, conflict resolution</td></tr>
+</table>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Best practice:</strong> Route by key hash → home region. Store final response so replay from any region returns identical result. TTL 24h–7d on idempotency records. Fallback: region-scoped keys (client generates <code class="inl">region:uuid</code>).</p>
+</div>
+
+<!-- ============================================================
+     SECTION 5: DISTRIBUTED SYSTEMS SCENARIOS
+     ============================================================ -->
+<h2 class="section" id="dist-cap-scenarios">
+  <span class="badge dist">Distributed</span> CAP Theorem — Real Scenarios
+</h2>
+
+<h3 class="topic">🏦 Banking Transfer — Network Down</h3>
+<div class="card">
+  <p><strong>(a) Which two CAP?</strong> Consistency vs Availability (P hamesha hai distributed mein).</p>
+  <p><strong>(b) Prefer?</strong> <em>Consistency</em> — paisa galat nahi ho sakta. Better to fail than corrupt.</p>
+  <p><strong>(c) Server unreachable?</strong> Transaction abort, clear error, idempotency key store, async reconciliation, client retry with backoff.</p>
+</div>
+
+<h3 class="topic">🛒 E-commerce Price — Stale Display</h3>
+<div class="card">
+  <p><strong>(a) Stale price OK?</strong> Display pe haan, checkout pe nahi. Final price re-validate karo.</p>
+  <p><strong>(b) CAP property?</strong> <em>Availability</em> — site down karna revenue killer. Eventual consistency acceptable.</p>
+  <p><strong>(c) Block users?</strong> Nahi. Read replicas serve karein, checkout pe price lock, "price may change" disclaimer.</p>
+</div>
+
+<h3 class="topic">🏏 Live Cricket Score</h3>
+<div class="card">
+  <p><strong>(a) Show live score:</strong> Scorer → Kafka → fan-out → WebSocket. CDN edge snapshot for new joiners.</p>
+  <p><strong>(b) Polling vs long-polling vs WebSocket?</strong> <em>WebSocket</em> — full-duplex, low overhead, instant push. Polling wasteful, long-polling connection churn.</p>
+  <p><strong>(c) 1-2 sec delay OK?</strong> Haan. Eventual consistency + CDN caching. Millions scale handle.</p>
+</div>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Framework:</strong> (1) Paisa/legal → strong. (2) UX/analytics → eventual. (3) Mixed → alag paths (display eventual, action strong). <strong>PACELC:</strong> Partition ke waqt C vs A, warna Latency vs Consistency.</p>
+</div>
+
+<!-- FB FRIENDS -->
+<h2 class="section" id="dist-fb-friends">
+  <span class="badge dist">Distributed</span> Facebook Friend Count Feature
+</h2>
+
+<div class="card">
+  <p><strong>Naive:</strong> Har post render pe <code class="inl">COUNT(*)</code> from USER_RELATIONSHIP. Per-post, per-view — millions pe impossible.</p>
+  <p><strong>Solution: Denormalized counter + async updates.</strong></p>
+</div>
+
+<div class="flow">
+  <div class="step"><strong>USER.friend_count column add karo</strong><span>Materialized count — O(1) read.</span></div>
+  <div class="step"><strong>Friend add/remove pe counter update</strong><span>Synchronous (same tx, simple) ya async via queue.</span></div>
+  <div class="step"><strong>Post render:</strong><span><code class="inl">SELECT friend_count FROM USER WHERE user_id = ?</code> — O(1).</span></div>
+  <div class="step"><strong>Celebrity users:</strong><span>Sharded counter (Redis INCR, N shards) — contention kam.</span></div>
+  <div class="step"><strong>Cache hot counts:</strong><span>Redis/Memcached with short TTL.</span></div>
+</div>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Trade-off:</strong> Eventual consistency — count thoda stale ho sakta hai, user ko farq nahi. Idempotent events (friend_added/removed with event id) for exactly-once counter updates.</p>
+  <p><strong>Alternative:</strong> Approximate counts OK? HLL (HyperLogLog) — O(1) memory, ~2% error.</p>
+</div>
+
+<!-- GOOGLE DOCS -->
+<h2 class="section" id="dist-gdocs">
+  <span class="badge dist">Distributed</span> Google Docs Clone — Round-robin Concerns
+</h2>
+
+<div class="card">
+  <p><strong>Design:</strong> Multiple users on a doc, single server per doc, fixed servers, round-robin permanent assignment.</p>
+  <p><strong>Concerns:</strong></p>
+  <ul class="clean cross">
+    <li><b>Hot spots:</b> Popular doc wala server overload, dusre idle</li>
+    <li><b>Server failure:</b> Us server ke saare docs unavailable — no failover</li>
+    <li><b>No elasticity:</b> Servers fixed, traffic spike handle nahi</li>
+    <li><b>Data locality:</b> Doc us server pe, replication nahi</li>
+    <li><b>Rebalancing:</b> Server add/remove = doc migration</li>
+    <li><b>Geo latency:</b> Round-robin geographic awareness nahi</li>
+  </ul>
+</div>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Improvements:</strong> Consistent hashing (not round-robin), virtual nodes, hot-doc splitting (CRDT), replication RF=3 with Raft per doc-group, load-aware routing, sticky sessions with automatic failover.</p>
+</div>
+
+<!-- ROUND ROBIN -->
+<h2 class="section" id="dist-roundrobin">
+  <span class="badge dist">Distributed</span> Round-robin LB with Fixed Assignments
+</h2>
+
+<div class="card">
+  <p><strong>Pros:</strong> Simple, predictable, client-side caching friendly, reduced LB state.</p>
+  <p><strong>Cons:</strong> Uneven load, failure handling complex, scaling reshuffles, no global view, hot spots.</p>
+  <p><strong>Better:</strong> Consistent hashing with vnodes + health checks + load-aware routing. Ya least-connections / least-response-time algorithms.</p>
+</div>
+
+<!-- MUSIC HASHING -->
+<h2 class="section" id="dist-music">
+  <span class="badge dist">Distributed</span> Music Streaming — Hashing Issues
+</h2>
+
+<div class="card">
+  <ul class="clean cross">
+    <li><b>Hot songs:</b> Ek popular song ek server pe — viral track server maar dega</li>
+    <li><b>Rebalancing:</b> Modulo hash → server add/remove pe almost saare keys remap</li>
+    <li><b>Fixed capacity:</b> Ring pe uneven distribution without vnodes</li>
+    <li><b>Failures:</b> Server down = songs unavailable</li>
+    <li><b>Geo:</b> Hash geographic locality ignore karta</li>
+  </ul>
+  <p><strong>Fixes:</strong> Consistent hashing + vnodes, RF=2-3, CDN for hot tracks, geo-aware routing, dynamic rebalancing.</p>
+</div>
+
+<!-- SOCIAL WORLDWIDE -->
+<h2 class="section" id="dist-social">
+  <span class="badge dist">Distributed</span> Social Network Worldwide
+</h2>
+
+<div class="card">
+  <p><strong>Backend changes for global service:</strong></p>
+  <ul class="clean">
+    <li><b>Multi-region deployment</b> — data residency (GDPR), regional replicas</li>
+    <li><b>i18n/l10n backend</b> — user locale, localized emails, date/number/currency formatting (ICU)</li>
+    <li><b>Timezone handling</b> — UTC store, user TZ render, DST edge cases</li>
+    <li><b>Content moderation</b> — region-specific rules, local language</li>
+    <li><b>Local payment methods</b> — UPI, Alipay, SEPA, cards</li>
+    <li><b>CDN + edge caching</b> — regional media servers</li>
+    <li><b>Search</b> — language-aware tokenization (CJK, Arabic, Devanagari)</li>
+    <li><b>Compliance</b> — GDPR, CCPA, PIPL</li>
+    <li><b>Regional sharding</b> by geography, eventual consistency for feeds</li>
+  </ul>
+</div>
+
+<!-- ============================================================
+     SECTION 6: SECURITY & COMPLIANCE
+     ============================================================ -->
+<h2 class="section" id="sec-card">
+  <span class="badge sec">Security</span> Card Data + PII Protection
+</h2>
+
+<div class="card">
+  <p><strong>In transit:</strong> TLS 1.2+ (internal mTLS), HSTS, cert pinning, forward secrecy.</p>
+  <p><strong>At rest:</strong></p>
+  <ul class="clean">
+    <li>Full-disk encryption (LUKS, EBS)</li>
+    <li>Column-level encryption for PAN/PII (AES-256-GCM)</li>
+    <li><strong>Tokenization</strong> — never store PAN; processor token (Stripe/Visa)</li>
+    <li>PII pseudonymization/masking</li>
+  </ul>
+  <p><strong>Key management:</strong> HSM (CloudHSM/Key Vault), envelope encryption, rotation, no hardcoded keys, separation of duties.</p>
+  <p><strong>Access:</strong> RBAC + least privilege, JIT prod access, MFA, audit logs, DLP, PCI-DSS scope reduction.</p>
+</div>
+
+<!-- SSO -->
+<h2 class="section" id="sec-sso">
+  <span class="badge sec">Security</span> SSO with Step-up Authentication
+</h2>
+
+<div class="flow">
+  <div class="step"><strong>Normal login</strong><span>Low-assurance session (password + device).</span></div>
+  <div class="step"><strong>High-risk action</strong><span>Server checks <code class="inl">acr</code>/<code class="inl">amr</code> claim.</span></div>
+  <div class="step"><strong>Insufficient?</strong><span>401 with <code class="inl">acr_values</code> required (MFA).</span></div>
+  <div class="step"><strong>Redirect to IdP</strong><span>User OTP/biometric/hardware key.</span></div>
+  <div class="step"><strong>Elevated token</strong><span>Short-lived (5 min), scoped to operation.</span></div>
+  <div class="step"><strong>Validate + execute</strong><span>Server elevated token check, phir operation.</span></div>
+</div>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Risk signals:</strong> New device, unusual geo, large amount, velocity, time-of-day → adaptive step-up. <strong>Security:</strong> Short-lived tokens, refresh rotation, DPoP/mTLS binding, audit all step-ups.</p>
+</div>
+
+<!-- SECRETS -->
+<h2 class="section" id="sec-secrets">
+  <span class="badge sec">Security</span> Secrets Management — K8s + VMs
+</h2>
+
+<table class="cmp">
+  <tr><th>Kubernetes</th><th>VMs</th></tr>
+  <tr><td>External Secrets Operator (Vault → K8s Secrets)</td><td>IAM instance roles — no static keys</td></tr>
+  <tr><td>Sealed Secrets / SOPS for GitOps</td><td>Vault agent sidecar / systemd to fetch + renew</td></tr>
+  <tr><td>etcd encryption at rest</td><td>Encrypted disk, 600 perms, root-only</td></tr>
+  <tr><td>RBAC: specific ServiceAccounts</td><td>CI/CD: OIDC to cloud, no long-lived keys</td></tr>
+  <tr><td>Mount as files (tmpfs) not env vars</td><td>Env vars discouraged — process listing leak</td></tr>
+  <tr><td>SPIFFE/SPIRE workload identity</td><td>Audit access, alert on unusual reads</td></tr>
+  <tr><td>Admission controllers (OPA/Gatekeeper)</td><td>Rotate on compromise</td></tr>
+</table>
+
+<p style="font-size:13px; color:var(--fg2); margin-top:12px"><strong>Common:</strong> No secrets in Git (gitleaks pre-commit), rotate regularly, short TTLs, dynamic secrets (Vault DB), centralized audit.</p>
+
+<!-- PASSWORDS -->
+<h2 class="section" id="sec-passwords">
+  <span class="badge sec">Security</span> Password Rules — Concerns + Fixes
+</h2>
+
+<h3 class="topic red">🔒 "English only, 8-16 chars, 1 upper/lower/symbol/digit"</h3>
+<div class="card">
+  <p><strong>Concerns:</strong></p>
+  <ul class="clean cross">
+    <li><b>English-only:</b> Discrimination. Unicode allow karo (UTF-8, NFC normalize).</li>
+    <li><b>Max 16:</b> Arbitrary, hurts security. Long passphrases block karta.</li>
+    <li><b>Composition rules:</b> NIST SP 800-63B recommends <b>against</b> — predictable patterns (Password1!). Length > complexity.</li>
+    <li><b>No breach check:</b> Most important missing control.</li>
+    <li><b>No rate limiting:</b> Brute-force protection critical.</li>
+    <li><b>Forced rotation:</b> Harmful (predictable increments).</li>
+  </ul>
+  <p><strong>Fix:</strong> Min 12, max 64+, Unicode, no composition rules, breach-list check (HIBP k-anonymity), MFA, rate limit + lockout, Argon2id, zxcvbn strength meter, allow paste.</p>
+</div>
+
+<h3 class="topic red">🔒 "12 chars, alphanumeric, small+upper case"</h3>
+<div class="card">
+  <p><strong>Assessment:</strong> 12 chars is decent. 62^12 ≈ 3.2×10^21 — brute force infeasible against proper hashing. <strong>Not bad, but not great.</strong></p>
+  <p><strong>Missing:</strong> Breach-list check, MFA, symbol requirement (overrated but present).</p>
+  <p><strong>Improve:</strong> 12-16 min, allow up to 64+, breach check, MFA (biggest win), Argon2id, rate limiting, passkeys (WebAuthn), don't block paste.</p>
+</div>
+
+<!-- AUDIT LOG -->
+<h2 class="section" id="sec-audit">
+  <span class="badge sec">Security</span> Immutable Compliance Logging
+</h2>
+
+<div class="card">
+  <p><strong>Design:</strong></p>
+  <ul class="clean">
+    <li><b>Append-only storage:</b> WORM — S3 Object Lock, Azure Immutable Blob</li>
+    <li><b>Hash chain:</b> Har entry previous hash include — tamper detectable</li>
+    <li><b>Merkle tree:</b> Batch hashes → root, signed periodically (external anchor)</li>
+    <li><b>Write path:</b> App → Kafka → immutable log → object store + index</li>
+    <li><b>Query:</b> Elasticsearch/ClickHouse index over immutable blobs</li>
+    <li><b>Retention:</b> Hot (90d), warm (1y), cold (Glacier, 7y). Legal hold overrides.</li>
+    <li><b>Access:</b> Read-only, audited, role-based. No admin can modify.</li>
+    <li><b>Integrity verification:</b> Periodic hash re-compute, alert on mismatch.</li>
+    <li><b>GDPR conflict:</b> Pseudonymize PII or crypto-shredding (delete key).</li>
+  </ul>
+</div>
+
+<!-- FUZZ -->
+<h2 class="section" id="sec-fuzz">
+  <span class="badge sec">Security</span> Fuzz Testing
+</h2>
+
+<div class="card">
+  <p><strong>Fuzz testing:</strong> Random/invalid/malformed inputs se program crash/odd behaviour trigger karna. Automated, edge cases manual tests miss.</p>
+  <p><strong>Types:</strong></p>
+  <ul class="clean">
+    <li><b>Mutation-based:</b> Valid inputs randomly mutate</li>
+    <li><b>Generation-based:</b> Grammar/spec se fresh inputs</li>
+    <li><b>Coverage-guided:</b> AFL, libFuzzer — coverage badhane wale inputs prioritize</li>
+    <li><b>Dumb vs smart:</b> Protocol awareness</li>
+  </ul>
+</div>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Apply when:</strong> Parsing untrusted input (file formats, protocols, network), security-critical code (auth, crypto), complex state machines. <strong>Don't apply:</strong> Trivial CRUD, UI code, short-lived prototypes.</p>
+  <p><strong>Flaky test root causes:</strong> Timing/async, test order dependency, non-determinism (random/time/UUID), external deps, resource leaks, concurrency, locale/timezone, float comparisons. <strong>Fixes:</strong> Deterministic clocks, test isolation, containers, proper waits (Awaitility), hermetic tests.</p>
+</div>
+
+<!-- ============================================================
+     SECTION 7: OPS & RELIABILITY
+     ============================================================ -->
+<h2 class="section" id="ops-resilience">
+  <span class="badge ops">Ops</span> Resilience Patterns
+</h2>
+
+<div class="codewrap">
+  <div class="code-head"><span>Resilience4j — Circuit Breaker + Retry + Bulkhead</span><span class="lang">JAVA</span></div>
+<pre><span class="typ">CircuitBreaker</span> cb = <span class="typ">CircuitBreaker</span>.ofDefaults(<span class="str">"paymentGateway"</span>);
+
+<span class="typ">Retry</span> retry = <span class="typ">Retry</span>.&lt;<span class="typ">String</span>&gt;ofDefaults()
+    .retryExceptions(<span class="typ">IOException</span>.<span class="kw">class</span>, <span class="typ">TimeoutException</span>.<span class="kw">class</span>)
+    .ignoreExceptions(<span class="typ">BusinessException</span>.<span class="kw">class</span>);   <span class="cmt">// don't retry business errors</span>
+
+<span class="typ">IntervalFunction</span> backoff = <span class="typ">IntervalFunction</span>
+    .ofExponentialRandomBackoff(<span class="num">200</span>, <span class="num">2.0</span>, <span class="num">0.5</span>, <span class="num">5000</span>);  <span class="cmt">// base, mult, jitter, max</span>
+
+<span class="typ">Bulkhead</span> bulkhead = <span class="typ">Bulkhead</span>.of(<span class="str">"gateway"</span>, <span class="typ">BulkheadConfig</span>.custom()
+    .maxConcurrentCalls(<span class="num">25</span>)
+    .maxWaitDuration(<span class="typ">Duration</span>.ofMillis(<span class="num">50</span>))
+    .build());
+
+<span class="typ">TimeLimiter</span> tl = <span class="typ">TimeLimiter</span>.of(<span class="typ">Duration</span>.ofSeconds(<span class="num">2</span>));
+
+<span class="typ">Supplier</span>&lt;<span class="typ">String</span>&gt; decorated = <span class="typ">Decorators</span>.ofSupplier(() -&gt; callDownstream())
+    .withCircuitBreaker(cb)
+    .withRetry(retry)
+    .withBulkhead(bulkhead)
+    .withTimeLimiter(tl, executor)
+    .withFallback(<span class="typ">List</span>.of(<span class="typ">CallNotPermittedException</span>.<span class="kw">class</span>,
+                          <span class="typ">TimeoutException</span>.<span class="kw">class</span>),
+                  e -&gt; <span class="str">"FALLBACK"</span>)
+    .decorate();</pre>
+</div>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Layered defence:</strong></p>
+  <ul class="clean">
+    <li><strong>Circuit Breaker:</strong> Fail-fast jab downstream down ho. CLOSED → OPEN → HALF_OPEN states.</li>
+    <li><strong>Retry with jitter:</strong> Transient errors handle. Jitter thundering herd rokta.</li>
+    <li><strong>Bulkhead:</strong> Concurrency limit — ek downstream poore service ko na le doobe.</li>
+    <li><strong>TimeLimiter:</strong> Hard timeout per call.</li>
+    <li><strong>Fallback:</strong> Graceful degradation — cached response, default, queue.</li>
+  </ul>
+</div>
+
+<!-- DEPLOY -->
+<h2 class="section" id="ops-deploy">
+  <span class="badge ops">Ops</span> Blue/Green + Canary for Ledger Service
+</h2>
+
+<table class="cmp">
+  <tr><th>Aspect</th><th>Blue/Green</th><th>Canary</th></tr>
+  <tr><td>Approach</td><td>Do identical environments, instant switch</td><td>1-5% traffic → gradually 100%</td></tr>
+  <tr><td>Rollback</td><td>Instant (switch back)</td><td>Auto-rollback on metric breach</td></tr>
+  <tr><td>Cost</td><td>Double infra</td><td>Normal infra</td></tr>
+  <tr><td>Speed</td><td>Fast cutover</td><td>Slower (monitoring period)</td></tr>
+  <tr><td>Risk</td><td>All-or-nothing</td><td>Low blast radius</td></tr>
+</table>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Ledger-specific:</strong> Backward-compatible schema (expand-contract), dual-write/read during transition, idempotency preserved, feature flags, reconciliation job continuously comparing old vs new ledger, deploy during low-traffic window, automated rollback on reconciliation mismatch.</p>
+</div>
+
+<!-- INCIDENT -->
+<h2 class="section" id="ops-incident">
+  <span class="badge ops">Ops</span> Preventing Major Incident
+</h2>
+
+<div class="card">
+  <p><strong>Signals:</strong> Latency p99 spike, error rate increase, queue depth growing, DB pool saturation, ledger imbalance, unusual traffic.</p>
+  <p><strong>Actions:</strong> Incident declared, war room, clear roles (IC, comms, ops), immediate mitigation (rollback, flag off, scale, shed load), root cause investigation, stakeholder comms every 15 min.</p>
+  <p><strong>Outcomes:</strong> Service restored, no data loss, blameless post-mortem, action items, runbook updated, chaos testing.</p>
+</div>
+
+<!-- ROLLBACK -->
+<h2 class="section" id="ops-rollback">
+  <span class="badge ops">Ops</span> Rollback During Trading Hours
+</h2>
+
+<div class="card">
+  <p><strong>Decision criteria (rollback karo agar):</strong> Wrong orders possible, data corruption, material client impact, no safe mitigation short of rollback.</p>
+  <p><strong>Impact minimization:</strong></p>
+  <ul class="clean">
+    <li><b>Feature flags</b> — code deploy ke bina off (instant)</li>
+    <li><b>Kill switch</b> — one-click disable</li>
+    <li><b>Graceful degradation</b> — purane safe behaviour pe fall back</li>
+    <li><b>Blue/green</b> — instant traffic switch</li>
+    <li><b>Communicate</b> — traders/ops/clients immediately</li>
+    <li><b>Preserve state</b> — in-flight transactions safely handle</li>
+    <li><b>Audit</b> — kisne rollback kiya, kab, kyun</li>
+    <li><b>Post-rollback:</b> Root cause, fix, canary re-deploy</li>
+  </ul>
+</div>
+
+<!-- QUALITY -->
+<h2 class="section" id="ops-quality">
+  <span class="badge ops">Ops</span> Engineering Quality in Regulated Environment
+</h2>
+
+<div class="card">
+  <ul class="clean">
+    <li><b>Testing:</b> Unit + integration + contract, coverage gates, mutation testing</li>
+    <li><b>Code review:</b> Mandatory, 2 approvals for critical paths</li>
+    <li><b>CI/CD:</b> Automated build, test, SAST/DAST, dependency check</li>
+    <li><b>Static analysis:</b> SonarQube, SpotBugs, Checkstyle — build mein enforced</li>
+    <li><b>Observability:</b> Structured logs, metrics, tracing, SLO alerts</li>
+    <li><b>Documentation:</b> ADRs, runbooks, OpenAPI specs</li>
+    <li><b>Auditability:</b> Every change traceable — ticket, PR, deploy, approver</li>
+    <li><b>Security:</b> Threat modeling, secure coding training, secrets mgmt</li>
+    <li><b>Incidents:</b> Blameless post-mortems, action tracking</li>
+    <li><b>Metrics:</b> DORA (lead time, deploy freq, MTTR, change failure)</li>
+    <li><b>Automation:</b> Policy-as-code, automated evidence collection</li>
+  </ul>
+</div>
+
+<!-- ============================================================
+     SECTION 8: SYSTEM DESIGN CASE STUDIES
+     ============================================================ -->
+<h2 class="section" id="sd-gym">
+  <span class="badge sd">SD</span> Gym — Member + Membership + Workout
+</h2>
+
+<div class="codewrap">
+  <div class="code-head"><span>GymManager.java</span><span class="lang">JAVA</span></div>
+<pre><span class="kw">enum</span> <span class="typ">Tier</span> { BRONZE, SILVER, GOLD }
+<span class="kw">record</span> <span class="typ">Membership</span>(<span class="typ">String</span> memberId, <span class="typ">Tier</span> tier, <span class="typ">BigDecimal</span> price) {
+    <span class="kw">boolean</span> <span class="fn">isPaid</span>() { <span class="kw">return</span> tier != <span class="typ">Tier</span>.BRONZE; }
+}
+<span class="kw">record</span> <span class="typ">Workout</span>(<span class="typ">String</span> workoutId, <span class="typ">Instant</span> startTime, <span class="typ">Instant</span> endTime) {
+    <span class="kw">long</span> <span class="fn">durationMinutes</span>() {
+        <span class="kw">return</span> <span class="typ">Duration</span>.between(startTime, endTime).toMinutes();
+    }
+}
+
+<span class="kw">class</span> <span class="typ">GymManager</span> {
+    <span class="kw">private final</span> <span class="typ">Map</span>&lt;<span class="typ">String</span>, <span class="typ">List</span>&lt;<span class="typ">Membership</span>&gt;&gt; byMember = <span class="kw">new</span> <span class="typ">HashMap</span>&lt;&gt;();
+    <span class="kw">private final</span> <span class="typ">Map</span>&lt;<span class="typ">String</span>, <span class="typ">List</span>&lt;<span class="typ">Workout</span>&gt;&gt; workouts = <span class="kw">new</span> <span class="typ">HashMap</span>&lt;&gt;();
+
+    <span class="kw">public</span> <span class="typ">BigDecimal</span> <span class="fn">getMembershipAverage</span>() {
+        <span class="typ">List</span>&lt;<span class="typ">Membership</span>&gt; paid = byMember.values().stream()
+            .flatMap(<span class="typ">List</span>::stream)
+            .filter(<span class="typ">Membership</span>::isPaid)
+            .toList();
+        <span class="kw">if</span> (paid.isEmpty()) <span class="kw">return</span> <span class="typ">BigDecimal</span>.ZERO;
+        <span class="typ">BigDecimal</span> sum = paid.stream().map(<span class="typ">Membership</span>::price)
+            .reduce(<span class="typ">BigDecimal</span>.ZERO, <span class="typ">BigDecimal</span>::add);
+        <span class="kw">return</span> sum.divide(<span class="typ">BigDecimal</span>.valueOf(paid.size()), <span class="num">2</span>,
+                          <span class="typ">RoundingMode</span>.HALF_EVEN);
+    }
+
+    <span class="kw">public</span> <span class="typ">Map</span>&lt;<span class="typ">String</span>, <span class="typ">Double</span>&gt; <span class="fn">avgWorkoutDurationPerMember</span>() {
+        <span class="kw">return</span> workouts.entrySet().stream().collect(<span class="typ">Collectors</span>.toMap(
+            <span class="typ">Map</span>.<span class="typ">Entry</span>::getKey,
+            e -&gt; e.getValue().stream()
+                  .mapToLong(<span class="typ">Workout</span>::durationMinutes)
+                  .average().orElse(<span class="num">0.0</span>)));
+    }
+}</pre>
+</div>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Bug ka pattern:</strong> getMembershipAverage sirf paid (Silver/Gold) memberships ka average — Bronze free hai, exclude. Divide-by-zero guard zaroori. BigDecimal HALF_EVEN rounding.</p>
+</div>
+
+<!-- RESTAURANT -->
+<h2 class="section" id="sd-restaurant">
+  <span class="badge sd">SD</span> Restaurant Management
+</h2>
+
+<div class="card">
+  <p><strong>Services:</strong> Booking (table, waitlist), Order (menu, cart, status), Payment (multi-mode, refunds, split), Kitchen display (WebSocket), Inventory (auto-deplete), Notification (SMS/push).</p>
+  <p><strong>LB:</strong> Stateless services behind L7. Session affinity for WebSocket. Restaurant-level sharding. Read replicas for menu.</p>
+  <p><strong>Data:</strong> Postgres (orders, bookings), Redis (availability), Kafka (events), S3 (images).</p>
+  <p><strong>Scale:</strong> Peak hours autoscaling, queue-based backpressure, precomputed availability.</p>
+</div>
+
+<!-- DAM -->
+<h2 class="section" id="sd-dam">
+  <span class="badge sd">SD</span> Digital Asset Management
+</h2>
+
+<div class="card">
+  <p><strong>Functional:</strong> Access control (RBAC+ABAC, share links with expiry), file validation (size, MIME, virus scan, dimensions), lifecycle (Draft→Review→Published→Archived→Deleted, retention), transformation (thumbnails, transcoding, watermark), ingestion (upload, bulk, connectors).</p>
+  <p><strong>Non-functional targets:</strong></p>
+  <ul class="clean">
+    <li>200 concurrent uploads → multipart + presigned URLs, autoscaling ingestion</li>
+    <li>1000 file processing → queue-based async workers (Kafka/SQS)</li>
+    <li>10000 file access → CDN + caching, read replicas</li>
+    <li>99.9% availability → multi-AZ, health checks, graceful degradation</li>
+  </ul>
+  <p><strong>Success measures:</strong> Upload success rate, processing p99, retrieval latency, search relevance, storage cost per asset.</p>
+</div>
+
+<!-- EV -->
+<h2 class="section" id="sd-ev">
+  <span class="badge sd">SD</span> EV Charging Station
+</h2>
+
+<div class="diagram">┌─────────┐   ┌──────────────┐   ┌──────────────┐
+│ EV App  │──▶│ API Gateway  │──▶│ Station Svc  │──▶ PostGIS (geo)
+└─────────┘   └──────────────┘   └──────┬───────┘
+                                       │
+                              ┌────────▼────────┐   ┌──────────────┐
+                              │ Availability    │──▶│   Redis      │
+                              │ Service         │   │   (TTL)      │
+                              └────────┬────────┘   └──────────────┘
+                                       │
+                              ┌────────▼────────┐   ┌──────────────┐
+                              │ Session Svc     │──▶│  OCPP GW     │──▶ Chargers
+                              │ (kWh tracking)  │   │  (WebSocket) │
+                              └────────┬────────┘   └──────────────┘
+                                       │
+                              ┌────────▼────────┐   ┌──────────────┐
+                              │ Payment Svc     │──▶│  Kafka       │──▶ Reconciliation
+                              │ (idempotency)   │   │              │
+                              └─────────────────┘   └──────────────┘</div>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Components:</strong> Station registry (geo-indexed), availability (heartbeat + Redis TTL), booking, session (OCPP), payment (pre-auth + final charge, idempotency), reconciliation, OCPP gateway (mTLS), pricing engine.</p>
+  <p><strong>Scale:</strong> Shard by region. Availability cached. Read replicas. Edge caching.</p>
+  <p><strong>Security/Reliability:</strong> PCI-DSS (tokenize cards), mTLS for chargers, offline mode on charger, 99.9% SLA, circuit breakers, multi-region.</p>
+</div>
+
+<!-- GITHUB -->
+<h2 class="section" id="sd-github">
+  <span class="badge sd">SD</span> GitHub-like Platform Estimate
+</h2>
+
+<div class="codewrap">
+  <div class="code-head"><span>Estimate</span><span class="lang">MATH</span></div>
+<pre><span class="cmt">// Year 1: 3000 users × 5 commits/day × 365 = 5.475M commits</span>
+<span class="cmt">// Year 2: 6000 users × 5 × 365 = 10.95M commits</span>
+<span class="cmt">// Total = 16.425M commits</span>
+
+<span class="cmt">// Commit size: 5 KB avg → 82 GB raw</span>
+<span class="cmt">// But git objects 2-3x raw, packfiles 70% reduction:</span>
+<span class="cmt">// Realistic ×5 multiplier → ~410 GB</span>
+<span class="cmt">// RF=3 → ~1.2 TB, backups + cold → ~2 TB</span>
+<span class="cmt">// Add CI logs (bigger than code!), LFS, releases → 2-5 TB</span>
+
+<span class="cmt">// QPS: Y2 reads = 60k/day = 2 QPS avg, peak 20 QPS</span>
+<span class="cmt">// Writes peak ~10 QPS</span>
+<span class="cmt">// TINY. 4-6 small servers (2 vCPU, 8GB) suffice.</span>
+<span class="cmt">// + 2 DB + 2 Redis + object storage. 6-10 servers total.</span></pre>
+</div>
+
+<!-- FILE SHARING -->
+<h2 class="section" id="sd-fileshare">
+  <span class="badge sd">SD</span> File Sharing at Petabyte Scale
+</h2>
+
+<div class="card">
+  <ul class="clean">
+    <li><b>Storage:</b> Object store (S3), chunked + dedup (content-addressed by SHA-256)</li>
+    <li><b>Upload:</b> Multipart, resumable, presigned URLs, client-side encryption optional</li>
+    <li><b>Download:</b> CDN for popular, signed URLs, range requests</li>
+    <li><b>Dedup:</b> Content-addressed chunks, refcount++ (beware side-channel attacks — per-user keys)</li>
+    <li><b>Sharing:</b> ACL model, collaborators, public links with expiry</li>
+    <li><b>Versioning:</b> Chunk-level dedup, efficient storage</li>
+    <li><b>Sync:</b> Delta sync, conflict resolution (CRDT for collaborative)</li>
+    <li><b>Search:</b> Elasticsearch (filename + extracted text)</li>
+    <li><b>Scale:</b> Shard metadata by user_id, blobs by hash, RF=3</li>
+    <li><b>Security:</b> Encryption at rest (KMS), TLS, virus scan, DLP, audit</li>
+  </ul>
+</div>
+
+<!-- PHOTO -->
+<h2 class="section" id="sd-photo">
+  <span class="badge sd">SD</span> Photo Storage — 26-shard Issue + Estimate
+</h2>
+
+<h3 class="topic">📸 26 Shards by First Letter</h3>
+<div class="card">
+  <p><strong>Problems:</strong> Uneven distribution (S/M/A heavy, X/Q/Z light), no HA, scaling limited to 26, hot spots.</p>
+  <p><strong>Fix:</strong> Consistent hashing with vnodes (256), RF=3, rebalancing O(K/N), separate hot/cold (CDN + object store), metadata in distributed DB.</p>
+</div>
+
+<h3 class="topic">📸 Storage Estimate</h3>
+<div class="codewrap">
+  <div class="code-head"><span>Estimate</span><span class="lang">MATH</span></div>
+<pre>New users/year: 10M
+Photos: 10M × 500 = 5B photos/year
+Storage per photo: 2 MB + 0.2 MB thumb = 2.2 MB
+Raw: 5B × 2.2 MB = 11 PB
+With RF=3: 33 PB
+Backup (cold, 1 copy): +11 PB
+Total ~44 PB
+
+Cost: 44 PB × ~$30/TB fully-loaded = ~$1.3M/year
+Optimizations: dedup (perceptual hash), tiered storage,
+compression, lazy thumbnails, regional sharding.</pre>
+</div>
+
+<!-- FREEZER -->
+<h2 class="section" id="sd-freezer">
+  <span class="badge sd">SD</span> Smart Freezer — Autonomous Redesign
+</h2>
+
+<div class="card">
+  <p><strong>Goal:</strong> Network down ho to bhi chale — local decision, buffered logging, sync on reconnect.</p>
+  <ul class="clean">
+    <li><b>Embedded controller:</b> MCU (ESP32/STM32) with local firmware. Sensors direct read.</li>
+    <li><b>Local control loop:</b> Temperature regulation independent of network. Safety limits hardcoded.</li>
+    <li><b>Local storage:</b> Flash/SD, circular buffer (7 days), compressed time-series.</li>
+    <li><b>Sync agent:</b> Network available pe batch upload (idempotent, sequence numbers).</li>
+    <li><b>OTA updates:</b> Signed, A/B partitions, rollback on failure.</li>
+    <li><b>Local UI:</b> Display + buttons for offline operation.</li>
+    <li><b>Alerts:</b> Local buzzer/LED for critical.</li>
+    <li><b>Security:</b> mTLS, secure boot, encrypted flash.</li>
+    <li><b>Watchdog:</b> Hardware reset on hang.</li>
+    <li><b>Power:</b> Brown-out detection, safe shutdown, RTC.</li>
+  </ul>
+</div>
+
+<!-- HOME COOKING -->
+<h2 class="section" id="sd-cooking">
+  <span class="badge sd">SD</span> Home-cooking Platform — Slow at Peak
+</h2>
+
+<div class="card">
+  <p><strong>Diagnosis:</strong> APM traces, slow query log, cache hit ratio, connection pool saturation, replication lag, cache invalidation bug, lock contention.</p>
+  <p><strong>Improvements:</strong> Caching (Redis, CDN), read replicas, async writes via queue, cache-aside with versioning, DB indexes + denormalization, autoscaling, circuit breakers, rate limiting, backpressure + graceful degradation.</p>
+  <p><strong>Success:</strong> p99 latency, cache hit rate, inconsistency rate, error rate under peak.</p>
+</div>
+
+<!-- KIDS ZONE -->
+<h2 class="section" id="sd-kids">
+  <span class="badge sd">SD</span> Kids Play Zone Card Recharge — 100k Places
+</h2>
+
+<div class="card">
+  <p><strong>Architecture:</strong></p>
+  <ul class="clean">
+    <li><b>Edge/kiosk:</b> Local card reader, offline-capable (signed transactions, local limits)</li>
+    <li><b>Regional backends:</b> Geo-distributed, low latency, data residency</li>
+    <li><b>Central ledger:</b> Authoritative balance, double-entry, immutable audit</li>
+    <li><b>Sync service:</b> Kiosks batch-upload, idempotent, conflict resolution</li>
+    <li><b>Payment gateway:</b> UPI/card/wallet, idempotency, refunds</li>
+    <li><b>Fraud detection:</b> Velocity checks, anomaly detection</li>
+    <li><b>Card management:</b> Issue, block, replace, expiry, KYC</li>
+    <li><b>Reconciliation:</b> Daily per-location + per-card</li>
+  </ul>
+  <p><strong>Scale:</strong> Shard by location/region. Event-driven (Kafka). Read-heavy caching. Offline mode critical (local limit, sync on reconnect, monotonic counters + signed transactions).</p>
+</div>
+
+<!-- SEARCH -->
+<h2 class="section" id="sd-search">
+  <span class="badge sd">SD</span> Search Engine Design
+</h2>
+
+<div class="card">
+  <p><strong>Components:</strong> Crawler → Parser → Indexer → Query engine → Ranker.</p>
+  <p><strong>Space estimation:</strong></p>
+  <ul class="clean">
+    <li>Crawl corpus: 10B pages × 100 KB = 1 PB raw HTML</li>
+    <li>Inverted index: 30-50% of corpus after compression → ~350 TB</li>
+    <li>Posting lists: delta + varint compression, ~5-10x</li>
+    <li>Forward index / doc store, link graph (billions of edges)</li>
+    <li>Replicas RF=2-3, query cache</li>
+  </ul>
+  <p><strong>Sharding:</strong> By doc id hash. Each shard replicated. Query scatter-gather. Tiered storage: hot SSD, warm, cold archive.</p>
+</div>
+
+<!-- CENTRALIZED DB -->
+<h2 class="section" id="sd-db">
+  <span class="badge sd">SD</span> Centralized DB — Scaling Approach
+</h2>
+
+<div class="flow">
+  <div class="step"><strong>Diagnosis first</strong><span>Slow query log, EXPLAIN, connection pool, CPU/IO. Bottleneck identify karo.</span></div>
+  <div class="step"><strong>Indexing + query optimization</strong><span>Sabse sasta win.</span></div>
+  <div class="step"><strong>Caching</strong><span>Redis/Memcached hot reads, CDN static.</span></div>
+  <div class="step"><strong>Read replicas</strong><span>Read traffic offload (eventual consistency?).</span></div>
+  <div class="step"><strong>Connection pooling</strong><span>PgBouncer/HikariCP.</span></div>
+  <div class="step"><strong>Vertical scaling</strong><span>Bigger machine (short-term).</span></div>
+  <div class="step"><strong>Service decomposition</strong><span>Database-per-service, bounded contexts.</span></div>
+  <div class="step"><strong>Sharding</strong><span>Horizontal by tenant/user/region, consistent hashing.</span></div>
+  <div class="step"><strong>CQRS</strong><span>Read model denormalized, write normalized.</span></div>
+  <div class="step"><strong>Event-driven</strong><span>Async, DB direct access kam.</span></div>
+</div>
+
+<!-- CENTRALIZED LOGGING -->
+<h2 class="section" id="sd-logging">
+  <span class="badge sd">SD</span> Centralized Logging — Storage Estimate
+</h2>
+
+<div class="codewrap">
+  <div class="code-head"><span>Formula</span><span class="lang">MATH</span></div>
+<pre>Daily = (events/sec × avg_size_bytes × 86400)
+      × compression_factor × replication × retention_days
+
+Example: 10k events/sec × 500 B = 5 MB/s = 432 GB/day raw
+gzip 8x → 54 GB/day
+RF=3 → 162 GB/day
+30 days → ~4.9 TB
+1 year cold → ~60 TB</pre>
+</div>
+<p style="font-size:13px; color:var(--fg2)"><strong>Factors:</strong> Volume, event size, compression, indexing overhead, replication, retention tiers, growth, log level. <strong>Tools:</strong> ELK, Loki+Grafana (cheaper), ClickHouse, Splunk. Tiered storage for cost.</p>
+
+<!-- SINGLE vs MULTI -->
+<h2 class="section" id="sd-single">
+  <span class="badge sd">SD</span> Single vs Multi Server
+</h2>
+
+<table class="cmp">
+  <tr><th></th><th>Single Server</th><th>Multi Server</th></tr>
+  <tr><td><strong>Pros</strong></td><td>Simple, cheap, easy debug, no partition issues</td><td>HA, horizontal scale, zero-downtime deploys, geo</td></tr>
+  <tr><td><strong>Cons</strong></td><td>SPOF, vertical limits, downtime on deploy</td><td>Session/state mgmt, cache coherence, distributed debugging, config drift, cost</td></tr>
+  <tr><td><strong>Fix</strong></td><td>Stateless app servers behind LB, externalize session (Redis) + files (S3), DB with replicas</td><td>Stateless design, Redis sessions, centralized logging, service mesh, IaC, feature flags</td></tr>
+</table>
+
+<!-- ============================================================
+     SECTION 9: TESTING
+     ============================================================ -->
+<h2 class="section" id="test-ebay">
+  <span class="badge test">Testing</span> eBay Size & Color Feature
+</h2>
+
+<div class="card">
+  <ul class="clean">
+    <li><b>Selection:</b> Size → color filter, multiple variants</li>
+    <li><b>Combinations:</b> Invalid size+color (out of stock) → disabled</li>
+    <li><b>Availability:</b> Stock per variant, out-of-stock display</li>
+    <li><b>Pricing:</b> Different variants different prices — cart correct</li>
+    <li><b>Images:</b> Color select pe image change</li>
+    <li><b>Search/filter:</b> Filter by size/color returns correct</li>
+    <li><b>Cart:</b> Same product different variants = separate line items</li>
+    <li><b>Edge:</b> No variant, many variants, special chars</li>
+    <li><b>Mobile/desktop:</b> Responsive</li>
+    <li><b>Accessibility:</b> Keyboard nav, screen reader</li>
+    <li><b>Performance:</b> Variant load, large catalogs</li>
+    <li><b>Localization:</b> Size names (S/M/L vs numeric vs EU/US)</li>
+    <li><b>Backend:</b> API returns all variants, SKU mapping</li>
+    <li><b>Regression:</b> Default selection, remembered preference</li>
+  </ul>
+</div>
+
+<!-- MAPS -->
+<h2 class="section" id="test-maps">
+  <span class="badge test">Testing</span> Google Maps Shortest Path
+</h2>
+
+<div class="card">
+  <ul class="clean">
+    <li><b>Correctness:</b> Known small graphs match expected</li>
+    <li><b>Weights:</b> Distance, time, tolls — different modes</li>
+    <li><b>One-way roads:</b> Directed edges respected</li>
+    <li><b>Disconnected:</b> No path → error</li>
+    <li><b>Same src/dest:</b> Empty path handling</li>
+    <li><b>Performance:</b> Continental scale &lt; 200ms</li>
+    <li><b>Traffic:</b> Dynamic weights — rush hour routes differ</li>
+    <li><b>Alternatives:</b> "Avoid highways", "avoid tolls"</li>
+    <li><b>Waypoints:</b> Multi-stop optimization</li>
+    <li><b>Real-time:</b> Accident → re-route</li>
+    <li><b>Edge cases:</b> Roundabout, ferry, restricted zones</li>
+    <li><b>Timezone:</b> Cross-timezone ETAs</li>
+    <li><b>Offline:</b> Cached map behaviour</li>
+    <li><b>Accessibility:</b> Wheelchair routes</li>
+  </ul>
+</div>
+
+<!-- CRAWLER -->
+<h2 class="section" id="test-crawler">
+  <span class="badge test">Testing</span> Crawler Scenarios
+</h2>
+
+<div class="card">
+  <ul class="clean">
+    <li><b>Discovery:</b> New URLs, sitemap, robots.txt</li>
+    <li><b>Politeness:</b> Rate limiting per domain, crawl-delay</li>
+    <li><b>Depth:</b> Max depth, no infinite loops (visited set)</li>
+    <li><b>Content types:</b> HTML, PDF, images, JS-rendered</li>
+    <li><b>Malformed HTML:</b> Graceful parsing</li>
+    <li><b>Redirects:</b> 301/302, chains, loops</li>
+    <li><b>Errors:</b> 404, 500, timeouts handled</li>
+    <li><b>Dynamic:</b> Pagination, infinite scroll, AJAX</li>
+    <li><b>Auth:</b> Login-required, session handling</li>
+    <li><b>Duplicates:</b> Canonical tags, URL normalization</li>
+    <li><b>Scale:</b> Millions — Bloom filter, throughput</li>
+    <li><b>Resilience:</b> Resume after crash, checkpointing</li>
+    <li><b>Legal:</b> noindex, nofollow, TOS</li>
+    <li><b>Encoding:</b> UTF-8, gzip, charset detection</li>
+  </ul>
+</div>
+
+<!-- IP -->
+<h2 class="section" id="test-ip">
+  <span class="badge test">Testing</span> IP Address Validation
+</h2>
+
+<div class="codewrap">
+  <div class="code-head"><span>IPv4Validator.java</span><span class="lang">JAVA</span></div>
+<pre><span class="kw">public boolean</span> <span class="fn">isValidIPv4</span>(<span class="typ">String</span> ip) {
+    <span class="kw">if</span> (ip == <span class="kw">null</span>) <span class="kw">return false</span>;
+    <span class="typ">String</span>[] parts = ip.split(<span class="str">"\\."</span>, -<span class="num">1</span>);       <span class="cmt">// -1 keeps trailing empties</span>
+    <span class="kw">if</span> (parts.length != <span class="num">4</span>) <span class="kw">return false</span>;
+
+    <span class="kw">for</span> (<span class="typ">String</span> p : parts) {
+        <span class="kw">if</span> (p.isEmpty() || p.length() &gt; <span class="num">3</span>) <span class="kw">return false</span>;
+        <span class="kw">if</span> (p.length() &gt; <span class="num">1</span> && p.charAt(<span class="num">0</span>) == <span class="str">'0'</span>) <span class="kw">return false</span>;  <span class="cmt">// leading zero</span>
+        <span class="kw">for</span> (<span class="kw">char</span> c : p.toCharArray())
+            <span class="kw">if</span> (!<span class="typ">Character</span>.isDigit(c)) <span class="kw">return false</span>;
+        <span class="kw">int</span> v = <span class="typ">Integer</span>.parseInt(p);
+        <span class="kw">if</span> (v &lt; <span class="num">0</span> || v &gt; <span class="num">255</span>) <span class="kw">return false</span>;
+    }
+    <span class="kw">return true</span>;
+}
+
+<span class="cmt">// JUnit tests</span>
+<span class="typ">@Test</span> <span class="kw">void</span> <span class="fn">valid</span>() {
+    assertTrue(isValidIPv4(<span class="str">"0.0.0.0"</span>));
+    assertTrue(isValidIPv4(<span class="str">"255.255.255.255"</span>));
+    assertTrue(isValidIPv4(<span class="str">"192.168.1.1"</span>));
+}
+<span class="typ">@Test</span> <span class="kw">void</span> <span class="fn">invalid</span>() {
+    assertFalse(isValidIPv4(<span class="kw">null</span>));
+    assertFalse(isValidIPv4(<span class="str">"256.1.1.1"</span>));
+    assertFalse(isValidIPv4(<span class="str">"1.2.3"</span>));
+    assertFalse(isValidIPv4(<span class="str">"01.2.3.4"</span>));
+    assertFalse(isValidIPv4(<span class="str">"1.2.3."</span>));
+    assertFalse(isValidIPv4(<span class="str">"a.b.c.d"</span>));
+}</pre>
+</div>
+
+<table class="lbl">
+  <tr><th>Line</th><th>Explanation</th></tr>
+  <tr><td>split("\\.", -1)</td><td><strong>-1 limit</strong> trailing empties preserve. Warna "1.2.3." → 3 parts, miss hota.</td></tr>
+  <tr><td>p.length() > 3</td><td>Max 3 digits (255).</td></tr>
+  <tr><td>p.charAt(0) == '0' && length>1</td><td><strong>Leading zero reject.</strong> "01" invalid but "0" valid.</td></tr>
+  <tr><td>Integer.parseInt + range</td><td>Parse + 0-255 check.</td></tr>
+</table>
+
+<!-- FUNCTION SCENARIOS -->
+<h2 class="section" id="test-function">
+  <span class="badge test">Testing</span> function("string", n) Test Scenarios
+</h2>
+
+<div class="card">
+  <ul class="clean">
+    <li><b>Happy:</b> ("Hello", 3) → ["Hello","Hello","Hello"]</li>
+    <li><b>n=0</b> → [] (empty)</li>
+    <li><b>n=1</b> → ["Hello"]</li>
+    <li><b>n negative</b> → [] ya exception (spec decide)</li>
+    <li><b>Empty string</b> ("", 3) → ["","",""]</li>
+    <li><b>Null input</b> → exception</li>
+    <li><b>Large n</b> → memory/overflow</li>
+    <li><b>Unicode/emoji</b> → correct length, no split</li>
+    <li><b>Whitespace</b> → preserved</li>
+    <li><b>Immutability</b> → returned array modify se original na badle</li>
+    <li><b>Type errors</b> → n as string/float</li>
+    <li><b>Performance</b> → n=10^6 acceptable</li>
+  </ul>
+</div>
+
+<!-- TESTABLE CLASS -->
+<h2 class="section" id="test-testable">
+  <span class="badge test">Testing</span> Making a Class Testable
+</h2>
+
+<div class="card">
+  <ul class="clean">
+    <li><b>Dependency Injection</b> — constructor se, andar new nahi</li>
+    <li><b>Single Responsibility</b> — chhoti classes</li>
+    <li><b>Interfaces for externals</b> — Clock, HTTP client, DB mockable</li>
+    <li><b>Pure functions</b> jahan possible</li>
+    <li><b>No static state</b> / singletons</li>
+    <li><b>Avoid final on mockable methods</b> (ya Mockito inline)</li>
+    <li><b>Deterministic</b> — randomness inject</li>
+    <li><b>Small public surface</b> — package-private</li>
+    <li><b>Fail fast</b> with clear exceptions</li>
+  </ul>
+</div>
+
+<!-- ============================================================
+     SECTION 10: CODING BUGS
+     ============================================================ -->
+<h2 class="section" id="bug-stock">
+  <span class="badge java">Bug</span> StockCollection + getBiggestChange
+</h2>
+
+<div class="codewrap">
+  <div class="code-head"><span>StockCollection.java</span><span class="lang">JAVA</span></div>
+<pre><span class="kw">public</span> <span class="typ">BigDecimal</span> <span class="fn">getBiggestChange</span>() {
+    <span class="kw">if</span> (prices == <span class="kw">null</span> || prices.size() &lt; <span class="num">2</span>)
+        <span class="kw">return</span> <span class="typ">BigDecimal</span>.ZERO;
+    <span class="typ">BigDecimal</span> maxChange = <span class="typ">BigDecimal</span>.ZERO;
+    <span class="kw">for</span> (<span class="kw">int</span> i = <span class="num">1</span>; i &lt; prices.size(); i++) {
+        <span class="typ">BigDecimal</span> change = prices.get(i).getPrice()
+                            .subtract(prices.get(i-<span class="num">1</span>).getPrice())
+                            .abs();
+        <span class="kw">if</span> (change.compareTo(maxChange) &gt; <span class="num">0</span>)
+            maxChange = change;
+    }
+    <span class="kw">return</span> maxChange;
+}</pre>
+</div>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Likely bugs:</strong> Manual counter (totalSongs) drift, duplicate check with List.contains (O(n)), missing null check. <strong>Fixes:</strong> <code class="inl">songsMap.size()</code>, <code class="inl">Set</code> for dedup, null guards.</p>
+</div>
+
+<!-- GAME -->
+<h2 class="section" id="bug-game">
+  <span class="badge java">Bug</span> GameManager
+</h2>
+
+<div class="codewrap">
+  <div class="code-head"><span>GameManager.java</span><span class="lang">JAVA</span></div>
+<pre><span class="kw">class</span> <span class="typ">GameManager</span> {
+    <span class="kw">private final</span> <span class="typ">Map</span>&lt;<span class="typ">String</span>, <span class="typ">List</span>&lt;<span class="typ">Integer</span>&gt;&gt; byOutcome = <span class="kw">new</span> <span class="typ">HashMap</span>&lt;&gt;();
+
+    <span class="kw">public void</span> <span class="fn">addMatchResult</span>(<span class="typ">String</span> outcome, <span class="kw">int</span> score) {
+        <span class="kw">if</span> (outcome == <span class="kw">null</span>) <span class="kw">return</span>;
+        byOutcome.computeIfAbsent(outcome.toUpperCase(<span class="typ">Locale</span>.ROOT),
+                                  k -&gt; <span class="kw">new</span> <span class="typ">ArrayList</span>&lt;&gt;()).add(score);
+    }
+
+    <span class="kw">public double</span> <span class="fn">getAverageScoreByOutcome</span>(<span class="typ">String</span> outcome) {
+        <span class="typ">List</span>&lt;<span class="typ">Integer</span>&gt; scores = byOutcome.get(outcome == <span class="kw">null</span> ? <span class="str">""</span> :
+                                          outcome.toUpperCase(<span class="typ">Locale</span>.ROOT));
+        <span class="kw">if</span> (scores == <span class="kw">null</span> || scores.isEmpty()) <span class="kw">return</span> <span class="num">0.0</span>;
+        <span class="kw">return</span> scores.stream().mapToInt(<span class="typ">Integer</span>::intValue).average().orElse(<span class="num">0.0</span>);
+    }
+}</pre>
+</div>
+
+<!-- RESERVATION -->
+<h2 class="section" id="bug-reservation">
+  <span class="badge java">Bug</span> ReservationManager
+</h2>
+
+<div class="codewrap">
+  <div class="code-head"><span>ReservationManager.java</span><span class="lang">JAVA</span></div>
+<pre><span class="kw">class</span> <span class="typ">ReservationManager</span> {
+    <span class="kw">private final</span> <span class="typ">Map</span>&lt;<span class="typ">String</span>, <span class="typ">Long</span>&gt; reservedByCustomer = <span class="kw">new</span> <span class="typ">HashMap</span>&lt;&gt;();
+    <span class="kw">private</span> <span class="kw">long</span> totalCapacity;
+
+    <span class="kw">public</span> <span class="typ">ReservationManager</span>(<span class="kw">long</span> totalCapacity) {
+        <span class="kw">this</span>.totalCapacity = totalCapacity;
+    }
+
+    <span class="kw">public boolean</span> <span class="fn">addReservation</span>(<span class="typ">String</span> customerId, <span class="kw">long</span> units) {
+        <span class="kw">if</span> (customerId == <span class="kw">null</span> || units &lt;= <span class="num">0</span>) <span class="kw">return false</span>;
+        <span class="kw">long</span> used = reservedByCustomer.values().stream()
+                                      .mapToLong(<span class="typ">Long</span>::longValue).sum();
+        <span class="kw">if</span> (used + units &gt; totalCapacity) <span class="kw">return false</span>;  <span class="cmt">// over-book guard</span>
+        reservedByCustomer.merge(customerId, units, <span class="typ">Long</span>::sum);
+        <span class="kw">return true</span>;
+    }
+
+    <span class="kw">public</span> <span class="kw">long</span> <span class="fn">getReservedCapacityByCustomer</span>(<span class="typ">String</span> customerId) {
+        <span class="kw">return</span> reservedByCustomer.getOrDefault(customerId, <span class="num">0L</span>);
+    }
+}</pre>
+</div>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Bug:</strong> <code class="inl">put()</code> instead of <code class="inl">merge()</code> — previous reservation overwrite. Fix: <code class="inl">merge(customerId, units, Long::sum)</code>. Plus over-booking guard.</p>
+</div>
+
+<!-- ACCOUNT -->
+<h2 class="section" id="bug-account">
+  <span class="badge java">Bug</span> AccountManager
+</h2>
+
+<div class="codewrap">
+  <div class="code-head"><span>AccountManager.java</span><span class="lang">JAVA</span></div>
+<pre><span class="kw">class</span> <span class="typ">AccountManager</span> {
+    <span class="kw">private final</span> <span class="typ">Map</span>&lt;<span class="typ">String</span>, <span class="typ">List</span>&lt;<span class="typ">BigDecimal</span>&gt;&gt; txByAccount = <span class="kw">new</span> <span class="typ">HashMap</span>&lt;&gt;();
+
+    <span class="kw">public void</span> <span class="fn">addTransaction</span>(<span class="typ">String</span> accountId, <span class="typ">BigDecimal</span> amount) {
+        <span class="kw">if</span> (accountId == <span class="kw">null</span> || amount == <span class="kw">null</span>) <span class="kw">return</span>;
+        txByAccount.computeIfAbsent(accountId, k -&gt; <span class="kw">new</span> <span class="typ">ArrayList</span>&lt;&gt;())
+                   .add(amount);
+    }
+
+    <span class="kw">public</span> <span class="typ">BigDecimal</span> <span class="fn">getAverageTransactionAmountByAccount</span>(<span class="typ">String</span> accountId) {
+        <span class="typ">List</span>&lt;<span class="typ">BigDecimal</span>&gt; list = txByAccount.get(accountId);
+        <span class="kw">if</span> (list == <span class="kw">null</span> || list.isEmpty()) <span class="kw">return</span> <span class="typ">BigDecimal</span>.ZERO;
+        <span class="typ">BigDecimal</span> sum = list.stream()
+                             .reduce(<span class="typ">BigDecimal</span>.ZERO, <span class="typ">BigDecimal</span>::add);
+        <span class="kw">return</span> sum.divide(<span class="typ">BigDecimal</span>.valueOf(list.size()), <span class="num">2</span>,
+                          <span class="typ">RoundingMode</span>.HALF_EVEN);
+    }
+}</pre>
+</div>
+
+<!-- SONG -->
+<h2 class="section" id="bug-song">
+  <span class="badge java">Bug</span> Song Bug + findDuplicateSongs
+</h2>
+
+<div class="codewrap">
+  <div class="code-head"><span>Fix + implement</span><span class="lang">JAVA</span></div>
+<pre><span class="kw">public int</span> <span class="fn">totalSongs</span>() {
+    <span class="kw">return</span> songsMap.size();          <span class="cmt">// manual counter nahi</span>
+}
+
+<span class="kw">public void</span> <span class="fn">addSong</span>(<span class="typ">Song</span> s) {
+    <span class="kw">if</span> (s == <span class="kw">null</span>) <span class="kw">return</span>;
+    <span class="kw">if</span> (!uniqueSongIds.add(s.getId())) <span class="kw">return</span>;   <span class="cmt">// duplicate id skip</span>
+    songsMap.put(s.getId(), s);
+}
+
+<span class="kw">public</span> <span class="typ">Map</span>&lt;<span class="typ">String</span>, <span class="typ">List</span>&lt;<span class="typ">Song</span>&gt;&gt; <span class="fn">findDuplicateSongs</span>() {
+    <span class="kw">return</span> songsMap.values().stream()
+        .collect(<span class="typ">Collectors</span>.groupingBy(
+            s -&gt; (s.getName() + <span class="str">"|"</span> + s.getArtist() + <span class="str">"|"</span> + s.getTitle())
+                    .toLowerCase(<span class="typ">Locale</span>.ROOT)))
+        .entrySet().stream()
+        .filter(e -&gt; e.getValue().size() &gt; <span class="num">1</span>)
+        .collect(<span class="typ">Collectors</span>.toMap(<span class="typ">Map</span>.<span class="typ">Entry</span>::getKey, <span class="typ">Map</span>.<span class="typ">Entry</span>::getValue,
+                 (a,b) -&gt; a, <span class="typ">LinkedHashMap</span>::<span class="kw">new</span>));
+}</pre>
+</div>
+
+<!-- TOLL -->
+<h2 class="section" id="bug-toll">
+  <span class="badge java">Bug</span> Toll Booth LogEntry
+</h2>
+
+<div class="codewrap">
+  <div class="code-head"><span>LogEntry.java</span><span class="lang">JAVA</span></div>
+<pre><span class="kw">enum</span> <span class="typ">BoothType</span> { ENTRY, EXIT, MAINROAD }
+
+<span class="kw">class</span> <span class="typ">LogEntry</span> {
+    <span class="kw">private final</span> <span class="typ">BoothType</span> boothType;
+    <span class="kw">private final</span> <span class="typ">String</span> plate;
+    <span class="kw">private final</span> <span class="kw">long</span> timestamp;
+
+    <span class="typ">LogEntry</span>(<span class="typ">String</span> type, <span class="typ">String</span> plate, <span class="kw">long</span> timestamp) {
+        <span class="kw">this</span>.boothType = <span class="typ">BoothType</span>.valueOf(
+            type == <span class="kw">null</span> ? <span class="str">""</span> : type.trim().toUpperCase(<span class="typ">Locale</span>.ROOT));
+        <span class="kw">this</span>.plate = plate;
+        <span class="kw">this</span>.timestamp = timestamp;
+    }
+}</pre>
+</div>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Likely bug:</strong> Enum parsing case-sensitive, ya MAINROAD ko ENTRY/EXIT ke saath galat treat kiya. <strong>Fix:</strong> <code class="inl">toUpperCase(Locale.ROOT)</code> + trim. MAINROAD entries ko trip-building se exclude karo (average-speed checks ke liye use karo).</p>
+</div>
+
+<!-- SPEEDERS -->
+<h2 class="section" id="bug-speeders">
+  <span class="badge java">Bug</span> Catch Speeders
+</h2>
+
+<div class="codewrap">
+  <div class="code-head"><span>CatchSpeeders.java</span><span class="lang">JAVA</span></div>
+<pre><span class="typ">List</span>&lt;<span class="typ">String</span>&gt; <span class="fn">catchSpeeders</span>(<span class="typ">List</span>&lt;<span class="typ">LogEntry</span>&gt; logs) {
+    <span class="typ">Map</span>&lt;<span class="typ">String</span>, <span class="typ">List</span>&lt;<span class="typ">LogEntry</span>&gt;&gt; byPlate = logs.stream()
+        .collect(<span class="typ">Collectors</span>.groupingBy(<span class="typ">LogEntry</span>::getPlate));
+
+    <span class="typ">Set</span>&lt;<span class="typ">String</span>&gt; offenders = <span class="kw">new</span> <span class="typ">TreeSet</span>&lt;&gt;();
+    <span class="kw">for</span> (<span class="kw">var</span> e : byPlate.entrySet()) {
+        <span class="typ">List</span>&lt;<span class="typ">LogEntry</span>&gt; sorted = e.getValue().stream()
+            .sorted(<span class="typ">Comparator</span>.comparingLong(<span class="typ">LogEntry</span>::getTimestamp))
+            .toList();
+
+        <span class="typ">List</span>&lt;<span class="typ">Double</span>&gt; segmentSpeeds = <span class="kw">new</span> <span class="typ">ArrayList</span>&lt;&gt;();
+        <span class="kw">for</span> (<span class="kw">int</span> i = <span class="num">1</span>; i &lt; sorted.size(); i++) {
+            <span class="kw">double</span> km = sorted.get(i).getKm() - sorted.get(i-<span class="num">1</span>).getKm();
+            <span class="kw">double</span> hrs = (sorted.get(i).getTimestamp()
+                        - sorted.get(i-<span class="num">1</span>).getTimestamp()) / <span class="num">3_600_000.0</span>;
+            <span class="kw">if</span> (hrs &gt; <span class="num">0</span>) segmentSpeeds.add(km / hrs);
+        }
+
+        <span class="kw">boolean</span> over130 = segmentSpeeds.stream().anyMatch(s -&gt; s &gt;= <span class="num">130</span>);
+        <span class="kw">long</span> over120Count = segmentSpeeds.stream().filter(s -&gt; s &gt;= <span class="num">120</span>).count();
+        <span class="kw">if</span> (over130 || over120Count &gt;= <span class="num">2</span>) offenders.add(e.getKey());
+    }
+    <span class="kw">return new</span> <span class="typ">ArrayList</span>&lt;&gt;(offenders);
+}</pre>
+</div>
+
+<!-- ============================================================
+     SECTION 11: SCENARIO-BASED
+     ============================================================ -->
+<h2 class="section" id="sc-gaming">
+  <span class="badge sd">Scenario</span> Gaming Station — Cash + Card
+</h2>
+
+<div class="card">
+  <ul class="clean">
+    <li><b>Double-spend / balance consistency:</b> Card debit atomic, row lock or versioning</li>
+    <li><b>Cash handling:</b> Change, drawer balance, EOD reconciliation, shrinkage tracking, ledger entry</li>
+    <li><b>Card recharge:</b> Refund/chargeback risk, top-up limits, expiry of stored value, liability</li>
+    <li><b>Offline mode:</b> Local balance cache + sync, offline limits to prevent double-spend</li>
+    <li><b>Idempotency:</b> Unique ID per transaction, retries safe</li>
+    <li><b>Audit & compliance:</b> Immutable log, PCI-DSS (tokenize cards)</li>
+    <li><b>Settlement:</b> Card processor T+1/T+2, fees, chargebacks</li>
+    <li><b>Refunds:</b> Cash vs card flows separate</li>
+    <li><b>Fraud:</b> Velocity checks, anomaly detection</li>
+    <li><b>UI/UX:</b> Partial payment? Split (cash + card)?</li>
+  </ul>
+</div>
+
+<!-- DOCTOR -->
+<h2 class="section" id="sc-doctor">
+  <span class="badge sd">Scenario</span> Doctor Appointment Queue
+</h2>
+
+<div class="card">
+  <p><strong>Concerns:</strong></p>
+  <ul class="clean cross">
+    <li><b>User doesn't respond:</b> 30 min blocks others. Timeout + auto-next + notify lost slot.</li>
+    <li><b>Clock skew:</b> Distributed servers, server-side timestamps + scheduled jobs.</li>
+    <li><b>Notification delivery:</b> SMS/push fail. Retry + fallback channel, delivery receipts.</li>
+    <li><b>Race conditions:</b> Two "book" simultaneously — atomic slot lock (DB row / Redis SETNX).</li>
+    <li><b>Starvation:</b> Reject-karne wale aage badh jaayein, fairness policy.</li>
+    <li><b>Idempotency:</b> Double-tap "book" — duplicate na ho.</li>
+    <li><b>Offline users:</b> Grace period + SMS fallback.</li>
+    <li><b>Doctor cancels:</b> Poori queue notify + reschedule.</li>
+    <li><b>Priority cases:</b> Emergency patients out of queue.</li>
+    <li><b>Audit:</b> Kaun kab notify, kisne respond — compliance.</li>
+  </ul>
+  <p><strong>Design:</strong> Queue DB table with status, scheduled job checks timeouts every minute, atomic state transitions, idempotent handlers, notification service with retries.</p>
+</div>
+
+<!-- LIVE SCORING -->
+<h2 class="section" id="sc-live">
+  <span class="badge sd">Scenario</span> Live Scoring Slow at Traffic
+</h2>
+
+<table class="cmp">
+  <tr><th>Cause</th><th>Remedy</th></tr>
+  <tr><td>N+1 queries, no caching</td><td>Redis for scores/stats, CDN for video/static</td></tr>
+  <tr><td>Blocking I/O on request threads</td><td>WebFlux/Netty, virtual threads (Java 21)</td></tr>
+  <tr><td>No CDN for video</td><td>CDN edge caching</td></tr>
+  <tr><td>Single DB bottleneck</td><td>Read replicas, connection pooling</td></tr>
+  <tr><td>Inefficient serialization</td><td>Compression, efficient JSON/protobuf</td></tr>
+  <tr><td>Synchronous fan-out</td><td>Kafka → consumers → push gateways</td></tr>
+  <tr><td>GC pressure</td><td>ZGC/G1, allocation profiling</td></tr>
+  <tr><td>No autoscaling</td><td>Autoscale on CPU/RPS/queue depth</td></tr>
+  <tr><td>Chatty microservices</td><td>Batch, async, gRPC streaming</td></tr>
+</table>
+
+<!-- MISSED NOTIFICATIONS -->
+<h2 class="section" id="sc-notify">
+  <span class="badge sd">Scenario</span> Missed Notifications — e-Sign
+</h2>
+
+<div class="flow">
+  <div class="step"><strong>Aggregate success log</strong><span>500 servers ke flat-files se <code class="inl">doc_id</code> extract → distributed set (Bloom filter + exact set).</span></div>
+  <div class="step"><strong>DB se completed docs</strong><span><code class="inl">SELECT doc_id WHERE status='COMPLETED' AND completed_at BETWEEN ? AND ?</code> — time partition.</span></div>
+  <div class="step"><strong>Set difference</strong><span>completed MINUS notified = missed.</span></div>
+  <div class="step"><strong>Scale</strong><span>MapReduce/Spark — per server partition, distinct doc_id, left-anti-join.</span></div>
+  <div class="step"><strong>Output</strong><span>missed doc_ids → re-notification queue, idempotent consumer.</span></div>
+</div>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Long-term fix:</strong> Notification DB mein record karo (<code class="inl">notification_log</code>), flat files band karo. Kafka + exactly-once + consumer offset — missing detection trivial.</p>
+</div>
+
+<!-- THROUGHPUT -->
+<h2 class="section" id="sc-throughput">
+  <span class="badge sd">Scenario</span> Breach Throughput
+</h2>
+
+<div class="card">
+  <p><strong>Rule:</strong> Pipelined stages mein overall throughput = <strong>minimum</strong> of all stage throughputs (bottleneck). Latency = sum of stage latencies.</p>
+  <p>Stages 10k, 8k, 5k, 12k records/sec → overall <strong>5k/sec</strong> (bottleneck).</p>
+  <p><strong>Fixes:</strong> Bottleneck stage horizontal scale, batching + async, backpressure + bounded queues, parallelize independent sub-stages. <strong>Little's Law:</strong> L = λW.</p>
+</div>
+
+<!-- STORE LOGS -->
+<h2 class="section" id="sc-logs">
+  <span class="badge sd">Scenario</span> Store Logs for One App
+</h2>
+
+<div class="card">
+  <p><strong>Considerations:</strong></p>
+  <ul class="clean">
+    <li><b>Volume:</b> Events/sec × size × retention</li>
+    <li><b>Levels:</b> DEBUG, INFO, WARN, ERROR — levels filter karo prod mein</li>
+    <li><b>Structure:</b> JSON structured logs (parseable, queryable)</li>
+    <li><b>Correlation:</b> Trace ID, request ID, user ID — debugging ke liye</li>
+    <li><b>Storage:</b> ELK / Loki / ClickHouse / S3+Athena</li>
+    <li><b>Retention:</b> Hot (7d SSD), warm (30d), cold (1y Glacier)</li>
+    <li><b>Indexing:</b> Time-based partitions, index critical fields only</li>
+    <li><b>Sampling:</b> High-volume logs sample karo</li>
+    <li><b>Security:</b> PII redaction, access control, audit</li>
+    <li><b>Analysis:</b> Dashboards (Grafana), alerts (ElastAlert), full-text search (Kibana)</li>
+  </ul>
+</div>
+
+<!-- UPLOAD DEDUP -->
+<h2 class="section" id="sc-upload">
+  <span class="badge sd">Scenario</span> Upload/Browse/Download — Byte-for-byte Dedup
+</h2>
+
+<div class="card">
+  <p><strong>Concerns:</strong></p>
+  <ul class="clean cross">
+    <li><b>Storage blowup:</b> Har upload full copy — petabytes waste</li>
+    <li><b>Byte-for-byte check:</b> O(file size) compare per upload — slow</li>
+    <li><b>Content-based dedup:</b> Hash-based (SHA-256) — O(1) lookup</li>
+    <li><b>Hash collision:</b> SHA-256 practically collision-free, but double-check on match</li>
+    <li><b>Side-channel attacks:</b> Dedup se pata chalta hai ki file exist karti hai — privacy leak</li>
+    <li><b>Refcounting:</b> Same file multiple users — delete pe refcount decrement</li>
+    <li><b>Access control:</b> Same file, alag permissions per user</li>
+    <li><b>Modification:</b> File change → naya hash, naya object</li>
+  </ul>
+  <p><strong>Enhancements:</strong> Content-addressed storage (SHA-256 key), per-user encryption keys (privacy), chunk-level dedup (large files), virus scan once per hash, refcount table, garbage collection for unreferenced blobs.</p>
+  <p><strong>More rules:</strong> Max file size, MIME whitelist, virus scan, EXIF strip, thumbnail generation, versioning, share link expiry, download rate limit.</p>
+</div>
+
+<!-- YOUTUBE -->
+<h2 class="section" id="sc-youtube">
+  <span class="badge sd">Scenario</span> YouTube Thumbnail A/B
+</h2>
+
+<div class="card">
+  <p><strong>How it works:</strong> "Test & Compare" — up to 3 thumbnails, YouTube randomly shows each to portion of viewers, reports CTR per variant, winner auto-applied.</p>
+  <p><strong>Process:</strong> Pick 2-3 distinct frames → upload → let run → YouTube splits traffic → winner based on CTR + watch time.</p>
+  <p><strong>Candidates:</strong> Peak emotion, clear subject, high contrast, readable at small size, no clutter, legible text overlay.</p>
+  <p><strong>Caveat:</strong> CTR alone nahi — watch time/retention bhi matter. Clickbait CTR badha sakta but retention hurt.</p>
+</div>
+
+<!-- NEWS -->
+<h2 class="section" id="sc-news">
+  <span class="badge sd">Scenario</span> News App — IP Location
+</h2>
+
+<div class="card">
+  <p><strong>Issues:</strong> VPN/proxy wrong geo, corporate networks, mobile carrier shared IP, border regions, travel, privacy (GDPR), accuracy, multilingual users, IPv6.</p>
+  <p><strong>Solutions:</strong></p>
+  <ul class="clean">
+    <li><b>Device locale first:</b> <code class="inl">Accept-Language</code> header / OS locale stronger signal</li>
+    <li><b>User preference:</b> Explicit setting, remembered</li>
+    <li><b>Don't auto-switch mid-session</b> — first visit pe, ya prompt</li>
+    <li><b>Dismissible banner:</b> "Looks like you're in India — switch to Hindi?"</li>
+    <li><b>Consent:</b> IP location PII in some jurisdictions</li>
+    <li><b>Fallback chain:</b> User pref → device locale → IP → English</li>
+  </ul>
+</div>
+
+<!-- GO GAME -->
+<h2 class="section" id="sc-go">
+  <span class="badge sd">Scenario</span> Go Game Analysis — Phone vs Server
+</h2>
+
+<table class="cmp">
+  <tr><th></th><th>On-device</th><th>Server farm</th></tr>
+  <tr><td><strong>Pros</strong></td><td>No latency, offline, no cost, privacy</td><td>Fast (GPU), consistent, easy updates, battery safe</td></tr>
+  <tr><td><strong>Cons</strong></td><td>5-15 min on phone (thermal, battery), app size, fragmentation</td><td>Network dep, cost, privacy, upload/download latency</td></tr>
+</table>
+<p style="font-size:13px; color:var(--fg2); margin-top:10px"><strong>Hybrid:</strong> On-device lightweight analysis (quick feedback) + optional server-based deep analysis (KataGo/Leela Zero). Progressive results.</p>
+
+<!-- SPORTS NEWS -->
+<h2 class="section" id="sc-sports">
+  <span class="badge sd">Scenario</span> Sports News Classification — Budget
+</h2>
+
+<div class="card">
+  <p><strong>System:</strong> API → fetch article → parse → ML inference → response.</p>
+  <p><strong>Estimation info:</strong> Requests/day (10k → 0.12 QPS avg, peak 5), avg article size (50-200 KB), inference cost, model size, cache hit rate, SLA.</p>
+  <p><strong>Infra:</strong> 2-3 API servers + LB (auto-scale 6), worker pool (queue-based ML inference), TorchServe/TF Serving, Redis cache, S3 + Postgres, Prometheus + Grafana.</p>
+  <p><strong>Rough 6-month:</strong> $500-1500/month. Add 30% buffer for spikes.</p>
+</div>
+
+<!-- RISK LIMIT -->
+<h2 class="section" id="sc-risk">
+  <span class="badge sd">Scenario</span> Real-time Trader Risk Limit
+</h2>
+
+<div class="card">
+  <p><strong>Requirements:</strong> High throughput, low latency, per-trader/per-product limits, real-time enforcement.</p>
+  <p><strong>Design:</strong></p>
+  <ul class="clean">
+    <li><b>In-memory state:</b> Per-trader/product current exposure in Redis/off-heap. Sub-ms updates.</li>
+    <li><b>Pre-trade checks:</b> Order accept karne se pehle limit check. Fail = reject with reason.</li>
+    <li><b>Atomic decrement:</b> Redis Lua / atomic counter — race-free.</li>
+    <li><b>Event-driven updates:</b> Trades → Kafka → risk engine → limit update.</li>
+    <li><b>Latency budget:</b> &lt; 1ms for check. No DB per order.</li>
+    <li><b>Fallback:</b> Risk engine down → reject new orders (fail-closed) or allow with post-trade monitoring (fail-open). Finance mein fail-closed.</li>
+    <li><b>Audit:</b> Har check + decision log, immutable.</li>
+    <li><b>Distributed:</b> Shard by trader/product. Cross-shard limits via aggregation.</li>
+    <li><b>Reconciliation:</b> Periodic DB vs in-memory check — drift alert.</li>
+  </ul>
+</div>
+
+<!-- EXPIRY -->
+<h2 class="section" id="sc-expiry">
+  <span class="badge sd">Scenario</span> Prioritise Products by Expiry
+</h2>
+
+<div class="codewrap">
+  <div class="code-head"><span>ExpiryPriorityQueue.java</span><span class="lang">JAVA</span></div>
+<pre><span class="kw">record</span> <span class="typ">Product</span>(<span class="typ">String</span> id, <span class="typ">String</span> name, <span class="typ">LocalDate</span> expiry) {}
+
+<span class="typ">List</span>&lt;<span class="typ">Product</span>&gt; <span class="fn">prioritizeForSale</span>(<span class="typ">List</span>&lt;<span class="typ">Product</span>&gt; products) {
+    <span class="typ">PriorityQueue</span>&lt;<span class="typ">Product</span>&gt; pq = <span class="kw">new</span> <span class="typ">PriorityQueue</span>&lt;&gt;(
+        <span class="typ">Comparator</span>.comparing(<span class="typ">Product</span>::expiry));   <span class="cmt">// earliest first</span>
+    pq.addAll(products);
+
+    <span class="typ">List</span>&lt;<span class="typ">Product</span>&gt; out = <span class="kw">new</span> <span class="typ">ArrayList</span>&lt;&gt;();
+    <span class="typ">LocalDate</span> today = <span class="typ">LocalDate</span>.now();
+    <span class="kw">while</span> (!pq.isEmpty()) {
+        <span class="typ">Product</span> p = pq.poll();
+        <span class="kw">if</span> (p.expiry().isBefore(today)) <span class="kw">continue</span>;   <span class="cmt">// expired skip</span>
+        out.add(p);
+        <span class="kw">if</span> (out.size() == <span class="num">10</span>) <span class="kw">break</span>;                 <span class="cmt">// top 10</span>
+    }
+    <span class="kw">return</span> out;
+}</pre>
+</div>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>O(n log n) sort ya O(n log k) heap</strong> for top-K. Expired skip. Real systems mein expiry + stock + margin combine karte hain — composite priority score.</p>
+</div>
+
+<!-- ============================================================
+     FOOTER
+     ============================================================ -->
+<footer>
+  HLD + LLD Deep Dive — Part 2 · <strong>HTML #2 ke baad ke saare questions</strong><br>
+  Same common threads: <strong>idempotency, lock ordering, caching, outbox, bounded resources, append-only, CQRS</strong>
+</footer>
+
+</main>
+</div>
+
+<script>
+/* Smooth scroll for nav */
+const navItems = document.querySelectorAll('.navitem');
+navItems.forEach(item => {
+  item.addEventListener('click', () => {
+    navItems.forEach(n => n.classList.remove('active'));
+    item.classList.add('active');
+    const target = document.getElementById(item.dataset.target);
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+});
+
+/* Highlight active section on scroll */
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting && entry.target.id) {
+      const id = entry.target.id;
+      navItems.forEach(n => {
+        n.classList.toggle('active', n.dataset.target === id);
+      });
+    }
+  });
+}, { rootMargin: '-20% 0px -70% 0px' });
+
+document.querySelectorAll('h2.section[id], h3.topic[id]').forEach(el => observer.observe(el));
+
+/* Search — scroll to first match */
+const search = document.getElementById('search');
+search.addEventListener('input', () => {
+  const q = search.value.trim().toLowerCase();
+  if (q.length < 2) return;
+  const sections = document.querySelectorAll('h3.topic, h2.section');
+  for (const s of sections) {
+    if (s.textContent.toLowerCase().includes(q)) {
+      s.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      break;
+    }
+  }
+});
+</script>
+
+</body>
+</html>

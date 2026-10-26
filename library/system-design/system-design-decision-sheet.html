@@ -1,0 +1,2217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>System Design Decision Sheet — HLD, LLD, Tradeoffs, Sockets</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#EAEEF2;
+  --sheet:#F7F9FA;
+  --grid:#CFDAE3;
+  --ink:#16202B;
+  --ink-soft:#4A5B6B;
+  --rule:#B9C7D2;
+  --problem:#9E2B36;
+  --problem-bg:#FBF0F0;
+  --solution:#1B6151;
+  --solution-bg:#EEF6F2;
+  --signal:#B4780C;
+  --signal-bg:#FCF4E2;
+  --code-bg:#12222C;
+  --code-ink:#DCE7EC;
+  --code-key:#7FC7C1;
+  --code-str:#E7B96A;
+  --code-com:#7A93A0;
+  --shadow: 0 1px 0 var(--rule);
+  --maxw:1180px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth; scroll-padding-top:72px}
+body{
+  margin:0;
+  background:
+    linear-gradient(var(--grid) 1px, transparent 1px) 0 0/28px 28px,
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px) 0 0/28px 28px,
+    var(--paper);
+  color:var(--ink);
+  font-family:"Source Serif 4", Charter, Georgia, serif;
+  font-size:17px;
+  line-height:1.65;
+  -webkit-text-size-adjust:100%;
+}
+h1,h2,h3,h4,.mono,nav,button,summary,th{font-family:"Space Grotesk", "Helvetica Neue", Arial, sans-serif}
+.wrap{max-width:var(--maxw); margin:0 auto; padding:0 20px}
+a{color:#0F5C7A}
+a:focus-visible, button:focus-visible, summary:focus-visible, .chip:focus-visible{outline:3px solid #0F5C7A; outline-offset:2px}
+
+/* ---------- hero ---------- */
+.hero{border-bottom:2px solid var(--ink); background:var(--sheet)}
+.hero-inner{max-width:var(--maxw); margin:0 auto; padding:38px 20px 26px}
+.stamp{
+  display:inline-block; border:1.5px solid var(--ink); padding:3px 10px;
+  font-family:"JetBrains Mono", ui-monospace, monospace; font-size:12px; letter-spacing:.04em;
+  transform:rotate(-1.2deg); background:#fff;
+}
+h1{
+  font-size:clamp(30px, 5.4vw, 56px); line-height:1.02; margin:16px 0 10px;
+  font-weight:700; letter-spacing:-0.03em; max-width:16ch;
+}
+.dek{max-width:62ch; margin:0 0 22px; color:var(--ink-soft); font-size:18px}
+.pipeline{display:flex; flex-wrap:wrap; gap:0; border:1.5px solid var(--ink); background:#fff}
+.pipeline .cell{
+  flex:1 1 150px; padding:10px 12px; border-right:1px dashed var(--rule);
+  font-family:"Space Grotesk",sans-serif; font-size:13.5px; line-height:1.35;
+}
+.pipeline .cell:last-child{border-right:0}
+.pipeline .cell b{display:block; font-size:11px; color:var(--ink-soft); font-weight:500}
+.langnote{margin-top:14px; font-size:14.5px; color:var(--ink-soft)}
+.langnote span{border-bottom:2px solid var(--signal)}
+
+/* ---------- nav ---------- */
+nav.toc{position:sticky; top:0; z-index:40; background:rgba(234,238,242,.94); backdrop-filter:blur(6px); border-bottom:1px solid var(--rule)}
+nav.toc .wrap{display:flex; gap:6px; overflow-x:auto; padding:8px 20px; scrollbar-width:thin}
+.chip{
+  white-space:nowrap; text-decoration:none; color:var(--ink); font-size:13px; font-weight:500;
+  border:1px solid var(--rule); background:#fff; padding:5px 10px; border-radius:2px;
+}
+.chip:hover{border-color:var(--ink)}
+
+/* ---------- section shell ---------- */
+section.topic{padding:44px 0 10px; border-top:1px solid var(--rule)}
+section.topic:first-of-type{border-top:0}
+.sec-head{display:flex; gap:14px; align-items:baseline; margin-bottom:6px}
+.sec-num{
+  font-family:"JetBrains Mono",monospace; font-size:13px; color:#fff; background:var(--ink);
+  padding:2px 7px; flex:0 0 auto;
+}
+h2{font-size:clamp(23px,3.2vw,32px); margin:0; letter-spacing:-0.02em; font-weight:600}
+.sec-sub{margin:2px 0 20px; color:var(--ink-soft); max-width:70ch}
+
+/* ---------- split ---------- */
+.split{display:grid; grid-template-columns:1fr 1fr; gap:18px; align-items:start}
+.pane{border:1.5px solid var(--ink); background:#fff}
+.pane > header{
+  display:flex; justify-content:space-between; align-items:center; gap:10px;
+  padding:8px 14px; border-bottom:1.5px solid var(--ink);
+  font-family:"Space Grotesk",sans-serif; font-size:13px; font-weight:600;
+}
+.pane.problem > header{background:var(--problem-bg); color:var(--problem)}
+.pane.solution > header{background:var(--solution-bg); color:var(--solution)}
+.pane > header .tick{font-family:"JetBrains Mono",monospace; font-weight:400; font-size:11.5px; opacity:.75}
+.pane .body{padding:14px 16px 18px}
+.pane .body > *:first-child{margin-top:0}
+.pane .body > *:last-child{margin-bottom:0}
+.pane p{margin:0 0 11px}
+ul,ol{margin:0 0 12px; padding-left:20px}
+li{margin:0 0 7px}
+li::marker{color:var(--ink-soft)}
+.hi{color:#0d3b4d; font-style:italic}
+strong{font-weight:600}
+.q{font-weight:600; color:var(--problem)}
+.k{font-family:"JetBrains Mono",monospace; font-size:.86em; background:#EDF2F5; border:1px solid var(--rule); padding:0 4px; border-radius:2px}
+
+/* rule card */
+.rule{border-left:4px solid var(--signal); background:var(--signal-bg); padding:10px 14px; margin:14px 0}
+.rule b{font-family:"Space Grotesk",sans-serif; font-size:13px; display:block; color:var(--signal); margin-bottom:2px; font-weight:600}
+.warn{border-left:4px solid var(--problem); background:var(--problem-bg); padding:10px 14px; margin:14px 0}
+.warn b{font-family:"Space Grotesk",sans-serif; font-size:13px; display:block; color:var(--problem); margin-bottom:2px; font-weight:600}
+
+/* tables */
+.tbl{width:100%; border-collapse:collapse; font-size:15px; background:#fff; margin:6px 0 14px}
+.tbl th,.tbl td{border:1px solid var(--rule); padding:7px 9px; text-align:left; vertical-align:top}
+.tbl th{background:#E4EBF0; font-size:13px; font-weight:600}
+.tbl td small{color:var(--ink-soft)}
+.scroller{overflow-x:auto}
+
+/* ---------- code ---------- */
+.codewrap{border:1.5px solid var(--ink); background:var(--code-bg); margin:16px 0}
+.codewrap > .cap{
+  display:flex; justify-content:space-between; gap:10px; align-items:center;
+  padding:7px 12px; background:#0C1A22; color:#9FB6C1; border-bottom:1px solid #24404E;
+  font-family:"JetBrains Mono",monospace; font-size:12px;
+}
+pre{margin:0; padding:14px 16px; overflow-x:auto; color:var(--code-ink);
+  font-family:"JetBrains Mono", ui-monospace, monospace; font-size:13.2px; line-height:1.62; tab-size:2}
+pre .c{color:var(--code-com)}
+pre .s{color:var(--code-str)}
+pre .kw{color:var(--code-key)}
+pre .an{color:#C9A0DC}
+pre .m{color:#8FD48F}
+.marker{color:#F0A73C; font-weight:600}
+.explain{border:1.5px solid var(--ink); border-top:0; background:#fff; padding:12px 16px}
+.explain h4{margin:0 0 8px; font-size:14px; font-weight:600}
+.explain ol{list-style:none; padding-left:0; margin:0}
+.explain ol li{display:flex; gap:10px; margin-bottom:8px; font-size:15.5px}
+.explain ol li .n{
+  flex:0 0 auto; font-family:"JetBrains Mono",monospace; font-size:12px; color:#fff;
+  background:#B4780C; padding:1px 6px; height:fit-content; margin-top:3px;
+}
+
+/* ---------- tabs ---------- */
+.tabs{display:flex; flex-wrap:wrap; gap:6px; margin:14px 0 0}
+.tab{
+  font-size:13.5px; font-weight:500; padding:7px 12px; border:1.5px solid var(--ink);
+  background:#fff; cursor:pointer; color:var(--ink);
+}
+.tab[aria-selected="true"]{background:var(--ink); color:#fff}
+.panel[hidden]{display:none}
+
+/* ---------- mock q ---------- */
+details.mock{border:1.5px solid var(--ink); background:#fff; margin:0 0 10px}
+details.mock summary{cursor:pointer; padding:11px 14px; font-size:16px; font-weight:600; list-style:none; display:flex; gap:10px}
+details.mock summary::-webkit-details-marker{display:none}
+details.mock summary .tagq{font-family:"JetBrains Mono",monospace; font-size:11px; background:var(--ink); color:#fff; padding:1px 6px; height:fit-content; margin-top:4px}
+details.mock[open] summary{border-bottom:1px dashed var(--rule)}
+details.mock .ans{padding:12px 16px 16px}
+details.mock .ans > *:first-child{margin-top:0}
+
+/* ---------- animation theatre ---------- */
+#theatre{background:var(--ink); color:#E6EEF2; border-top:3px solid var(--signal); margin-top:50px; padding:34px 0 44px}
+#theatre h2{color:#fff}
+#theatre .sec-sub{color:#A9BDC9}
+#theatre .sec-num{background:var(--signal); color:#12222C}
+.stage{display:grid; grid-template-columns:1.55fr 1fr; gap:16px; margin-top:16px}
+.svgbox{background:#0E1B23; border:1px solid #2A4351; padding:6px}
+.svgbox svg{width:100%; height:auto; display:block}
+.sidepanel{background:#0E1B23; border:1px solid #2A4351; padding:12px 14px; max-height:560px; overflow:auto}
+.sidepanel h4{margin:0 0 8px; font-size:14px; color:#8FD4C9}
+.steplist{list-style:none; margin:0; padding:0; counter-reset:st}
+.steplist li{
+  counter-increment:st; padding:8px 10px 8px 34px; position:relative; font-size:14.5px;
+  border-bottom:1px dashed #24404E; color:#B9CCD6; cursor:pointer;
+}
+.steplist li::before{
+  content:counter(st); position:absolute; left:8px; top:9px; font-family:"JetBrains Mono",monospace;
+  font-size:11px; background:#24404E; color:#CFE3EC; padding:1px 5px;
+}
+.steplist li.active{background:#16303C; color:#fff}
+.steplist li.active::before{background:var(--signal); color:#12222C}
+.steplist li .hin{display:block; color:#8FB6C6; font-size:13.5px; font-style:italic}
+.steplist li.done{opacity:.62}
+.controls{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:12px}
+.controls button{
+  font-size:13.5px; font-weight:600; padding:8px 14px; border:1.5px solid #3C6070; background:#16303C;
+  color:#E6EEF2; cursor:pointer;
+}
+.controls button:hover{background:#1E4353}
+.controls button.primary{background:var(--signal); color:#12222C; border-color:var(--signal)}
+.controls .flowtab{border-color:#3C6070}
+.controls .flowtab[aria-selected="true"]{background:#8FD4C9; color:#0E1B23; border-color:#8FD4C9}
+.controls label{font-family:"Space Grotesk",sans-serif; font-size:13px; color:#A9BDC9; display:flex; gap:6px; align-items:center}
+.nodebox{fill:#16303C; stroke:#3C6070; stroke-width:1.5}
+.nodebox.hot{fill:#1F5A4E; stroke:#8FD4C9; stroke-width:3}
+.nodebox.warm{fill:#4A3B12; stroke:#E0A11B; stroke-width:3}
+.nodelabel{fill:#DCE7EC; font-family:"Space Grotesk",sans-serif; font-size:14px; font-weight:600}
+.nodesub{fill:#8FB6C6; font-family:"JetBrains Mono",monospace; font-size:10.5px}
+.edge{stroke:#2A4351; stroke-width:2; fill:none}
+.edge.dash{stroke-dasharray:6 5}
+.edgelabel{fill:#6E8C9B; font-family:"JetBrains Mono",monospace; font-size:10px}
+.token{fill:#E0A11B; stroke:#12222C; stroke-width:2}
+.tokenlabel{fill:#12222C; font-family:"JetBrains Mono",monospace; font-size:10px; font-weight:600}
+.caption{margin-top:10px; background:#0E1B23; border:1px solid #2A4351; padding:10px 14px; min-height:74px}
+.caption b{color:#8FD4C9; font-family:"Space Grotesk",sans-serif; font-size:14px}
+.caption .hin{color:#C7DCE5; font-style:italic; display:block; margin-top:3px}
+.caption code{background:#16303C; padding:1px 5px; font-size:13px}
+
+footer{border-top:1px solid var(--rule); padding:26px 0 60px; color:var(--ink-soft); font-size:15px}
+
+@media (max-width:900px){
+  .split{grid-template-columns:1fr}
+  .stage{grid-template-columns:1fr}
+  body{font-size:16px}
+}
+@media (max-width:760px){
+  .svgbox{overflow-x:auto}
+  .svgbox svg{width:940px; max-width:none}
+  .scrollhint{display:block}
+  h1{max-width:none}
+}
+.scrollhint{display:none; color:#8FB6C6; font-size:13px; margin:6px 0 0; font-family:"Space Grotesk",sans-serif}
+@media (prefers-reduced-motion: reduce){
+  html{scroll-behavior:auto}
+}
+@media print{
+  nav.toc{display:none} #theatre{background:#fff; color:#000}
+}
+</style>
+</head>
+<body>
+<div id="sdh-libbar" style="position:relative;z-index:2147483000;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0;padding:8px 16px;background:#0f172a;color:#cbd5e1;font:600 13px/1.5 Inter,'Segoe UI',system-ui,-apple-system,sans-serif;border-bottom:2px solid #4f46e5;box-sizing:border-box;width:100%;text-align:left;letter-spacing:0"><a href="../../index.html" style="color:#fff;text-decoration:none;font-weight:800">SystemDesign<span style="color:#8b8cff">.hinglish</span></a><span style="opacity:.45">/</span><a href="../index.html" style="color:#fff;text-decoration:none">📚 Library</a><span style="opacity:.45">/</span><a href="../index.html#system-design" style="color:#cbd5e1;text-decoration:none">System Design &amp; Architecture</a><a href="../files/system-design-decision-sheet-original.html" download style="color:#a5b4fc;text-decoration:none;font-size:12px">⬇ Original</a><span style="margin-left:auto;font-size:11px;padding:2px 9px;border-radius:999px;border:1px solid #6366f1;color:#c7d2fe">📘 HTML ebook</span></div>
+
+<header class="hero">
+  <div class="hero-inner">
+    <span class="stamp">DECISION SHEET · v1 · HLD + LLD</span>
+    <h1>System design me har decision ka ek reason hota hai</h1>
+    <p class="dek">Ye page ek hi cheez sikhata hai: <strong>kaunsa faisla kab lena hai, aur kyun</strong>. Har topic ke left me asli problem (jo interviewer ya production poochta hai), right me decision rule. Beech me tradeoff, aur end me Java 21 + Spring Boot code plus ek chalta-firta architecture.</p>
+    <div class="pipeline">
+      <div class="cell"><b>Step 1</b>Requirements nikaalo (FR + NFR)</div>
+      <div class="cell"><b>Step 2</b>Numbers lagao (QPS, size, latency)</div>
+      <div class="cell"><b>Step 3</b>Bottleneck dhoondo</div>
+      <div class="cell"><b>Step 4</b>Components chuno (DB, cache, queue, GW)</div>
+      <div class="cell"><b>Step 5</b>Tradeoff bolo aur ek side chuno</div>
+      <div class="cell"><b>Step 6</b>LLD: class, API, failure handling</div>
+    </div>
+    <p class="langnote">Padhne ka tarika: <span>bold English</span> = exact technical term jo interview me bolna hai · <em>italic</em> = Hinglish explanation jo samajhne ke liye hai.</p>
+  </div>
+</header>
+
+<nav class="toc" aria-label="Sections">
+  <div class="wrap">
+    <a class="chip" href="#s1">1 · Requirements</a>
+    <a class="chip" href="#s2">2 · Numbers</a>
+    <a class="chip" href="#s3">3 · Tradeoff engine</a>
+    <a class="chip" href="#s4">4 · Database</a>
+    <a class="chip" href="#s5">5 · Redis</a>
+    <a class="chip" href="#s6">6 · Gateway</a>
+    <a class="chip" href="#s7">7 · Sockets + code</a>
+    <a class="chip" href="#s8">8 · Microservices</a>
+    <a class="chip" href="#s9">9 · Common vs variable</a>
+    <a class="chip" href="#s10">10 · Paper pe drawing</a>
+    <a class="chip" href="#s11">11 · HLD vs LLD</a>
+    <a class="chip" href="#s12">12 · Ignore vs apply</a>
+    <a class="chip" href="#theatre">13 · Animation</a>
+    <a class="chip" href="#mocks">14 · Mock Q&amp;A</a>
+  </div>
+</nav>
+
+<main class="wrap">
+
+<!-- ============ 1 ============ -->
+<section class="topic" id="s1">
+  <div class="sec-head"><span class="sec-num">01</span><h2>Functional vs Non-functional requirements kaise decide karein</h2></div>
+  <p class="sec-sub">FR = system <em>kya karega</em>. NFR = system <em>kitna achha karega</em>. 90% log FR to bata dete hain, marks NFR pe milte hain — kyunki poori architecture NFR se banti hai.</p>
+
+  <div class="split">
+    <div class="pane problem">
+      <header><span>Problem</span><span class="tick">jo actually hota hai</span></header>
+      <div class="body">
+        <p class="q">"Design Instagram." — Bas itna hi bola gaya.</p>
+        <ul>
+          <li>Scope infinite hai. Feed, stories, DM, reels, ads, search… sab banaoge to 45 min me kuch complete nahi hoga.</li>
+          <li>Candidate turant boxes banana shuru kar deta hai — <em>ye galti sabse mehngi hai</em>, kyunki bina numbers ke box choose karna guess hai.</li>
+          <li>NFR miss ho jaata hai: "kitne users?", "read heavy ya write heavy?", "stale data chalega?" — inke bina DB/cache choose karna coin-toss hai.</li>
+          <li>Production me yahi galti: team pehle Kafka + microservices laga deti hai, requirement thi sirf 50 RPS ki.</li>
+        </ul>
+        <div class="warn"><b>Red flag</b>Agar aap 5 minute me diagram bana rahe ho aur ek bhi number nahi poocha — interviewer already mark laga chuka hai.</div>
+      </div>
+    </div>
+
+    <div class="pane solution">
+      <header><span>Decision rule</span><span class="tick">5 min · fixed script</span></header>
+      <div class="body">
+        <p><strong>FR nikalne ka formula:</strong> <em>Actor + Action + Object.</em> "User <strong>uploads</strong> a photo", "Follower <strong>views</strong> feed". Jitne actor-action pair banenge, utne hi API endpoints banenge. Isse LLD apne aap nikal aata hai.</p>
+        <p><strong>Top-3 rule:</strong> Interviewer se bolo — <em>"Main teen core flows pe focus karunga: upload, feed read, follow. Baaki out of scope, agar time bacha to touch karenge."</em> Ye scope-cut hi seniority ka signal hai.</p>
+        <p><strong>NFR nikalne ke 7 sawaal</strong> (ye ratt lo, har design me same hain):</p>
+        <ol>
+          <li><strong>Scale:</strong> DAU kitne? Peak QPS? Read:write ratio?</li>
+          <li><strong>Latency:</strong> p99 target? (read &lt;200ms, write &lt;500ms typical)</li>
+          <li><strong>Consistency:</strong> Stale data acceptable? Kitne second tak?</li>
+          <li><strong>Availability:</strong> 99.9% (8.7 hr/yr down) ya 99.99% (52 min/yr)?</li>
+          <li><strong>Durability:</strong> Data kho sakta hai? Payment me kabhi nahi, "typing…" indicator me bilkul chalega.</li>
+          <li><strong>Data retention &amp; size:</strong> 5 saal ka data? Object kitna bada?</li>
+          <li><strong>Security/compliance:</strong> PII, GDPR, audit log, multi-region residency?</li>
+        </ol>
+        <div class="rule"><b>Rule</b>Har NFR ko ek number do. "Highly available" ek opinion hai, "99.95%, max 2 min RTO" ek requirement hai. <em>Number ke bina NFR sirf decoration hai.</em></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="scroller">
+  <table class="tbl">
+    <caption style="text-align:left;font-size:13.5px;color:var(--ink-soft);padding:8px 0">Same feature, alag NFR → bilkul alag architecture</caption>
+    <tr><th>Feature</th><th>FR (kya)</th><th>NFR (kitna)</th><th>Architecture badal jaati hai kaise</th></tr>
+    <tr><td>Like button</td><td>User post ko like kare</td><td>10k QPS, stale count 5s OK</td><td>Redis <span class="k">INCR</span> + async DB flush. Direct DB write karoge to DB mar jaayega.</td></tr>
+    <tr><td>Wallet debit</td><td>Balance se paisa kaate</td><td>0% data loss, strong consistency</td><td>Single-row transaction + optimistic lock in SQL. Cache se kabhi mat padho.</td></tr>
+    <tr><td>Search</td><td>Post text se dhoondo</td><td>p99 300ms, 1 min stale OK</td><td>Elasticsearch async index via Kafka. SQL <span class="k">LIKE</span> mat karo.</td></tr>
+    <tr><td>Chat delivery</td><td>Message bheje</td><td>Real-time, ordered per chat</td><td>WebSocket + per-chat sequence number. Polling se latency aur cost dono kharab.</td></tr>
+  </table>
+  </div>
+</section>
+
+<!-- ============ 2 ============ -->
+<section class="topic" id="s2">
+  <div class="sec-head"><span class="sec-num">02</span><h2>Numbers: NFR ko design me convert karna</h2></div>
+  <p class="sec-sub">Estimation ka maksad accuracy nahi, <strong>order of magnitude</strong> hai — taaki pata chale ek machine chahiye ya sau. Yahi decide karta hai ki sharding chahiye ya nahi.</p>
+
+  <div class="split">
+    <div class="pane problem">
+      <header><span>Problem</span><span class="tick">kahan atakte hain</span></header>
+      <div class="body">
+        <p class="q">"Kitna traffic handle karega?" — aur candidate bolta hai "scale kar denge, horizontally".</p>
+        <ul>
+          <li>Estimation ke bina pata nahi chalta ki <strong>single Postgres kaafi hai</strong> ya sharding chahiye — dono ke design me zameen-aasmaan ka farq hai.</li>
+          <li>Log storage bhool jaate hain: 5 saal ka data 60 TB ho gaya to ek node pe fit hi nahi hoga.</li>
+          <li>Peak vs average gadbad: average 1k QPS but peak 10k QPS (IPL match, sale) — capacity peak pe plan hoti hai.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="pane solution">
+      <header><span>Decision rule</span><span class="tick">3 min · back of envelope</span></header>
+      <div class="body">
+        <p><strong>Sirf 4 numbers nikalo:</strong></p>
+        <ol>
+          <li><strong>Write QPS</strong> = daily writes ÷ 86,400. <em>Peak = 3× average maan lo.</em></li>
+          <li><strong>Read QPS</strong> = write QPS × read:write ratio (social: 100:1, banking: 5:1).</li>
+          <li><strong>Storage/day</strong> = writes/day × row size. ×365×years = total.</li>
+          <li><strong>Bandwidth</strong> = QPS × payload size (images/video me yahi asli cost hai).</li>
+        </ol>
+        <p><strong>Yaad rakhne wale thumb rules</strong> (interview me confidently bolne ke liye):</p>
+        <ul>
+          <li>1 well-tuned SQL node ≈ <strong>5k–10k simple QPS</strong>, ~10–20k with read replicas.</li>
+          <li>Redis single node ≈ <strong>80k–100k+ ops/sec</strong>, sub-ms latency.</li>
+          <li>1 app pod (8 core) ≈ <strong>1k–3k QPS</strong> normal JSON API ke liye.</li>
+          <li>Ek WebSocket server ≈ <strong>50k–100k idle connections</strong> (tuned, ~10 KB/conn memory).</li>
+          <li>Kafka partition ≈ <strong>10 MB/s</strong> comfortably; parallelism = partition count.</li>
+        </ul>
+        <div class="rule"><b>Rule</b>Number nikaal ke turant conclusion bolo: <em>"2k write QPS aur 40 TB data → single node nahi chalega → shard by user_id."</em> Number ka kaam decision justify karna hai, dikhawa nahi.</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 3 ============ -->
+<section class="topic" id="s3">
+  <div class="sec-head"><span class="sec-num">03</span><h2>Tradeoff engine: kaunsa lena, kaunsa chhodna</h2></div>
+  <p class="sec-sub">Tradeoff ka matlab hai: <strong>do achhi cheezein ek saath nahi mil sakti</strong>. Interview me poore marks tab milte hain jab aap dono side bolo, phir <em>requirement ke basis pe ek side chuno</em> — "it depends" bol ke ruk jaana zero marks hai.</p>
+
+  <div class="split">
+    <div class="pane problem">
+      <header><span>Problem</span><span class="tick">confusion ka source</span></header>
+      <div class="body">
+        <p class="q">"CAP theorem batao" / "Yahan consistency chahiye ya availability?"</p>
+        <ul>
+          <li>Log CAP ko galat samajhte hain: <em>network partition ke waqt</em> hi choose karna padta hai. Normal time me aapko C aur A dono milte hain.</li>
+          <li>Har cheez "strongly consistent" bana dete hain → latency aur cost dono double.</li>
+          <li>Ya har cheez eventual bana dete hain → paisa duplicate cut jaata hai.</li>
+          <li>Tradeoff bolte hain par <strong>decide nahi karte</strong>. Interviewer ko decision chahiye, lecture nahi.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="pane solution">
+      <header><span>Decision rule</span><span class="tick">bolne ka template</span></header>
+      <div class="body">
+        <p><strong>4-line tradeoff template</strong> — har tradeoff isi tarike se bolo:</p>
+        <ol>
+          <li><strong>Option A dega:</strong> … <strong>cost:</strong> …</li>
+          <li><strong>Option B dega:</strong> … <strong>cost:</strong> …</li>
+          <li><strong>Humari requirement:</strong> (NFR se ek line quote karo)</li>
+          <li><strong>Isliye main A choose karta hoon,</strong> aur B ka nuksan <em>is tarike se</em> kam karta hoon.</li>
+        </ol>
+        <p><strong>PACELC yaad rakho, CAP se aage ki baat hai:</strong> partition (P) ho to A ya C chuno; <strong>Else</strong> (normal din) latency (L) ya consistency (C) chuno. <em>Asli life me 99.9% time aap L vs C hi choose kar rahe ho.</em></p>
+        <div class="rule"><b>Rule</b>Money, inventory, auth = consistency. Feed, count, recommendation, analytics = availability + eventual. <em>Ek hi system me dono ho sakte hain — per-flow decide karo, per-system nahi.</em></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="scroller">
+  <table class="tbl">
+    <tr><th>Tradeoff</th><th>Ek side lene se milta hai</th><th>Doosri side ka cost</th><th>Kab kaunsa (rule)</th></tr>
+    <tr><td>Strong vs eventual consistency</td><td>Correct read, no double-spend</td><td>Higher latency, cross-region write slow, availability drop on partition</td><td>Paisa/stock/booking → strong. Like count, feed, profile pic → eventual.</td></tr>
+    <tr><td>Normalization vs denormalization</td><td>Single source of truth, easy update</td><td>Join cost, N+1, slow read at scale</td><td>Write-heavy + txn → normalize. Read-heavy + fixed access pattern → denormalize.</td></tr>
+    <tr><td>Sync vs async (queue)</td><td>Sync: simple, immediate error</td><td>Async: eventual, duplicate, ordering, debugging hard</td><td>User ko result turant chahiye → sync. Email, index, report, fan-out → async.</td></tr>
+    <tr><td>Cache vs no cache</td><td>10–100× latency + DB load drop</td><td>Stale data, invalidation bug, cold start, extra infra</td><td>Read:write &gt; 10:1 aur staleness OK → cache. Warna mat lagao.</td></tr>
+    <tr><td>SQL vs NoSQL</td><td>SQL: txn, join, ad-hoc query</td><td>NoSQL: horizontal scale, flexible schema, no join</td><td>Relations + txn → SQL. Huge volume + known key access → NoSQL.</td></tr>
+    <tr><td>Monolith vs microservices</td><td>Monolith: 1 deploy, easy txn, fast dev</td><td>Micro: independent scale/deploy, par network + ops + distributed txn</td><td>Team &lt; 15 ya domain unclear → monolith (modular). Warna split.</td></tr>
+    <tr><td>Push vs pull (fan-out)</td><td>Push: read fast (pre-computed feed)</td><td>Celebrity problem: 1 post = 50M writes</td><td>Hybrid: normal user push, celebrity pull-on-read. <em>Yahi asli answer hai.</em></td></tr>
+    <tr><td>Latency vs cost</td><td>Multi-region, more replicas, bigger cache</td><td>3–5× infra bill</td><td>Revenue-critical path pe kharcha karo, background job pe bilkul nahi.</td></tr>
+  </table>
+  </div>
+</section>
+
+<!-- ============ 4 ============ -->
+<section class="topic" id="s4">
+  <div class="sec-head"><span class="sec-num">04</span><h2>Database kaise choose karein</h2></div>
+  <p class="sec-sub">DB choose karne ka faisla "SQL vs NoSQL" nahi hota. Faisla hota hai: <strong>access pattern, consistency need, aur data size</strong> — teeno milkar DB batate hain.</p>
+
+  <div class="split">
+    <div class="pane problem">
+      <header><span>Problem</span><span class="tick">galat sawaal</span></header>
+      <div class="body">
+        <p class="q">"Aap kaunsa database lenge?" → "MongoDB, kyunki scalable hai."</p>
+        <ul>
+          <li>Ye answer fail hai — reason feature-based hai, requirement-based nahi.</li>
+          <li>Log "NoSQL = fast" maan lete hain. Reality: <em>NoSQL fast tab hai jab query aapke partition key ke through jaaye.</em> Warna scatter-gather aur SQL se bhi slow.</li>
+          <li>Ek hi DB me sab thoosne ki koshish: search bhi, analytics bhi, transaction bhi.</li>
+          <li>Sharding ka faisla late kiya jata hai — migration production me sabse dardnaak kaam hai.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="pane solution">
+      <header><span>Decision rule</span><span class="tick">4 sawaal · fixed order</span></header>
+      <div class="body">
+        <ol>
+          <li><strong>Query pattern kya hai?</strong> "user ke last 20 orders" (key-based) vs "pichle mahine top 10 categories" (analytical). <em>Query pehle likho, DB baad me chuno.</em></li>
+          <li><strong>Multi-row / multi-entity transaction chahiye?</strong> Haan → relational (Postgres/MySQL) ya NewSQL (CockroachDB, Spanner, TiDB).</li>
+          <li><strong>Data volume + growth?</strong> &lt; ~2 TB aur linear growth → single Postgres + replicas kaafi hai, seedhe bolo. 100 TB+ → Cassandra/DynamoDB/HBase.</li>
+          <li><strong>Access shape?</strong> Time-series → Timescale/Influx. Graph traversal (friend-of-friend) → Neo4j. Full-text → Elasticsearch. Blob/media → S3 + CDN, DB me sirf URL.</li>
+        </ol>
+        <div class="rule"><b>Rule</b>Default se shuru karo: <strong>Postgres + read replica + Redis</strong>. Ye 95% products ke liye kaafi hai. Isse hatne ka reason ek <em>number</em> hona chahiye, feeling nahi.</div>
+        <div class="warn"><b>Polyglot ka asli cost</b>3 DB = 3 backup strategy, 3 monitoring, 3 failure mode, 3 on-call runbook. <em>Naya DB tabhi lo jab purana measurably fail ho raha ho.</em></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="scroller">
+  <table class="tbl">
+    <tr><th>Signal jo requirement me milta hai</th><th>Choice</th><th>Bolne wali line</th></tr>
+    <tr><td>Order, payment, inventory, booking</td><td>Postgres / MySQL</td><td>ACID txn chahiye, row-level lock aur foreign key se correctness milti hai.</td></tr>
+    <tr><td>1M+ writes/day chat messages, key = (chat_id, ts)</td><td>Cassandra / DynamoDB</td><td>Write-heavy, partition key clear hai, query hamesha key se — LSM tree suits.</td></tr>
+    <tr><td>Product catalog with varying attributes</td><td>MongoDB / Postgres JSONB</td><td>Schema flexible chahiye; Postgres JSONB se ek hi DB me kaam ho jaata hai.</td></tr>
+    <tr><td>"Search by title, fuzzy, filters, ranking"</td><td>Elasticsearch / OpenSearch</td><td>Inverted index; SQL LIKE full scan karega, p99 phat jaayega.</td></tr>
+    <tr><td>Leaderboard, session, rate limit, lock</td><td>Redis</td><td>In-memory, sorted set aur TTL native hain.</td></tr>
+    <tr><td>Metrics, IoT readings, 90-day retention</td><td>TimescaleDB / InfluxDB / Prometheus</td><td>Time-partitioning + downsampling built-in.</td></tr>
+    <tr><td>Dashboard, GROUP BY over 10B rows</td><td>ClickHouse / BigQuery / Redshift</td><td>Columnar OLAP; OLTP DB pe analytics chalaoge to production down.</td></tr>
+    <tr><td>Images, video, PDFs</td><td>S3 + CDN</td><td>DB me blob mat rakho — sirf metadata aur object key.</td></tr>
+  </table>
+  </div>
+
+  <div class="split">
+    <div class="pane problem">
+      <header><span>Problem</span><span class="tick">sharding kab</span></header>
+      <div class="body">
+        <p class="q">"Data bahut ho gaya, ab kya?"</p>
+        <p>Log turant shard bol dete hain. Sharding aapke saare joins, transactions aur unique constraints tod deti hai. <em>Ye last resort hai, first move nahi.</em></p>
+      </div>
+    </div>
+    <div class="pane solution">
+      <header><span>Decision rule</span><span class="tick">escalation ladder</span></header>
+      <div class="body">
+        <p>Isi order me upar chadho, jump mat karo:</p>
+        <ol>
+          <li><strong>Index + query fix</strong> (80% "DB slow hai" yahin theek ho jaata hai)</li>
+          <li><strong>Read replica</strong> — read scale, write nahi</li>
+          <li><strong>Cache (Redis)</strong> — hot key ka load hatao</li>
+          <li><strong>Vertical scale</strong> — bada machine, sabse sasta engineering time</li>
+          <li><strong>Partitioning</strong> (same DB, table by date/range)</li>
+          <li><strong>Archive/cold storage</strong> — 2 saal purana data S3 me</li>
+          <li><strong>Sharding</strong> — ab bhi problem hai tab. Key chuno: high cardinality, even distribution, aur query me hamesha present (usually <span class="k">user_id</span>/<span class="k">tenant_id</span>).</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 5 ============ -->
+<section class="topic" id="s5">
+  <div class="sec-head"><span class="sec-num">05</span><h2>Redis: lagana kab hai, kaunsa pattern, aur kaunsa data type</h2></div>
+  <p class="sec-sub">Redis "fast bana deta hai" — ye adhoora jawab hai. Redis ek <strong>choice</strong> hai jiska cost hai: stale data, ek aur failure point, aur invalidation logic. Isliye reason clear hona chahiye.</p>
+
+  <div class="split">
+    <div class="pane problem">
+      <header><span>Problem</span><span class="tick">real production pain</span></header>
+      <div class="body">
+        <p class="q">"Redis kyun? Kya cache karoge? Invalidate kaise karoge?"</p>
+        <ul>
+          <li><strong>Stale read:</strong> DB update ho gaya, cache purana de raha hai. User ko purana price dikh gaya.</li>
+          <li><strong>Cache stampede:</strong> ek popular key expire hui, 10,000 request ek saath DB pe gir gayi.</li>
+          <li><strong>Hot key:</strong> ek celebrity ka profile 40% traffic le raha hai, ek hi shard garam ho gaya.</li>
+          <li><strong>Memory bhar gayi:</strong> eviction policy set hi nahi thi, Redis ne random keys nikaal di ya OOM ho gaya.</li>
+          <li><strong>Cache ko source of truth maan liya</strong> — restart pe data gaya. <em>Redis persistence (RDB/AOF) ke baad bhi cache cache hi hai.</em></li>
+        </ul>
+      </div>
+    </div>
+    <div class="pane solution">
+      <header><span>Decision rule</span><span class="tick">kab · kya · kaise</span></header>
+      <div class="body">
+        <p><strong>Redis tab lagao jab teeno sach hon:</strong></p>
+        <ol>
+          <li>Read:write ratio <strong>&gt; 10:1</strong></li>
+          <li>Kuch second ka <strong>staleness acceptable</strong> hai (ya aap explicitly invalidate kar sakte ho)</li>
+          <li>Same data <strong>baar baar</strong> maanga jaata hai (skewed access, Pareto)</li>
+        </ol>
+        <p><strong>Pattern chuno:</strong></p>
+        <ul>
+          <li><strong>Cache-aside (lazy loading)</strong> — 90% cases. App: read cache → miss → DB → cache me daalo. <em>Default yahi bolo.</em></li>
+          <li><strong>Write-through</strong> — write ke waqt cache bhi likho. Consistent, par har write slow.</li>
+          <li><strong>Write-behind</strong> — cache me likho, DB me async. Fast, par crash pe data loss. Sirf counters/metrics ke liye.</li>
+          <li><strong>Read-through</strong> — cache library khud DB se load kare (Caffeine + Redis 2-level).</li>
+        </ul>
+        <div class="rule"><b>Rule</b>Update pe cache <strong>DELETE karo, UPDATE mat karo</strong>. Do concurrent writers cache me alag order me likh sakte hain (lost update). Delete karne se next read fresh value laayegi. <em>Delete idempotent hai, update nahi.</em></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="scroller">
+  <table class="tbl">
+    <tr><th>Use case</th><th>Redis type / command</th><th>Kyun yahi</th></tr>
+    <tr><td>Object cache (user, product)</td><td><span class="k">STRING</span> + JSON, <span class="k">SET key val EX 300</span></td><td>Simple, TTL built-in. 1 key = 1 entity.</td></tr>
+    <tr><td>Partial update wala object</td><td><span class="k">HASH</span> — <span class="k">HSET</span>/<span class="k">HGET</span></td><td>Poora JSON re-serialize kiye bina ek field update.</td></tr>
+    <tr><td>Leaderboard, "top N"</td><td><span class="k">ZSET</span> — <span class="k">ZADD</span>, <span class="k">ZREVRANGE</span></td><td>O(log N) rank, sorted maintain hota hai.</td></tr>
+    <tr><td>Rate limiting</td><td><span class="k">INCR</span> + <span class="k">EXPIRE</span>, ya sliding window with <span class="k">ZSET</span></td><td>Atomic counter; Lua script se check+incr ek saath.</td></tr>
+    <tr><td>Distributed lock</td><td><span class="k">SET key val NX PX 30000</span></td><td>NX = only-if-absent, PX = auto expiry (deadlock se bachav). Unlock Lua se, token match kar ke.</td></tr>
+    <tr><td>Idempotency key (double-submit)</td><td><span class="k">SET idem:&lt;key&gt; 1 NX EX 86400</span></td><td>Pehla request jeetta hai, doosra duplicate detect ho jaata hai.</td></tr>
+    <tr><td>Session store</td><td><span class="k">STRING/HASH</span> + TTL</td><td>Stateless app servers, koi sticky session nahi chahiye.</td></tr>
+    <tr><td>Recent activity / capped list</td><td><span class="k">LIST</span> + <span class="k">LPUSH</span> + <span class="k">LTRIM 0 99</span></td><td>Last 100 items constant memory me.</td></tr>
+    <tr><td>Unique visitors (approx)</td><td><span class="k">HyperLogLog</span> — <span class="k">PFADD</span>/<span class="k">PFCOUNT</span></td><td>12 KB me crores unique, ~0.81% error.</td></tr>
+    <tr><td>WebSocket fan-out across pods</td><td><span class="k">PUB/SUB</span> ya <span class="k">Streams</span></td><td>Pod A ka message pod B ke user tak. Streams me replay + consumer group milta hai.</td></tr>
+  </table>
+  </div>
+
+  <div class="split">
+    <div class="pane problem">
+      <header><span>Problem</span><span class="tick">3 classic failures</span></header>
+      <div class="body">
+        <p><strong>Cache stampede / thundering herd</strong> — hot key expire, sab DB pe.</p>
+        <p><strong>Cache penetration</strong> — jo ID exist hi nahi karti uske liye har baar DB hit (attack vector bhi hai).</p>
+        <p><strong>Cache avalanche</strong> — deploy ke baad saari keys ek hi TTL pe expire, ek saath.</p>
+      </div>
+    </div>
+    <div class="pane solution">
+      <header><span>Decision rule</span><span class="tick">fix</span></header>
+      <div class="body">
+        <ul>
+          <li><strong>Stampede →</strong> per-key mutex/lock: ek thread DB jaaye, baaki wait karein. Ya "logical expiry" — value ke andar expiry timestamp rakho, stale serve karo aur background me refresh.</li>
+          <li><strong>Penetration →</strong> null result ko bhi cache karo chhoti TTL (30–60s) ke saath, ya Bloom filter lagao.</li>
+          <li><strong>Avalanche →</strong> TTL me <strong>jitter</strong> daalo: <span class="k">300 + random(0,60)</span> sec.</li>
+          <li><strong>Memory →</strong> <span class="k">maxmemory</span> + <span class="k">allkeys-lru</span> (pure cache) ya <span class="k">volatile-lru</span> (mixed use). Ye interview me bahut kam log bolte hain.</li>
+          <li><strong>Hot key →</strong> key ko N copies me split karo (<span class="k">post:123:v{0..9}</span>) ya app ke andar local cache (Caffeine) 1–2s ke liye.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 6 ============ -->
+<section class="topic" id="s6">
+  <div class="sec-head"><span class="sec-num">06</span><h2>Gateway, load balancer, BFF: kaunsa kahan</h2></div>
+  <p class="sec-sub">"API Gateway laga denge" — par kaunsa layer, aur usme kya rakhna hai? Gateway ka kaam hai <strong>cross-cutting concerns</strong> ek jagah rakhna, business logic nahi.</p>
+
+  <div class="split">
+    <div class="pane problem">
+      <header><span>Problem</span><span class="tick">jo galat hota hai</span></header>
+      <div class="body">
+        <p class="q">"Client 5 services ko alag alag call kar raha hai."</p>
+        <ul>
+          <li>Auth har service me duplicate — ek service bhool gayi to security hole.</li>
+          <li>Mobile app 6 round trips kar raha hai ek screen ke liye; 3G pe screen 4 second me khulti hai.</li>
+          <li>Rate limiting kahin nahi — ek buggy client poora cluster gira deta hai.</li>
+          <li>Ulta problem: gateway me business logic ghusa di gayi → gateway hi monolith ban gaya aur single point of failure.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="pane solution">
+      <header><span>Decision rule</span><span class="tick">layer by layer</span></header>
+      <div class="body">
+        <p><strong>Layer 4 LB</strong> (NLB, HAProxy TCP) — sirf IP:port dekhta hai. Fast, TLS pass-through. <em>WebSocket, gRPC, ya raw TCP ke liye achha.</em></p>
+        <p><strong>Layer 7 LB / reverse proxy</strong> (Nginx, ALB, Envoy) — HTTP header/path dekh sakta hai. Path routing, TLS termination, retry, compression.</p>
+        <p><strong>API Gateway</strong> (Kong, APISIX, Spring Cloud Gateway, AWS API GW) — L7 ke upar: <strong>authN/authZ, rate limit, quota, request validation, API key, versioning, aggregation, observability</strong>.</p>
+        <p><strong>BFF (Backend for Frontend)</strong> — har client type ke liye alag thin layer: mobile-bff, web-bff. <em>Jab mobile ko chhota payload chahiye aur web ko bada.</em></p>
+        <p><strong>Service mesh</strong> (Istio, Linkerd) — <em>service-to-service</em> (east-west) traffic: mTLS, retry, circuit breaking, tracing. Gateway north-south ke liye hai, mesh east-west ke liye.</p>
+        <div class="rule"><b>Rule</b>Gateway me sirf wahi cheez rakho jo <strong>har request pe same tarike se</strong> honi hai aur jiska business domain se koi lena-dena nahi. Agar aap gateway me "if order.amount &gt; 10000" likh rahe ho — galat jagah hai.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="scroller">
+  <table class="tbl">
+    <tr><th>Zimmedari</th><th>Gateway pe</th><th>Service pe</th><th>Kyun</th></tr>
+    <tr><td>TLS termination</td><td>✔</td><td>—</td><td>Cert ek jagah manage ho.</td></tr>
+    <tr><td>JWT signature verify</td><td>✔</td><td>✔ (light re-check)</td><td>Gateway bypass ho jaye to bhi service safe rahe (zero trust).</td></tr>
+    <tr><td>Fine-grained permission ("apna hi order dekh sakta hai")</td><td>—</td><td>✔</td><td>Ye domain rule hai, gateway ko data ka pata nahi.</td></tr>
+    <tr><td>Rate limit per API key</td><td>✔</td><td>—</td><td>Global counter chahiye, Redis-backed.</td></tr>
+    <tr><td>Request/response transform, aggregation</td><td>✔ (BFF me behtar)</td><td>—</td><td>Client-specific shaping.</td></tr>
+    <tr><td>Retry + circuit breaker</td><td>✔</td><td>✔ (Resilience4j)</td><td>Dono jagah; par retry sirf idempotent calls pe.</td></tr>
+    <tr><td>Business validation</td><td>✘</td><td>✔</td><td>Domain knowledge service ke paas hai.</td></tr>
+  </table>
+  </div>
+</section>
+
+<!-- ============ 7 ============ -->
+<section class="topic" id="s7">
+  <div class="sec-head"><span class="sec-num">07</span><h2>Real-time connection: polling, SSE, WebSocket ya raw TCP</h2></div>
+  <p class="sec-sub">"Socket laga do" bolna aasan hai. Pehle ye decide karo ki data <strong>kis direction me</strong> aur <strong>kitni frequency</strong> se jaata hai — usi se protocol nikalta hai.</p>
+
+  <div class="split">
+    <div class="pane problem">
+      <header><span>Problem</span><span class="tick">decide kya karna hai</span></header>
+      <div class="body">
+        <p class="q">"Order status live update chahiye. Kaise karoge?"</p>
+        <ul>
+          <li>Polling har 2 second = 1M users × 30 req/min = <strong>500k QPS</strong> sirf "kuch naya hai kya?" poochne ke liye. 99% response empty.</li>
+          <li>WebSocket lagane pe naye problem: <strong>stateful connections</strong>, load balancer ko sticky karna padta hai, deploy pe saare connections tootenge, aur pod A ka message pod B ke user tak kaise jaayega?</li>
+          <li>Auth: WebSocket handshake ke baad browser custom header nahi bhej sakta — token kahan se aayega?</li>
+          <li>Backpressure: slow client ko fast producer maar dega — server memory bhar jaayegi.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="pane solution">
+      <header><span>Decision rule</span><span class="tick">direction + frequency</span></header>
+      <div class="body">
+        <ul>
+          <li><strong>Server → client only</strong>, update har kuch second: <strong>SSE</strong> (Server-Sent Events). HTTP hi hai, auto-reconnect built-in, proxy friendly. <em>Notification, live score, progress bar ke liye best aur sabse sasta.</em></li>
+          <li><strong>Dono taraf</strong>, low latency, high frequency: <strong>WebSocket</strong>. Chat, collaborative editing, trading, multiplayer.</li>
+          <li><strong>Update rare</strong> (minute me ek baar): <strong>long polling</strong> ya normal polling — connection ka kharcha bachao.</li>
+          <li><strong>Browser nahi hai</strong> — device/IoT/service-to-service, custom binary protocol: <strong>raw TCP socket</strong> (ya gRPC streaming, jo HTTP/2 pe hai).</li>
+        </ul>
+        <div class="rule"><b>Rule</b>Sabse pehle poocho: "kya user ko turant <em>push</em> chahiye, ya thodi der baad pata chal jaaye to chalega?" Agar chalega — SSE ya polling lo. <strong>WebSocket free nahi hai, uska ops cost hai.</strong></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="scroller">
+  <table class="tbl">
+    <tr><th></th><th>Long polling</th><th>SSE</th><th>WebSocket</th><th>WebSocket + STOMP</th><th>Raw TCP</th></tr>
+    <tr><td>Direction</td><td>Server→client (request pe)</td><td>Server→client</td><td>Full duplex</td><td>Full duplex + routing</td><td>Full duplex, raw bytes</td></tr>
+    <tr><td>Protocol</td><td>HTTP</td><td>HTTP (text/event-stream)</td><td>ws:// upgrade</td><td>ws:// + STOMP frames</td><td>TCP</td></tr>
+    <tr><td>Browser support</td><td>Sab jagah</td><td>Native <span class="k">EventSource</span></td><td>Native</td><td>JS library chahiye</td><td>Nahi</td></tr>
+    <tr><td>Server cost</td><td>High (repeat handshake)</td><td>1 open conn/user</td><td>1 open conn/user</td><td>1 conn + broker state</td><td>1 conn/device</td></tr>
+    <tr><td>Reconnect</td><td>Automatic (next req)</td><td>Built-in + <span class="k">Last-Event-ID</span></td><td>Khud likhna padta hai</td><td>Library deti hai</td><td>Khud</td></tr>
+    <tr><td>Pub/sub, topics</td><td>—</td><td>—</td><td>Khud banao</td><td>Built-in (<span class="k">/topic</span>, <span class="k">/user/queue</span>)</td><td>Khud</td></tr>
+    <tr><td>Kab chuno</td><td>Legacy/rare updates</td><td>One-way feed <em>(default choice)</em></td><td>Chat, game, editor</td><td>Multi-topic app, kam boilerplate</td><td>IoT, custom binary, low overhead</td></tr>
+  </table>
+  </div>
+
+  <h3 style="font-size:20px;margin:26px 0 6px">Spring Boot 3 + Java 21 — teeno tarike, code ke saath</h3>
+  <p style="margin:0 0 6px;color:var(--ink-soft);max-width:70ch">Har method ka naam intention batata hai (<span class="k">registerRealtimeEndpoints</span>, <span class="k">handleClientConnection</span>) — LLD round me naming pe alag se marks milte hain. Code me <span class="marker">(1)</span> jaise marker hain, unka matlab neeche list me hai.</p>
+
+  <div class="tabs" data-tabgroup="sock" role="tablist">
+    <button class="tab" role="tab" aria-selected="true" data-target="sock-a">A · WebSocket + STOMP</button>
+    <button class="tab" role="tab" aria-selected="false" data-target="sock-b">B · Plain WebSocket handler</button>
+    <button class="tab" role="tab" aria-selected="false" data-target="sock-c">C · Raw TCP (virtual threads)</button>
+    <button class="tab" role="tab" aria-selected="false" data-target="sock-d">D · Multi-pod scaling</button>
+  </div>
+
+  <!-- ---- A ---- -->
+  <div class="panel" id="sock-a" data-tabgroup="sock">
+    <div class="codewrap">
+      <div class="cap"><span>StompBrokerConfig.java</span><span>Java 21 · spring-boot-starter-websocket</span></div>
+<pre><span class="kw">package</span> com.example.orders.realtime;
+
+<span class="an">@Configuration</span>
+<span class="an">@EnableWebSocketMessageBroker</span>
+<span class="kw">public class</span> StompBrokerConfig <span class="kw">implements</span> WebSocketMessageBrokerConfigurer {
+
+    <span class="an">@Override</span>
+    <span class="kw">public void</span> registerStompEndpoints(StompEndpointRegistry registry) {
+        registry.addEndpoint(<span class="s">"/ws"</span>)                                 <span class="marker">// (1)</span>
+                .setAllowedOriginPatterns(<span class="s">"https://app.example.com"</span>)  <span class="marker">// (2)</span>
+                .addInterceptors(<span class="kw">new</span> HandshakeAuthInterceptor())     <span class="marker">// (3)</span>
+                .withSockJS();                                        <span class="marker">// (4)</span>
+    }
+
+    <span class="an">@Override</span>
+    <span class="kw">public void</span> configureMessageBroker(MessageBrokerRegistry registry) {
+        registry.enableSimpleBroker(<span class="s">"/topic"</span>, <span class="s">"/queue"</span>)              <span class="marker">// (5)</span>
+                .setHeartbeatValue(<span class="kw">new long</span>[]{10_000, 10_000})       <span class="marker">// (6)</span>
+                .setTaskScheduler(brokerHeartbeatScheduler());
+        registry.setApplicationDestinationPrefixes(<span class="s">"/app"</span>);          <span class="marker">// (7)</span>
+        registry.setUserDestinationPrefix(<span class="s">"/user"</span>);                  <span class="marker">// (8)</span>
+    }
+
+    <span class="an">@Override</span>
+    <span class="kw">public void</span> configureWebSocketTransport(WebSocketTransportRegistration reg) {
+        reg.setMessageSizeLimit(64 * 1024)                            <span class="marker">// (9)</span>
+           .setSendBufferSizeLimit(512 * 1024)
+           .setSendTimeLimit(20_000);
+    }
+
+    <span class="an">@Bean</span>
+    <span class="kw">public</span> TaskScheduler brokerHeartbeatScheduler() {
+        <span class="kw">var</span> scheduler = <span class="kw">new</span> ThreadPoolTaskScheduler();
+        scheduler.setPoolSize(2);
+        scheduler.setThreadNamePrefix(<span class="s">"stomp-heartbeat-"</span>);
+        <span class="kw">return</span> scheduler;
+    }
+}</pre>
+    </div>
+    <div class="explain">
+      <h4>Line by line — kya aur kyun</h4>
+      <ol>
+        <li><span class="n">1</span><strong>Handshake URL.</strong> Client yahin HTTP se connect karta hai, phir protocol <span class="k">Upgrade: websocket</span> ho jaata hai. <em>Ek hi TCP connection reuse hota hai.</em></li>
+        <li><span class="n">2</span><strong>Origin whitelist.</strong> WebSocket pe CORS lagu nahi hota — isliye ye check zaroori hai, warna koi bhi site aapke socket se connect kar legi (CSWSH attack).</li>
+        <li><span class="n">3</span><strong>Auth handshake pe.</strong> Browser WS me custom header nahi bhej sakta, isliye token <span class="k">?token=</span> query param, cookie, ya pehle STOMP <span class="k">CONNECT</span> frame se lo aur yahin verify karke <span class="k">Principal</span> set karo.</li>
+        <li><span class="n">4</span><strong>SockJS fallback.</strong> Purane corporate proxy WS block karte hain; SockJS XHR-streaming pe gir jaata hai. <em>Public consumer app me rakho, internal tool me hata sakte ho.</em></li>
+        <li><span class="n">5</span><strong>Simple in-memory broker.</strong> Ye single-pod hai. Multi-pod pe RabbitMQ/ActiveMQ relay chahiye — tab <span class="k">StompBrokerRelay</span> use hota hai (tab D dekho).</li>
+        <li><span class="n">6</span><strong>Heartbeat 10s.</strong> Dead connection detect karne ke liye. Bina iske load balancer idle connection chupchaap kaat dega aur client ko pata bhi nahi chalega.</li>
+        <li><span class="n">7</span><strong>App prefix.</strong> Client <span class="k">/app/...</span> pe bhejta hai → aapke <span class="k">@MessageMapping</span> method pe jaata hai. <span class="k">/topic</span> pe seedha broker.</li>
+        <li><span class="n">8</span><strong>User destination.</strong> <span class="k">/user/queue/orders</span> — Spring isko internally per-session unique queue me convert karta hai. <em>Isse "sirf isi user ko bhejo" free me mil jaata hai.</em></li>
+        <li><span class="n">9</span><strong>Backpressure limits.</strong> Slow client ke liye buffer cap. Limit cross hui to Spring session close kar deta hai — yahi behaviour aapko chahiye, memory bharne se behtar.</li>
+      </ol>
+    </div>
+
+    <div class="codewrap">
+      <div class="cap"><span>OrderRealtimeNotifier.java + OrderStreamController.java</span><span>publish + subscribe</span></div>
+<pre><span class="an">@Service</span>
+<span class="kw">public class</span> OrderRealtimeNotifier {
+
+    <span class="kw">private final</span> SimpMessagingTemplate messagingTemplate;
+
+    <span class="kw">public</span> OrderRealtimeNotifier(SimpMessagingTemplate messagingTemplate) {
+        <span class="kw">this</span>.messagingTemplate = messagingTemplate;
+    }
+
+    <span class="c">/** Ek hi user ko private update — /user/queue/orders. */</span>
+    <span class="kw">public void</span> notifyOrderStatusChanged(String userId, OrderStatusEvent event) {
+        messagingTemplate.convertAndSendToUser(                       <span class="marker">// (1)</span>
+                userId, <span class="s">"/queue/orders"</span>, event);
+    }
+
+    <span class="c">/** Sab subscriber ko broadcast — /topic/orders.{id} */</span>
+    <span class="kw">public void</span> broadcastOrderTimeline(String orderId, OrderStatusEvent event) {
+        messagingTemplate.convertAndSend(<span class="s">"/topic/orders."</span> + orderId, event);
+    }
+}
+
+<span class="an">@Controller</span>
+<span class="kw">public class</span> OrderStreamController {
+
+    <span class="kw">private final</span> OrderQueryService orderQueryService;
+
+    <span class="kw">public</span> OrderStreamController(OrderQueryService orderQueryService) {
+        <span class="kw">this</span>.orderQueryService = orderQueryService;
+    }
+
+    <span class="an">@MessageMapping</span>(<span class="s">"/orders.subscribe"</span>)                            <span class="marker">// (2)</span>
+    <span class="an">@SendToUser</span>(<span class="s">"/queue/orders"</span>)                                    <span class="marker">// (3)</span>
+    <span class="kw">public</span> OrderSnapshot handleInitialSnapshotRequest(
+            SubscribeCommand command, Principal principal) {
+
+        String userId = principal.getName();                          <span class="marker">// (4)</span>
+        <span class="kw">return</span> orderQueryService.loadSnapshotForUser(userId, command.orderId());
+    }
+
+    <span class="an">@MessageExceptionHandler</span>(AccessDeniedException.class)              <span class="marker">// (5)</span>
+    <span class="an">@SendToUser</span>(<span class="s">"/queue/errors"</span>)
+    <span class="kw">public</span> ErrorPayload handleAccessDenied(AccessDeniedException ex) {
+        <span class="kw">return new</span> ErrorPayload(<span class="s">"FORBIDDEN"</span>, ex.getMessage());
+    }
+}</pre>
+    </div>
+    <div class="explain">
+      <h4>Line by line</h4>
+      <ol>
+        <li><span class="n">1</span><strong>convertAndSendToUser</strong> — object ko JSON me convert karke us user ke private queue me daal deta hai. <em>Aapko session dhoondhna nahi padta, Spring karta hai.</em></li>
+        <li><span class="n">2</span><strong>@MessageMapping</strong> — client ne <span class="k">/app/orders.subscribe</span> pe frame bheja to yahi method chalega. REST ka <span class="k">@PostMapping</span> ka socket version samajh lo.</li>
+        <li><span class="n">3</span><strong>@SendToUser</strong> — return value automatically usi caller ko chala jaata hai. <em>Pehla snapshot bhejna zaroori hai:</em> client ko current state chahiye, phir usme delta apply hote rahenge.</li>
+        <li><span class="n">4</span><strong>Principal</strong> handshake me set hua tha — isse authorization karo. Client ke bheje hue <span class="k">userId</span> pe kabhi bharosa mat karo.</li>
+        <li><span class="n">5</span><strong>Error channel.</strong> Socket me HTTP status code nahi hota; error alag destination pe bhejna padta hai warna client ko sirf silence milega.</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- ---- B ---- -->
+  <div class="panel" id="sock-b" data-tabgroup="sock" hidden>
+    <div class="codewrap">
+      <div class="cap"><span>RawWebSocketConfig.java + OrderSocketHandler.java</span><span>bina STOMP ke — poora control</span></div>
+<pre><span class="an">@Configuration</span>
+<span class="an">@EnableWebSocket</span>
+<span class="kw">public class</span> RawWebSocketConfig <span class="kw">implements</span> WebSocketConfigurer {
+
+    <span class="kw">private final</span> OrderSocketHandler orderSocketHandler;
+
+    <span class="kw">public</span> RawWebSocketConfig(OrderSocketHandler orderSocketHandler) {
+        <span class="kw">this</span>.orderSocketHandler = orderSocketHandler;
+    }
+
+    <span class="an">@Override</span>
+    <span class="kw">public void</span> registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
+        registry.addHandler(orderSocketHandler, <span class="s">"/ws/orders"</span>)          <span class="marker">// (1)</span>
+                .setAllowedOriginPatterns(<span class="s">"https://app.example.com"</span>)
+                .addInterceptors(<span class="kw">new</span> HandshakeAuthInterceptor());
+    }
+}
+
+<span class="an">@Component</span>
+<span class="kw">public class</span> OrderSocketHandler <span class="kw">extends</span> TextWebSocketHandler {
+
+    <span class="kw">private static final</span> Logger log = LoggerFactory.getLogger(OrderSocketHandler.class);
+
+    <span class="c">// userId -&gt; live sessions. Ek user ke 3 tab khule ho sakte hain.</span>
+    <span class="kw">private final</span> Map&lt;String, Set&lt;WebSocketSession&gt;&gt; sessionsByUser =
+            <span class="kw">new</span> ConcurrentHashMap&lt;&gt;();                              <span class="marker">// (2)</span>
+
+    <span class="kw">private final</span> ObjectMapper objectMapper;
+
+    <span class="kw">public</span> OrderSocketHandler(ObjectMapper objectMapper) {
+        <span class="kw">this</span>.objectMapper = objectMapper;
+    }
+
+    <span class="an">@Override</span>
+    <span class="kw">public void</span> afterConnectionEstablished(WebSocketSession rawSession) {
+        <span class="kw">var</span> session = <span class="kw">new</span> ConcurrentWebSocketSessionDecorator(          <span class="marker">// (3)</span>
+                rawSession, 15_000, 256 * 1024);
+        String userId = resolveUserId(session);
+        sessionsByUser.computeIfAbsent(userId, key -&gt; ConcurrentHashMap.newKeySet())
+                      .add(session);
+        log.info(<span class="s">"ws.connected userId={} sessionId={} total={}"</span>,
+                 userId, session.getId(), countOpenSessions());
+    }
+
+    <span class="an">@Override</span>
+    <span class="kw">protected void</span> handleTextMessage(WebSocketSession session, TextMessage message)
+            <span class="kw">throws</span> Exception {
+
+        ClientCommand command = objectMapper.readValue(                 <span class="marker">// (4)</span>
+                message.getPayload(), ClientCommand.class);
+
+        <span class="kw">switch</span> (command.type()) {                                       <span class="marker">// (5)</span>
+            <span class="kw">case</span> PING  -&gt; sendJson(session, <span class="kw">new</span> ServerEvent(<span class="s">"PONG"</span>, <span class="kw">null</span>));
+            <span class="kw">case</span> ACK   -&gt; acknowledgeDelivery(command.eventId());
+            <span class="kw">default</span>    -&gt; sendJson(session,
+                            <span class="kw">new</span> ServerEvent(<span class="s">"ERROR"</span>, <span class="s">"unknown command"</span>));
+        }
+    }
+
+    <span class="c">/** Business layer isko call karti hai jab order status badle. */</span>
+    <span class="kw">public void</span> pushOrderStatusToUser(String userId, OrderStatusEvent event) {
+        Set&lt;WebSocketSession&gt; sessions =
+                sessionsByUser.getOrDefault(userId, Set.of());          <span class="marker">// (6)</span>
+        <span class="kw">for</span> (WebSocketSession session : sessions) {
+            <span class="kw">if</span> (session.isOpen()) {
+                sendJson(session, <span class="kw">new</span> ServerEvent(<span class="s">"ORDER_STATUS"</span>, event));
+            }
+        }
+    }
+
+    <span class="kw">private void</span> sendJson(WebSocketSession session, Object payload) {
+        <span class="kw">try</span> {
+            session.sendMessage(<span class="kw">new</span> TextMessage(
+                    objectMapper.writeValueAsString(payload)));
+        } <span class="kw">catch</span> (IOException | IllegalStateException ex) {              <span class="marker">// (7)</span>
+            log.warn(<span class="s">"ws.send.failed sessionId={} reason={}"</span>,
+                     session.getId(), ex.toString());
+            closeQuietly(session);
+        }
+    }
+
+    <span class="an">@Override</span>
+    <span class="kw">public void</span> afterConnectionClosed(WebSocketSession session, CloseStatus status) {
+        String userId = resolveUserId(session);
+        sessionsByUser.computeIfPresent(userId, (key, set) -&gt; {          <span class="marker">// (8)</span>
+            set.remove(session);
+            <span class="kw">return</span> set.isEmpty() ? <span class="kw">null</span> : set;
+        });
+    }
+
+    <span class="an">@Override</span>
+    <span class="kw">public void</span> handleTransportError(WebSocketSession session, Throwable ex) {
+        log.warn(<span class="s">"ws.transport.error sessionId={}"</span>, session.getId(), ex);
+        closeQuietly(session);
+    }
+}</pre>
+    </div>
+    <div class="explain">
+      <h4>Line by line</h4>
+      <ol>
+        <li><span class="n">1</span><strong>Endpoint register.</strong> STOMP nahi hai, isliye message ka format aapko khud decide karna hai (yahan JSON). <em>Zyada control, zyada code.</em></li>
+        <li><span class="n">2</span><strong>Session registry.</strong> <span class="k">Map&lt;userId, Set&lt;session&gt;&gt;</span> — ek user, multiple devices/tabs. <span class="k">ConcurrentHashMap</span> isliye ki connect/disconnect alag threads pe hote hain.</li>
+        <li><span class="n">3</span><strong>ConcurrentWebSocketSessionDecorator — ye sabse important line hai.</strong> <span class="k">WebSocketSession</span> concurrent send ke liye safe nahi hai; do thread ek saath likhein to frame corrupt ho jaata hai. Ye decorator buffer + timeout ke saath serialize karta hai.</li>
+        <li><span class="n">4</span><strong>Payload parse.</strong> Size limit lagao aur unknown fields ignore karo, warna malformed frame se handler crash karega.</li>
+        <li><span class="n">5</span><strong>Java 21 switch expression</strong> — arrow syntax, exhaustive. Enum use karne se naya command add karne pe compiler batayega ki case chhoot gaya.</li>
+        <li><span class="n">6</span><strong>Push method.</strong> Ye <em>sirf isi pod</em> ke sessions ko bhejta hai. Multi-pod pe kaam nahi karega — tab D usi ka solution hai.</li>
+        <li><span class="n">7</span><strong>Send failure = dead client.</strong> Exception aane par session hata do, warna registry me zombie session jama hote rahenge (memory leak).</li>
+        <li><span class="n">8</span><strong>Cleanup.</strong> <span class="k">computeIfPresent</span> se empty set ko map se hata bhi dete hain — atomic hai, race condition nahi banti.</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- ---- C ---- -->
+  <div class="panel" id="sock-c" data-tabgroup="sock" hidden>
+    <div class="codewrap">
+      <div class="cap"><span>TcpOrderFeedServer.java</span><span>Java 21 virtual threads · java.net</span></div>
+<pre><span class="kw">package</span> com.example.orders.tcp;
+
+<span class="an">@Component</span>
+<span class="kw">public class</span> TcpOrderFeedServer <span class="kw">implements</span> SmartLifecycle {
+
+    <span class="kw">private static final</span> Logger log = LoggerFactory.getLogger(TcpOrderFeedServer.class);
+    <span class="kw">private static final int</span> MAX_FRAME_BYTES = 64 * 1024;
+
+    <span class="kw">private final int</span> port;
+    <span class="kw">private final</span> OrderCommandService orderCommandService;
+    <span class="kw">private final</span> ExecutorService connectionExecutor =
+            Executors.newVirtualThreadPerTaskExecutor();               <span class="marker">// (1)</span>
+    <span class="kw">private volatile</span> ServerSocket serverSocket;
+    <span class="kw">private volatile boolean</span> running;
+
+    <span class="kw">public</span> TcpOrderFeedServer(<span class="an">@Value</span>(<span class="s">"${feed.tcp.port:9099}"</span>) <span class="kw">int</span> port,
+                              OrderCommandService orderCommandService) {
+        <span class="kw">this</span>.port = port;
+        <span class="kw">this</span>.orderCommandService = orderCommandService;
+    }
+
+    <span class="an">@Override</span>
+    <span class="kw">public void</span> start() {
+        running = <span class="kw">true</span>;
+        Thread.ofVirtual().name(<span class="s">"tcp-acceptor"</span>).start(<span class="kw">this</span>::runAcceptLoop); <span class="marker">// (2)</span>
+    }
+
+    <span class="kw">private void</span> runAcceptLoop() {
+        <span class="kw">try</span> (ServerSocket socket = <span class="kw">new</span> ServerSocket(port, 512)) {         <span class="marker">// (3)</span>
+            <span class="kw">this</span>.serverSocket = socket;
+            log.info(<span class="s">"tcp.feed.listening port={}"</span>, port);
+            <span class="kw">while</span> (running) {
+                Socket client = socket.accept();                        <span class="marker">// (4)</span>
+                connectionExecutor.submit(() -&gt; handleClientConnection(client));
+            }
+        } <span class="kw">catch</span> (IOException ex) {
+            <span class="kw">if</span> (running) log.error(<span class="s">"tcp.accept.failed"</span>, ex);
+        }
+    }
+
+    <span class="kw">private void</span> handleClientConnection(Socket client) {
+        <span class="kw">try</span> (client;                                                    <span class="marker">// (5)</span>
+             <span class="kw">var</span> in  = <span class="kw">new</span> DataInputStream(
+                           <span class="kw">new</span> BufferedInputStream(client.getInputStream()));
+             <span class="kw">var</span> out = <span class="kw">new</span> DataOutputStream(
+                           <span class="kw">new</span> BufferedOutputStream(client.getOutputStream()))) {
+
+            client.setTcpNoDelay(<span class="kw">true</span>);                                  <span class="marker">// (6)</span>
+            client.setSoTimeout(60_000);                                <span class="marker">// (7)</span>
+            client.setKeepAlive(<span class="kw">true</span>);
+
+            <span class="kw">while</span> (running &amp;&amp; !client.isClosed()) {
+                <span class="kw">byte</span>[] frame = readLengthPrefixedFrame(in);             <span class="marker">// (8)</span>
+                <span class="kw">if</span> (frame == <span class="kw">null</span>) <span class="kw">break</span>;                              <span class="c">// clean EOF</span>
+                <span class="kw">byte</span>[] response = processFeedCommand(frame);
+                writeLengthPrefixedFrame(out, response);
+                out.flush();                                            <span class="marker">// (9)</span>
+            }
+        } <span class="kw">catch</span> (SocketTimeoutException ex) {
+            log.info(<span class="s">"tcp.idle.timeout remote={}"</span>, client.getRemoteSocketAddress());
+        } <span class="kw">catch</span> (IOException ex) {
+            log.warn(<span class="s">"tcp.connection.error remote={}"</span>,
+                     client.getRemoteSocketAddress(), ex);
+        }
+    }
+
+    <span class="c">/** 4-byte big-endian length + payload. TCP stream hai, message boundary khud banani padti hai. */</span>
+    <span class="kw">private byte</span>[] readLengthPrefixedFrame(DataInputStream in) <span class="kw">throws</span> IOException {
+        <span class="kw">int</span> length;
+        <span class="kw">try</span> {
+            length = in.readInt();
+        } <span class="kw">catch</span> (EOFException eof) {
+            <span class="kw">return null</span>;
+        }
+        <span class="kw">if</span> (length &lt;= 0 || length &gt; MAX_FRAME_BYTES) {                  <span class="marker">// (10)</span>
+            <span class="kw">throw new</span> IOException(<span class="s">"invalid frame length: "</span> + length);
+        }
+        <span class="kw">byte</span>[] payload = <span class="kw">new byte</span>[length];
+        in.readFully(payload);                                          <span class="marker">// (11)</span>
+        <span class="kw">return</span> payload;
+    }
+
+    <span class="kw">private void</span> writeLengthPrefixedFrame(DataOutputStream out, <span class="kw">byte</span>[] payload)
+            <span class="kw">throws</span> IOException {
+        out.writeInt(payload.length);
+        out.write(payload);
+    }
+
+    <span class="kw">private byte</span>[] processFeedCommand(<span class="kw">byte</span>[] frame) {
+        String command = <span class="kw">new</span> String(frame, StandardCharsets.UTF_8);
+        String result  = orderCommandService.applyDeviceCommand(command);
+        <span class="kw">return</span> result.getBytes(StandardCharsets.UTF_8);
+    }
+
+    <span class="an">@Override</span>
+    <span class="kw">public void</span> stop() {                                              <span class="marker">// (12)</span>
+        running = <span class="kw">false</span>;
+        <span class="kw">try</span> { <span class="kw">if</span> (serverSocket != <span class="kw">null</span>) serverSocket.close(); }
+        <span class="kw">catch</span> (IOException ignored) { }
+        connectionExecutor.shutdown();
+    }
+
+    <span class="an">@Override</span>
+    <span class="kw">public boolean</span> isRunning() { <span class="kw">return</span> running; }
+}</pre>
+    </div>
+    <div class="explain">
+      <h4>Line by line</h4>
+      <ol>
+        <li><span class="n">1</span><strong>Virtual threads (Java 21).</strong> Har connection ko apna thread — code blocking style me simple rehta hai, par 1 lakh connections bhi chal jaate hain kyunki virtual thread ~1 KB ka hai, platform thread ~1 MB ka. <em>Yahi Java 21 ka sabse bada practical faayda hai.</em></li>
+        <li><span class="n">2</span><strong>Accept loop apne thread pe.</strong> Spring ka startup block nahi hona chahiye, warna app "started" hi nahi hoga.</li>
+        <li><span class="n">3</span><strong>Backlog 512.</strong> Jab tak app accept nahi karta, OS kitne pending connections rakhe. Chhota backlog = burst me connection refused.</li>
+        <li><span class="n">4</span><strong>accept() blocking hai</strong> — har naya client ek <span class="k">Socket</span> deta hai, use turant executor ko de do taaki loop agla client le sake.</li>
+        <li><span class="n">5</span><strong>try-with-resources me socket.</strong> Java 9+ me existing variable direct daal sakte ho. Isse socket + dono stream guaranteed close hote hain — <em>file descriptor leak sabse common TCP bug hai.</em></li>
+        <li><span class="n">6</span><strong>TCP_NODELAY.</strong> Nagle's algorithm off — chhote frames turant jaayenge. Real-time feed ke liye zaroori, bulk transfer ke liye nahi.</li>
+        <li><span class="n">7</span><strong>SO_TIMEOUT 60s.</strong> Read block hamesha ke liye na ho. Bina iske dead peer aapke thread ko permanently rok lega.</li>
+        <li><span class="n">8</span><strong>Framing.</strong> TCP <em>stream</em> hai, message-based nahi — 2 messages ek packet me aa sakte hain, ek message 3 packet me tut sakta hai. Isliye length-prefix (ya delimiter) lagana <strong>mandatory</strong> hai. <em>Ye interview me sabse zyada poocha jaane wala TCP concept hai.</em></li>
+        <li><span class="n">9</span><strong>flush().</strong> BufferedOutputStream data rok ke rakhta hai; flush na karo to client anant kaal tak wait karega.</li>
+        <li><span class="n">10</span><strong>Length validation.</strong> Bina check ke attacker <span class="k">Integer.MAX_VALUE</span> bhej ke aapko OOM kara sakta hai.</li>
+        <li><span class="n">11</span><strong>readFully</strong> — jab tak poore bytes na aa jaayein, padhta rahega. Plain <span class="k">read()</span> partial data de deta hai; yahi silent bug banta hai.</li>
+        <li><span class="n">12</span><strong>Graceful shutdown.</strong> <span class="k">SmartLifecycle</span> se Spring shutdown pe socket band hota hai; warna redeploy pe port busy milta hai.</li>
+      </ol>
+    </div>
+  </div>
+
+  <!-- ---- D ---- -->
+  <div class="panel" id="sock-d" data-tabgroup="sock" hidden>
+    <div class="split">
+      <div class="pane problem">
+        <header><span>Problem</span><span class="tick">multi-pod reality</span></header>
+        <div class="body">
+          <p class="q">User ka socket <strong>pod-2</strong> pe hai, par order update <strong>pod-7</strong> me process hua. Message kaise pahunche?</p>
+          <ul>
+            <li>In-memory session map sirf usi pod ka hai.</li>
+            <li>Deploy pe saare sockets tootenge — 50k reconnect ek saath (thundering herd).</li>
+            <li>LB idle WS connection 60s me kaat deta hai agar heartbeat na ho.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="pane solution">
+        <header><span>Decision rule</span><span class="tick">3 layer fix</span></header>
+        <div class="body">
+          <ul>
+            <li><strong>Fan-out bus:</strong> Redis Pub/Sub (simple, fire-and-forget) ya Kafka (replay chahiye to) ya STOMP relay to RabbitMQ. <em>Har pod subscribe karta hai, apne local users ko deliver karta hai.</em></li>
+            <li><strong>Sticky nahi, stateless-ish:</strong> connection state Redis me (<span class="k">user:123:pods</span>), taaki target pod pata ho aur broadcast avoid ho.</li>
+            <li><strong>Reconnect:</strong> client side exponential backoff + jitter, aur server pe <span class="k">lastEventId</span> se missed events replay.</li>
+            <li><strong>Heartbeat/ping</strong> 10–30s, LB idle timeout se kam.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="codewrap">
+      <div class="cap"><span>ClusterEventFanoutBridge.java</span><span>Redis Pub/Sub → local sockets</span></div>
+<pre><span class="an">@Component</span>
+<span class="kw">public class</span> ClusterEventFanoutBridge <span class="kw">implements</span> MessageListener {
+
+    <span class="kw">private static final</span> String CHANNEL = <span class="s">"orders.events"</span>;
+
+    <span class="kw">private final</span> StringRedisTemplate redisTemplate;
+    <span class="kw">private final</span> OrderSocketHandler socketHandler;
+    <span class="kw">private final</span> ObjectMapper objectMapper;
+
+    <span class="kw">public</span> ClusterEventFanoutBridge(StringRedisTemplate redisTemplate,
+                                     OrderSocketHandler socketHandler,
+                                     ObjectMapper objectMapper) {
+        <span class="kw">this</span>.redisTemplate = redisTemplate;
+        <span class="kw">this</span>.socketHandler = socketHandler;
+        <span class="kw">this</span>.objectMapper = objectMapper;
+    }
+
+    <span class="c">/** Business layer: kisi bhi pod se publish karo. */</span>
+    <span class="kw">public void</span> publishToCluster(OrderStatusEvent event) <span class="kw">throws</span> JsonProcessingException {
+        redisTemplate.convertAndSend(CHANNEL,
+                objectMapper.writeValueAsString(event));               <span class="marker">// (1)</span>
+    }
+
+    <span class="c">/** Har pod ko copy milti hai; sirf apne local user ko bhejta hai. */</span>
+    <span class="an">@Override</span>
+    <span class="kw">public void</span> onMessage(Message message, <span class="kw">byte</span>[] pattern) {
+        <span class="kw">try</span> {
+            OrderStatusEvent event = objectMapper.readValue(
+                    message.getBody(), OrderStatusEvent.class);
+            socketHandler.pushOrderStatusToUser(event.userId(), event); <span class="marker">// (2)</span>
+        } <span class="kw">catch</span> (IOException ex) {
+            <span class="c">// poison message ko drop karo, subscriber loop mat todo</span>
+            log.warn(<span class="s">"fanout.decode.failed"</span>, ex);                       <span class="marker">// (3)</span>
+        }
+    }
+
+    <span class="an">@Bean</span>
+    <span class="kw">public</span> RedisMessageListenerContainer orderEventListenerContainer(
+            RedisConnectionFactory connectionFactory) {
+        <span class="kw">var</span> container = <span class="kw">new</span> RedisMessageListenerContainer();
+        container.setConnectionFactory(connectionFactory);
+        container.addMessageListener(<span class="kw">this</span>, <span class="kw">new</span> ChannelTopic(CHANNEL));  <span class="marker">// (4)</span>
+        <span class="kw">return</span> container;
+    }
+}</pre>
+    </div>
+    <div class="explain">
+      <h4>Line by line</h4>
+      <ol>
+        <li><span class="n">1</span><strong>Publish once.</strong> Publisher ko nahi pata user kaunse pod pe hai — yahi decoupling ka faayda hai.</li>
+        <li><span class="n">2</span><strong>Local delivery.</strong> Jis pod pe user ka session nahi hai, wahan ye no-op hai (map me entry hi nahi). Simple aur correct.</li>
+        <li><span class="n">3</span><strong>Poison message.</strong> Ek kharab message se listener thread mar gaya to poora pod deaf ho jaayega — isliye catch karke aage badho.</li>
+        <li><span class="n">4</span><strong>Redis Pub/Sub at-most-once hai</strong> — pod down tha to message gaya. Guaranteed delivery chahiye to <strong>Redis Streams</strong> (consumer group) ya <strong>Kafka</strong> lo, aur client ko <span class="k">lastEventId</span> se catch-up karao.</li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 8 ============ -->
+<section class="topic" id="s8">
+  <div class="sec-head"><span class="sec-num">08</span><h2>Microservices: kab todein, kahan se todein</h2></div>
+  <p class="sec-sub">Microservices ek <strong>organizational</strong> solution hai, technical nahi. Ye tab faayda deta hai jab teams ek doosre ka deploy block kar rahi hon.</p>
+
+  <div class="split">
+    <div class="pane problem">
+      <header><span>Problem</span><span class="tick">galat wajah se split</span></header>
+      <div class="body">
+        <p class="q">"Microservices banayenge, scalable rahega."</p>
+        <ul>
+          <li>Ek local method call ab <strong>network call</strong> hai: latency, timeout, retry, partial failure — sab naya.</li>
+          <li>Ek DB transaction ab <strong>distributed transaction</strong> hai. 2PC practically nahi chalti, saga likhni padegi with compensation.</li>
+          <li>Debugging: 1 request 7 services se guzarti hai. Bina distributed tracing ke aap andhe ho.</li>
+          <li><strong>Distributed monolith</strong> — services alag hain par sab ek hi DB share karti hain aur saath deploy hoti hain. <em>Sabse kharab combination: microservice ka dard, monolith ka coupling.</em></li>
+        </ul>
+      </div>
+    </div>
+    <div class="pane solution">
+      <header><span>Decision rule</span><span class="tick">split ka test</span></header>
+      <div class="body">
+        <p><strong>Split tab karo jab in me se 2+ sach hon:</strong></p>
+        <ol>
+          <li>Alag <strong>scaling profile</strong> — search 50 pods chahti hai, admin 2.</li>
+          <li>Alag <strong>team ownership</strong> aur alag release cadence.</li>
+          <li>Alag <strong>availability requirement</strong> — payment 99.99%, reporting 99%.</li>
+          <li>Alag <strong>tech need</strong> — ML service Python, core Java.</li>
+          <li>Blast radius alag karna hai — reporting query core checkout ko na girae.</li>
+        </ol>
+        <p><strong>Boundary kahan?</strong> DDD <strong>bounded context</strong> se: wo cheezein ek saath jo <em>ek saath badalti hain</em>. Noun (Order, Payment, Inventory, Shipping) usually sahi boundary deta hai; "UserService" jo sab kuch kare — galat.</p>
+        <div class="rule"><b>Rule</b>Har service ka <strong>apna DB</strong>. Agar do services ek table share kar rahi hain, wo ek hi service hai — bas do jagah deploy ho rahi hai. <em>Data sharing sirf API ya event se.</em></div>
+        <div class="warn"><b>Interview me safe answer</b>"Main modular monolith se shuru karunga — clear module boundaries, alag schema. Jab team ya scale ka pressure aayega, module ko service me nikal dunga." <em>Ye maturity dikhata hai, na ki buzzword.</em></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="scroller">
+  <table class="tbl">
+    <tr><th>Distributed problem</th><th>Pattern</th><th>Ek line me kaise kaam karta hai</th></tr>
+    <tr><td>Do service me atomic write</td><td>Saga (choreography/orchestration)</td><td>Local txn ki chain; fail hone pe compensating txn (refund, release stock).</td></tr>
+    <tr><td>DB commit hua par event publish fail</td><td>Transactional outbox</td><td>Event ko <em>usi</em> txn me <span class="k">outbox</span> table me likho; relay/CDC baad me Kafka pe bhejta hai.</td></tr>
+    <tr><td>Same event 2 baar aa gaya</td><td>Idempotent consumer</td><td><span class="k">processed_events</span> table ya Redis SETNX with event id.</td></tr>
+    <tr><td>Downstream service down</td><td>Circuit breaker + fallback</td><td>Resilience4j: N failures ke baad circuit open, cached/default response do.</td></tr>
+    <tr><td>Retry se load aur badh gaya</td><td>Exponential backoff + jitter, retry budget</td><td>Sirf idempotent operations retry karo, aur cap lagao.</td></tr>
+    <tr><td>Request kahan atki?</td><td>Distributed tracing</td><td>OpenTelemetry trace-id har hop pe propagate; log me hamesha print karo.</td></tr>
+    <tr><td>Read ke liye 5 services call</td><td>CQRS read model</td><td>Events se ek denormalized read table banao; read ek query me.</td></tr>
+  </table>
+  </div>
+</section>
+
+<!-- ============ 9 ============ -->
+<section class="topic" id="s9">
+  <div class="sec-head"><span class="sec-num">09</span><h2>Har design me common kya hai, aur alag kya</h2></div>
+  <p class="sec-sub">Ye section poore page ka core hai. <strong>Common part ratt lo</strong> — har question me wahi hai. Phir energy sirf <strong>variable part</strong> pe kharch karo.</p>
+
+  <div class="split">
+    <div class="pane solution">
+      <header><span>Common — har system design me same</span><span class="tick">skeleton</span></header>
+      <div class="body">
+        <ol>
+          <li><strong>Client → Edge:</strong> DNS, CDN, TLS, L7 LB.</li>
+          <li><strong>Gateway:</strong> auth, rate limit, routing, request id.</li>
+          <li><strong>Stateless app tier:</strong> horizontally scalable, autoscaling, health check.</li>
+          <li><strong>Cache layer:</strong> Redis; cache-aside; TTL + jitter.</li>
+          <li><strong>Primary datastore:</strong> + read replicas + backups + PITR.</li>
+          <li><strong>Async layer:</strong> queue/stream for fan-out, retries, DLQ.</li>
+          <li><strong>Blob + CDN</strong> for any media.</li>
+          <li><strong>Observability:</strong> metrics (RED/USE), structured logs, traces, alerts on SLO burn.</li>
+          <li><strong>Reliability:</strong> timeout, retry+backoff, circuit breaker, bulkhead, graceful degradation.</li>
+          <li><strong>Security:</strong> authN/authZ, encryption in transit + at rest, secrets manager, PII masking, audit trail.</li>
+          <li><strong>Data lifecycle:</strong> migration plan, archival, GDPR delete.</li>
+          <li><strong>Deploy:</strong> blue-green/canary, feature flag, rollback.</li>
+        </ol>
+        <div class="rule"><b>Rule</b>Ye 12 points aapka default template hai. Kisi bhi question me inhe bolo, phir <em>question-specific</em> cheez add karo. Interviewer ko structure dikhta hai.</div>
+      </div>
+    </div>
+
+    <div class="pane problem">
+      <header><span>Variable — question ke hisaab se badalta hai</span><span class="tick">yahin marks hain</span></header>
+      <div class="body">
+        <ul>
+          <li><strong>Core data model + access pattern</strong> — feed vs ledger vs graph. <em>Sabse bada differentiator.</em></li>
+          <li><strong>Consistency boundary</strong> — kahan strong, kahan eventual.</li>
+          <li><strong>Fan-out strategy</strong> — push, pull, ya hybrid (celebrity problem).</li>
+          <li><strong>Ordering &amp; dedup</strong> — chat me per-conversation order, payment me exactly-once effect.</li>
+          <li><strong>The "hard part"</strong> — har question me ek hi asli challenge hota hai:</li>
+        </ul>
+        <div class="scroller"><table class="tbl" style="margin-top:8px">
+          <tr><th>Question</th><th>Asli hard part</th></tr>
+          <tr><td>URL shortener</td><td>Unique ID generation + 10:1 read scale + custom alias collision</td></tr>
+          <tr><td>Twitter/feed</td><td>Fan-out + celebrity + ranking</td></tr>
+          <tr><td>WhatsApp</td><td>Presence, delivery receipts, ordering, offline queue</td></tr>
+          <tr><td>Uber</td><td>Geo-indexing (S2/geohash) + matching + real-time location writes</td></tr>
+          <tr><td>Ticket booking</td><td>Double booking prevention — lock/reservation with TTL</td></tr>
+          <tr><td>Payment</td><td>Idempotency + exactly-once effect + reconciliation</td></tr>
+          <tr><td>Rate limiter</td><td>Distributed counter accuracy vs latency</td></tr>
+          <tr><td>Dropbox</td><td>Chunking, dedup (content hash), sync conflict</td></tr>
+          <tr><td>YouTube</td><td>Transcoding pipeline + CDN + adaptive bitrate</td></tr>
+          <tr><td>Notification system</td><td>Fan-out, per-channel retry, user preference, dedup</td></tr>
+        </table></div>
+        <p style="margin-bottom:0"><em>Interview me apna time isi "hard part" pe do — common skeleton 5 minute me bol ke aage badh jao.</em></p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 10 ============ -->
+<section class="topic" id="s10">
+  <div class="sec-head"><span class="sec-num">10</span><h2>Paper / whiteboard pe architecture kaise banayein</h2></div>
+  <p class="sec-sub">Diagram sochne ka tool hai, art nahi. Ek fix order me banao taaki aap kabhi atko nahi.</p>
+
+  <div class="split">
+    <div class="pane problem">
+      <header><span>Problem</span><span class="tick">whiteboard pe kya hota hai</span></header>
+      <div class="body">
+        <ul>
+          <li>Pehle hi minute me 12 box bana diye, ab jagah nahi bachi.</li>
+          <li>Arrows bina label ke — pata hi nahi chalta sync hai ya async, kaunsa protocol hai.</li>
+          <li>Data model likha hi nahi, sirf boxes. <em>Interviewer sochta hai: isko access pattern samajh hi nahi aaya.</em></li>
+          <li>Failure ka koi zikr nahi — happy path ka diagram.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="pane solution">
+      <header><span>Decision rule</span><span class="tick">drawing order</span></header>
+      <div class="body">
+        <p><strong>Left se right, ek hi line me shuru karo</strong> (jagah left-right me hoti hai, upar-neeche kam):</p>
+        <ol>
+          <li>Bilkul left me <strong>Client</strong>, bilkul right me <strong>Storage</strong>. Beech me jagah chhod do.</li>
+          <li>Ek <strong>happy path</strong> ki line kheencho: Client → LB → Gateway → Service → DB.</li>
+          <li>Upar ki taraf <strong>cache</strong>, neeche ki taraf <strong>async</strong> (queue, worker). <em>Ye layout consistent rakho — sab samajh jaate hain.</em></li>
+          <li>Har arrow pe likho: <span class="k">POST /orders</span>, <span class="k">sync</span>/<span class="k">async</span>, <span class="k">p99 50ms</span>.</li>
+          <li>Har datastore ke neeche <strong>2 line ka schema</strong>: table + primary/partition key + index.</li>
+          <li>Ek alag kone me <strong>numbers</strong> likho: QPS, storage, connections.</li>
+          <li>Ant me <strong>lal pen se failure</strong> mark karo: "DB down → ?", "cache miss storm → ?", "worker lag → ?"</li>
+        </ol>
+        <div class="rule"><b>45-min interview ka clock</b>5 min requirements → 3 min numbers → 5 min API + data model → 12 min HLD boxes → 10 min deep dive (hard part) → 5 min failure &amp; scale → 5 min tradeoff summary.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="codewrap">
+    <div class="cap"><span>whiteboard-layout.txt</span><span>yahi shape har baar banao</span></div>
+<pre>              <span class="c">[ Redis cache ]        [ Read replica ]</span>
+                     |                     |
+  <span class="m">Client</span> --&gt; <span class="m">CDN</span> --&gt; <span class="m">L7 LB</span> --&gt; <span class="m">API Gateway</span> --&gt; <span class="m">Order Service</span> --&gt; <span class="m">Postgres (primary)</span>
+                          <span class="c">auth,RL</span>        |    <span class="c">sync, p99&lt;200ms</span>        |
+                                            |                            | <span class="c">outbox</span>
+                                            v <span class="c">async</span>                    v
+                                        <span class="m">Kafka</span> --&gt; <span class="m">Worker</span> --&gt; <span class="m">Search index / Email</span>
+
+  <span class="c">numbers: 2k write QPS · 20k read QPS · 40 TB/5yr · p99 200ms · 99.95%</span>
+  <span class="c">schema : orders(id PK, user_id, status, version, created_at)  idx(user_id, created_at)</span>
+  <span class="c">failure: DB down -&gt; 503 + retry-after | cache down -&gt; direct DB, rate-limited</span></pre>
+  </div>
+</section>
+
+<!-- ============ 11 ============ -->
+<section class="topic" id="s11">
+  <div class="sec-head"><span class="sec-num">11</span><h2>HLD vs LLD: kaunsi baat kahan bolni hai</h2></div>
+  <p class="sec-sub">Dono round alag hain. HLD me "kaunsa component aur kyun", LLD me "class, method, edge case, thread safety". <em>HLD round me class diagram banana ya LLD round me Kafka ki baat karna — dono galat jagah hai.</em></p>
+
+  <div class="split">
+    <div class="pane problem">
+      <header><span>HLD round</span><span class="tick">system level</span></header>
+      <div class="body">
+        <p><strong>Isme ye bolna hai:</strong></p>
+        <ul>
+          <li>Requirements + numbers + SLO</li>
+          <li>Component boxes: gateway, services, cache, DB, queue, CDN</li>
+          <li>Data partitioning, replication, sharding key</li>
+          <li>API contract (endpoint level): <span class="k">POST /orders</span>, <span class="k">GET /orders?cursor=</span></li>
+          <li>Bottleneck + scaling plan + failure modes</li>
+          <li>Tradeoff aur uska justification</li>
+        </ul>
+        <p><strong>Ye mat karo:</strong> variable names, design patterns ki list, DB column types pe 10 min.</p>
+        <p class="q">Typical: "Design a rate limiter for 1M users."</p>
+      </div>
+    </div>
+    <div class="pane solution">
+      <header><span>LLD round</span><span class="tick">code level</span></header>
+      <div class="body">
+        <p><strong>Isme ye bolna hai:</strong></p>
+        <ul>
+          <li>Classes, interfaces, responsibilities (SRP), inheritance vs composition</li>
+          <li>Design patterns <em>jahan zaroorat ho</em>: strategy, factory, builder, observer, state</li>
+          <li>Concurrency: kaunsa shared state, kaunsa lock, ya lock-free</li>
+          <li>Edge cases: null, duplicate, retry, partial failure, overflow</li>
+          <li>Idempotency, validation, exception hierarchy, testability</li>
+          <li>Extensibility: naya requirement aaya to kaunsi class badlegi (open-closed)</li>
+        </ul>
+        <p class="q">Typical: "Rate limiter ka code likho — token bucket, thread safe, pluggable algorithm."</p>
+        <div class="rule"><b>Bridge</b>Achha candidate HLD ka ek box uthaake LLD me kholta hai: <em>"Order Service box ke andar ye 4 classes hongi…"</em> Isi se dono round jud jaate hain.</div>
+      </div>
+    </div>
+  </div>
+
+  <h3 style="font-size:20px;margin:26px 0 6px">LLD example: save aur update — production-grade</h3>
+  <p style="margin:0 0 6px;color:var(--ink-soft);max-width:72ch">Yahi code neeche wali animation me chalega. Isme 5 cheezein deliberately hain: <strong>idempotency</strong>, <strong>optimistic locking</strong>, <strong>transactional outbox</strong>, <strong>cache invalidation</strong>, aur <strong>commit ke baad hi side-effect</strong>.</p>
+
+  <div class="codewrap">
+    <div class="cap"><span>OrderCommandService.java</span><span>write path · Spring Boot 3 · Java 21</span></div>
+<pre><span class="an">@Service</span>
+<span class="kw">public class</span> OrderCommandService {
+
+    <span class="kw">private static final</span> Duration IDEMPOTENCY_TTL = Duration.ofHours(24);
+    <span class="kw">private static final</span> String CACHE_KEY_PREFIX = <span class="s">"order:v1:"</span>;
+
+    <span class="kw">private final</span> OrderRepository orderRepository;
+    <span class="kw">private final</span> OutboxRepository outboxRepository;
+    <span class="kw">private final</span> StringRedisTemplate redisTemplate;
+    <span class="kw">private final</span> ObjectMapper objectMapper;
+
+    <span class="kw">public</span> OrderCommandService(OrderRepository orderRepository,
+                               OutboxRepository outboxRepository,
+                               StringRedisTemplate redisTemplate,
+                               ObjectMapper objectMapper) {
+        <span class="kw">this</span>.orderRepository = orderRepository;
+        <span class="kw">this</span>.outboxRepository = outboxRepository;
+        <span class="kw">this</span>.redisTemplate = redisTemplate;
+        <span class="kw">this</span>.objectMapper = objectMapper;
+    }
+
+    <span class="c">/**
+     * CREATE. Same idempotencyKey ke saath do baar call hone par
+     * sirf ek order banega — retry aur double-click dono safe.
+     */</span>
+    <span class="an">@Transactional</span>
+    <span class="kw">public</span> OrderView placeOrder(PlaceOrderCommand command, String idempotencyKey) {
+
+        <span class="kw">boolean</span> firstAttempt = reserveIdempotencyKey(idempotencyKey);     <span class="marker">// (1)</span>
+        <span class="kw">if</span> (!firstAttempt) {
+            <span class="kw">return</span> orderRepository.findByIdempotencyKey(idempotencyKey)   <span class="marker">// (2)</span>
+                    .map(OrderView::from)
+                    .orElseThrow(() -&gt; <span class="kw">new</span> DuplicateInFlightException(idempotencyKey));
+        }
+
+        OrderEntity order = <span class="kw">new</span> OrderEntity();
+        order.setId(UUID.randomUUID());
+        order.setUserId(command.userId());
+        order.setAmountMinor(command.amountMinor());
+        order.setStatus(OrderStatus.CREATED);
+        order.setIdempotencyKey(idempotencyKey);
+        order.setVersion(0L);                                             <span class="marker">// (3)</span>
+
+        orderRepository.save(order);                                      <span class="marker">// (4)</span>
+        outboxRepository.save(OutboxEvent.of(                             <span class="marker">// (5)</span>
+                <span class="s">"ORDER_CREATED"</span>, order.getId().toString(), toJson(order)));
+
+        registerCacheInvalidationAfterCommit(order.getId());              <span class="marker">// (6)</span>
+        <span class="kw">return</span> OrderView.from(order);
+    }
+
+    <span class="c">/**
+     * UPDATE. Optimistic locking se lost-update se bachte hain:
+     * do parallel update me ek jeetega, doosre ko 409 milega.
+     */</span>
+    <span class="an">@Transactional</span>
+    <span class="kw">public</span> OrderView updateOrderStatus(UUID orderId, OrderStatus newStatus,
+                                       <span class="kw">long</span> expectedVersion) {
+
+        <span class="kw">int</span> updatedRows = orderRepository.updateStatusIfVersionMatches(     <span class="marker">// (7)</span>
+                orderId, newStatus, expectedVersion);
+
+        <span class="kw">if</span> (updatedRows == 0) {
+            <span class="kw">throw new</span> StaleObjectException(orderId, expectedVersion);      <span class="marker">// (8)</span>
+        }
+
+        OrderEntity fresh = orderRepository.getById(orderId);
+        outboxRepository.save(OutboxEvent.of(
+                <span class="s">"ORDER_STATUS_CHANGED"</span>, orderId.toString(), toJson(fresh)));
+
+        registerCacheInvalidationAfterCommit(orderId);                    <span class="marker">// (9)</span>
+        <span class="kw">return</span> OrderView.from(fresh);
+    }
+
+    <span class="c">/** Redis SET NX EX — atomic "pehla jeete" check. */</span>
+    <span class="kw">private boolean</span> reserveIdempotencyKey(String idempotencyKey) {
+        Boolean acquired = redisTemplate.opsForValue()
+                .setIfAbsent(<span class="s">"idem:"</span> + idempotencyKey, <span class="s">"1"</span>, IDEMPOTENCY_TTL);
+        <span class="kw">return</span> Boolean.TRUE.equals(acquired);
+    }
+
+    <span class="c">/** Cache delete COMMIT ke baad — pehle karoge to rollback pe cache galat ho jaayega. */</span>
+    <span class="kw">private void</span> registerCacheInvalidationAfterCommit(UUID orderId) {
+        TransactionSynchronizationManager.registerSynchronization(
+                <span class="kw">new</span> TransactionSynchronization() {
+                    <span class="an">@Override</span>
+                    <span class="kw">public void</span> afterCommit() {
+                        redisTemplate.delete(CACHE_KEY_PREFIX + orderId); <span class="marker">// (10)</span>
+                    }
+                });
+    }
+}</pre>
+  </div>
+  <div class="explain">
+    <h4>Line by line — har line ke peeche ek failure story hai</h4>
+    <ol>
+      <li><span class="n">1</span><strong>Idempotency reserve.</strong> Client ne "Pay" 2 baar dabaya ya network timeout pe retry kiya — same key aayegi. <span class="k">SET NX</span> atomic hai, isliye race safe hai.</li>
+      <li><span class="n">2</span><strong>Duplicate ka jawab bhi 200 hona chahiye</strong> (naya order nahi), purana result laut ao. <em>Retry ko error dena galat design hai.</em></li>
+      <li><span class="n">3</span><strong>version column</strong> — optimistic locking ki jaan. Har update pe +1.</li>
+      <li><span class="n">4</span><strong>Order insert.</strong> Yahan tak sab ek hi DB transaction me hai.</li>
+      <li><span class="n">5</span><strong>Outbox — sabse important trick.</strong> Event ko <em>usi transaction</em> me table me likhte hain. Agar seedha Kafka pe bhejte aur commit fail ho jaata, to duniya ko "order created" pata chal jaata jabki order hai hi nahi. <em>Dual-write problem yahin marta hai.</em></li>
+      <li><span class="n">6</span><strong>Side-effect ko commit ke baad schedule karo</strong> — abhi mat karo.</li>
+      <li><span class="n">7</span><strong>Conditional update</strong>: <span class="k">UPDATE orders SET status=?, version=version+1 WHERE id=? AND version=?</span>. Ek hi statement me check + write, isliye atomic.</li>
+      <li><span class="n">8</span><strong>0 rows = kisi aur ne pehle update kar diya.</strong> Client ko 409 Conflict do, wo fresh state le kar retry kare. <em>Silently overwrite karna data loss hai.</em></li>
+      <li><span class="n">9</span><strong>Update pe bhi invalidate</strong> — warna cache purana status dikhata rahega.</li>
+      <li><span class="n">10</span><strong>afterCommit.</strong> Delete <em>before</em> commit karoge to: cache khali → koi read aayi → DB se purani value padhi → cache me purani value wapas → phir aapka commit hua. <strong>Cache permanently stale.</strong> Ye classic race hai; replication lag ho to "delayed double delete" (500ms baad ek aur delete) bhi lagate hain.</li>
+    </ol>
+  </div>
+
+  <div class="codewrap">
+    <div class="cap"><span>OrderQueryService.java</span><span>read path · cache-aside</span></div>
+<pre><span class="an">@Service</span>
+<span class="kw">public class</span> OrderQueryService {
+
+    <span class="kw">private static final</span> String CACHE_KEY_PREFIX = <span class="s">"order:v1:"</span>;
+    <span class="kw">private static final int</span> BASE_TTL_SECONDS = 300;
+
+    <span class="kw">private final</span> StringRedisTemplate redisTemplate;
+    <span class="kw">private final</span> OrderReadRepository orderReadRepository;   <span class="c">// replica datasource</span>
+    <span class="kw">private final</span> ObjectMapper objectMapper;
+
+    <span class="c">// constructor omitted for brevity</span>
+
+    <span class="kw">public</span> Optional&lt;OrderView&gt; findOrderById(UUID orderId) {
+        String cacheKey = CACHE_KEY_PREFIX + orderId;
+
+        String cached = redisTemplate.opsForValue().get(cacheKey);        <span class="marker">// (1)</span>
+        <span class="kw">if</span> (cached != <span class="kw">null</span>) {
+            <span class="kw">return</span> Optional.of(readJson(cached, OrderView.class));       <span class="c">// HIT</span>
+        }
+
+        Optional&lt;OrderView&gt; fromDb = orderReadRepository                  <span class="marker">// (2)</span>
+                .findById(orderId)
+                .map(OrderView::from);
+
+        fromDb.ifPresentOrElse(
+                view -&gt; cacheWithJitteredTtl(cacheKey, writeJson(view)),  <span class="marker">// (3)</span>
+                ()   -&gt; cacheNegativeResult(cacheKey));                   <span class="marker">// (4)</span>
+
+        <span class="kw">return</span> fromDb;
+    }
+
+    <span class="c">/** TTL me randomness — sab keys ek saath expire na hon (avalanche). */</span>
+    <span class="kw">private void</span> cacheWithJitteredTtl(String cacheKey, String payload) {
+        <span class="kw">int</span> ttl = BASE_TTL_SECONDS
+                + ThreadLocalRandom.current().nextInt(60);                <span class="marker">// (5)</span>
+        redisTemplate.opsForValue().set(cacheKey, payload, Duration.ofSeconds(ttl));
+    }
+
+    <span class="c">/** Jo id exist hi nahi karti uske liye chhoti TTL — cache penetration se bachav. */</span>
+    <span class="kw">private void</span> cacheNegativeResult(String cacheKey) {
+        redisTemplate.opsForValue().set(cacheKey, <span class="s">"__MISSING__"</span>,
+                Duration.ofSeconds(30));                                  <span class="marker">// (6)</span>
+    }
+}</pre>
+  </div>
+  <div class="explain">
+    <h4>Line by line</h4>
+    <ol>
+      <li><span class="n">1</span><strong>Cache pehle.</strong> Hit hua to DB tak jaana hi nahi — yahi 90% load kam karta hai.</li>
+      <li><span class="n">2</span><strong>Miss pe replica se padho</strong>, primary se nahi. Read traffic ko primary se door rakho. <em>Par dhyaan: replica lag hota hai — "apna hi abhi kiya hua order" primary se padho (read-your-writes).</em></li>
+      <li><span class="n">3</span><strong>Cache fill.</strong> Cache-aside ka "aside" yahi hai — application decide karta hai, DB nahi.</li>
+      <li><span class="n">4</span><strong>Negative caching.</strong> Attacker random IDs maang ke har baar DB hit karwa sakta hai.</li>
+      <li><span class="n">5</span><strong>Jitter.</strong> 300 ± 60s. Bina jitter ke deploy ke 5 min baad saari keys ek saath expire hoti hain aur DB spike karta hai.</li>
+      <li><span class="n">6</span><strong>Sentinel value.</strong> "__MISSING__" ko read karte waqt <span class="k">Optional.empty()</span> maano — null aur "cached null" me farq rakho.</li>
+    </ol>
+  </div>
+</section>
+
+<!-- ============ 12 ============ -->
+<section class="topic" id="s12">
+  <div class="sec-head"><span class="sec-num">12</span><h2>Tradeoff triage: kya apply karna, kya ignore, kya defer</h2></div>
+  <p class="sec-sub">Seniority ka asli test ye hai: <strong>kya nahi banaya</strong> aur uska reason. Sab kuch add karna easy hai; usse system bhi slow hota hai aur interview bhi.</p>
+
+  <div class="split">
+    <div class="pane solution">
+      <header><span>Hamesha apply karo</span><span class="tick">cheap, non-negotiable</span></header>
+      <div class="body">
+        <ul>
+          <li><strong>Timeouts har network call pe.</strong> Default infinite timeout production ka #1 killer hai.</li>
+          <li><strong>Idempotency</strong> har write API pe jo retry ho sakti hai.</li>
+          <li><strong>Pagination</strong> har list API pe (cursor-based, offset nahi).</li>
+          <li><strong>Structured logs + request id/trace id.</strong></li>
+          <li><strong>Input validation aur rate limit</strong> edge pe.</li>
+          <li><strong>Backup + restore drill</strong> (restore test kiya nahi to backup nahi hai).</li>
+          <li><strong>Index</strong> query pattern ke hisaab se.</li>
+        </ul>
+      </div>
+    </div>
+    <div class="pane problem">
+      <header><span>Default me ignore karo (jab tak number na bole)</span><span class="tick">premature</span></header>
+      <div class="body">
+        <ul>
+          <li><strong>Sharding</strong> — jab tak single node + replica bear kar raha hai.</li>
+          <li><strong>Microservices</strong> — chhoti team ke saath.</li>
+          <li><strong>Multi-region active-active</strong> — jab tak compliance/latency requirement na ho. <em>Cost aur conflict resolution dono bhaari hain.</em></li>
+          <li><strong>Kafka</strong> — 100 events/sec ke liye Postgres table + poller kaafi hai.</li>
+          <li><strong>Service mesh</strong> — 5 services pe overkill.</li>
+          <li><strong>Exactly-once delivery</strong> — practically at-least-once + idempotent consumer hi answer hai.</li>
+          <li><strong>Custom framework</strong> — jo managed service se ho jaaye.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <div class="scroller">
+  <table class="tbl">
+    <tr><th>Situation</th><th>Poocho ye sawaal</th><th>Faisla</th></tr>
+    <tr><td>"Cache lagayein?"</td><td>Read:write ratio? Staleness budget?</td><td>&gt;10:1 aur staleness OK → haan. Warna nahi.</td></tr>
+    <tr><td>"Queue lagayein?"</td><td>User ko result turant chahiye?</td><td>Nahi chahiye → async. Chahiye → sync + timeout.</td></tr>
+    <tr><td>"Strong consistency?"</td><td>Galat value se paisa/stock ka nuksan?</td><td>Haan → strong. Nahi → eventual + repair job.</td></tr>
+    <tr><td>"Retry karein?"</td><td>Operation idempotent hai?</td><td>Haan → backoff+jitter, cap. Nahi → pehle idempotent banao.</td></tr>
+    <tr><td>"Naya DB?"</td><td>Current DB kis metric pe fail ho raha hai?</td><td>Metric nahi bata sakte → mat lo.</td></tr>
+    <tr><td>"WebSocket?"</td><td>Server push chahiye ya poll chalega?</td><td>One-way → SSE. Two-way high-freq → WS.</td></tr>
+  </table>
+  </div>
+
+  <div class="rule" style="margin-top:6px"><b>Interview closing line jo kaam karti hai</b>"Is design me maine <em>write path pe strong consistency</em> aur <em>read path pe eventual</em> chuna hai, kyunki NFR me payment correctness critical thi aur feed staleness 5s tak acceptable. Agar traffic 10× ho jaaye to pehla bottleneck primary DB ka write throughput hoga — tab main shard by user_id karunga."</div>
+</section>
+
+</main>
+
+<!-- ============ 13 · ANIMATION ============ -->
+<section id="theatre">
+  <div class="wrap">
+    <div class="sec-head"><span class="sec-num">13</span><h2>Chalta hua architecture: save, update, read, async</h2></div>
+    <p class="sec-sub">Wahi code jo upar likha hai — ab request ke saath chal ke dekho. Flow chuno, Play dabao. Har step pe kaunsa component garam ho raha hai aur kyun, ye dono dikhega.</p>
+
+    <div class="controls" role="tablist" aria-label="Flow selector">
+      <button class="tab flowtab" role="tab" aria-selected="true"  data-flow="save">Save / Create</button>
+      <button class="tab flowtab" role="tab" aria-selected="false" data-flow="update">Update + invalidate</button>
+      <button class="tab flowtab" role="tab" aria-selected="false" data-flow="read">Read path</button>
+      <button class="tab flowtab" role="tab" aria-selected="false" data-flow="async">Async (Kafka)</button>
+    </div>
+
+    <div class="stage">
+      <div class="svgbox">
+        <svg id="arch" viewBox="0 0 1120 570" role="img" aria-label="Animated system architecture diagram">
+          <!-- edges (drawn first, nodes sit on top) -->
+          <g id="edges">
+            <line class="edge" x1="110" y1="312" x2="285" y2="312"/>
+            <line class="edge" x1="285" y1="312" x2="285" y2="152"/>
+            <line class="edge" x1="285" y1="312" x2="470" y2="312"/>
+            <line class="edge" x1="470" y1="312" x2="670" y2="142"/>
+            <line class="edge" x1="470" y1="312" x2="670" y2="312"/>
+            <line class="edge" x1="470" y1="312" x2="670" y2="482"/>
+            <line class="edge dash" x1="670" y1="344" x2="670" y2="450"/>
+            <line class="edge dash" x1="670" y1="312" x2="870" y2="312"/>
+            <line class="edge" x1="870" y1="312" x2="1030" y2="312"/>
+            <line class="edge" x1="1030" y1="344" x2="1030" y2="450"/>
+            <path class="edge dash" d="M1030 280 Q1035 90 745 130"/>
+            <text class="edgelabel" x="686" y="404">replication lag</text>
+            <text class="edgelabel" x="700" y="302">outbox relay</text>
+            <text class="edgelabel" x="860" y="96">cache invalidate</text>
+          </g>
+
+          <!-- nodes -->
+          <g data-node="client">
+            <rect id="n-client" class="nodebox" x="40" y="280" width="140" height="64" rx="3"/>
+            <text class="nodelabel" x="110" y="308" text-anchor="middle">Client</text>
+            <text class="nodesub" x="110" y="327" text-anchor="middle">web / mobile</text>
+          </g>
+          <g data-node="gw">
+            <rect id="n-gw" class="nodebox" x="215" y="280" width="140" height="64" rx="3"/>
+            <text class="nodelabel" x="285" y="308" text-anchor="middle">API Gateway</text>
+            <text class="nodesub" x="285" y="327" text-anchor="middle">TLS · route · RL</text>
+          </g>
+          <g data-node="authz">
+            <rect id="n-authz" class="nodebox" x="215" y="120" width="140" height="64" rx="3"/>
+            <text class="nodelabel" x="285" y="148" text-anchor="middle">Auth</text>
+            <text class="nodesub" x="285" y="167" text-anchor="middle">JWT · quota</text>
+          </g>
+          <g data-node="svc">
+            <rect id="n-svc" class="nodebox" x="400" y="280" width="140" height="64" rx="3"/>
+            <text class="nodelabel" x="470" y="308" text-anchor="middle">Order Service</text>
+            <text class="nodesub" x="470" y="327" text-anchor="middle">stateless pods</text>
+          </g>
+          <g data-node="redis">
+            <rect id="n-redis" class="nodebox" x="600" y="110" width="140" height="64" rx="3"/>
+            <text class="nodelabel" x="670" y="138" text-anchor="middle">Redis</text>
+            <text class="nodesub" x="670" y="157" text-anchor="middle">cache · idem · lock</text>
+          </g>
+          <g data-node="pg">
+            <rect id="n-pg" class="nodebox" x="600" y="280" width="140" height="64" rx="3"/>
+            <text class="nodelabel" x="670" y="308" text-anchor="middle">Postgres</text>
+            <text class="nodesub" x="670" y="327" text-anchor="middle">primary + outbox</text>
+          </g>
+          <g data-node="replica">
+            <rect id="n-replica" class="nodebox" x="600" y="450" width="140" height="64" rx="3"/>
+            <text class="nodelabel" x="670" y="478" text-anchor="middle">Read replica</text>
+            <text class="nodesub" x="670" y="497" text-anchor="middle">async streaming</text>
+          </g>
+          <g data-node="kafka">
+            <rect id="n-kafka" class="nodebox" x="800" y="280" width="140" height="64" rx="3"/>
+            <text class="nodelabel" x="870" y="308" text-anchor="middle">Kafka</text>
+            <text class="nodesub" x="870" y="327" text-anchor="middle">key = orderId</text>
+          </g>
+          <g data-node="worker">
+            <rect id="n-worker" class="nodebox" x="960" y="280" width="140" height="64" rx="3"/>
+            <text class="nodelabel" x="1030" y="308" text-anchor="middle">Consumer</text>
+            <text class="nodesub" x="1030" y="327" text-anchor="middle">idempotent</text>
+          </g>
+          <g data-node="search">
+            <rect id="n-search" class="nodebox" x="960" y="450" width="140" height="64" rx="3"/>
+            <text class="nodelabel" x="1030" y="478" text-anchor="middle">Search index</text>
+            <text class="nodesub" x="1030" y="497" text-anchor="middle">upsert by id</text>
+          </g>
+
+          <!-- travelling token -->
+          <g id="token" transform="translate(110,312)" opacity="0">
+            <circle class="token" r="15"/>
+            <text class="tokenlabel" x="0" y="4" text-anchor="middle" id="tokenText">1</text>
+          </g>
+        </svg>
+
+        <p class="scrollhint">Diagram ko ungli se side me scroll karo →</p>
+        <div class="caption" id="caption" aria-live="polite">
+          <b id="capTitle">Flow chuno aur Play dabao</b>
+          <span class="hin" id="capHindi">Har step pe pura context yahan dikhega — kya ja raha hai, kyun ja raha hai, aur fail hone par kya hoga.</span>
+        </div>
+
+        <div class="controls">
+          <button class="primary" id="btnPlay">Play</button>
+          <button id="btnPrev">Back</button>
+          <button id="btnNext">Step</button>
+          <button id="btnReset">Restart</button>
+          <label for="speed">Speed
+            <select id="speed" style="background:#16303C;color:#E6EEF2;border:1px solid #3C6070;padding:5px">
+              <option value="1.6">0.6×</option>
+              <option value="1" selected>1×</option>
+              <option value="0.55">1.8×</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <div class="sidepanel">
+        <h4 id="flowTitle">Save / Create — POST /orders</h4>
+        <ol class="steplist" id="steps"></ol>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 14 · MOCK Q&A ============ -->
+<section class="topic" id="mocks" style="padding-top:44px">
+  <div class="wrap" style="padding:0">
+    <div class="sec-head"><span class="sec-num">14</span><h2>Mock questions with answers</h2></div>
+    <p class="sec-sub">Har jawab wahi structure follow karta hai jo upar padha: requirement → number → decision → tradeoff. Pehle khud bol ke dekho, phir kholo.</p>
+
+    <details class="mock">
+      <summary><span class="tagq">HLD</span>Design a URL shortener. 100M new links/day, 10B redirects/day.</summary>
+      <div class="ans">
+        <p><strong>FR:</strong> shorten(longUrl, customAlias?, ttl?), redirect(code), basic analytics. <strong>NFR:</strong> redirect p99 &lt; 50 ms, 99.99% availability, links immutable, read:write ≈ 100:1.</p>
+        <p><strong>Numbers:</strong> writes ≈ 1.2k/s (peak 4k/s), reads ≈ 115k/s. 7-char base62 = 3.5 trillion combos. 100M/day × 500 B ≈ 50 GB/day ≈ 18 TB/year.</p>
+        <p><strong>Design:</strong> ID generation ke 3 option — (a) random 7-char + collision check, (b) counter → base62, (c) pre-generated key pool. <em>Main counter/segment approach lunga:</em> har app instance Redis/Zookeeper se 10k IDs ka range leta hai, phir memory se serve karta hai — koi coordination nahi, no collision. Storage: key-value (DynamoDB/Cassandra) with <span class="k">code</span> as partition key, kyunki query hamesha exact key se hai, koi join nahi. Redirect path: CDN/edge cache → Redis (hot links, 20% links = 80% traffic) → DB. Redirect me <strong>301 vs 302</strong> tradeoff: 301 cacheable hai (server load kam) par analytics khatam ho jaati hai; isliye 302 + async analytics event Kafka pe.</p>
+        <p><strong>Tradeoff bola:</strong> eventual consistency for analytics counts (Redis INCR + periodic flush), strong nahi chahiye. Custom alias ke liye unique constraint DB me — wahan conditional write (<span class="k">IF NOT EXISTS</span>).</p>
+      </div>
+    </details>
+
+    <details class="mock">
+      <summary><span class="tagq">HLD</span>Interviewer ne sirf ek line di: "Design a notification system." Aap pehle 5 minute me kya karoge?</summary>
+      <div class="ans">
+        <p>Scope cut + numbers. Bolo: <em>"Main teen channel lunga — push, SMS, email. In-app inbox out of scope rakhta hoon."</em></p>
+        <p><strong>FR:</strong> send(userId, template, channel), user preference honor karna, dedup, retry, delivery status.<br>
+        <strong>NFR:</strong> 50M notifications/day (≈600/s avg, 5k/s peak — sale/match), transactional OTP p99 &lt; 2s, marketing me 5 min delay OK, at-least-once with dedup, no duplicate OTP.</p>
+        <p><strong>Ye split hi asli answer hai:</strong> OTP aur marketing ek hi queue me mat daalo. Alag topic, alag priority, alag rate limit — warna marketing burst OTP ko block kar dega (<em>noisy neighbour</em>). Fan-out: API → Kafka topic per priority → per-channel workers → provider (with circuit breaker + fallback provider). Dedup: <span class="k">SETNX notif:{userId}:{templateId}:{bucket}</span>. Preference + quiet hours check worker me, API me nahi.</p>
+      </div>
+    </details>
+
+    <details class="mock">
+      <summary><span class="tagq">Tradeoff</span>Payment system me CAP me se kya chunoge? PACELC me kya?</summary>
+      <div class="ans">
+        <p><strong>CAP:</strong> partition ke time <strong>C over A</strong>. Debit fail ho jaana theek hai; do baar debit hona nahi. Practically: write ko single primary region me rakho; partition me minority side write reject kare (503), read allowed.</p>
+        <p><strong>PACELC:</strong> Else branch me bhi <strong>C over L</strong> — thoda extra latency (sync replication, quorum) accept karunga.</p>
+        <p><strong>Par poora system nahi:</strong> balance <em>display</em>, transaction <em>history</em>, notification — ye eventual chal jaayenge cache se. <em>Consistency per-flow decide hoti hai, per-system nahi</em> — yahi line interviewer sunna chahta hai.</p>
+      </div>
+    </details>
+
+    <details class="mock">
+      <summary><span class="tagq">DB</span>Table me 500M rows, query 8 second le raha hai. Step by step kya karoge?</summary>
+      <div class="ans">
+        <ol>
+          <li><span class="k">EXPLAIN ANALYZE</span> — seq scan hai ya index scan? Kitne rows estimate vs actual?</li>
+          <li>Composite index <em>query order me</em> banao: <span class="k">(user_id, created_at DESC)</span>. Covering index se index-only scan mil jaata hai.</li>
+          <li><span class="k">SELECT *</span> hatao, sirf needed columns. Offset pagination hatao → <strong>keyset/cursor</strong>: <span class="k">WHERE (created_at, id) &lt; (?, ?) LIMIT 20</span>. <em>OFFSET 100000 hamesha slow rahega, index ho ya na ho.</em></li>
+          <li>N+1 hai to batch/join karo.</li>
+          <li>Read replica pe bhejo agar staleness chalega.</li>
+          <li>Cache karo agar same query repeat hoti hai.</li>
+          <li>Purana data partition/archive karo (monthly partition + drop old).</li>
+          <li>Ab bhi problem hai to shard.</li>
+        </ol>
+        <p><em>90% baar step 1–3 me hi khatam ho jaata hai. Jo candidate seedha "shard kar denge" bolta hai, wo yahin loose kar deta hai.</em></p>
+      </div>
+    </details>
+
+    <details class="mock">
+      <summary><span class="tagq">Redis</span>Cache aur DB inconsistent ho gaye. Kaunse race conditions possible hain?</summary>
+      <div class="ans">
+        <ul>
+          <li><strong>Update-before-commit:</strong> cache delete kiya, phir txn rollback ho gaya → cache to sahi hai par agar aapne cache <em>set</em> kiya tha to permanently galat value. Fix: <span class="k">afterCommit</span> me hi cache touch karo.</li>
+          <li><strong>Read-then-write race:</strong> Reader ne DB se purani value padhi, usi beech writer ne DB update + cache delete kiya, phir reader ne purani value cache me daal di. Fix: <strong>delayed double delete</strong> (commit ke baad, aur ~500 ms baad phir se delete), ya versioned cache key, ya short TTL.</li>
+          <li><strong>Replica lag:</strong> write primary pe, read replica se → cache me stale value bhar gayi. Fix: cache fill hamesha primary se, ya read-your-writes window me primary se padho.</li>
+          <li><strong>Two writers:</strong> dono ne cache <em>set</em> kiya alag order me. Fix: set mat karo, <strong>delete karo</strong>.</li>
+        </ul>
+        <p>Final safety net: TTL. <em>TTL har bug ki upper bound hai — isliye infinite TTL kabhi mat rakho.</em></p>
+      </div>
+    </details>
+
+    <details class="mock">
+      <summary><span class="tagq">Socket</span>1M concurrent chat users. WebSocket layer kaise design karoge?</summary>
+      <div class="ans">
+        <p><strong>Connection tier alag:</strong> "gateway/edge" pods sirf sockets hold karein (50k–100k per pod → ~15–20 pods + headroom). Business logic alag services me — <em>connection tier ko patla rakho taaki deploy kam ho.</em></p>
+        <p><strong>Routing:</strong> Redis me <span class="k">user:{id} → podId</span> presence map (TTL + heartbeat). Message aane pe target pod ko direct bhejo (Redis pub/sub channel per pod, ya gRPC). Broadcast-to-all-pods sirf tab jab presence map miss ho.</p>
+        <p><strong>Delivery guarantee:</strong> message pehle DB/Kafka me persist, phir push. Client ACK bheje; ACK nahi aaya to reconnect pe <span class="k">lastMessageId</span> se replay. Ordering per conversation — Kafka key = <span class="k">conversationId</span>.</p>
+        <p><strong>Ops:</strong> heartbeat 20s (LB idle timeout se kam), graceful shutdown me server "please reconnect" frame bheje aur staggered close kare (warna 50k reconnect ek saath), client pe exponential backoff + jitter. L4 LB use karo, L7 me har connection ka overhead zyada hai.</p>
+      </div>
+    </details>
+
+    <details class="mock">
+      <summary><span class="tagq">Code</span>TCP me "message boundary" problem kya hai? Java me kaise solve karte ho?</summary>
+      <div class="ans">
+        <p>TCP ek <strong>byte stream</strong> hai, message-oriented nahi. Aapne 3 messages bheje — receiver ko ek hi <span class="k">read()</span> me sab mil sakte hain (coalescing), ya ek message do <span class="k">read()</span> me tut sakta hai (fragmentation).</p>
+        <p><strong>Solution — framing:</strong> (a) length prefix — 4-byte big-endian length + payload, (b) delimiter — <span class="k">\n</span> ya null byte (text protocols me), (c) fixed-size frames.</p>
+        <p>Java me: <span class="k">DataInputStream.readInt()</span> se length lo, validate karo (max frame size warna OOM attack), phir <span class="k">readFully(byte[])</span> — ye poora buffer bharne tak block karta hai. <em>Plain <span class="k">read()</span> partial data deta hai, aur yahi silent production bug banta hai.</em> Netty me ye kaam <span class="k">LengthFieldBasedFrameDecoder</span> karta hai.</p>
+      </div>
+    </details>
+
+    <details class="mock">
+      <summary><span class="tagq">LLD</span>Payment API idempotent kaise banaoge? Code-level design bolo.</summary>
+      <div class="ans">
+        <p><strong>Contract:</strong> client har logical operation ke liye ek <span class="k">Idempotency-Key</span> header bhejta hai (UUID, retry pe same).</p>
+        <p><strong>Storage:</strong> <span class="k">idempotency_records(key PK, request_hash, status, response_body, created_at)</span> — DB me, sirf Redis me nahi (Redis evict kar sakta hai; paise me ye risk nahi lete).</p>
+        <p><strong>Algorithm:</strong> (1) <span class="k">INSERT ... ON CONFLICT DO NOTHING</span> with status=IN_PROGRESS — insert hua to aap owner ho. (2) Insert nahi hua aur status=DONE → stored response wapas kar do (same status code). (3) status=IN_PROGRESS → 409 ya 425, client retry kare. (4) Kaam khatam hone pe usi txn me status=DONE + response save.</p>
+        <p><strong>Edge cases:</strong> same key par alag payload → 422 (request_hash mismatch se pata chalta hai). Key ka TTL 24h. <em>Aur asli baat:</em> idempotency downstream tak jaani chahiye — PSP ko bhi wahi reference bhejo, warna aapka record theek rahega par bank do baar charge kar dega.</p>
+      </div>
+    </details>
+
+    <details class="mock">
+      <summary><span class="tagq">LLD</span>Optimistic vs pessimistic locking — kab kaunsa? Ek example do.</summary>
+      <div class="ans">
+        <p><strong>Optimistic</strong> (version column, compare-and-set): conflict <em>rare</em> ho tab. Koi lock hold nahi hota, throughput best. Fail hone pe 409 → client retry. Example: user profile update, order status.</p>
+        <p><strong>Pessimistic</strong> (<span class="k">SELECT ... FOR UPDATE</span>): conflict <em>common</em> ho aur retry mehnga ho. Example: 100 log ek hi concert seat pe. Row lock le lo, warna 99 log fail hoke retry karenge — wo optimistic se bhi mehnga pad jaata hai.</p>
+        <p><strong>Distributed lock (Redis/Zookeeper)</strong> tab jab resource DB me hai hi nahi (external API call, file). Par yaad rakho: Redis lock <em>guarantee</em> nahi deta (GC pause, clock skew) — critical section me <strong>fencing token</strong> lagao. Jahan possible ho, DB constraint hi asli lock hai.</p>
+      </div>
+    </details>
+
+    <details class="mock">
+      <summary><span class="tagq">Micro</span>Order aur Payment alag services hain. Atomic kaise banaoge? 2PC kyun nahi?</summary>
+      <div class="ans">
+        <p><strong>2PC nahi</strong> kyunki: coordinator single point of failure hai, participants prepare phase me lock hold karte hain (throughput gir jaata hai), aur zyadatar modern datastores/queues XA support hi nahi karte.</p>
+        <p><strong>Saga:</strong> chain of local transactions + compensations.<br>
+        <em>Orchestration</em> (ek OrderSaga service steps chalati hai) — debug aasan, flow ek jagah dikhta hai; central component ban jaata hai.<br>
+        <em>Choreography</em> (har service event sun ke react karti hai) — loosely coupled, par 8 services ke baad flow samajhna mushkil.</p>
+        <p><strong>Rule:</strong> 3–4 step tak choreography, usse zyada steps ya paisa involved → orchestration. Compensation likhna mat bhoolo: payment fail → <span class="k">releaseInventory</span>, <span class="k">cancelOrder</span>, user ko notify. <em>Aur har step idempotent, kyunki retry hoga hi.</em></p>
+      </div>
+    </details>
+
+    <details class="mock">
+      <summary><span class="tagq">Micro</span>Transactional outbox kyun chahiye? Bina uske kya tootega?</summary>
+      <div class="ans">
+        <p><strong>Dual-write problem:</strong> aapko DB me likhna hai <em>aur</em> Kafka pe event bhejna hai. Dono alag systems hain, ek hi transaction me nahi aate.</p>
+        <ul>
+          <li>DB commit hua, Kafka publish fail → downstream ko kabhi pata nahi chala. <em>Silent data divergence — sabse khatarnaak bug, kyunki alert bhi nahi bajta.</em></li>
+          <li>Kafka publish hua, DB rollback → duniya ko phantom order dikh gaya.</li>
+        </ul>
+        <p><strong>Outbox:</strong> event ko usi txn me <span class="k">outbox</span> table me likho. Ek relay (poller ya Debezium CDC) commit hue rows ko Kafka pe bhejta hai aur mark kar deta hai. Guarantee <strong>at-least-once</strong> hai — isliye consumer idempotent hona chahiye (event_id dedup). <em>Exactly-once ka peecha mat karo; at-least-once + idempotency hi practical answer hai.</em></p>
+      </div>
+    </details>
+
+    <details class="mock">
+      <summary><span class="tagq">LLD</span>Distributed rate limiter design karo — 1M users, 100 req/min per user.</summary>
+      <div class="ans">
+        <p><strong>Algorithm choice:</strong> fixed window simple hai par boundary pe 2× burst deta hai. Sliding window log accurate hai par memory bhaari. <strong>Token bucket</strong> lunga — burst allow karta hai, memory O(1) per user, aur "refill rate" business language me samjhaana aasan hai.</p>
+        <p><strong>State:</strong> Redis me per user <span class="k">HASH {tokens, lastRefillMs}</span>. Check + decrement ek <strong>Lua script</strong> me — atomic, ek round trip. <em>GET phir SET karoge to race condition me limit bypass ho jaayegi.</em></p>
+        <p><strong>Scale:</strong> 1M users × ~50 B ≈ 50 MB — ek Redis node ke liye kuch bhi nahi. Redis down ho to <em>fail-open</em> (traffic allow) ya <em>fail-closed</em>? Public API → fail-open + local in-memory fallback limit; paid quota/abuse control → fail-closed.</p>
+        <p><strong>LLD shape:</strong> <span class="k">RateLimiter</span> interface with <span class="k">tryAcquire(key, permits)</span>; <span class="k">TokenBucketLimiter</span>, <span class="k">SlidingWindowLimiter</span> implementations (strategy pattern); <span class="k">RateLimitFilter</span> jo <span class="k">429</span> + <span class="k">Retry-After</span> header set kare.</p>
+      </div>
+    </details>
+
+    <details class="mock">
+      <summary><span class="tagq">HLD</span>Ticket booking me double booking kaise rokoge?</summary>
+      <div class="ans">
+        <p>Teen layer:</p>
+        <ol>
+          <li><strong>Reservation with TTL:</strong> seat ko 10 min ke liye "HELD" mark karo (row me <span class="k">held_until</span>). Payment complete → CONFIRMED, warna background job release kar de. <em>Cart me daalna hi booking nahi hai.</em></li>
+          <li><strong>Atomic claim:</strong> <span class="k">UPDATE seats SET status='HELD', held_by=?, held_until=? WHERE seat_id=? AND status='AVAILABLE'</span> — 1 row updated to aapko mila, 0 to kisi aur ne le liya. Ye conditional update hi asli lock hai.</li>
+          <li><strong>Constraint:</strong> DB me unique constraint <span class="k">(event_id, seat_no)</span> on confirmed bookings — last line of defence, code me bug ho tab bhi DB galat data nahi lene dega.</li>
+        </ol>
+        <p><strong>Scale:</strong> ek popular show pe 100k log ek saath — waiting room/queue lagao (token issue karo), warna DB pe lock contention se sab timeout honge. <em>Cache se kabhi seat availability final mat batao — display ke liye theek hai, claim hamesha DB pe.</em></p>
+      </div>
+    </details>
+
+    <details class="mock">
+      <summary><span class="tagq">Infra</span>Kafka, RabbitMQ, Redis Streams, ya SQS — kab kya?</summary>
+      <div class="ans">
+        <ul>
+          <li><strong>Kafka:</strong> high throughput, replay chahiye, multiple independent consumers same data padhein, ordering per key. Event sourcing, analytics, CDC. <em>Ops bhaari hai.</em></li>
+          <li><strong>RabbitMQ:</strong> classic task queue, per-message ack, complex routing (topic/fanout exchange), priority queue, delayed message. Ordering aur replay weak.</li>
+          <li><strong>Redis Streams:</strong> already Redis hai aur volume medium — consumer group + ack mil jaata hai bina naya system laaye. Durability Kafka jitni nahi.</li>
+          <li><strong>SQS/managed:</strong> team chhoti hai, ops nahi chahiye, at-least-once + DLQ built-in kaafi hai. <em>Zyadatar startups ke liye sahi jawab yahi hai.</em></li>
+        </ul>
+        <p>Decide karne ka sawaal: <em>"Kya mujhe same message ko dobara padhna padega (replay)?"</em> Haan → Kafka/Streams. Nahi → queue kaafi hai.</p>
+      </div>
+    </details>
+
+    <details class="mock">
+      <summary><span class="tagq">Tradeoff</span>Traffic 10× ho gaya. Pehla bottleneck kya milega aur order kya hoga?</summary>
+      <div class="ans">
+        <p>Usually isi order me: <strong>(1) DB connections</strong> → pool exhausted, app threads wait. Fix: pooling (PgBouncer), connection cap per pod, timeout. <strong>(2) DB writes/IOPS</strong> → primary saturate. Fix: batch writes, async non-critical writes, phir sharding. <strong>(3) Hot keys/rows</strong> → ek partition garam. Fix: key splitting, local cache. <strong>(4) N+1 aur serialization CPU</strong> app tier me. <strong>(5) Cross-service chattiness</strong> → 1 request me 30 downstream calls.</p>
+        <p><em>Answer ka structure yahi hona chahiye: "measure kya karunga" → "kaunsa metric limit dikhaayega" → "phir kya fix".</em> Sirf "aur pods add kar denge" bolna galat hai — stateless tier scale ho jaata hai, DB nahi.</p>
+      </div>
+    </details>
+
+    <details class="mock">
+      <summary><span class="tagq">Basics</span>Gateway, load balancer aur service mesh me farq ek-ek line me?</summary>
+      <div class="ans">
+        <p><strong>Load balancer:</strong> traffic ko N healthy instances me baantta hai (L4 = IP/port, L7 = HTTP-aware).</p>
+        <p><strong>API Gateway:</strong> north-south (bahar se andar) traffic ka single door — auth, rate limit, routing, aggregation, API versioning.</p>
+        <p><strong>Service mesh:</strong> east-west (service-to-service) traffic — sidecar proxy se mTLS, retry, timeout, circuit breaking, tracing, bina app code badle.</p>
+        <p><em>Chhote setup me mesh ki zaroorat nahi; Resilience4j + gateway kaafi hai. Mesh ka faayda tab hai jab 20+ services aur multiple languages hon.</em></p>
+      </div>
+    </details>
+
+    <details class="mock">
+      <summary><span class="tagq">Meta</span>Interview me kaunsi 5 galtiyaan sabse zyada number kaatti hain?</summary>
+      <div class="ans">
+        <ol>
+          <li>Requirements clarify kiye bina diagram banana.</li>
+          <li>Buzzword bolna bina reason ("Kafka lagayenge" — kyun?).</li>
+          <li>Tradeoff bolna par decision na lena.</li>
+          <li>Failure aur scale bilkul discuss na karna (happy path only).</li>
+          <li>Interviewer ke hint ko ignore karna — hint hamesha ek gap ki taraf ishaara hota hai, defensive mat bano.</li>
+        </ol>
+        <p><em>Bonus:</em> apni assumption bolna bandh mat karo. "Main maan ke chal raha hoon ki 5s staleness OK hai — agar nahi hai to design badal jaayega" — ye ek line aapko har baar bachaati hai.</p>
+      </div>
+    </details>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p>Ek line me poora page: <strong>requirement ko number me badlo, number se component chuno, component ka cost bolo, aur ek side pick karo.</strong> Baaki sab detail hai.</p>
+    <p style="margin:0">Code Spring Boot 3.x + Java 21 ke liye likha gaya hai (virtual threads, switch expressions, records). Apne project me copy karne se pehle package names, security config aur timeouts apne hisaab se set kar lena.</p>
+  </div>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------------- code tabs ---------------- */
+  document.querySelectorAll('.tab[data-target]').forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      var group = tab.parentElement.getAttribute('data-tabgroup');
+      document.querySelectorAll('.tab[data-target]').forEach(function (t) {
+        if (t.parentElement.getAttribute('data-tabgroup') === group) {
+          t.setAttribute('aria-selected', String(t === tab));
+        }
+      });
+      document.querySelectorAll('.panel[data-tabgroup="' + group + '"]').forEach(function (p) {
+        p.hidden = (p.id !== tab.getAttribute('data-target'));
+      });
+    });
+  });
+
+  /* ---------------- architecture animation ---------------- */
+  var NODES = {
+    client:  { x: 40,  y: 280, w: 140, h: 64 },
+    gw:      { x: 215, y: 280, w: 140, h: 64 },
+    authz:   { x: 215, y: 120, w: 140, h: 64 },
+    svc:     { x: 400, y: 280, w: 140, h: 64 },
+    redis:   { x: 600, y: 110, w: 140, h: 64 },
+    pg:      { x: 600, y: 280, w: 140, h: 64 },
+    replica: { x: 600, y: 450, w: 140, h: 64 },
+    kafka:   { x: 800, y: 280, w: 140, h: 64 },
+    worker:  { x: 960, y: 280, w: 140, h: 64 },
+    search:  { x: 960, y: 450, w: 140, h: 64 }
+  };
+
+  function centerOf(id) {
+    var n = NODES[id];
+    return { x: n.x + n.w / 2, y: n.y + n.h / 2 };
+  }
+
+  var FLOWS = {
+    save: {
+      title: 'Save / Create — POST /orders',
+      steps: [
+        { from:'client', to:'gw', tag:'POST',
+          en:'POST /orders with Idempotency-Key header',
+          hi:'User ne "Place order" dabaya. Client ek unique key bhejta hai — retry ya double-click pe duplicate order nahi banega.' },
+        { from:'gw', to:'authz', tag:'JWT',
+          en:'Verify JWT signature, check per-user rate limit',
+          hi:'Yahin fail ho gaya to 401 ya 429. Service tak load pahunchta hi nahi — edge pe rokna sabse sasta hai.' },
+        { from:'gw', to:'svc', tag:'→',
+          en:'Route to order-service, attach trace-id',
+          hi:'Trace-id yahin generate hota hai; aage har log aur har downstream call me yahi id jaayegi.' },
+        { from:'svc', to:'redis', tag:'NX',
+          en:'SET idem:{key} "1" NX EX 24h  →  first attempt?',
+          hi:'NX atomic hai. Agar key pehle se hai to ye duplicate request hai — naya order banane ke bajaye purana response lautao.' },
+        { from:'svc', to:'pg', tag:'TX',
+          en:'BEGIN; INSERT INTO orders(status=CREATED, version=0)',
+          hi:'Ab hum transaction ke andar hain. Yahan se commit tak sab kuch all-or-nothing hai.' },
+        { from:'svc', to:'pg', tag:'BOX',
+          en:'INSERT INTO outbox(ORDER_CREATED); COMMIT',
+          hi:'Event usi transaction me likha — isliye "DB me order bana par event kabhi gaya hi nahi" wali dual-write problem khatam.' },
+        { from:'svc', to:'redis', tag:'DEL',
+          en:'afterCommit hook: DEL order:v1:{id}',
+          hi:'Cache ko commit ke baad hi chhuo. Pehle chhuoge aur txn rollback ho gaya to cache jhooth bolega.' },
+        { from:'svc', to:'gw', tag:'201',
+          en:'201 Created + Location + version=0',
+          hi:'Response me version bhejo — client agla update isi version ke saath karega.' },
+        { from:'gw', to:'client', tag:'✓',
+          en:'Response delivered, p99 budget ~200ms',
+          hi:'Sync path yahin khatam. Search index, email, analytics — sab background me honge.' },
+        { from:'pg', to:'kafka', tag:'PUB',
+          en:'Outbox relay publishes ORDER_CREATED (async, at-least-once)',
+          hi:'User ab wait nahi kar raha. Ye alag process hai — isliye slow downstream se checkout latency nahi badhti.' }
+      ]
+    },
+    update: {
+      title: 'Update — PATCH /orders/{id} + cache invalidation',
+      steps: [
+        { from:'client', to:'gw', tag:'PUT',
+          en:'PATCH /orders/{id} with If-Match: version=3',
+          hi:'Client apna dekha hua version bhejta hai. Isi se lost update pakda jaayega.' },
+        { from:'gw', to:'svc', tag:'→',
+          en:'Auth + rate limit pass, route to service',
+          hi:'Fine-grained check ("ye order isi user ka hai?") service karegi, gateway nahi.' },
+        { from:'svc', to:'pg', tag:'CAS',
+          en:'UPDATE orders SET status=?, version=version+1 WHERE id=? AND version=3',
+          hi:'Check aur write ek hi statement me — isliye atomic hai. Ye optimistic locking ka dil hai.' },
+        { from:'pg', to:'svc', tag:'1',
+          en:'1 row updated → version 4.  (0 rows hota → 409 Conflict)',
+          hi:'0 rows ka matlab kisi aur ne beech me update kar diya. Chupchaap overwrite karna data loss hai — client ko 409 do, wo fresh state le kar retry kare.' },
+        { from:'svc', to:'pg', tag:'BOX',
+          en:'INSERT INTO outbox(ORDER_STATUS_CHANGED); COMMIT',
+          hi:'Status change bhi ek event hai — notification, search index, analytics sab isi se chalega.' },
+        { from:'svc', to:'redis', tag:'DEL',
+          en:'afterCommit: DEL order:v1:{id}  — delete, not update',
+          hi:'Cache me nayi value likhne ki jagah key uda do. Do parallel writer alag order me likh sakte hain; delete idempotent hai, set nahi.' },
+        { from:'svc', to:'redis', tag:'2nd',
+          en:'~500ms later: DEL again (delayed double delete)',
+          hi:'Beech me koi reader purani value cache me daal chuka ho sakta hai — replica lag ke liye ye doosra delete safety net hai.' },
+        { from:'pg', to:'kafka', tag:'PUB',
+          en:'Relay publishes ORDER_STATUS_CHANGED',
+          hi:'Yahi event WebSocket layer tak jaata hai — user ko live status update yahin se milta hai.' },
+        { from:'svc', to:'gw', tag:'200',
+          en:'200 OK with new version=4',
+          hi:'Naya version wapas do, warna client ka agla update turant 409 khayega.' },
+        { from:'gw', to:'client', tag:'✓',
+          en:'Client updates local state',
+          hi:'Ab client ke paas latest version hai.' }
+      ]
+    },
+    read: {
+      title: 'Read path — cache miss, phir cache hit',
+      steps: [
+        { from:'client', to:'gw', tag:'GET',
+          en:'GET /orders/{id}',
+          hi:'Read traffic write se 10-100 guna zyada hota hai — isliye poora optimization yahin hota hai.' },
+        { from:'gw', to:'svc', tag:'→',
+          en:'Route (no write, no idempotency needed)',
+          hi:'GET idempotent hai by definition — isliye yahan retry safe hai.' },
+        { from:'svc', to:'redis', tag:'MISS',
+          en:'GET order:v1:{id} → nil (cache MISS)',
+          hi:'Pehli baar hai ya TTL expire ho gayi. Ab DB jaana padega.' },
+        { from:'svc', to:'replica', tag:'SQL',
+          en:'SELECT * FROM orders WHERE id = ?  (read replica)',
+          hi:'Read replica pe bhejo, primary pe nahi — primary ko writes ke liye bacha ke rakho.' },
+        { from:'replica', to:'svc', tag:'row',
+          en:'Row returned (may be ~50-200ms behind primary)',
+          hi:'Dhyaan: user ne abhi khud order banaya hai to replica pe shayad na mile. Us case me primary se padho — read-your-writes.' },
+        { from:'svc', to:'redis', tag:'SET',
+          en:'SET order:v1:{id} EX 300 + random(0..60)',
+          hi:'TTL me jitter — warna deploy ke baad saari keys ek saath expire hoti hain aur DB pe avalanche aata hai.' },
+        { from:'svc', to:'gw', tag:'200',
+          en:'200 OK (this request paid the DB cost)',
+          hi:'Pehla request mehnga tha — ab agle sab saste honge.' },
+        { from:'gw', to:'client', tag:'✓',
+          en:'Response delivered',
+          hi:'Client ko farq nahi pata ki data cache se aaya ya DB se.' },
+        { from:'client', to:'gw', tag:'GET',
+          en:'Second request for the same order',
+          hi:'Ab asli faayda dikhega.' },
+        { from:'svc', to:'redis', tag:'HIT',
+          en:'GET order:v1:{id} → HIT, sub-millisecond, DB untouched',
+          hi:'DB ko haath bhi nahi lagaya. Yahi ek line aapke database ka 90% load kam karti hai.' }
+      ]
+    },
+    async: {
+      title: 'Async — outbox → Kafka → consumer',
+      steps: [
+        { from:'pg', to:'kafka', tag:'PUB',
+          en:'Relay reads committed outbox rows → publish (at-least-once)',
+          hi:'Poller ya Debezium CDC. Publish ke baad row ko processed mark karo — crash ke beech me dobara bhej sakta hai, isliye duplicate expected hai.' },
+        { from:'kafka', to:'worker', tag:'POLL',
+          en:'Consumer group polls; partition key = orderId',
+          hi:'Ek order ke saare events ek hi partition me → per-order ordering guaranteed. Global ordering nahi milti, aur usually chahiye bhi nahi.' },
+        { from:'worker', to:'redis', tag:'NX',
+          en:'SETNX processed:{eventId} — already seen?',
+          hi:'At-least-once ka matlab duplicate aayega hi. Consumer idempotent na ho to user ko 2 email chali jaayengi.', bend:-150 },
+        { from:'worker', to:'search', tag:'IDX',
+          en:'Upsert document by orderId (idempotent write)',
+          hi:'Upsert isliye ki wahi event dobara aaye to result same rahe. Insert karoge to duplicate documents ban jaayenge.' },
+        { from:'worker', to:'redis', tag:'DEL',
+          en:'Invalidate list caches: orders:user:{id}:*',
+          hi:'Single order cache to write path ne hataya tha; list/aggregate caches yahan hatao.', bend:-150 },
+        { from:'worker', to:'kafka', tag:'ACK',
+          en:'Commit offset — process first, commit after',
+          hi:'Ulta karoge (pehle commit) to crash pe event hamesha ke liye kho jaayega. Ye "at-least-once vs at-most-once" ka asli faisla hai.' },
+        { from:'worker', to:'kafka', tag:'DLQ',
+          en:'On failure: retry topic with backoff → DLQ after N attempts + alert',
+          hi:'Poison message ko infinite retry mat karo, warna partition atak jaayega aur peeche saare messages ruk jaayenge.' }
+      ]
+    }
+  };
+
+  var svg        = document.getElementById('arch');
+  var token      = document.getElementById('token');
+  var tokenText  = document.getElementById('tokenText');
+  var stepsEl    = document.getElementById('steps');
+  var capTitle   = document.getElementById('capTitle');
+  var capHindi   = document.getElementById('capHindi');
+  var flowTitle  = document.getElementById('flowTitle');
+  var btnPlay    = document.getElementById('btnPlay');
+  var speedSel   = document.getElementById('speed');
+
+  if (!svg) { return; }
+
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var currentFlow  = 'save';
+  var index        = -1;
+  var playing      = false;
+  var rafId        = null;
+  var dwellTimer   = null;
+
+  function clearNodeStates() {
+    Object.keys(NODES).forEach(function (id) {
+      var rect = document.getElementById('n-' + id);
+      if (rect) { rect.classList.remove('hot', 'warm'); }
+    });
+  }
+
+  function renderStepList() {
+    var steps = FLOWS[currentFlow].steps;
+    flowTitle.textContent = FLOWS[currentFlow].title;
+    stepsEl.innerHTML = '';
+    steps.forEach(function (step, i) {
+      var li = document.createElement('li');
+      li.innerHTML = '<span>' + step.en + '</span><span class="hin">' + step.hi + '</span>';
+      li.addEventListener('click', function () { pause(); showStep(i); });
+      stepsEl.appendChild(li);
+    });
+  }
+
+  function markStepList() {
+    Array.prototype.forEach.call(stepsEl.children, function (li, i) {
+      li.classList.toggle('active', i === index);
+      li.classList.toggle('done', i < index);
+    });
+  }
+
+  function quadPoint(p0, p1, ctrl, t) {
+    var u = 1 - t;
+    return {
+      x: u * u * p0.x + 2 * u * t * ctrl.x + t * t * p1.x,
+      y: u * u * p0.y + 2 * u * t * ctrl.y + t * t * p1.y
+    };
+  }
+
+  function controlPoint(p0, p1, bend) {
+    var mx = (p0.x + p1.x) / 2;
+    var my = (p0.y + p1.y) / 2;
+    if (!bend) { return { x: mx, y: my }; }
+    var dx = p1.x - p0.x, dy = p1.y - p0.y;
+    var len = Math.sqrt(dx * dx + dy * dy) || 1;
+    return { x: mx + (-dy / len) * bend, y: my + (dx / len) * bend };
+  }
+
+  function moveToken(p) {
+    token.setAttribute('transform', 'translate(' + p.x.toFixed(1) + ',' + p.y.toFixed(1) + ')');
+  }
+
+  function showStep(i, autoAdvance) {
+    var steps = FLOWS[currentFlow].steps;
+    if (i < 0 || i >= steps.length) { pause(); return; }
+
+    index = i;
+    var step = steps[i];
+    var p0 = centerOf(step.from);
+    var p1 = centerOf(step.to);
+    var ctrl = controlPoint(p0, p1, step.bend || 0);
+
+    clearNodeStates();
+    var fromRect = document.getElementById('n-' + step.from);
+    if (fromRect) { fromRect.classList.add('warm'); }
+
+    tokenText.textContent = step.tag;
+    token.setAttribute('opacity', '1');
+    capTitle.textContent = (i + 1) + '. ' + step.en;
+    capHindi.textContent = step.hi;
+    markStepList();
+
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+    if (dwellTimer) { clearTimeout(dwellTimer); dwellTimer = null; }
+
+    var factor   = parseFloat(speedSel.value) || 1;
+    var duration = reduceMotion ? 0 : 1000 * factor;
+    var started  = null;
+
+    function arrive() {
+      moveToken(p1);
+      var toRect = document.getElementById('n-' + step.to);
+      if (toRect) { toRect.classList.add('hot'); }
+      if (playing && autoAdvance !== false) {
+        dwellTimer = setTimeout(function () { showStep(index + 1, true); }, 850 * factor);
+      }
+    }
+
+    if (duration === 0) { arrive(); return; }
+
+    function frame(ts) {
+      if (started === null) { started = ts; }
+      var t = Math.min(1, (ts - started) / duration);
+      var eased = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+      moveToken(quadPoint(p0, p1, ctrl, eased));
+      if (t < 1) { rafId = requestAnimationFrame(frame); }
+      else { rafId = null; arrive(); }
+    }
+    rafId = requestAnimationFrame(frame);
+  }
+
+  function play() {
+    playing = true;
+    btnPlay.textContent = 'Pause';
+    if (index >= FLOWS[currentFlow].steps.length - 1) { index = -1; }
+    showStep(index + 1, true);
+  }
+
+  function pause() {
+    playing = false;
+    btnPlay.textContent = 'Play';
+    if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+    if (dwellTimer) { clearTimeout(dwellTimer); dwellTimer = null; }
+  }
+
+  function reset() {
+    pause();
+    index = -1;
+    clearNodeStates();
+    token.setAttribute('opacity', '0');
+    moveToken(centerOf('client'));
+    capTitle.textContent = FLOWS[currentFlow].title;
+    capHindi.textContent = 'Play dabao — har step pe explanation yahan aayegi.';
+    markStepList();
+  }
+
+  btnPlay.addEventListener('click', function () { playing ? pause() : play(); });
+  document.getElementById('btnNext').addEventListener('click', function () {
+    pause();
+    showStep(Math.min(index + 1, FLOWS[currentFlow].steps.length - 1), false);
+  });
+  document.getElementById('btnPrev').addEventListener('click', function () {
+    pause();
+    showStep(Math.max(index - 1, 0), false);
+  });
+  document.getElementById('btnReset').addEventListener('click', reset);
+
+  document.querySelectorAll('.flowtab').forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      document.querySelectorAll('.flowtab').forEach(function (t) {
+        t.setAttribute('aria-selected', String(t === tab));
+      });
+      currentFlow = tab.getAttribute('data-flow');
+      renderStepList();
+      reset();
+    });
+  });
+
+  renderStepList();
+  reset();
+})();
+</script>
+
+</body>
+</html>

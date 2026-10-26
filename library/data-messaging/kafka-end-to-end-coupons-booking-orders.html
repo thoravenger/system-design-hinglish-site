@@ -1,0 +1,2032 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kafka End to End — Coupons, Booking &amp; Orders (HLD + LLD + Interview Prep)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#E7EAEE; --surface:#F9FAFB; --surface-2:#FFFFFF;
+  --ink:#111823; --ink-2:#3C4757; --ink-3:#6C7787;
+  --rule:#C4CCD6; --rule-soft:#DEE3E9;
+  --problem:#A5361F; --problem-tint:#F7EBE7;
+  --solution:#15604A; --solution-tint:#E5F0EB;
+  --wire:#26437C; --wire-tint:#E7EBF4;
+  --amber:#87600F; --amber-tint:#F6EFDC;
+  --code-bg:#131A24; --code-ink:#D4DCE7; --code-dim:#5E7089; --code-line:#1E2733;
+  --kw:#F0A868; --str:#8FD69A; --com:#6D8099; --typ:#7FC7E8; --ann:#D8A6E0; --num:#E9C46A;
+  --maxw:1160px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth; scroll-padding-top:78px}
+body{
+  margin:0; background:var(--paper); color:var(--ink);
+  font-family:"Source Serif 4",Georgia,serif; font-size:17.5px; line-height:1.72;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4,h5,.ui{font-family:Archivo,"Helvetica Neue",Arial,sans-serif}
+h1{font-size:clamp(2.4rem,6vw,4.1rem); font-weight:800; letter-spacing:-.035em; line-height:1.02; margin:0 0 .4em}
+h2{font-size:clamp(1.5rem,3vw,2.1rem); font-weight:700; letter-spacing:-.025em; line-height:1.15; margin:0 0 .5em}
+h3{font-size:1.28rem; font-weight:700; letter-spacing:-.018em; margin:0 0 .45em}
+h4{font-size:1.02rem; font-weight:600; letter-spacing:-.01em; margin:0 0 .4em}
+p{margin:0 0 1em; max-width:74ch}
+a{color:var(--wire)}
+code{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace; font-size:.86em}
+p code, li code, td code{background:#DCE1E8; padding:.08em .34em; border-radius:2px; color:#1B2634}
+
+/* ---------- shell ---------- */
+.topbar{
+  position:sticky; top:0; z-index:60; background:rgba(231,234,238,.93);
+  backdrop-filter:blur(8px); border-bottom:1px solid var(--rule);
+}
+.topbar .inner{max-width:var(--maxw); margin:0 auto; padding:11px 22px; display:flex; align-items:center; gap:18px}
+.brand{font-family:Archivo; font-weight:800; letter-spacing:-.03em; font-size:1.02rem; white-space:nowrap}
+.brand span{color:var(--wire)}
+.topnav{display:flex; gap:14px; flex-wrap:wrap; margin-left:auto}
+.topnav a{
+  font-family:Archivo; font-size:.83rem; font-weight:600; text-decoration:none;
+  color:var(--ink-2); padding:4px 2px; border-bottom:2px solid transparent;
+}
+.topnav a:hover,.topnav a.on{color:var(--wire); border-bottom-color:var(--wire)}
+.wrap{max-width:var(--maxw); margin:0 auto; padding:0 22px}
+section{padding:64px 0 12px}
+.sec-head{border-top:2px solid var(--ink); padding-top:14px; margin-bottom:26px}
+.sec-head .kicker{font-family:Archivo; font-size:.8rem; font-weight:600; color:var(--ink-3); margin-bottom:6px}
+.lede{font-size:1.06rem; color:var(--ink-2); max-width:70ch}
+
+/* ---------- hero ---------- */
+.hero{padding:56px 0 34px; border-bottom:1px solid var(--rule)}
+.hero .sub{font-size:1.14rem; color:var(--ink-2); max-width:64ch; margin-bottom:26px}
+.hero .sub b{color:var(--ink); font-weight:600}
+.chipline{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:30px}
+.chip{
+  font-family:Archivo; font-size:.78rem; font-weight:600; color:var(--ink-2);
+  border:1px solid var(--rule); background:var(--surface-2); padding:5px 10px; border-radius:99px;
+}
+.chip.b{border-color:#B9C3D6; color:var(--wire); background:var(--wire-tint)}
+
+/* the append-only log — hero motion */
+.logbox{border:1px solid var(--rule); background:var(--surface-2); border-radius:3px; overflow:hidden}
+.logbox .lb-head{
+  display:flex; align-items:center; gap:10px; padding:9px 14px;
+  border-bottom:1px solid var(--rule-soft); font-family:"IBM Plex Mono"; font-size:.76rem; color:var(--ink-3);
+}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--solution);animation:pulse 1.6s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+.lb-body{padding:18px 14px 8px; overflow:hidden}
+.lb-track{display:flex; gap:6px; align-items:stretch; transition:transform .55s cubic-bezier(.22,.8,.3,1)}
+.cell{
+  flex:0 0 132px; border:1px solid var(--rule); border-top:3px solid var(--wire);
+  background:var(--surface); padding:8px 9px; border-radius:2px;
+  font-family:"IBM Plex Mono"; font-size:.7rem; line-height:1.45; color:var(--ink-2);
+  animation:slotin .5s ease both;
+}
+.cell.new{border-top-color:var(--solution)}
+.cell .off{color:var(--ink-3); font-size:.66rem}
+.cell .ev{color:var(--ink); font-weight:600; display:block; margin-top:2px; word-break:break-all}
+@keyframes slotin{from{opacity:0; transform:translateY(10px) scale(.96)}to{opacity:1;transform:none}}
+.pointers{display:flex; gap:26px; flex-wrap:wrap; padding:12px 14px 14px; border-top:1px dashed var(--rule-soft); font-family:"IBM Plex Mono"; font-size:.74rem}
+.ptr{display:flex; align-items:center; gap:7px; color:var(--ink-2)}
+.ptr i{width:9px;height:9px;border-radius:2px;display:inline-block}
+.ptr b{font-weight:600;color:var(--ink)}
+.lagnum{color:var(--problem); font-weight:600}
+.lagnum.ok{color:var(--solution)}
+
+/* ---------- problem / solution split ---------- */
+.topic{margin:0 0 34px}
+.topic > h3{display:flex; gap:10px; align-items:baseline}
+.topic > h3 .n{font-family:"IBM Plex Mono"; font-size:.9rem; color:var(--ink-3); font-weight:500}
+.split{
+  display:grid; grid-template-columns:1fr 1fr; gap:0;
+  border:1px solid var(--rule); background:var(--surface-2); border-radius:3px; overflow:hidden;
+}
+.split > div{padding:18px 20px 14px}
+.pane-p{border-left:4px solid var(--problem); border-right:1px solid var(--rule-soft); background:var(--surface-2)}
+.pane-s{border-left:4px solid var(--solution); background:var(--surface-2)}
+.pane-tag{font-family:Archivo; font-weight:700; font-size:.82rem; margin-bottom:8px; letter-spacing:.01em}
+.pane-p .pane-tag{color:var(--problem)}
+.pane-s .pane-tag{color:var(--solution)}
+.split p{font-size:.97rem; margin-bottom:.7em}
+.split ul{margin:.2em 0 .8em; padding-left:1.1em; font-size:.95rem}
+.split li{margin-bottom:.3em}
+.hin{color:var(--ink); }
+.eng{color:var(--ink-3); font-style:italic; font-size:.93em}
+.split .eng{display:block; margin-top:.15em}
+
+/* callouts */
+.note{border-left:3px solid var(--amber); background:var(--amber-tint); padding:10px 14px; margin:14px 0; font-size:.95rem; border-radius:0 3px 3px 0}
+.note b{font-family:Archivo; font-weight:700; color:var(--amber)}
+.wirebox{border-left:3px solid var(--wire); background:var(--wire-tint); padding:10px 14px; margin:14px 0; font-size:.95rem; border-radius:0 3px 3px 0}
+.wirebox b{font-family:Archivo; color:var(--wire)}
+
+/* ---------- code ---------- */
+.codeblock{background:var(--code-bg); border-radius:4px; overflow:hidden; margin:18px 0 0; border:1px solid #0A0F16}
+.cb-head{
+  display:flex; align-items:center; gap:10px; padding:9px 14px; background:#0E141C;
+  border-bottom:1px solid #232E3C; font-family:"IBM Plex Mono"; font-size:.75rem; color:#8FA0B6;
+}
+.cb-head .fname{color:#DCE5F0; font-weight:600}
+.cb-head .tag{margin-left:auto; color:#6D8099; border:1px solid #2A3746; padding:1px 7px; border-radius:99px; font-size:.68rem}
+.code{margin:0; padding:14px 0 16px; overflow-x:auto; font-family:"IBM Plex Mono"; font-size:.79rem; line-height:1.75; color:var(--code-ink)}
+.cl{display:flex; padding:0 14px; white-space:pre; cursor:pointer}
+.cl:hover{background:#1B2431}
+.cl.hot{background:#1F3247; box-shadow:inset 3px 0 0 var(--typ)}
+.cl .num{flex:0 0 30px; color:var(--code-dim); user-select:none; text-align:right; padding-right:12px}
+.cl .txt{flex:1 1 auto}
+.c-kw{color:var(--kw)} .c-str{color:var(--str)} .c-com{color:var(--com); font-style:italic}
+.c-typ{color:var(--typ)} .c-ann{color:var(--ann)} .c-num{color:var(--num)} .c-key{color:var(--typ)}
+
+.explain{list-style:none; margin:0 0 22px; padding:0; border:1px solid var(--rule); border-top:none; background:var(--surface-2); border-radius:0 0 4px 4px}
+.explain li{
+  display:grid; grid-template-columns:88px 1fr; gap:14px; padding:10px 16px;
+  border-bottom:1px solid var(--rule-soft); font-size:.94rem; cursor:pointer;
+}
+.explain li:last-child{border-bottom:none}
+.explain li:hover{background:#F1F4F7}
+.explain li.hot{background:var(--wire-tint)}
+.explain .lref{font-family:"IBM Plex Mono"; font-size:.76rem; color:var(--wire); font-weight:500; padding-top:2px}
+.explain .txt2 b{font-weight:600}
+.explain .eng{display:block; margin-top:.25em}
+
+/* ---------- tables ---------- */
+.tblwrap{overflow-x:auto; margin:16px 0 22px; border:1px solid var(--rule); border-radius:3px; background:var(--surface-2)}
+table{border-collapse:collapse; width:100%; font-size:.88rem; font-family:Archivo}
+th{
+  text-align:left; font-weight:700; font-size:.78rem; color:var(--ink);
+  padding:10px 12px; border-bottom:2px solid var(--ink); background:var(--surface); white-space:nowrap;
+}
+td{padding:9px 12px; border-bottom:1px solid var(--rule-soft); vertical-align:top; color:var(--ink-2)}
+tr:last-child td{border-bottom:none}
+td code{font-size:.8rem}
+
+/* ---------- HLD diagram ---------- */
+.hld{border:1px solid var(--rule); background:var(--surface-2); border-radius:3px; padding:18px 16px; margin:18px 0 22px; overflow-x:auto}
+.hld svg{display:block; min-width:720px; width:100%; height:auto}
+.n-box{fill:var(--surface); stroke:var(--rule); stroke-width:1.2}
+.n-svc{fill:#FFFFFF; stroke:var(--wire); stroke-width:1.5}
+.n-kafka{fill:var(--wire-tint); stroke:var(--wire); stroke-width:1.5; stroke-dasharray:0}
+.n-db{fill:#F3F0E8; stroke:var(--amber); stroke-width:1.4}
+.n-fail{fill:var(--problem-tint); stroke:var(--problem); stroke-width:1.4}
+.t-h{font-family:Archivo; font-size:12.5px; font-weight:700; fill:var(--ink)}
+.t-s{font-family:"IBM Plex Mono"; font-size:10px; fill:var(--ink-3)}
+.t-topic{font-family:"IBM Plex Mono"; font-size:10px; fill:var(--wire)}
+.arw{stroke:var(--ink-3); stroke-width:1.3; fill:none; marker-end:url(#ah)}
+.arw-f{stroke:var(--problem); stroke-width:1.3; fill:none; stroke-dasharray:4 3; marker-end:url(#ahr)}
+
+/* ---------- Q&A ---------- */
+.qa{border:1px solid var(--rule); background:var(--surface-2); border-radius:3px; margin-bottom:10px; overflow:hidden}
+.qa summary{
+  list-style:none; cursor:pointer; padding:13px 16px; font-family:Archivo; font-weight:600;
+  font-size:.98rem; display:flex; gap:12px; align-items:flex-start; color:var(--ink);
+}
+.qa summary::-webkit-details-marker{display:none}
+.qa summary:hover{background:#F1F4F7}
+.qa summary .qn{font-family:"IBM Plex Mono"; font-size:.78rem; color:var(--wire); flex:0 0 34px; padding-top:2px}
+.qa summary .caret{margin-left:auto; color:var(--ink-3); transition:transform .18s ease; font-size:1.1rem; line-height:1}
+.qa[open] summary .caret{transform:rotate(45deg)}
+.qa[open] summary{border-bottom:1px solid var(--rule-soft); background:#F4F6F8}
+.qa .ans{padding:14px 16px 16px 62px; font-size:.97rem}
+.qa .ans p{margin-bottom:.7em}
+.qa .ans ul{padding-left:1.1em; margin:.3em 0 .8em}
+.qbar{display:flex; gap:8px; flex-wrap:wrap; margin-bottom:18px}
+.qbar button{
+  font-family:Archivo; font-size:.8rem; font-weight:600; padding:6px 13px; border-radius:99px;
+  border:1px solid var(--rule); background:var(--surface-2); color:var(--ink-2); cursor:pointer;
+}
+.qbar button.on{background:var(--ink); color:#fff; border-color:var(--ink)}
+
+/* ---------- final animation ---------- */
+.stage{background:#0F151D; border-radius:5px; padding:0; overflow:hidden; border:1px solid #060A0F; color:#D3DBE6}
+.stage-head{display:flex; align-items:center; gap:12px; padding:12px 16px; border-bottom:1px solid #222E3C; background:#0A1017}
+.stage-head h3{margin:0; color:#EAF0F7; font-size:1rem}
+.stage-ctl{margin-left:auto; display:flex; gap:8px}
+.stage-ctl button{
+  font-family:Archivo; font-size:.78rem; font-weight:600; padding:6px 13px; border-radius:3px; cursor:pointer;
+  border:1px solid #2B3A4C; background:#16202C; color:#BCCADB;
+}
+.stage-ctl button:hover{background:#1D2A38; color:#fff}
+.stage-ctl button.live{background:#14503D; border-color:#1D7A5C; color:#B6F0D9}
+.stage-body{display:grid; grid-template-columns:1.55fr 1fr; gap:0}
+.flowpane{padding:16px; border-right:1px solid #222E3C; overflow-x:auto}
+.flowpane svg{min-width:430px; width:100%; height:auto}
+.fnode rect,.fnode circle{fill:#18222E; stroke:#2E3E51; stroke-width:1.4; transition:fill .3s, stroke .3s}
+.fnode text{font-family:Archivo; font-size:11px; fill:#8FA2B8; transition:fill .3s}
+.fnode .sub{font-family:"IBM Plex Mono"; font-size:9px; fill:#5E7089}
+.fnode.act rect,.fnode.act circle{fill:#123246; stroke:#3E9FD0}
+.fnode.act text{fill:#CFE6F5}
+.fnode.done rect,.fnode.done circle{fill:#0F3328; stroke:#2C8A68}
+.fnode.done text{fill:#9EDCC2}
+.fnode.err rect,.fnode.err circle{fill:#3A1712; stroke:#C0503A}
+.fnode.err text{fill:#F0B3A6}
+.fedge{stroke:#2A3949; stroke-width:1.6; fill:none; transition:stroke .3s}
+.fedge.on{stroke:#3E9FD0}
+.fedge.ok{stroke:#2C8A68}
+.fedge.bad{stroke:#C0503A; stroke-dasharray:5 3}
+.ftopic{font-family:"IBM Plex Mono"; font-size:8.5px; fill:#5E7089}
+.ftopic.on{fill:#7FC7E8}
+#packet{opacity:0}
+.console{padding:14px 16px; font-family:"IBM Plex Mono"; font-size:.76rem; line-height:1.85; min-height:330px; max-height:420px; overflow-y:auto}
+.console .ln2{opacity:0; transform:translateY(4px); transition:opacity .25s, transform .25s; color:#8FA2B8}
+.console .ln2.show{opacity:1; transform:none}
+.console .ts{color:#5E7089}
+.console .ok2{color:#8FD69A} .console .bad2{color:#F0947F} .console .inf{color:#7FC7E8}
+.rescard{
+  margin:14px 16px 18px; border:1px solid #1D7A5C; background:#0E2C23; border-radius:4px; padding:14px 16px;
+  opacity:0; transform:translateY(8px) scale(.98); transition:all .4s cubic-bezier(.2,.9,.3,1);
+}
+.rescard.bad{border-color:#B84B36; background:#2E1310}
+.rescard.show{opacity:1; transform:none}
+.rescard .rc-t{font-family:Archivo; font-weight:800; font-size:1.05rem; color:#B6F0D9; margin-bottom:6px}
+.rescard.bad .rc-t{color:#F5B7A8}
+.rescard .rc-r{display:flex; justify-content:space-between; font-family:"IBM Plex Mono"; font-size:.75rem; color:#8FA2B8; padding:2px 0}
+.rescard .rc-r b{color:#DCE5F0; font-weight:500}
+
+/* footer + misc */
+.foot{border-top:2px solid var(--ink); margin-top:60px; padding:26px 0 60px; font-size:.9rem; color:var(--ink-3)}
+.two{display:grid; grid-template-columns:1fr 1fr; gap:22px}
+@media (max-width:900px){
+  body{font-size:16.5px}
+  .split{grid-template-columns:1fr}
+  .pane-p{border-right:none; border-bottom:1px solid var(--rule-soft)}
+  .two{grid-template-columns:1fr}
+  .stage-body{grid-template-columns:1fr}
+  .flowpane{border-right:none; border-bottom:1px solid #222E3C}
+  .explain li{grid-template-columns:1fr; gap:2px}
+  .topnav{display:none}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms !important; transition-duration:.001ms !important}
+  html{scroll-behavior:auto}
+}
+:focus-visible{outline:2.5px solid var(--wire); outline-offset:2px}
+</style>
+</head>
+<body>
+<div id="sdh-libbar" style="position:relative;z-index:2147483000;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0;padding:8px 16px;background:#0f172a;color:#cbd5e1;font:600 13px/1.5 Inter,'Segoe UI',system-ui,-apple-system,sans-serif;border-bottom:2px solid #4f46e5;box-sizing:border-box;width:100%;text-align:left;letter-spacing:0"><a href="../../index.html" style="color:#fff;text-decoration:none;font-weight:800">SystemDesign<span style="color:#8b8cff">.hinglish</span></a><span style="opacity:.45">/</span><a href="../index.html" style="color:#fff;text-decoration:none">📚 Library</a><span style="opacity:.45">/</span><a href="../index.html#data-messaging" style="color:#cbd5e1;text-decoration:none">Kafka · Redis · Cassandra &amp; Databases</a><a href="../files/kafka-end-to-end-coupons-booking-orders-original.html" download style="color:#a5b4fc;text-decoration:none;font-size:12px">⬇ Original</a><span style="margin-left:auto;font-size:11px;padding:2px 9px;border-radius:999px;border:1px solid #6366f1;color:#c7d2fe">📘 HTML ebook</span></div>
+
+<div class="topbar">
+  <div class="inner">
+    <div class="brand">Kafka <span>end&#8209;to&#8209;end</span></div>
+    <nav class="topnav">
+      <a href="#basics">Foundations</a>
+      <a href="#coupon">Coupon</a>
+      <a href="#booking">Booking</a>
+      <a href="#order">Order + Payment</a>
+      <a href="#config">Config</a>
+      <a href="#mock">Mock Q&amp;A</a>
+      <a href="#anim">Live flow</a>
+    </nav>
+  </div>
+</div>
+
+<header class="hero">
+  <div class="wrap">
+    <h1>Ek event log,<br>teen real systems.</h1>
+    <p class="sub">Coupon platform, booking saga, aur order&#8209;payment pipeline — teeno ko ek hi Kafka backbone par design karte hain. Har topic do halves mein: <b>left mein problem</b> jo production mein actually hoti hai, <b>right mein solution</b> jo interview mein bolna chahiye. Code Java + Spring Kafka, line&#8209;by&#8209;line samjhaya hua.</p>
+    <div class="chipline">
+      <span class="chip b">Java 17 + Spring Boot 3</span>
+      <span class="chip">Spring Kafka</span>
+      <span class="chip">HLD + LLD</span>
+      <span class="chip">15 core topics</span>
+      <span class="chip">30 mock questions</span>
+      <span class="chip">Hinglish + English</span>
+    </div>
+
+    <div class="logbox">
+      <div class="lb-head">
+        <span class="dot"></span>
+        <span>topic: <b style="color:var(--ink)">booking.events.v1</b> &nbsp;|&nbsp; partition 3 &nbsp;|&nbsp; append&#8209;only, immutable</span>
+      </div>
+      <div class="lb-body"><div class="lb-track" id="lbTrack"></div></div>
+      <div class="pointers">
+        <span class="ptr"><i style="background:var(--wire)"></i><b>coupon&#8209;worker</b> offset <span id="p1">0</span> &nbsp;lag <span class="lagnum ok" id="l1">0</span></span>
+        <span class="ptr"><i style="background:var(--problem)"></i><b>analytics&#8209;sink</b> offset <span id="p2">0</span> &nbsp;lag <span class="lagnum" id="l2">0</span></span>
+        <span class="ptr"><i style="background:var(--ink-3)"></i>log&#8209;end offset <span id="p3">0</span></span>
+      </div>
+    </div>
+    <p style="font-size:.88rem;color:var(--ink-3);margin-top:12px;max-width:70ch">Ye hi Kafka ka pura idea hai — producer sirf end mein likhta hai, har consumer group apna offset khud aage badhata hai, aur jo slow hai uska lag badhta hai. Baaki sab isi ek picture ke variations hain.</p>
+  </div>
+</header>
+
+<section id="basics">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker">Part 1</div>
+      <h2>Foundations — 15 topics, har ek problem se solution tak</h2>
+      <p class="lede">Yeh sab topics aage ke teeno scenarios mein reuse honge. Interview mein har answer ka shape same rakho: pehle failure batao, phir Kafka feature, phir config/code, phir trade&#8209;off.</p>
+    </div>
+
+    <div class="topic">
+      <h3><span class="n">01</span> Synchronous REST chain vs event backbone</h3>
+      <div class="split">
+        <div class="pane-p">
+          <div class="pane-tag">Problem</div>
+          <p class="hin">Booking API andar hi andar Coupon &rarr; Payment &rarr; Notification ko sync HTTP se call kar rahi hai. Sale ke din Coupon service ka p99 200ms se 4s ho gaya.</p>
+          <ul>
+            <li>Booking ka latency = sabka latency ka sum. Ek slow service pura API gira deti hai.</li>
+            <li>Notification service down &rarr; booking bhi fail, jabki notification business&#8209;critical hai hi nahi.</li>
+            <li>Client retry karta hai &rarr; retry storm &rarr; already-loaded service aur mar jaati hai.</li>
+            <li>Tight coupling: naya "Loyalty points" feature add karne ke liye Booking ka code chhedna padta hai.</li>
+          </ul>
+          <span class="eng">A synchronous fan&#8209;out makes availability multiplicative: 4 services at 99.9% each give you ~99.6%.</span>
+        </div>
+        <div class="pane-s">
+          <div class="pane-tag">Solution</div>
+          <p class="hin">Booking service sirf ek event likhti hai <code>booking.requested.v1</code> aur turant <code>202 Accepted</code> + <code>bookingId</code> return karti hai. Baaki sab consumers apne pace pe kaam karte hain.</p>
+          <ul>
+            <li><b>Temporal decoupling:</b> Coupon service 10 min down rahe, events Kafka mein retained rahenge (default 7 din), wapas aake catch&#8209;up kar lega.</li>
+            <li><b>Load levelling:</b> 50k RPS spike Kafka absorb karta hai, consumer apni capacity se drain karta hai.</li>
+            <li><b>Extensibility:</b> Loyalty service naya consumer group bana ke same topic subscribe kar leta hai &mdash; producer ko pata bhi nahi chalta.</li>
+            <li>User ko final status SSE/WebSocket/polling se milta hai (aakhri section mein animation isi ka hai).</li>
+          </ul>
+          <span class="eng">Trade&#8209;off to state aloud: you trade strong consistency for eventual consistency, and you now owe the user a status channel.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="topic">
+      <h3><span class="n">02</span> Topic aur partition design</h3>
+      <div class="split">
+        <div class="pane-p">
+          <div class="pane-tag">Problem</div>
+          <p class="hin">Team ne ek hi topic <code>events</code> bana diya jisme coupon, booking, payment sab ja raha hai. Partitions = 1 (default).</p>
+          <ul>
+            <li>Coupon consumer ko payment events bhi deserialize karke discard karne padte hain &mdash; CPU waste.</li>
+            <li>1 partition = maximum 1 consumer thread &rarr; horizontal scaling possible hi nahi.</li>
+            <li>Retention policy sab events ke liye same &mdash; audit events 90 din chahiye, temp events 1 din.</li>
+            <li>ACL alag nahi kar sakte: analytics team ko payment data dikh jaata hai.</li>
+          </ul>
+        </div>
+        <div class="pane-s">
+          <div class="pane-tag">Solution</div>
+          <p class="hin">Ek topic = ek event type (ya ek closely-related family). Naming convention fix karo: <code>&lt;domain&gt;.&lt;entity&gt;.&lt;event&gt;.v&lt;n&gt;</code>.</p>
+          <ul>
+            <li><code>coupon.redemption.requested.v1</code>, <code>booking.confirmed.v1</code>, <code>order.payment.captured.v1</code>.</li>
+            <li><b>Partition count</b> = peak throughput &divide; per&#8209;consumer throughput, phir 2&ndash;3&times; headroom. Example: 30k msg/s &divide; 2k msg/s per consumer = 15 &rarr; 32 partitions le lo.</li>
+            <li>Partitions sirf <b>badha</b> sakte ho, ghata nahi &mdash; aur badhane par key&rarr;partition mapping toot jaati hai. Isliye pehle din sahi socho.</li>
+            <li>Per&#8209;topic retention/ACL/compaction alag set kar sakte ho.</li>
+          </ul>
+          <span class="eng">Rule of thumb: partitions are the unit of parallelism and the unit of ordering. You cannot have more consumers in one group than partitions.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="topic">
+      <h3><span class="n">03</span> Partition key selection aur hot partition</h3>
+      <div class="split">
+        <div class="pane-p">
+          <div class="pane-tag">Problem</div>
+          <p class="hin">Coupon events ka key <code>couponCode</code> rakha. Sale mein <code>BIGBILLION50</code> par 90% traffic aa gaya.</p>
+          <ul>
+            <li>Ek partition 90% load le rahi hai, baaki 31 partitions khaali &mdash; classic <b>hot partition</b>.</li>
+            <li>Us partition ka lag lakhon mein, dusri sab 0. Consumer add karne se kuch nahi hota.</li>
+            <li>Ulta case: key <code>null</code> kar do to round&#8209;robin hoga, par <b>ordering guarantee khatam</b> &mdash; <code>APPLIED</code> aur <code>REVERSED</code> ulte order mein process ho sakte hain.</li>
+          </ul>
+        </div>
+        <div class="pane-s">
+          <div class="pane-tag">Solution</div>
+          <p class="hin">Key wahi entity hai jiski <b>serial ordering</b> chahiye. Hot key ho to composite key se sub&#8209;shard karo aur shared counter ko DB/Redis atomic operation se guard karo.</p>
+          <ul>
+            <li>Per&#8209;user ordering chahiye &rarr; key = <code>userId</code>. Per&#8209;booking &rarr; <code>bookingId</code>. Per&#8209;order &rarr; <code>orderId</code>.</li>
+            <li>Hot coupon ke liye: <code>key = couponCode + "#" + (userId.hashCode() &amp; 7)</code> &mdash; 8 sub&#8209;shards, load spread ho gaya.</li>
+            <li>Global budget ab partition&#8209;ordering se protect nahi hai, isliye budget decrement <b>conditional UPDATE</b> se karo: <code>UPDATE coupon SET used = used + 1 WHERE code = ? AND used &lt; max_limit</code> &mdash; rows&#8209;affected 0 matlab exhausted.</li>
+          </ul>
+          <span class="eng">Ordering is per&#8209;partition, never global. Pick the smallest entity that still gives you the ordering the business needs.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="topic">
+      <h3><span class="n">04</span> Producer reliability &mdash; acks, retries, idempotence</h3>
+      <div class="split">
+        <div class="pane-p">
+          <div class="pane-tag">Problem</div>
+          <p class="hin">Producer ne <code>coupon.redeemed</code> bheja, network timeout hua, ack nahi mila. Producer ne retry kiya.</p>
+          <ul>
+            <li>Pehla message actually pahunch chuka tha &rarr; broker mein <b>duplicate</b> ban gaya &rarr; user ko double cashback.</li>
+            <li><code>acks=1</code> par leader crash hua replication se pehle &rarr; message <b>silently lost</b>.</li>
+            <li><code>max.in.flight=5</code> + retries bina idempotence &rarr; messages <b>reorder</b> ho sakte hain.</li>
+            <li><code>send()</code> async hai; koi callback nahi laga to failure chupchaap nigal jaata hai.</li>
+          </ul>
+        </div>
+        <div class="pane-s">
+          <div class="pane-tag">Solution</div>
+          <p class="hin">Idempotent producer on karo aur full ISR ack maango. Broker producer ko sequence number deta hai aur duplicate/reorder khud reject karta hai.</p>
+          <ul>
+            <li><code>enable.idempotence=true</code> (Kafka 3.x default), jo automatically <code>acks=all</code>, <code>retries=MAX</code>, <code>max.in.flight&le;5</code> set karta hai.</li>
+            <li>Broker side: <code>replication.factor=3</code> + <code>min.insync.replicas=2</code>. Warna <code>acks=all</code> ka matlab hi nahi.</li>
+            <li><code>delivery.timeout.ms</code> (default 120s) &mdash; iske andar retries hote hain, uske baad hard fail.</li>
+            <li>Har <code>send()</code> par callback/<code>CompletableFuture</code> handle karo &mdash; failure par outbox row ko <code>FAILED</code> mark karo, silently ignore mat karo.</li>
+          </ul>
+          <span class="eng">Idempotent producer removes duplicates caused by producer retries only &mdash; it does not protect you from application&#8209;level double sends.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="topic">
+      <h3><span class="n">05</span> Consumer group aur rebalance</h3>
+      <div class="split">
+        <div class="pane-p">
+          <div class="pane-tag">Problem</div>
+          <p class="hin">6 partitions, par deployment mein 10 pods chala diye. Rolling deploy ke waqt lag graph spike kar jaata hai.</p>
+          <ul>
+            <li>4 consumers hamesha idle &mdash; paisa waste, throughput same.</li>
+            <li>Har pod restart par <b>stop&#8209;the&#8209;world rebalance</b>: sab consumers apni partitions chhod dete hain, 20&ndash;40s processing rukti hai.</li>
+            <li>Processing 6 min leti hai par <code>max.poll.interval.ms=300000</code> (5 min) &rarr; broker consumer ko dead maan leta hai &rarr; infinite rebalance loop.</li>
+          </ul>
+        </div>
+        <div class="pane-s">
+          <div class="pane-tag">Solution</div>
+          <p class="hin">Consumers &le; partitions rakho, cooperative rebalancing on karo, aur poll interval ko worst&#8209;case processing time se bada rakho.</p>
+          <ul>
+            <li><code>partition.assignment.strategy=CooperativeStickyAssignor</code> &mdash; sirf affected partitions move hoti hain, baaki chalti rehti hain.</li>
+            <li><code>group.instance.id</code> (static membership) + <code>session.timeout.ms=45000</code> &mdash; rolling restart par rebalance hi trigger nahi hota.</li>
+            <li><code>max.poll.records</code> ghata do (500 &rarr; 50) taaki ek poll batch time budget mein khatam ho.</li>
+            <li>Long DB/HTTP work ho to record ko internal queue mein daal ke poll loop free rakho, phir manual ack.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="topic">
+      <h3><span class="n">06</span> Offset commit strategy</h3>
+      <div class="split">
+        <div class="pane-p">
+          <div class="pane-tag">Problem</div>
+          <p class="hin"><code>enable.auto.commit=true</code> chal raha tha. Consumer ne 500 records poll kiye, offset auto&#8209;commit ho gaya, phir 200th record par pod OOM&#8209;kill ho gaya.</p>
+          <ul>
+            <li>Baaki 300 coupon redemptions <b>hamesha ke liye gayab</b> &mdash; at&#8209;most&#8209;once behaviour.</li>
+            <li>Koi alert nahi bajta, kyunki technically koi exception hi nahi hua.</li>
+            <li>Reconciliation job ne 3 din baad mismatch pakda.</li>
+          </ul>
+        </div>
+        <div class="pane-s">
+          <div class="pane-tag">Solution</div>
+          <p class="hin">Auto&#8209;commit off. Business work successful hone ke baad hi manually ack karo &mdash; at&#8209;least&#8209;once.</p>
+          <ul>
+            <li><code>enable-auto-commit: false</code> + <code>ack-mode: MANUAL_IMMEDIATE</code>.</li>
+            <li>Listener signature mein <code>Acknowledgment ack</code> lo, aur DB commit ke <b>baad</b> <code>ack.acknowledge()</code> call karo.</li>
+            <li>At&#8209;least&#8209;once ka matlab duplicates aayenge &rarr; isliye topic 08 (idempotent consumer) mandatory hai.</li>
+          </ul>
+          <span class="eng">Delivery semantics are a chain: producer idempotence + manual commit + consumer&#8209;side dedupe = effectively&#8209;once for the business.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="topic">
+      <h3><span class="n">07</span> Ordering guarantee</h3>
+      <div class="split">
+        <div class="pane-p">
+          <div class="pane-tag">Problem</div>
+          <p class="hin">User ne coupon apply kiya phir 2 second mein remove kar diya. <code>COUPON_APPLIED</code> aur <code>COUPON_REVERSED</code> alag partitions mein chale gaye.</p>
+          <ul>
+            <li>REVERSED pehle process ho gaya, APPLIED baad mein &rarr; DB mein coupon <b>applied</b> hi reh gaya.</li>
+            <li>User ne bina eligible hue discount le liya &mdash; direct revenue loss.</li>
+            <li>Consumer concurrency badhane par same partition ke andar bhi order tootne laga (multi&#8209;threaded processing).</li>
+          </ul>
+        </div>
+        <div class="pane-s">
+          <div class="pane-tag">Solution</div>
+          <p class="hin">Same key &rarr; same partition &rarr; guaranteed order. Uske upar payload mein version rakho taaki late/stale event drop ho sake.</p>
+          <ul>
+            <li>Dono events ka key <code>bookingId</code> &mdash; ek hi partition, ek hi consumer thread, natural order.</li>
+            <li>Payload mein <code>version</code> ya <code>occurredAt</code>: consumer <code>if (event.version &le; row.version) return;</code> &mdash; idempotent + out&#8209;of&#8209;order safe.</li>
+            <li>Spring mein concurrency badhao to bhi ek partition ek hi thread ko milti hai &mdash; ordering safe rehti hai, bas apne aap threads mat spawn karo.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="topic">
+      <h3><span class="n">08</span> Duplicate events aur idempotent consumer</h3>
+      <div class="split">
+        <div class="pane-p">
+          <div class="pane-tag">Problem</div>
+          <p class="hin">Rebalance ke baad consumer ne last committed offset se dobara start kiya. Wahi <code>coupon.redeemed</code> event 2 baar process ho gaya.</p>
+          <ul>
+            <li>Ledger mein do entries &rarr; user ko &#8377;200 ki jagah &#8377;400 cashback.</li>
+            <li>Notification 2 baar gaya &mdash; user ko lagta hai bug hai.</li>
+            <li>Duplicate 100% avoid karna Kafka&#8209;only setup mein possible nahi, kyunki external DB involved hai.</li>
+          </ul>
+        </div>
+        <div class="pane-s">
+          <div class="pane-tag">Solution</div>
+          <p class="hin">Consumer ko idempotent banao. Har event ka unique <code>eventId</code> ho aur ek <code>processed_event</code> table par unique constraint ho.</p>
+          <ul>
+            <li>Ek hi DB transaction mein: (a) <code>INSERT INTO processed_event(consumer_group, event_id)</code>, (b) business update. Duplicate par unique&#8209;violation aayega &rarr; safely skip.</li>
+            <li>Business&#8209;level natural key bhi kaam karta hai: <code>UNIQUE(coupon_code, user_id, booking_id)</code> on redemption table.</li>
+            <li>High&#8209;volume ke liye Redis <code>SETNX eventId</code> with TTL, but source of truth DB hi rakho.</li>
+          </ul>
+          <span class="eng">Say this in interviews: "Kafka gives at&#8209;least&#8209;once across an external DB; exactly&#8209;once is achieved in the consumer, not the broker."</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="topic">
+      <h3><span class="n">09</span> Retry, backoff aur DLQ</h3>
+      <div class="split">
+        <div class="pane-p">
+          <div class="pane-tag">Problem</div>
+          <p class="hin">Payment gateway 30 second ke liye down. Consumer exception throw karta hai, Kafka wahi record dobara deta hai, infinite loop.</p>
+          <ul>
+            <li><b>Head&#8209;of&#8209;line blocking</b>: ek stuck record ke peeche us partition ke sab records ruk gaye.</li>
+            <li>Ek permanently invalid message (coupon code hi galat) infinite retry karta rehta hai &mdash; CPU 100%, logs bhar gaye.</li>
+            <li>Retryable (gateway timeout) aur non&#8209;retryable (validation fail) errors mein farq hi nahi kiya gaya.</li>
+          </ul>
+        </div>
+        <div class="pane-s">
+          <div class="pane-tag">Solution</div>
+          <p class="hin">Exceptions ko classify karo, non&#8209;blocking retry topics banao, aur haar ke DLT (dead letter topic) mein daalo.</p>
+          <ul>
+            <li>Spring: <code>DefaultErrorHandler</code> + <code>ExponentialBackOff</code> + <code>DeadLetterPublishingRecoverer</code>.</li>
+            <li><code>addNotRetryableExceptions(CouponInvalidException.class)</code> &mdash; ye seedha DLT jaate hain, retry hi nahi.</li>
+            <li>Non&#8209;blocking retry: <code>@RetryableTopic</code> &rarr; <code>...-retry-0</code>, <code>-retry-1</code>, <code>-dlt</code>. Main partition free rehti hai.</li>
+            <li>DLT ke liye alert + replay endpoint banao. DLT jo kabhi dekha na jaaye woh silent data loss hai.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="topic">
+      <h3><span class="n">10</span> Dual&#8209;write problem aur transactional outbox</h3>
+      <div class="split">
+        <div class="pane-p">
+          <div class="pane-tag">Problem</div>
+          <p class="hin">Service DB mein booking <code>CONFIRMED</code> save karti hai, phir Kafka par event bhejti hai. Do alag systems, ek hi logical operation.</p>
+          <ul>
+            <li>DB commit ho gaya, Kafka publish fail &rarr; downstream ko kabhi pata nahi chala. Booking confirmed but no ticket email.</li>
+            <li>Kafka publish ho gaya, DB rollback &rarr; <b>phantom event</b>, downstream ne kaam kar diya jo hua hi nahi.</li>
+            <li><code>@Transactional</code> DB aur Kafka dono ko cover nahi karta &mdash; 2PC production mein practical nahi.</li>
+          </ul>
+        </div>
+        <div class="pane-s">
+          <div class="pane-tag">Solution</div>
+          <p class="hin">Event ko <b>usi DB transaction</b> mein <code>outbox</code> table mein likho. Alag relay use karke usse Kafka par bhejo.</p>
+          <ul>
+            <li>Atomicity DB level par mil gayi &mdash; ya dono likhe jaayenge ya koi nahi.</li>
+            <li>Relay options: (a) Debezium CDC binlog se, (b) polling publisher <code>SELECT ... FOR UPDATE SKIP LOCKED</code>.</li>
+            <li>Relay at&#8209;least&#8209;once hai &rarr; consumer idempotent hona chahiye (topic 08). Ye combo hi standard answer hai.</li>
+          </ul>
+          <span class="eng">Outbox turns an unsolvable distributed&#8209;transaction problem into a boring single&#8209;database transaction plus a retryable pump.</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="topic">
+      <h3><span class="n">11</span> Exactly&#8209;once semantics (EOS) &mdash; kab kaam aata hai</h3>
+      <div class="split">
+        <div class="pane-p">
+          <div class="pane-tag">Problem</div>
+          <p class="hin">Consume &rarr; transform &rarr; produce pipeline hai: <code>order.placed</code> padho, discount calculate karo, <code>order.priced</code> likho. Crash ke baad dobara process hua to output topic mein duplicate.</p>
+          <ul>
+            <li>Downstream aggregation service ne revenue double count kar liya.</li>
+            <li>Manual dedupe har downstream consumer mein likhna padega &mdash; duplicated effort.</li>
+          </ul>
+        </div>
+        <div class="pane-s">
+          <div class="pane-tag">Solution</div>
+          <p class="hin">Kafka transactions: output produce aur input offset commit dono ek atomic transaction mein.</p>
+          <ul>
+            <li>Producer par <code>transactional.id</code> set karo, Spring mein <code>KafkaTemplate.executeInTransaction(...)</code>.</li>
+            <li>Consumer par <code>isolation.level=read_committed</code> &mdash; warna aborted transactions ke messages bhi dikh jaayenge.</li>
+            <li><b>Limitation zaroor batao:</b> EOS sirf Kafka&rarr;Kafka ke liye hai. Beech mein external DB write ya HTTP call aaya to idempotency wapas aapki zimmedari.</li>
+            <li>Cost: throughput ~10&ndash;20% kam, latency thodi zyada. Har pipeline par EOS mat lagao.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="topic">
+      <h3><span class="n">12</span> Schema evolution aur poison pill</h3>
+      <div class="split">
+        <div class="pane-p">
+          <div class="pane-tag">Problem</div>
+          <p class="hin">Producer team ne <code>discountAmount</code> ko <code>String</code> se <code>BigDecimal</code> kar diya bina batayen. Consumer ka deserializer blow up ho gaya.</p>
+          <ul>
+            <li>Deserialization exception listener ke andar nahi, <b>uske pehle</b> aata hai &mdash; error handler ko record milta hi nahi.</li>
+            <li>Offset aage nahi badh sakta &rarr; poison pill &rarr; pura consumer group ruk gaya.</li>
+            <li>Manual fix: offset seek karke skip karna, production incident.</li>
+          </ul>
+        </div>
+        <div class="pane-s">
+          <div class="pane-tag">Solution</div>
+          <p class="hin">Schema Registry + backward compatibility + defensive deserializer.</p>
+          <ul>
+            <li>Avro/Protobuf + Schema Registry, compatibility mode <code>BACKWARD</code>. Registry incompatible schema ko publish hone hi nahi dega.</li>
+            <li>Safe changes: naya optional field <b>with default</b> add karna. Unsafe: required field remove/rename ya type change.</li>
+            <li>Breaking change zaroori ho to naya versioned topic: <code>coupon.redeemed.v2</code>, dono ko parallel chalao, phir cutover.</li>
+            <li><code>ErrorHandlingDeserializer</code> wrap karo &mdash; bad record null payload ban ke error handler tak pahunchta hai aur DLT chala jaata hai.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="topic">
+      <h3><span class="n">13</span> Consumer lag aur scaling</h3>
+      <div class="split">
+        <div class="pane-p">
+          <div class="pane-tag">Problem</div>
+          <p class="hin">Sale ke 20 minute mein lag 2 million messages. Users ko coupon confirmation 40 minute baad mil raha hai.</p>
+          <ul>
+            <li>Consumer har record par ek sync HTTP call kar raha hai (80ms) &rarr; max ~12 msg/s per thread.</li>
+            <li>Consumers badha diye par partitions 8 hi hain &rarr; koi fayda nahi.</li>
+            <li>Per&#8209;record <code>INSERT</code> DB par 1 row/txn &mdash; DB IOPS choke.</li>
+          </ul>
+        </div>
+        <div class="pane-s">
+          <div class="pane-tag">Solution</div>
+          <p class="hin">Lag ko diagnose karo pehle: producer rate zyada hai, ya consumer slow hai, ya partitions kam hain.</p>
+          <ul>
+            <li>Metrics: <code>records-lag-max</code>, <code>fetch-latency-avg</code>, <code>commit-latency-avg</code> + kafka&#8209;lag&#8209;exporter/Burrow.</li>
+            <li>Partitions badhao (32) + consumers = partitions. Ye pehla lever hai.</li>
+            <li>Batch listener (<code>batch-listener: true</code>) + bulk <code>INSERT</code> &mdash; 500 rows ek transaction mein, 10&ndash;50&times; jump.</li>
+            <li>Sync HTTP hot path se hatao; enrichment ko alag topic par push karo.</li>
+            <li>KEDA/HPA ko lag metric par autoscale karao, CPU par nahi.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="topic">
+      <h3><span class="n">14</span> Retention, compaction aur replay</h3>
+      <div class="split">
+        <div class="pane-p">
+          <div class="pane-tag">Problem</div>
+          <p class="hin">Naya Analytics service bana, purane 30 din ke coupon events replay karne the &mdash; par retention 3 din tha.</p>
+          <ul>
+            <li>Historical data gaya. Backfill ke liye DB dump se ETL likhna pada.</li>
+            <li>Coupon ka current state kahin ek jagah nahi tha &mdash; state reconstruct karne ke liye pura event log chahiye tha.</li>
+            <li>Bug fix ke baad "sirf pichle 2 ghante replay karo" ka koi safe tarika nahi tha.</li>
+          </ul>
+        </div>
+        <div class="pane-s">
+          <div class="pane-tag">Solution</div>
+          <p class="hin">Do tarah ke topics rakho: <b>event topics</b> (delete policy) aur <b>state topics</b> (compacted).</p>
+          <ul>
+            <li>Event topic: <code>cleanup.policy=delete</code>, <code>retention.ms=7d</code> (audit ke liye 30&ndash;90d).</li>
+            <li>State topic: <code>cleanup.policy=compact</code>, key = <code>couponCode</code>. Kafka har key ka <b>latest</b> value hamesha rakhta hai &mdash; ek tarah ka distributed key&#8209;value snapshot.</li>
+            <li>Delete karne ke liye <b>tombstone</b> bhejo: same key, <code>null</code> value.</li>
+            <li>Replay: naya <code>group.id</code> + <code>auto-offset-reset: earliest</code>, ya <code>kafka-consumer-groups --reset-offsets --to-datetime</code>.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="topic">
+      <h3><span class="n">15</span> Observability &mdash; kya hua kaise pata chale</h3>
+      <div class="split">
+        <div class="pane-p">
+          <div class="pane-tag">Problem</div>
+          <p class="hin">User bolta hai "booking confirm nahi hui". 6 services, 9 topics &mdash; kaun sa step atka, koi nahi bata paata.</p>
+          <ul>
+            <li>Har service apna correlation id banati hai, chain toot jaati hai.</li>
+            <li>DLT mein 4000 messages pade hain, kisi ko pata hi nahi.</li>
+            <li>Alerting CPU par hai, lag par nahi &mdash; system "healthy" dikhta hai jabki 40 min peeche chal raha hai.</li>
+          </ul>
+        </div>
+        <div class="pane-s">
+          <div class="pane-tag">Solution</div>
+          <p class="hin">Har event mein standard headers, aur teen alerts jo actually matter karte hain.</p>
+          <ul>
+            <li>Headers: <code>traceId</code>, <code>eventId</code>, <code>eventType</code>, <code>schemaVersion</code>, <code>producedAt</code>, <code>sourceService</code>. Consumer inhe MDC mein daal ke aage propagate kare.</li>
+            <li>Alerts: (1) consumer lag &gt; threshold for 5 min, (2) DLT message count &gt; 0, (3) producer error rate.</li>
+            <li>Business SLI track karo: "booking.requested se booking.confirmed tak p99 latency".</li>
+            <li>Micrometer + Grafana; Spring Boot Kafka metrics already expose hote hain.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<section id="coupon">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker">Part 2 — Scenario A</div>
+      <h2>Coupon platform: issue, redeem, expire</h2>
+      <p class="lede">Requirement: 5 crore users, ek coupon par <code>maxRedemptions = 50,000</code>, per user ek hi baar. Sale ke pehle minute mein 3 lakh redemption attempts. Over&#8209;redemption bilkul allowed nahi &mdash; ek bhi extra coupon = direct paisa gaya.</p>
+    </div>
+
+    <h3>High level design</h3>
+    <div class="hld">
+      <svg viewBox="0 0 900 400" role="img" aria-label="Coupon platform high level design">
+        <defs>
+          <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#6C7787"></path>
+          </marker>
+          <marker id="ahr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#A5361F"></path>
+          </marker>
+        </defs>
+
+        <rect class="n-svc" x="20" y="30" width="140" height="48" rx="3"></rect>
+        <text class="t-h" x="90" y="52" text-anchor="middle">Coupon API</text>
+        <text class="t-s" x="90" y="67" text-anchor="middle">POST /coupons/redeem</text>
+
+        <path class="arw" d="M162,54 L204,54"></path>
+
+        <rect class="n-kafka" x="210" y="30" width="235" height="48" rx="3"></rect>
+        <text class="t-topic" x="327" y="50" text-anchor="middle">coupon.redemption.requested.v1</text>
+        <text class="t-s" x="327" y="66" text-anchor="middle">key = couponCode#shard · 32 partitions</text>
+
+        <path class="arw" d="M447,54 L488,54"></path>
+
+        <rect class="n-svc" x="494" y="30" width="170" height="48" rx="3"></rect>
+        <text class="t-h" x="579" y="52" text-anchor="middle">Redemption Worker</text>
+        <text class="t-s" x="579" y="67" text-anchor="middle">group: coupon-redemption-worker</text>
+
+        <path class="arw" d="M666,54 L704,54"></path>
+
+        <rect class="n-db" x="710" y="22" width="172" height="64" rx="3"></rect>
+        <text class="t-h" x="796" y="42" text-anchor="middle">coupon_db</text>
+        <text class="t-s" x="796" y="57" text-anchor="middle">coupon · coupon_redemption</text>
+        <text class="t-s" x="796" y="71" text-anchor="middle">processed_event · outbox</text>
+
+        <path class="arw" d="M579,80 L579,102 L389,102 L389,126"></path>
+        <path class="arw" d="M579,80 L579,126"></path>
+
+        <rect class="n-kafka" x="300" y="130" width="178" height="46" rx="3"></rect>
+        <text class="t-topic" x="389" y="150" text-anchor="middle">coupon.redeemed.v1</text>
+        <text class="t-s" x="389" y="165" text-anchor="middle">key = couponCode</text>
+
+        <rect class="n-fail" x="496" y="130" width="178" height="46" rx="3"></rect>
+        <text class="t-topic" x="585" y="150" text-anchor="middle" style="fill:#A5361F">coupon.rejected.v1</text>
+        <text class="t-s" x="585" y="165" text-anchor="middle">reason = BUDGET_EXHAUSTED</text>
+
+        <path class="arw" d="M389,178 L389,198 L250,198 L250,222"></path>
+        <path class="arw" d="M389,178 L389,222"></path>
+        <path class="arw" d="M389,178 L389,198 L575,198 L575,222"></path>
+        <path class="arw-f" d="M585,178 L585,206 L440,206 L410,206 L410,222"></path>
+
+        <rect class="n-svc" x="175" y="226" width="150" height="46" rx="3"></rect>
+        <text class="t-h" x="250" y="246" text-anchor="middle">Ledger Service</text>
+        <text class="t-s" x="250" y="261" text-anchor="middle">cashback / accounting</text>
+
+        <rect class="n-svc" x="335" y="226" width="150" height="46" rx="3"></rect>
+        <text class="t-h" x="410" y="246" text-anchor="middle">Notification</text>
+        <text class="t-s" x="410" y="261" text-anchor="middle">push · sms · email</text>
+
+        <rect class="n-svc" x="500" y="226" width="150" height="46" rx="3"></rect>
+        <text class="t-h" x="575" y="246" text-anchor="middle">Analytics Sink</text>
+        <text class="t-s" x="575" y="261" text-anchor="middle">S3 → warehouse</text>
+
+        <rect class="n-svc" x="20" y="320" width="140" height="46" rx="3"></rect>
+        <text class="t-h" x="90" y="340" text-anchor="middle">Coupon Admin</text>
+        <text class="t-s" x="90" y="355" text-anchor="middle">create · expire</text>
+
+        <path class="arw" d="M162,343 L204,343"></path>
+
+        <rect class="n-kafka" x="210" y="320" width="235" height="46" rx="3"></rect>
+        <text class="t-topic" x="327" y="340" text-anchor="middle">coupon.definition.v1</text>
+        <text class="t-s" x="327" y="355" text-anchor="middle">compacted · key = couponCode</text>
+
+        <path class="arw" d="M447,343 L488,343"></path>
+
+        <rect class="n-svc" x="494" y="320" width="170" height="46" rx="3"></rect>
+        <text class="t-h" x="579" y="340" text-anchor="middle">Rules Cache Builder</text>
+        <text class="t-s" x="579" y="355" text-anchor="middle">group: coupon-rules-cache</text>
+
+        <path class="arw" d="M666,343 L704,343"></path>
+
+        <rect class="n-box" x="710" y="316" width="120" height="54" rx="3"></rect>
+        <text class="t-h" x="770" y="338" text-anchor="middle">Redis</text>
+        <text class="t-s" x="770" y="353" text-anchor="middle">rules snapshot</text>
+
+        <text class="t-s" x="20" y="300">Redis se Coupon API sirf fast pre-check karti hai — final authority hamesha coupon_db ka conditional UPDATE hai.</text>
+      </svg>
+    </div>
+
+    <div class="wirebox"><b>Design ka core:</b> Redis se sirf <em>fast rejection</em> hoti hai (expired, wrong city, min-cart fail). Actual budget kaatna sirf DB ke atomic conditional <code>UPDATE</code> se hota hai. Cache kabhi bhi source of truth nahi banega &mdash; warna over-redemption pakka hai.</div>
+
+    <h3>Topic contracts</h3>
+    <div class="tblwrap">
+      <table>
+        <thead><tr><th>Topic</th><th>Key</th><th>Partitions</th><th>Cleanup</th><th>Retention</th><th>Consumers</th></tr></thead>
+        <tbody>
+          <tr><td><code>coupon.definition.v1</code></td><td>couponCode</td><td>12</td><td>compact</td><td>infinite</td><td>rules-cache, search</td></tr>
+          <tr><td><code>coupon.redemption.requested.v1</code></td><td>couponCode#shard</td><td>32</td><td>delete</td><td>7 days</td><td>redemption-worker</td></tr>
+          <tr><td><code>coupon.redeemed.v1</code></td><td>couponCode</td><td>32</td><td>delete</td><td>30 days</td><td>ledger, notify, analytics</td></tr>
+          <tr><td><code>coupon.rejected.v1</code></td><td>couponCode</td><td>12</td><td>delete</td><td>7 days</td><td>notify, analytics</td></tr>
+          <tr><td><code>coupon.expired.v1</code></td><td>couponCode</td><td>6</td><td>delete</td><td>30 days</td><td>rules-cache, analytics</td></tr>
+          <tr><td><code>coupon.redemption.requested.v1-dlt</code></td><td>original key</td><td>4</td><td>delete</td><td>30 days</td><td>ops replay tool</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Low level design — tables</h3>
+    <div class="tblwrap">
+      <table>
+        <thead><tr><th>Table</th><th>Key columns</th><th>Constraint jo bachata hai</th></tr></thead>
+        <tbody>
+          <tr><td><code>coupon</code></td><td>code (PK), max_redemptions, used_count, valid_till, discount_type, discount_value</td><td>conditional UPDATE par <code>used_count &lt; max_redemptions</code> &mdash; over-redemption impossible</td></tr>
+          <tr><td><code>coupon_redemption</code></td><td>id, coupon_code, user_id, booking_id, status, created_at</td><td><code>UNIQUE(coupon_code, user_id)</code> &mdash; per-user ek hi baar</td></tr>
+          <tr><td><code>processed_event</code></td><td>consumer_group, event_id, processed_at</td><td><code>UNIQUE(consumer_group, event_id)</code> &mdash; duplicate delivery skip</td></tr>
+          <tr><td><code>outbox</code></td><td>event_id (PK), aggregate_id, topic, payload, status, created_at</td><td>DB txn + Kafka publish ka atomicity bridge</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Code 1 — request producer</h3>
+    <p>Producer ka kaam sirf teen cheez hai: sahi partition key banao, tracing headers lagao, aur send ka result kabhi ignore mat karo. Code ki kisi bhi line par tap karo &mdash; neeche uska explanation highlight ho jaayega, aur ulta bhi chalta hai.</p>
+    <div class="codeblock" data-code="c1">
+      <div class="cb-head"><span class="fname">CouponRedemptionRequestProducer.java</span><span class="tag">producer</span></div>
+      <pre class="code" data-lang="java">@Component
+@Slf4j
+@RequiredArgsConstructor
+public class CouponRedemptionRequestProducer {
+
+    private static final String TOPIC = "coupon.redemption.requested.v1";
+    private static final int SUB_SHARD_COUNT = 8;
+
+    private final KafkaTemplate&lt;String, CouponRedemptionRequested&gt; kafkaTemplate;
+    private final OutboxRepository outboxRepository;
+
+    public void publishRedemptionRequested(CouponRedemptionRequested event) {
+        String partitionKey = buildPartitionKey(event.couponCode(), event.userId());
+
+        ProducerRecord&lt;String, CouponRedemptionRequested&gt; record =
+                new ProducerRecord&lt;&gt;(TOPIC, partitionKey, event);
+
+        record.headers().add("eventId", event.eventId().getBytes(UTF_8));
+        record.headers().add("eventType", "COUPON_REDEMPTION_REQUESTED".getBytes(UTF_8));
+        record.headers().add("traceId", MDC.get("traceId").getBytes(UTF_8));
+
+        kafkaTemplate.send(record).whenComplete((sendResult, failure) -&gt; {
+            if (failure != null) {
+                log.error("kafka publish failed eventId={}", event.eventId(), failure);
+                outboxRepository.markPublishFailed(event.eventId());
+                return;
+            }
+            RecordMetadata metadata = sendResult.getRecordMetadata();
+            outboxRepository.markPublished(event.eventId());
+            log.info("published eventId={} partition={} offset={}",
+                     event.eventId(), metadata.partition(), metadata.offset());
+        });
+    }
+
+    private String buildPartitionKey(String couponCode, String userId) {
+        int subShard = Math.floorMod(userId.hashCode(), SUB_SHARD_COUNT);
+        return couponCode + "#" + subShard;
+    }
+}</pre>
+    </div>
+    <ol class="explain" data-code="c1">
+      <li data-lines="6-7"><span class="lref">L6–L7</span><span class="txt2">Topic name aur shard count constants mein. <b>Kabhi bhi</b> topic name inline string mat likho &mdash; version bump (<code>v2</code>) ke time ek hi jagah change ho.<span class="eng">Constants also make the topic greppable across the repo.</span></span></li>
+      <li data-lines="9-10"><span class="lref">L9–L10</span><span class="txt2">Typed <code>KafkaTemplate</code> &mdash; key <code>String</code>, value ek immutable record. Outbox repo isliye taaki publish failure DB mein dikhe.</span></li>
+      <li data-lines="12-13"><span class="lref">L12–L13</span><span class="txt2">Method ka naam event ke naam se match karta hai: <code>publishRedemptionRequested</code>. Naming rule &mdash; producer methods <code>publishXxx</code>, listeners <code>onXxx</code>, guards <code>tryXxx</code>.</span></li>
+      <li data-lines="15-16"><span class="lref">L15–L16</span><span class="txt2"><code>ProducerRecord</code> isliye use kiya (na ki simple <code>send(topic, key, value)</code>) kyunki humein headers chahiye aur key par poora control chahiye.</span></li>
+      <li data-lines="18-20"><span class="lref">L18–L20</span><span class="txt2"><code>eventId</code> header consumer ki idempotency ke liye, <code>traceId</code> end&#8209;to&#8209;end debugging ke liye. Headers payload se alag rehte hain, isliye schema change kiye bina metadata add kar sakte ho.</span></li>
+      <li data-lines="22"><span class="lref">L22</span><span class="txt2"><code>send()</code> async hai aur <code>CompletableFuture</code> deta hai. <code>whenComplete</code> lagana mandatory hai &mdash; bina iske publish failure chupchaap gayab ho jaata hai.<span class="eng">Fire&#8209;and&#8209;forget is the single most common Kafka bug in Spring codebases.</span></span></li>
+      <li data-lines="23-27"><span class="lref">L23–L27</span><span class="txt2">Failure branch: outbox row <code>FAILED</code> mark hoti hai, relay job baad mein retry karega. Yahan exception throw karne ka koi fayda nahi &mdash; ye callback alag thread par chal raha hai.</span></li>
+      <li data-lines="28-32"><span class="lref">L28–L32</span><span class="txt2">Success par partition aur offset log karo. Production incident mein "kaunsi partition par gaya" pehla sawaal hota hai.</span></li>
+      <li data-lines="35-38"><span class="lref">L35–L38</span><span class="txt2">Hot partition ka ilaaj. <code>BIGBILLION50</code> ab 8 keys mein toot gaya: <code>BIGBILLION50#0 … #7</code>. Load 8 partitions par phail gaya, aur budget safety DB constraint se aa rahi hai, partition ordering se nahi.<span class="eng">Use floorMod, not %, because hashCode() can be negative.</span></span></li>
+    </ol>
+
+    <h3>Code 2 — listener with manual ack</h3>
+    <p>Yeh method interview ka centerpiece hai. Isme teen guarantees ek saath dikh rahi hain: dedupe, atomic budget, aur commit&#8209;after&#8209;work.</p>
+    <div class="codeblock" data-code="c2">
+      <div class="cb-head"><span class="fname">CouponRedemptionListener.java</span><span class="tag">consumer</span></div>
+      <pre class="code" data-lang="java">@Component
+@Slf4j
+@RequiredArgsConstructor
+public class CouponRedemptionListener {
+
+    private static final String GROUP = "coupon-redemption-worker";
+
+    private final EventDeduplicationService deduplicationService;
+    private final CouponBudgetGuard couponBudgetGuard;
+    private final CouponRedemptionResultPublisher resultPublisher;
+
+    @KafkaListener(
+            topics = "coupon.redemption.requested.v1",
+            groupId = GROUP,
+            concurrency = "8",
+            containerFactory = "manualAckListenerContainerFactory")
+    @Transactional
+    public void onRedemptionRequested(ConsumerRecord&lt;String, CouponRedemptionRequested&gt; record,
+                                      Acknowledgment acknowledgment) {
+
+        CouponRedemptionRequested event = record.value();
+        MDC.put("traceId", readHeader(record, "traceId"));
+
+        if (!deduplicationService.markProcessedIfFirstTime(GROUP, event.eventId())) {
+            log.info("duplicate ignored eventId={} partition={}", event.eventId(), record.partition());
+            acknowledgment.acknowledge();
+            return;
+        }
+
+        BudgetReservation reservation = couponBudgetGuard.tryReserveCouponBudget(
+                event.couponCode(), event.userId(), event.bookingId());
+
+        if (reservation.isRejected()) {
+            resultPublisher.publishRedemptionRejected(event, reservation.rejectionReason());
+        } else {
+            resultPublisher.publishCouponRedeemed(event, reservation.discountAmount());
+        }
+
+        acknowledgment.acknowledge();
+    }
+}</pre>
+    </div>
+    <ol class="explain" data-code="c2">
+      <li data-lines="12-16"><span class="lref">L12–L16</span><span class="txt2">Topic, group aur container factory. <code>concurrency = "8"</code> ka matlab 8 threads, har thread ko alag partitions milti hain &mdash; ek partition kabhi do threads mein nahi jaati, isliye ordering safe hai.</span></li>
+      <li data-lines="17"><span class="lref">L17</span><span class="txt2"><code>@Transactional</code> dedupe insert aur budget update dono ko ek DB transaction mein bandh deta hai. Yahi "effectively once" ka asli mechanism hai.</span></li>
+      <li data-lines="18-19"><span class="lref">L18–L19</span><span class="txt2">Sirf payload lene ke bajaye poora <code>ConsumerRecord</code> liya &mdash; headers, partition, offset sab chahiye. <code>Acknowledgment</code> manual commit ke liye inject hota hai.</span></li>
+      <li data-lines="21-22"><span class="lref">L21–L22</span><span class="txt2">Trace id ko MDC mein daal diya, ab is request ke saare logs ek hi trace se filter ho jaayenge, chahe wo 4 services aage ho.</span></li>
+      <li data-lines="24-28"><span class="lref">L24–L28</span><span class="txt2">Idempotency gate. Agar event pehle process ho chuka hai to sirf ack karke return. Ack zaroori hai &mdash; warna wahi duplicate baar&#8209;baar aata rahega.</span></li>
+      <li data-lines="30-31"><span class="lref">L30–L31</span><span class="txt2">Saara business decision ek hi call mein, jo atomic DB operations par tikka hai. Listener khud koi business rule nahi jaanta &mdash; testable rehta hai.</span></li>
+      <li data-lines="33-37"><span class="lref">L33–L37</span><span class="txt2">Rejection bhi ek first&#8209;class event hai. "Kuch nahi hua" wala silent path mat rakho &mdash; user ko reason chahiye aur analytics ko funnel drop chahiye.</span></li>
+      <li data-lines="39"><span class="lref">L39</span><span class="txt2">Ack sabse aakhir mein. Agar upar kahin exception aayi, ack nahi hoga, error handler retry karega, aur DB transaction rollback ho chuka hoga &mdash; state consistent.</span></li>
+    </ol>
+    <div class="note"><b>Interview follow-up:</b> "<code>@Transactional</code> ke andar ack karna theek hai?" &mdash; Strictly, <code>acknowledge()</code> DB commit se pehle chalta hai. Zyada tar setups mein ye acceptable hai kyunki duplicate handle ho raha hai. Fully strict chahiye to ack ko <code>TransactionSynchronizationManager.registerSynchronization(...afterCommit...)</code> mein daalo, ya listener ko non&#8209;transactional rakho aur transaction service layer par shift karo.</div>
+
+    <h3>Code 3 — budget guard (over&#8209;redemption ka ilaaj)</h3>
+    <div class="codeblock" data-code="c3">
+      <div class="cb-head"><span class="fname">CouponBudgetGuard.java + CouponRepository.java</span><span class="tag">domain</span></div>
+      <pre class="code" data-lang="java">@Service
+@RequiredArgsConstructor
+public class CouponBudgetGuard {
+
+    private final CouponRepository couponRepository;
+    private final CouponRedemptionRepository redemptionRepository;
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public BudgetReservation tryReserveCouponBudget(String couponCode, String userId, String bookingId) {
+
+        int claimInserted = redemptionRepository.insertClaimIfAbsent(couponCode, userId, bookingId);
+        if (claimInserted == 0) {
+            return BudgetReservation.rejected(RejectionReason.ALREADY_REDEEMED_BY_USER);
+        }
+
+        int budgetTaken = couponRepository.reserveOneRedemption(couponCode, Instant.now());
+        if (budgetTaken == 0) {
+            redemptionRepository.markClaimRejected(couponCode, userId, RejectionReason.BUDGET_EXHAUSTED);
+            return BudgetReservation.rejected(RejectionReason.BUDGET_EXHAUSTED);
+        }
+
+        Coupon coupon = couponRepository.findByCode(couponCode).orElseThrow();
+        return BudgetReservation.reserved(coupon.calculateDiscountFor(bookingId));
+    }
+}
+
+// ---- repository ----
+
+@Modifying
+@Query("""
+        UPDATE Coupon c
+           SET c.usedCount = c.usedCount + 1
+         WHERE c.code = :code
+           AND c.usedCount &lt; c.maxRedemptions
+           AND c.validTill &gt; :now
+        """)
+int reserveOneRedemption(@Param("code") String code, @Param("now") Instant now);</pre>
+    </div>
+    <ol class="explain" data-code="c3">
+      <li data-lines="8-9"><span class="lref">L8–L9</span><span class="txt2"><code>Propagation.MANDATORY</code> &mdash; ye method apna transaction nahi banati, caller ka hi use karti hai. Galti se bina transaction ke call hui to turant fail ho jaayegi, silently commit nahi karegi.</span></li>
+      <li data-lines="11-14"><span class="lref">L11–L14</span><span class="txt2">Pehle per&#8209;user claim insert. <code>INSERT … ON CONFLICT DO NOTHING</code> return karta hai 0 ya 1. 0 matlab is user ne pehle hi use kar liya &mdash; <code>UNIQUE(coupon_code, user_id)</code> ne bacha liya, koi race condition nahi.<span class="eng">Order matters: claim first, budget second, so a rejection never leaves stolen budget behind.</span></span></li>
+      <li data-lines="16-20"><span class="lref">L16–L20</span><span class="txt2">Global budget conditional <code>UPDATE</code> se. 0 rows matlab budget khatam ya coupon expire. Claim row ko <code>REJECTED</code> mark kar diya &mdash; transaction commit hoga, rollback nahi, isliye event dobara process nahi hoga.</span></li>
+      <li data-lines="22-23"><span class="lref">L22–L23</span><span class="txt2">Discount calculation domain entity ke andar (<code>calculateDiscountFor</code>) &mdash; percentage vs flat, max cap, category rules sab wahin. Listener ko in rules ka pata hi nahi chalta.</span></li>
+      <li data-lines="29-37"><span class="lref">L29–L37</span><span class="txt2">Poori concurrency safety yahin hai. Database ek row par <code>UPDATE</code> ko serialize karta hai, isliye 3 lakh parallel requests mein bhi <code>used_count</code> kabhi <code>max_redemptions</code> cross nahi karega. Na lock lena pada, na <code>SELECT then UPDATE</code> ka race.<span class="eng">Never read-then-write for a counter under contention; make the condition part of the write.</span></span></li>
+    </ol>
+
+    <h3>Code 4 — dedupe service</h3>
+    <div class="codeblock" data-code="c4">
+      <div class="cb-head"><span class="fname">EventDeduplicationService.java</span><span class="tag">idempotency</span></div>
+      <pre class="code" data-lang="java">@Service
+@RequiredArgsConstructor
+public class EventDeduplicationService {
+
+    private final ProcessedEventRepository processedEventRepository;
+
+    @Transactional(propagation = Propagation.MANDATORY)
+    public boolean markProcessedIfFirstTime(String consumerGroup, String eventId) {
+        return processedEventRepository.insertIfAbsent(consumerGroup, eventId) == 1;
+    }
+}
+
+// ---- repository ----
+
+@Modifying
+@Query(value = """
+        INSERT INTO processed_event (consumer_group, event_id, processed_at)
+        VALUES (:consumerGroup, :eventId, now())
+        ON CONFLICT (consumer_group, event_id) DO NOTHING
+        """, nativeQuery = true)
+int insertIfAbsent(@Param("consumerGroup") String consumerGroup, @Param("eventId") String eventId);</pre>
+    </div>
+    <ol class="explain" data-code="c4">
+      <li data-lines="7-9"><span class="lref">L7–L9</span><span class="txt2">Return type deliberately <code>boolean</code>: <em>true = pehli baar, aage badho</em>. Method ka naam hi contract bata deta hai &mdash; <code>markProcessedIfFirstTime</code>.</span></li>
+      <li data-lines="15-21"><span class="lref">L15–L21</span><span class="txt2"><code>ON CONFLICT DO NOTHING</code> use kiya, exception catch nahi kiya. Reason: JPA transaction ke andar <code>DataIntegrityViolationException</code> catch karne par bhi transaction <em>rollback&#8209;only</em> mark ho jaata hai, aur baad ka saara kaam commit hone se mana kar deta hai.<span class="eng">This is a classic production trap &mdash; mention it and interviewers notice.</span></span></li>
+      <li data-lines="8,19"><span class="lref">L8 + L19</span><span class="txt2">Key mein <code>consumer_group</code> bhi hai. Same event ko teen alag services process karti hain &mdash; har group ka apna dedupe record hona chahiye.</span></li>
+    </ol>
+    <div class="note"><b>Housekeeping:</b> <code>processed_event</code> hamesha badhti rahegi. 30 din se purani rows daily partition&#8209;drop ya <code>DELETE</code> job se hatao, warna 6 mahine mein table hi bottleneck ban jaayegi.</div>
+  </div>
+</section>
+
+<section id="booking">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker">Part 3 — Scenario B</div>
+      <h2>Booking + coupon: saga, compensation, aur async response</h2>
+      <p class="lede">Requirement: user seat select karta hai, coupon lagata hai, pay karta hai. Teen alag services, teen alag databases, aur ek hi user jo 3 second mein jawab chahta hai. Distributed transaction possible nahi &mdash; isliye saga.</p>
+    </div>
+
+    <h3>Sequence — happy path aur compensation, ek hi picture mein</h3>
+    <div class="hld">
+      <svg viewBox="0 0 900 440" role="img" aria-label="Booking saga sequence diagram">
+        <rect class="n-box" x="8" y="8" width="104" height="34" rx="3"></rect>
+        <text class="t-h" x="60" y="30" text-anchor="middle">Client</text>
+        <rect class="n-svc" x="150" y="8" width="130" height="34" rx="3"></rect>
+        <text class="t-h" x="215" y="30" text-anchor="middle">Saga Orchestrator</text>
+        <rect class="n-svc" x="475" y="8" width="110" height="34" rx="3"></rect>
+        <text class="t-h" x="530" y="30" text-anchor="middle">Coupon</text>
+        <rect class="n-svc" x="325" y="8" width="110" height="34" rx="3"></rect>
+        <text class="t-h" x="380" y="30" text-anchor="middle">Inventory</text>
+        <rect class="n-svc" x="625" y="8" width="110" height="34" rx="3"></rect>
+        <text class="t-h" x="680" y="30" text-anchor="middle">Payment</text>
+        <rect class="n-svc" x="775" y="8" width="115" height="34" rx="3"></rect>
+        <text class="t-h" x="832" y="30" text-anchor="middle">Notification</text>
+
+        <g stroke="#C4CCD6" stroke-width="1" stroke-dasharray="3 4">
+          <line x1="60" y1="46" x2="60" y2="432"></line>
+          <line x1="215" y1="46" x2="215" y2="432"></line>
+          <line x1="380" y1="46" x2="380" y2="432"></line>
+          <line x1="530" y1="46" x2="530" y2="432"></line>
+          <line x1="680" y1="46" x2="680" y2="432"></line>
+          <line x1="832" y1="46" x2="832" y2="432"></line>
+        </g>
+
+        <text class="t-s" x="62" y="70">1</text>
+        <path class="arw" d="M60,78 L211,78"></path>
+        <text class="t-topic" x="137" y="72" text-anchor="middle">POST /bookings → 202 + bookingId</text>
+
+        <rect class="n-db" x="180" y="88" width="150" height="26" rx="3"></rect>
+        <text class="t-s" x="255" y="105" text-anchor="middle">booking(PENDING) + outbox row</text>
+
+        <path class="arw" d="M215,128 L376,128"></path>
+        <text class="t-topic" x="295" y="122" text-anchor="middle">booking.inventory.hold.requested.v1</text>
+        <path class="arw" d="M380,154 L219,154"></path>
+        <text class="t-topic" x="299" y="148" text-anchor="middle">booking.inventory.held.v1</text>
+
+        <path class="arw" d="M215,186 L526,186"></path>
+        <text class="t-topic" x="370" y="180" text-anchor="middle">coupon.redemption.requested.v1 (key = couponCode#shard)</text>
+        <path class="arw" d="M530,212 L219,212"></path>
+        <text class="t-topic" x="374" y="206" text-anchor="middle">coupon.redeemed.v1 · discountAmount = ₹1,200</text>
+
+        <path class="arw" d="M215,244 L676,244"></path>
+        <text class="t-topic" x="445" y="238" text-anchor="middle">booking.payment.requested.v1 · payable = total − discount</text>
+        <path class="arw" d="M680,270 L219,270"></path>
+        <text class="t-topic" x="449" y="264" text-anchor="middle">booking.payment.captured.v1</text>
+
+        <path class="arw" d="M215,302 L828,302"></path>
+        <text class="t-topic" x="520" y="296" text-anchor="middle">booking.confirmed.v1</text>
+        <path class="arw" d="M215,328 L64,328"></path>
+        <text class="t-topic" x="139" y="322" text-anchor="middle">SSE: CONFIRMED</text>
+
+        <line x1="8" y1="348" x2="892" y2="348" stroke="#A5361F" stroke-width="1" stroke-dasharray="6 4"></line>
+        <text class="t-s" x="8" y="343" style="fill:#A5361F">compensation path — payment fail hone par</text>
+
+        <path class="arw-f" d="M680,372 L219,372"></path>
+        <text class="t-topic" x="449" y="366" text-anchor="middle" style="fill:#A5361F">booking.payment.failed.v1 · reason = INSUFFICIENT_FUNDS</text>
+        <path class="arw-f" d="M215,398 L526,398"></path>
+        <text class="t-topic" x="370" y="392" text-anchor="middle" style="fill:#A5361F">booking.coupon.reverse.requested.v1</text>
+        <path class="arw-f" d="M215,424 L376,424"></path>
+        <text class="t-topic" x="295" y="418" text-anchor="middle" style="fill:#A5361F">booking.inventory.release.requested.v1</text>
+      </svg>
+    </div>
+
+    <div class="topic">
+      <h3><span class="n">B1</span> Orchestration ya choreography?</h3>
+      <div class="split">
+        <div class="pane-p">
+          <div class="pane-tag">Choreography ka dard</div>
+          <p class="hin">Har service dusre ka event sunti hai, koi central brain nahi. 3 steps tak theek lagta hai.</p>
+          <ul>
+            <li>7 services ke baad "booking ab kahan atki hai" kisi ko nahi pata &mdash; logic 7 codebases mein bikhra hua.</li>
+            <li>Compensation ka order kaun decide karega? Coupon pehle reverse ho ya seat pehle release?</li>
+            <li>Timeout kaun lagayega? Payment 10 min silent rahe to booking hamesha PENDING padi rahegi.</li>
+            <li>Cyclic dependency ban jaati hai: A ka event B sunta hai, B ka C, C ka wapas A.</li>
+          </ul>
+        </div>
+        <div class="pane-s">
+          <div class="pane-tag">Orchestration ka fayda</div>
+          <p class="hin">Ek <code>BookingSagaOrchestrator</code> saga state machine chalata hai. Services sirf command lete hain aur reply dete hain &mdash; unhe saga ka pata hi nahi.</p>
+          <ul>
+            <li>Poora flow ek class mein readable &mdash; naye engineer ko 10 minute mein samajh aa jaata hai.</li>
+            <li>Compensation order explicit hai, code mein likha hua.</li>
+            <li>Timeout ek scheduled job ya <code>booking.saga.timeout.v1</code> topic se, kyunki state ek jagah hai.</li>
+            <li><b>Trade&#8209;off:</b> orchestrator ek coupling point aur single point of failure ban sakta hai. Isliye usse stateless rakho, state DB mein, aur multiple replicas chalao.</li>
+          </ul>
+          <span class="eng">Rule: fewer than 4 steps and no compensation → choreography. Money, inventory or compensation involved → orchestration.</span>
+        </div>
+      </div>
+    </div>
+
+    <h3>Saga state machine</h3>
+    <div class="tblwrap">
+      <table>
+        <thead><tr><th>Step</th><th>Trigger event</th><th>Next command</th><th>Compensation agar aage fail ho</th></tr></thead>
+        <tbody>
+          <tr><td><code>STARTED</code></td><td>POST /bookings</td><td><code>booking.inventory.hold.requested.v1</code></td><td>—</td></tr>
+          <tr><td><code>INVENTORY_HELD</code></td><td><code>booking.inventory.held.v1</code></td><td><code>coupon.redemption.requested.v1</code></td><td>seat release karo</td></tr>
+          <tr><td><code>COUPON_APPLIED</code></td><td><code>coupon.redeemed.v1</code></td><td><code>booking.payment.requested.v1</code></td><td>coupon reverse + seat release</td></tr>
+          <tr><td><code>PAID</code></td><td><code>booking.payment.captured.v1</code></td><td><code>booking.confirmed.v1</code></td><td>refund + coupon reverse + seat release</td></tr>
+          <tr><td><code>COMPENSATING</code></td><td>koi bhi <code>*.failed.v1</code></td><td>reverse commands ulte order mein</td><td>—</td></tr>
+          <tr><td><code>CANCELLED</code> / <code>CONFIRMED</code></td><td>terminal</td><td>SSE push + notification</td><td>—</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="note"><b>Coupon rejected hone par saga marta nahi hai.</b> Business rule: coupon invalid ho to booking full price par continue karni hai, sirf user ko bata do. Isliye <code>coupon.rejected.v1</code> compensation trigger nahi karta &mdash; wo <code>payableAmount</code> ko original par set karke <code>PAYMENT</code> step par chala jaata hai. Yeh distinction interview mein zaroor bolo: <em>har failure compensation nahi hoti</em>.</div>
+
+    <h3>Code 5 — saga orchestrator</h3>
+    <div class="codeblock" data-code="c5">
+      <div class="cb-head"><span class="fname">BookingSagaOrchestrator.java</span><span class="tag">orchestration</span></div>
+      <pre class="code" data-lang="java">@Component
+@Slf4j
+@RequiredArgsConstructor
+public class BookingSagaOrchestrator {
+
+    private static final String GROUP = "booking-saga-orchestrator";
+
+    private final BookingSagaStateRepository sagaStateRepository;
+    private final EventDeduplicationService deduplicationService;
+    private final SagaCommandPublisher commandPublisher;
+    private final BookingResponseEmitter responseEmitter;
+
+    @KafkaListener(topics = "booking.inventory.held.v1", groupId = GROUP,
+                   containerFactory = "manualAckListenerContainerFactory")
+    @Transactional
+    public void onInventoryHeld(InventoryHeld event, Acknowledgment acknowledgment) {
+        BookingSagaState saga = loadSagaForUpdate(event.bookingId(), event.eventId());
+        if (saga == null) { acknowledgment.acknowledge(); return; }
+
+        saga.moveTo(SagaStep.INVENTORY_HELD);
+        commandPublisher.publishApplyCouponCommand(saga.bookingId(), saga.couponCode(), saga.userId());
+        acknowledgment.acknowledge();
+    }
+
+    @KafkaListener(topics = "coupon.redeemed.v1", groupId = GROUP,
+                   containerFactory = "manualAckListenerContainerFactory")
+    @Transactional
+    public void onCouponRedeemed(CouponRedeemed event, Acknowledgment acknowledgment) {
+        BookingSagaState saga = loadSagaForUpdate(event.bookingId(), event.eventId());
+        if (saga == null) { acknowledgment.acknowledge(); return; }
+
+        saga.applyDiscount(event.discountAmount());
+        saga.moveTo(SagaStep.COUPON_APPLIED);
+        commandPublisher.publishCapturePaymentCommand(saga.bookingId(), saga.payableAmount());
+        responseEmitter.pushStatus(saga.bookingId(), "COUPON_APPLIED", saga.payableAmount());
+        acknowledgment.acknowledge();
+    }
+
+    @KafkaListener(topics = "booking.payment.failed.v1", groupId = GROUP,
+                   containerFactory = "manualAckListenerContainerFactory")
+    @Transactional
+    public void onPaymentFailed(PaymentFailed event, Acknowledgment acknowledgment) {
+        BookingSagaState saga = loadSagaForUpdate(event.bookingId(), event.eventId());
+        if (saga == null) { acknowledgment.acknowledge(); return; }
+
+        saga.moveTo(SagaStep.COMPENSATING);
+        commandPublisher.publishReverseCouponCommand(saga.bookingId(), saga.couponCode(), saga.userId());
+        commandPublisher.publishReleaseInventoryCommand(saga.bookingId(), saga.seatIds());
+        saga.moveTo(SagaStep.CANCELLED);
+        responseEmitter.pushFailure(saga.bookingId(), event.failureReason());
+        acknowledgment.acknowledge();
+    }
+
+    private BookingSagaState loadSagaForUpdate(String bookingId, String eventId) {
+        if (!deduplicationService.markProcessedIfFirstTime(GROUP, eventId)) {
+            return null;
+        }
+        return sagaStateRepository.findByBookingIdForUpdate(bookingId).orElseThrow();
+    }
+}</pre>
+    </div>
+    <ol class="explain" data-code="c5">
+      <li data-lines="6"><span class="lref">L6</span><span class="txt2">Ek hi <code>groupId</code> saare listeners ke liye. Orchestrator ek logical consumer hai jo kai topics sunta hai &mdash; alag groups banane se offset management bewajah complex ho jaata hai.</span></li>
+      <li data-lines="8-11"><span class="lref">L8–L11</span><span class="txt2">Char dependencies: state, dedupe, command publisher, response emitter. Orchestrator khud koi business calculation nahi karta &mdash; wo sirf <em>agla kadam kya hai</em> decide karta hai.</span></li>
+      <li data-lines="13-16"><span class="lref">L13–L16</span><span class="txt2">Method naming: har handler <code>on&lt;EventName&gt;</code>. Class padhte hi flow samajh aa jaata hai &mdash; <code>onInventoryHeld</code>, <code>onCouponRedeemed</code>, <code>onPaymentFailed</code>.</span></li>
+      <li data-lines="17-18"><span class="lref">L17–L18</span><span class="txt2">Ek hi line mein dedupe + row lock. <code>null</code> ka matlab "duplicate hai, kuch mat karo" &mdash; ack karke chup&#8209;chaap nikal jao.</span></li>
+      <li data-lines="20-21"><span class="lref">L20–L21</span><span class="txt2">State pehle badhao, phir agla command bhejo. Ulta karoge to crash hone par command chala jaayega par state peeche reh jaayegi &rarr; saga do baar aage badhega.</span></li>
+      <li data-lines="32-35"><span class="lref">L32–L35</span><span class="txt2">Discount saga state par apply hua, phir <code>payableAmount</code> se payment command gaya. Saath hi user ko live status push kar diya &mdash; ye wahi update hai jo aakhri animation mein "COUPON APPLIED" dikhata hai.</span></li>
+      <li data-lines="39-42"><span class="lref">L39–L42</span><span class="txt2">Failure ka apna dedicated topic aur apna handler. Ek generic <code>onEvent(Object)</code> mat banao &mdash; type&#8209;safety aur readability dono jaati hai.</span></li>
+      <li data-lines="46-50"><span class="lref">L46–L50</span><span class="txt2">Compensation <b>ulte order</b> mein: pehle coupon wapas, phir seat release. Beech mein crash ho gaya to? Dono commands idempotent hain, aur saga state <code>COMPENSATING</code> par hai &mdash; recovery job usse dobara uthake complete kar dega.</span></li>
+      <li data-lines="54-59"><span class="lref">L54–L59</span><span class="txt2"><code>findByBookingIdForUpdate</code> = <code>SELECT … FOR UPDATE</code>. Do alag events (payment captured aur timeout) ek hi saga par ek saath aa sakte hain &mdash; row lock unhe serialize kar deta hai.<span class="eng">Without the row lock, two concurrent handlers can both read step=COUPON_APPLIED and both fire payment.</span></span></li>
+    </ol>
+
+    <h3>Code 6 — user ko async jawab kaise pahunchta hai</h3>
+    <p>API ne <code>202 Accepted</code> de diya tha. Ab final status user tak SSE se jaata hai. Yehi mechanism aakhri section ke live flow mein chal raha hai.</p>
+    <div class="codeblock" data-code="c6">
+      <div class="cb-head"><span class="fname">BookingResponseEmitter.java</span><span class="tag">async response</span></div>
+      <pre class="code" data-lang="java">@Component
+@Slf4j
+public class BookingResponseEmitter {
+
+    private final Map&lt;String, SseEmitter&gt; activeStreams = new ConcurrentHashMap&lt;&gt;();
+
+    public SseEmitter registerBookingStream(String bookingId) {
+        SseEmitter emitter = new SseEmitter(Duration.ofMinutes(2).toMillis());
+        emitter.onCompletion(() -&gt; activeStreams.remove(bookingId));
+        emitter.onTimeout(() -&gt; activeStreams.remove(bookingId));
+        activeStreams.put(bookingId, emitter);
+        return emitter;
+    }
+
+    public void pushStatus(String bookingId, String step, BigDecimal payableAmount) {
+        sendSafely(bookingId, BookingStatusUpdate.inProgress(step, payableAmount));
+    }
+
+    public void pushConfirmation(String bookingId, BookingConfirmation confirmation) {
+        sendSafely(bookingId, BookingStatusUpdate.confirmed(confirmation));
+        closeStream(bookingId);
+    }
+
+    public void pushFailure(String bookingId, String failureReason) {
+        sendSafely(bookingId, BookingStatusUpdate.failed(failureReason));
+        closeStream(bookingId);
+    }
+
+    private void sendSafely(String bookingId, BookingStatusUpdate update) {
+        SseEmitter emitter = activeStreams.get(bookingId);
+        if (emitter == null) {
+            log.debug("no live stream for {} — client will fall back to polling", bookingId);
+            return;
+        }
+        try {
+            emitter.send(SseEmitter.event().name("booking-status").data(update));
+        } catch (IOException clientDisconnected) {
+            activeStreams.remove(bookingId);
+        }
+    }
+
+    private void closeStream(String bookingId) {
+        SseEmitter emitter = activeStreams.remove(bookingId);
+        if (emitter != null) {
+            emitter.complete();
+        }
+    }
+}</pre>
+    </div>
+    <ol class="explain" data-code="c6">
+      <li data-lines="5"><span class="lref">L5</span><span class="txt2">In&#8209;memory map: <code>bookingId → open HTTP connection</code>. Concurrent map isliye kyunki register HTTP thread par hota hai aur push Kafka listener thread par.</span></li>
+      <li data-lines="7-13"><span class="lref">L7–L13</span><span class="txt2">Controller <code>GET /bookings/{id}/stream</code> par ye emitter return karta hai. Timeout 2 minute &mdash; saga isse zyada lega to client polling par fallback karega.</span></li>
+      <li data-lines="9-10"><span class="lref">L9–L10</span><span class="txt2">Cleanup callbacks. Inke bina map leak karega aur pod ki memory dheere&#8209;dheere khatam ho jaayegi &mdash; ye bug production mein hafton baad dikhta hai.</span></li>
+      <li data-lines="15-27"><span class="lref">L15–L27</span><span class="txt2">Teen public methods, teen terminal states. Naming user ki bhasha mein hai (<code>pushConfirmation</code>), system ki bhasha mein nahi (<code>emitEvent</code>).</span></li>
+      <li data-lines="30-34"><span class="lref">L30–L34</span><span class="txt2">Stream na mile to <b>fail nahi karna</b>. User ne tab band kar diya hoga &mdash; booking phir bhi confirm hai. Async response best&#8209;effort hai, source of truth DB hai.</span></li>
+      <li data-lines="36-39"><span class="lref">L36–L39</span><span class="txt2">Client disconnect par <code>IOException</code> aata hai; use swallow karke map se hata do. Yahan exception throw karoge to Kafka listener fail hoga aur booking retry mein chala jaayega &mdash; sirf isliye ki browser band ho gaya.</span></li>
+    </ol>
+    <div class="note"><b>Multi-pod gotcha:</b> SSE connection ek hi pod par hai, par saga listener kisi bhi pod par chal sakta hai. Solution: ek <code>booking.status.v1</code> topic banao jise <b>har pod</b> apne unique <code>group.id</code> (jaise <code>status-fanout-${POD_NAME}</code>) se sune &mdash; broadcast ban jaata hai, aur jis pod par connection hai wahi actually push karta hai. Alternative: Redis pub/sub.</div>
+  </div>
+</section>
+
+<section id="order">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker">Part 4 — Scenario C</div>
+      <h2>Order + coupon + payment: outbox, retry, exactly&#8209;once</h2>
+      <p class="lede">Yahan paisa involved hai, isliye "event kho gaya" acceptable nahi. Do naye mechanisms add hote hain: <b>transactional outbox</b> (dual&#8209;write ka ilaaj) aur <b>Kafka transactions</b> (Kafka&rarr;Kafka pipeline ke liye).</p>
+    </div>
+
+    <div class="hld">
+      <svg viewBox="0 0 900 360" role="img" aria-label="Order pipeline with outbox and payment">
+        <rect class="n-svc" x="20" y="26" width="130" height="46" rx="3"></rect>
+        <text class="t-h" x="85" y="46" text-anchor="middle">Order API</text>
+        <text class="t-s" x="85" y="61" text-anchor="middle">POST /orders</text>
+        <path class="arw" d="M152,49 L188,49"></path>
+        <rect class="n-db" x="192" y="22" width="176" height="54" rx="3"></rect>
+        <text class="t-h" x="280" y="42" text-anchor="middle">order_db</text>
+        <text class="t-s" x="280" y="58" text-anchor="middle">orders + outbox — ek hi txn</text>
+        <path class="arw" d="M370,49 L406,49"></path>
+        <rect class="n-svc" x="410" y="26" width="160" height="46" rx="3"></rect>
+        <text class="t-h" x="490" y="46" text-anchor="middle">Outbox Relay</text>
+        <text class="t-s" x="490" y="61" text-anchor="middle">SKIP LOCKED · every 500ms</text>
+        <path class="arw" d="M572,49 L608,49"></path>
+        <rect class="n-kafka" x="612" y="26" width="268" height="46" rx="3"></rect>
+        <text class="t-topic" x="746" y="46" text-anchor="middle">order.placed.v1</text>
+        <text class="t-s" x="746" y="61" text-anchor="middle">key = orderId · 24 partitions</text>
+
+        <path class="arw" d="M746,74 L746,108"></path>
+        <rect class="n-svc" x="612" y="112" width="268" height="46" rx="3"></rect>
+        <text class="t-h" x="746" y="132" text-anchor="middle">Pricing &amp; Coupon Worker</text>
+        <text class="t-s" x="746" y="147" text-anchor="middle">exactly-once · read_committed</text>
+
+        <path class="arw" d="M610,135 L574,135"></path>
+        <rect class="n-kafka" x="380" y="112" width="190" height="46" rx="3"></rect>
+        <text class="t-topic" x="475" y="132" text-anchor="middle">order.priced.v1</text>
+        <text class="t-s" x="475" y="147" text-anchor="middle">payable = total − discount</text>
+
+        <path class="arw" d="M378,135 L342,135"></path>
+        <rect class="n-svc" x="170" y="112" width="170" height="46" rx="3"></rect>
+        <text class="t-h" x="255" y="132" text-anchor="middle">Payment Worker</text>
+        <text class="t-s" x="255" y="147" text-anchor="middle">idempotencyKey = orderId</text>
+
+        <path class="arw" d="M255,160 L255,196"></path>
+        <path class="arw-f" d="M255,160 L255,180 L76,180 L76,196"></path>
+
+        <rect class="n-fail" x="20" y="200" width="112" height="46" rx="3"></rect>
+        <text class="t-topic" x="76" y="220" text-anchor="middle" style="fill:#A5361F">order.payment</text>
+        <text class="t-topic" x="76" y="233" text-anchor="middle" style="fill:#A5361F">.failed.v1</text>
+
+        <rect class="n-kafka" x="140" y="200" width="230" height="46" rx="3"></rect>
+        <text class="t-topic" x="255" y="220" text-anchor="middle">order.payment.captured.v1</text>
+        <text class="t-s" x="255" y="235" text-anchor="middle">key = orderId</text>
+
+        <path class="arw" d="M372,223 L408,223"></path>
+        <rect class="n-svc" x="412" y="200" width="200" height="46" rx="3"></rect>
+        <text class="t-h" x="512" y="220" text-anchor="middle">Order Completion</text>
+        <text class="t-s" x="512" y="235" text-anchor="middle">group: order-completion</text>
+        <path class="arw" d="M614,223 L650,223"></path>
+        <rect class="n-kafka" x="654" y="200" width="226" height="46" rx="3"></rect>
+        <text class="t-topic" x="767" y="220" text-anchor="middle">order.completed.v1</text>
+        <text class="t-s" x="767" y="235" text-anchor="middle">retention 90d · audit</text>
+
+        <path class="arw" d="M767,248 L767,272 L665,272 L665,296"></path>
+        <path class="arw" d="M767,248 L767,272 L815,272 L815,296"></path>
+        <path class="arw-f" d="M76,248 L76,296"></path>
+
+        <rect class="n-svc" x="20" y="300" width="140" height="44" rx="3"></rect>
+        <text class="t-h" x="90" y="320" text-anchor="middle">Refund + Reverse</text>
+        <text class="t-s" x="90" y="334" text-anchor="middle">coupon wapas, stock release</text>
+        <rect class="n-svc" x="600" y="300" width="130" height="44" rx="3"></rect>
+        <text class="t-h" x="665" y="320" text-anchor="middle">Fulfilment</text>
+        <text class="t-s" x="665" y="334" text-anchor="middle">warehouse</text>
+        <rect class="n-svc" x="750" y="300" width="130" height="44" rx="3"></rect>
+        <text class="t-h" x="815" y="320" text-anchor="middle">Analytics</text>
+        <text class="t-s" x="815" y="334" text-anchor="middle">warehouse sink</text>
+      </svg>
+    </div>
+
+    <div class="tblwrap">
+      <table>
+        <thead><tr><th>Kya chahiye</th><th>Mechanism</th><th>Kahan lagta hai</th><th>Cost</th></tr></thead>
+        <tbody>
+          <tr><td>DB write + event dono ya koi nahi</td><td>Transactional outbox</td><td>Order API → outbox table</td><td>500ms extra latency, ek relay job</td></tr>
+          <tr><td>Producer retry se duplicate na bane</td><td><code>enable.idempotence=true</code></td><td>har producer</td><td>~0</td></tr>
+          <tr><td>Kafka→Kafka pipeline mein duplicate na bane</td><td>Kafka transactions + <code>read_committed</code></td><td>Pricing worker</td><td>throughput 10–20% kam</td></tr>
+          <tr><td>External payment gateway do baar charge na kare</td><td>gateway idempotency key = <code>orderId</code></td><td>Payment worker</td><td>gateway support chahiye</td></tr>
+          <tr><td>Ek bad message poori partition na roke</td><td>retry topics + DLT</td><td>har consumer</td><td>ordering DLT tak jaane par tootti hai</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <h3>Code 7 — outbox relay (polling publisher)</h3>
+    <div class="codeblock" data-code="c7">
+      <div class="cb-head"><span class="fname">OrderOutboxRelay.java + OutboxRepository.java</span><span class="tag">outbox</span></div>
+      <pre class="code" data-lang="java">@Component
+@Slf4j
+@RequiredArgsConstructor
+public class OrderOutboxRelay {
+
+    private static final int BATCH_SIZE = 200;
+
+    private final OutboxRepository outboxRepository;
+    private final KafkaTemplate&lt;String, String&gt; kafkaTemplate;
+
+    @Scheduled(fixedDelay = 500)
+    @Transactional
+    public void publishPendingOutboxEvents() {
+        List&lt;OutboxEvent&gt; pendingEvents = outboxRepository.lockNextPendingBatch(BATCH_SIZE);
+        if (pendingEvents.isEmpty()) {
+            return;
+        }
+
+        for (OutboxEvent outboxEvent : pendingEvents) {
+            ProducerRecord&lt;String, String&gt; record = new ProducerRecord&lt;&gt;(
+                    outboxEvent.getTopic(), outboxEvent.getAggregateId(), outboxEvent.getPayload());
+            record.headers().add("eventId", outboxEvent.getEventId().getBytes(UTF_8));
+
+            try {
+                kafkaTemplate.send(record).get(5, TimeUnit.SECONDS);
+                outboxEvent.markPublished();
+            } catch (Exception publishFailure) {
+                outboxEvent.markRetryWithBackoff(publishFailure.getMessage());
+                log.warn("outbox publish failed eventId={} attempt={}",
+                         outboxEvent.getEventId(), outboxEvent.getAttempts(), publishFailure);
+            }
+        }
+        outboxRepository.saveAll(pendingEvents);
+    }
+}
+
+// ---- repository ----
+
+@Query(value = """
+        SELECT * FROM outbox
+         WHERE status = 'PENDING' AND next_attempt_at &lt;= now()
+         ORDER BY created_at
+         LIMIT :batchSize
+         FOR UPDATE SKIP LOCKED
+        """, nativeQuery = true)
+List&lt;OutboxEvent&gt; lockNextPendingBatch(@Param("batchSize") int batchSize);</pre>
+    </div>
+    <ol class="explain" data-code="c7">
+      <li data-lines="11-13"><span class="lref">L11–L13</span><span class="txt2"><code>fixedDelay = 500</code> matlab pichla run khatam hone ke 500ms baad agla &mdash; overlapping runs nahi honge. Method ka naam batata hai kya hota hai: <code>publishPendingOutboxEvents</code>.</span></li>
+      <li data-lines="14-17"><span class="lref">L14–L17</span><span class="txt2">Batch uthao, khaali ho to turant return. Har 500ms par ek query &mdash; empty check nahi karoge to bekaar ka Kafka connection churn hoga.</span></li>
+      <li data-lines="20-22"><span class="lref">L20–L22</span><span class="txt2">Topic aur key outbox row mein hi store hain. Isse ek hi relay saare event types ke liye kaam karta hai &mdash; naye event ke liye naya relay nahi likhna padta.</span></li>
+      <li data-lines="25-26"><span class="lref">L25–L26</span><span class="txt2">Yahan deliberately blocking <code>.get(5s)</code> hai. Relay ko pata hona chahiye ki publish safal hua tabhi row <code>PUBLISHED</code> mark hogi.<span class="eng">This is the one place where blocking on send is correct.</span></span></li>
+      <li data-lines="27-31"><span class="lref">L27–L31</span><span class="txt2">Fail hone par row <code>PENDING</code> hi rehti hai, bas <code>next_attempt_at</code> aage khisak jaata hai. Kafka 10 min down rahe to bhi kuch nahi khota &mdash; wapas aate hi sab drain ho jaata hai.</span></li>
+      <li data-lines="39-46"><span class="lref">L39–L46</span><span class="txt2"><code>FOR UPDATE SKIP LOCKED</code> hero hai. 5 relay pods ek saath chalein to bhi koi row do baar nahi uthegi &mdash; locked rows dusra pod skip kar deta hai. Iske bina leader election ya distributed lock lagana padta.</span></li>
+    </ol>
+    <div class="note"><b>Debezium vs polling:</b> Debezium (CDC) DB ke WAL/binlog se padhta hai &mdash; zero polling overhead, sub&#8209;100ms latency, par ek aur infra component maintain karna padta hai. Polling relay 500ms latency deta hai par sirf aapke app ka code hai. Chhoti team ke liye polling, bade scale par Debezium.</div>
+
+    <h3>Code 8 — retry, backoff aur DLT</h3>
+    <div class="codeblock" data-code="c8">
+      <div class="cb-head"><span class="fname">KafkaErrorHandlingConfig.java</span><span class="tag">resilience</span></div>
+      <pre class="code" data-lang="java">@Configuration
+@Slf4j
+public class KafkaErrorHandlingConfig {
+
+    @Bean
+    public DefaultErrorHandler kafkaErrorHandler(KafkaTemplate&lt;String, Object&gt; kafkaTemplate) {
+
+        DeadLetterPublishingRecoverer deadLetterRecoverer = new DeadLetterPublishingRecoverer(
+                kafkaTemplate,
+                (record, exception) -&gt; new TopicPartition(record.topic() + "-dlt", record.partition()));
+
+        ExponentialBackOffWithMaxRetries backOff = new ExponentialBackOffWithMaxRetries(4);
+        backOff.setInitialInterval(1_000L);
+        backOff.setMultiplier(3.0);
+        backOff.setMaxInterval(30_000L);
+
+        DefaultErrorHandler errorHandler = new DefaultErrorHandler(deadLetterRecoverer, backOff);
+
+        errorHandler.addNotRetryableExceptions(
+                CouponNotFoundException.class,
+                InvalidOrderPayloadException.class,
+                JsonProcessingException.class);
+
+        errorHandler.setRetryListeners((record, exception, attempt) -&gt;
+                log.warn("retry attempt={} topic={} partition={} offset={} reason={}",
+                         attempt, record.topic(), record.partition(),
+                         record.offset(), exception.getMessage()));
+
+        return errorHandler;
+    }
+}</pre>
+    </div>
+    <ol class="explain" data-code="c8">
+      <li data-lines="8-10"><span class="lref">L8–L10</span><span class="txt2">DLT resolver: original topic ka naam + <code>-dlt</code>, aur <b>wahi partition number</b>. Same partition rakhne se DLT mein bhi per&#8209;key ordering bachi rehti hai, jo replay ke waqt bahut kaam aati hai.</span></li>
+      <li data-lines="12-15"><span class="lref">L12–L15</span><span class="txt2">Backoff: 1s → 3s → 9s → 27s, max 4 retries. Multiplier ke bina fixed 1s retry gateway ko aur maar deta hai. Max interval isliye taaki poll interval breach na ho.</span></li>
+      <li data-lines="17"><span class="lref">L17</span><span class="txt2">Ye <b>blocking</b> retry hai &mdash; retries ke dauraan wahi partition ruki rehti hai. Strict per&#8209;key ordering chahiye to yahi sahi hai; throughput chahiye to <code>@RetryableTopic</code> se non&#8209;blocking retry topics use karo.</span></li>
+      <li data-lines="19-22"><span class="lref">L19–L22</span><span class="txt2">Sabse important line. "Coupon exist hi nahi karta" ya "JSON hi galat hai" &mdash; inhe 4 baar retry karna sirf CPU jalana hai. Ye seedha DLT jaate hain.<span class="eng">Classify errors: transient (retry) vs permanent (DLT). Most teams forget the second list.</span></span></li>
+      <li data-lines="24-27"><span class="lref">L24–L27</span><span class="txt2">Har retry log hota hai partition aur offset ke saath. Incident mein exact record dhundhne ke liye yehi teen cheezein chahiye hoti hain.</span></li>
+    </ol>
+
+    <h3>Code 9 — exactly&#8209;once Kafka&rarr;Kafka</h3>
+    <div class="codeblock" data-code="c9">
+      <div class="cb-head"><span class="fname">ExactlyOnceConfig.java + OrderPricingProcessor.java</span><span class="tag">transactions</span></div>
+      <pre class="code" data-lang="java">@Configuration
+public class ExactlyOnceConfig {
+
+    @Bean
+    public KafkaTransactionManager&lt;String, Object&gt; kafkaTransactionManager(
+            ProducerFactory&lt;String, Object&gt; producerFactory) {
+        return new KafkaTransactionManager&lt;&gt;(producerFactory);
+    }
+
+    @Bean
+    public ConcurrentKafkaListenerContainerFactory&lt;String, OrderPlaced&gt; transactionalListenerContainerFactory(
+            ConsumerFactory&lt;String, OrderPlaced&gt; consumerFactory,
+            KafkaTransactionManager&lt;String, Object&gt; kafkaTransactionManager) {
+
+        ConcurrentKafkaListenerContainerFactory&lt;String, OrderPlaced&gt; factory =
+                new ConcurrentKafkaListenerContainerFactory&lt;&gt;();
+        factory.setConsumerFactory(consumerFactory);
+        factory.getContainerProperties().setKafkaAwareTransactionManager(kafkaTransactionManager);
+        return factory;
+    }
+}
+
+// ---- listener ----
+
+@KafkaListener(topics = "order.placed.v1", groupId = "order-pricing",
+               containerFactory = "transactionalListenerContainerFactory")
+public void onOrderPlaced(OrderPlaced event) {
+    OrderPriced pricedOrder = discountCalculator.applyBestCoupon(event);
+    kafkaTemplate.send("order.priced.v1", event.orderId(), pricedOrder);
+}</pre>
+    </div>
+    <ol class="explain" data-code="c9">
+      <li data-lines="4-8"><span class="lref">L4–L8</span><span class="txt2"><code>KafkaTransactionManager</code> tabhi kaam karta hai jab <code>spring.kafka.producer.transaction-id-prefix</code> set ho. Har instance ka prefix unique hona chahiye (pod name suffix), warna ek instance dusre ki transaction fence kar dega.</span></li>
+      <li data-lines="18"><span class="lref">L18</span><span class="txt2">Yahi jaadu ki line hai. Ab consumer offset commit bhi <b>usi Kafka transaction</b> ka hissa ban jaata hai jisme output message gaya. Ya dono commit honge ya dono abort.</span></li>
+      <li data-lines="25-30"><span class="lref">L25–L30</span><span class="txt2">Listener bilkul saaf &mdash; koi manual ack nahi, koi transaction code nahi. Container sab sambhal raha hai. Downstream consumer ko <code>isolation.level=read_committed</code> chahiye, warna aborted transaction ke messages bhi dikh jaayenge.</span></li>
+    </ol>
+    <div class="note"><b>Sabse zaroori limitation:</b> ye exactly&#8209;once <b>sirf Kafka&rarr;Kafka</b> ke liye hai. Line 28 par agar aap payment gateway ko HTTP call karte, ya Postgres mein likhte, to Kafka transaction usse rollback nahi kar sakti. Us case mein wapas wahi purana combo chahiye: idempotency key + <code>processed_event</code> table.</div>
+  </div>
+</section>
+
+<section id="config">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker">Part 5</div>
+      <h2>Production config, line by line</h2>
+      <p class="lede">Interview mein "aapne kaunse Kafka properties tune ki hain?" &mdash; ye poora answer hai.</p>
+    </div>
+    <div class="codeblock" data-code="cfg">
+      <div class="cb-head"><span class="fname">application.yml</span><span class="tag">Spring Boot 3</span></div>
+      <pre class="code" data-lang="yaml">spring:
+  kafka:
+    bootstrap-servers: ${KAFKA_BROKERS}
+    producer:
+      acks: all
+      batch-size: 65536
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        enable.idempotence: true
+        max.in.flight.requests.per.connection: 5
+        delivery.timeout.ms: 120000
+        linger.ms: 20
+        compression.type: lz4
+    consumer:
+      group-id: coupon-redemption-worker
+      enable-auto-commit: false
+      auto-offset-reset: earliest
+      max-poll-records: 100
+      isolation-level: read_committed
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.json.trusted.packages: com.acme.coupon.events
+        max.poll.interval.ms: 600000
+        session.timeout.ms: 45000
+        heartbeat.interval.ms: 3000
+        partition.assignment.strategy: org.apache.kafka.clients.consumer.CooperativeStickyAssignor
+    listener:
+      ack-mode: manual_immediate
+      concurrency: 8
+      type: single</pre>
+    </div>
+    <ol class="explain" data-code="cfg">
+      <li data-lines="5,10"><span class="lref">L5 + L10</span><span class="txt2">Durability ki jodi. <code>acks: all</code> ka matlab tabhi hai jab broker par <code>min.insync.replicas=2</code> aur <code>replication.factor=3</code> ho. Idempotence duplicates aur reordering dono rokta hai.</span></li>
+      <li data-lines="6,13,14"><span class="lref">L6, L13, L14</span><span class="txt2">Throughput ki teen knobs. <code>linger.ms: 20</code> 20ms rukta hai taaki batch bhar sake &mdash; 20ms latency dekar 5–10&times; throughput milta hai. <code>lz4</code> CPU aur network ka best trade&#8209;off hai.</span></li>
+      <li data-lines="12"><span class="lref">L12</span><span class="txt2">Total time budget for one send including all retries. Iske baad producer haar maan leta hai aur callback mein failure aata hai &mdash; wahin outbox row <code>FAILED</code> hoti hai.</span></li>
+      <li data-lines="17-18"><span class="lref">L17–L18</span><span class="txt2">Auto&#8209;commit band. <code>earliest</code> naye consumer group ke liye &mdash; replay ke liye yehi chahiye. Payment jaise topics par soch samajh ke: naya group <code>earliest</code> se 3 mahine ka data dobara process kar dega.</span></li>
+      <li data-lines="19,26"><span class="lref">L19 + L26</span><span class="txt2">Ye do hamesha saath tune hote hain. 100 records &times; worst case 100ms = 10s, aur poll interval 10 min &mdash; comfortable margin. Records badhao to interval bhi badhao, warna rebalance loop.</span></li>
+      <li data-lines="20"><span class="lref">L20</span><span class="txt2"><code>read_committed</code> &mdash; transactional producers ke aborted messages nahi dikhenge. Agar upstream transactions use karta hai to ye zaroori hai.</span></li>
+      <li data-lines="22,24"><span class="lref">L22 + L24</span><span class="txt2"><code>ErrorHandlingDeserializer</code> asli deserializer ko wrap karta hai. Bad JSON aayi to exception listener ke bahar nahi phatta &mdash; record null payload ke saath error handler tak pahunchta hai aur DLT chala jaata hai. <b>Poison pill ka ilaaj yahi ek line hai.</b></span></li>
+      <li data-lines="27-28"><span class="lref">L27–L28</span><span class="txt2">Heartbeat thread alag hota hai processing se. Rule: <code>session.timeout</code> ≈ 3&times; <code>heartbeat.interval</code>. 45s isliye taaki GC pause ya chhoti network hiccup rebalance trigger na kare.</span></li>
+      <li data-lines="29"><span class="lref">L29</span><span class="txt2">Cooperative rebalancing &mdash; deploy ke waqt sirf move hone wali partitions rukti hain, baaki chalti rehti hain. Purane <code>RangeAssignor</code> par pura group ruk jaata tha.</span></li>
+      <li data-lines="31-33"><span class="lref">L31–L33</span><span class="txt2"><code>manual_immediate</code> = <code>ack.acknowledge()</code> par turant commit. <code>concurrency: 8</code> = 8 threads, har thread ko alag partitions. <code>type: single</code> ek&#8209;ek record; heavy DB writes ke liye <code>batch</code> karke bulk insert karo.</span></li>
+    </ol>
+  </div>
+</section>
+
+<section id="mock">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker">Part 6</div>
+      <h2>30 mock questions with answers</h2>
+      <p class="lede">Filter se category chuno. Har answer wahi structure follow karta hai jo interview mein bolna chahiye &mdash; seedha point, phir mechanism, phir trade&#8209;off.</p>
+    </div>
+
+    <div class="qbar" id="qbar">
+      <button data-cat="all" class="on">All 30</button>
+      <button data-cat="core">Core</button>
+      <button data-cat="producer">Producer</button>
+      <button data-cat="consumer">Consumer</button>
+      <button data-cat="design">Design</button>
+      <button data-cat="debug">Debugging</button>
+    </div>
+
+    <div id="qlist">
+
+      <details class="qa" data-cat="core"><summary><span class="qn">Q1</span><span>Kafka ek message queue hai ya kuch aur? RabbitMQ se farq batao.</span><span class="caret">+</span></summary>
+      <div class="ans"><p>Kafka ek <b>distributed append&#8209;only commit log</b> hai, traditional queue nahi. Queue mein message consume hone ke baad delete ho jaata hai; Kafka mein message retention tak padha rehta hai aur har consumer group apna offset independently aage badhata hai.</p><p>Isi wajah se ek hi <code>coupon.redeemed.v1</code> ko ledger, notification aur analytics teeno alag&#8209;alag padh sakte hain, aur naya consumer kal aake purana data replay bhi kar sakta hai. RabbitMQ mein per&#8209;message ack aur complex routing behtar hai; Kafka mein high throughput, replay aur ordered partitions behtar hain.</p><p class="eng">One line answer: RabbitMQ is a smart broker with dumb consumers; Kafka is a dumb broker with smart consumers.</p></div></details>
+
+      <details class="qa" data-cat="core"><summary><span class="qn">Q2</span><span>Ordering guarantee exactly kahan tak hai?</span><span class="caret">+</span></summary>
+      <div class="ans"><p>Ordering sirf <b>ek partition ke andar</b> guaranteed hai, topic level par nahi. Same key wale messages same partition mein jaate hain (<code>hash(key) % partitions</code>), isliye per&#8209;key ordering milti hai.</p><p>Practical example: <code>COUPON_APPLIED</code> aur <code>COUPON_REVERSED</code> dono ka key <code>bookingId</code> rakho &mdash; ek hi partition, ek hi consumer thread, order safe. Key <code>null</code> ho to round&#8209;robin/sticky partitioning hoti hai aur ordering chali jaati hai.</p><p>Do gotchas: (1) partition count badhane par purani keys ka mapping badal jaata hai, (2) consumer ke andar khud thread pool bana ke process karoge to partition ordering hone ke bawajood processing order toot jaayega.</p></div></details>
+
+      <details class="qa" data-cat="core"><summary><span class="qn">Q3</span><span>Ek partition ek consumer group ke do consumers ko mil sakti hai?</span><span class="caret">+</span></summary>
+      <div class="ans"><p>Nahi. Ek consumer group ke andar ek partition sirf ek consumer ko assign hoti hai &mdash; yehi ordering aur offset management ka base hai. Isliye <b>consumers &gt; partitions</b> karne ka koi fayda nahi, extra consumers idle baithe rahenge.</p><p>Lekin alag&#8209;alag consumer <em>groups</em> same partition ko parallel padh sakte hain. Ledger group aur analytics group dono ko har message milega, aur dono ke offsets independent honge.</p></div></details>
+
+      <details class="qa" data-cat="core"><summary><span class="qn">Q4</span><span>Offsets kahan store hote hain?</span><span class="caret">+</span></summary>
+      <div class="ans"><p>Kafka ke internal compacted topic <code>__consumer_offsets</code> mein, key = <code>(group, topic, partition)</code>. Purane Kafka mein ye Zookeeper mein tha.</p><p>Consumer restart hone par wahi se resume karta hai. Isliye offset commit ka timing hi decide karta hai ki aap at&#8209;most&#8209;once mein ho ya at&#8209;least&#8209;once mein. Manual commit + business work pehle = at&#8209;least&#8209;once.</p><p>Reset karna ho to <code>kafka-consumer-groups --reset-offsets --to-datetime 2026-09-01T00:00:00.000</code> &mdash; group ko pehle band karna padta hai.</p></div></details>
+
+      <details class="qa" data-cat="core"><summary><span class="qn">Q5</span><span>ISR kya hai aur min.insync.replicas ka role?</span><span class="caret">+</span></summary>
+      <div class="ans"><p>ISR = In&#8209;Sync Replicas, wo followers jo leader ke saath sync mein hain. <code>acks=all</code> ka matlab hai "sabhi ISR members ne likh liya", na ki "saare replicas ne".</p><p>Agar RF=3 par 2 replicas peeche chale gaye aur ISR sirf 1 (leader) bacha, to <code>acks=all</code> bhi sirf leader se ack le lega &mdash; durability chali gayi. <code>min.insync.replicas=2</code> is case mein producer ko <code>NotEnoughReplicasException</code> deta hai. Better fail fast than silent data loss.</p><p>Standard production combo: <code>RF=3</code>, <code>min.insync.replicas=2</code>, <code>acks=all</code> &mdash; ek broker down hone par bhi likhte raho.</p></div></details>
+
+      <details class="qa" data-cat="core"><summary><span class="qn">Q6</span><span>unclean.leader.election.enable kya karta hai?</span><span class="caret">+</span></summary>
+      <div class="ans"><p><code>true</code> hone par out&#8209;of&#8209;sync replica bhi leader ban sakta hai &mdash; availability milti hai par <b>data loss</b> hota hai, kyunki us replica ke paas latest messages hain hi nahi.</p><p>Payment aur coupon jaise topics par hamesha <code>false</code>. Metrics ya clickstream jaise topics par jahan thoda data loss chalega, <code>true</code> justify kar sakte ho. Ye classic CAP trade&#8209;off ka concrete example hai &mdash; interview mein isi tarah frame karo.</p></div></details>
+
+      <details class="qa" data-cat="core"><summary><span class="qn">Q7</span><span>Log compaction aur retention mein kya farq hai?</span><span class="caret">+</span></summary>
+      <div class="ans"><p><code>cleanup.policy=delete</code>: time ya size ke hisaab se purane <b>segments</b> delete hote hain. Event streams ke liye.</p><p><code>cleanup.policy=compact</code>: Kafka har <b>key</b> ka latest value hamesha rakhta hai, purane versions hata deta hai. Topic ek distributed key&#8209;value snapshot ban jaata hai.</p><p>Humare design mein <code>coupon.definition.v1</code> compacted hai &mdash; koi bhi naya service topic ko shuru se padh ke saare active coupons ka current state bana sakta hai. Delete karne ke liye <b>tombstone</b> bhejo: same key, <code>null</code> value.</p></div></details>
+
+      <details class="qa" data-cat="core"><summary><span class="qn">Q8</span><span>KRaft ne Zookeeper ko kyun replace kiya?</span><span class="caret">+</span></summary>
+      <div class="ans"><p>Zookeeper alag cluster tha &mdash; alag ops, alag failure mode, aur metadata ka bottleneck. KRaft mein Kafka apna metadata khud Raft se manage karta hai.</p><p>Fayde: ek hi system chalana hai, controller failover seconds mein, aur partition count ki limit kaafi upar chali gayi (lakhon partitions). Kafka 3.x se KRaft production&#8209;ready hai, Kafka 4.x mein Zookeeper hata diya gaya.</p></div></details>
+
+      <details class="qa" data-cat="producer"><summary><span class="qn">Q9</span><span>acks=0, 1, all &mdash; kab kya use karoge?</span><span class="caret">+</span></summary>
+      <div class="ans"><ul><li><code>acks=0</code>: fire and forget, sabse fast, data loss guaranteed hai agar broker down ho. Sirf metrics/logs ke liye.</li><li><code>acks=1</code>: leader ne likh liya, replication se pehle leader crash = message gaya. Default lagta hai safe, hai nahi.</li><li><code>acks=all</code>: saare ISR ne likh liya. Coupon, booking, payment &mdash; sab yahin.</li></ul><p>Latency ka farq usually 2&ndash;5ms ka hota hai. Paise wale flow mein ye trade karna galti hai.</p></div></details>
+
+      <details class="qa" data-cat="producer"><summary><span class="qn">Q10</span><span>Idempotent producer internally kaam kaise karta hai?</span><span class="caret">+</span></summary>
+      <div class="ans"><p>Producer ko broker ek <code>producerId (PID)</code> deta hai. Har (PID, partition) ke liye producer ek monotonically increasing <b>sequence number</b> bhejta hai.</p><p>Broker last accepted sequence yaad rakhta hai. Wahi sequence dobara aaya (retry ki wajah se) to broker use silently drop kar deta hai; sequence mein gap aaya to <code>OutOfOrderSequenceException</code> deta hai.</p><p>Iska scope: <b>ek producer session, ek partition</b>. Application ne khud do baar <code>send()</code> kar diya alag payload ke saath, to wo duplicate idempotent producer nahi rok payega &mdash; uske liye consumer&#8209;side dedupe chahiye.</p></div></details>
+
+      <details class="qa" data-cat="producer"><summary><span class="qn">Q11</span><span>linger.ms aur batch.size ko kaise tune karoge?</span><span class="caret">+</span></summary>
+      <div class="ans"><p>Producer messages ko per&#8209;partition batch mein jama karta hai. Batch tab jaata hai jab <code>batch.size</code> bhar jaaye <b>ya</b> <code>linger.ms</code> khatam ho jaaye.</p><p><code>linger.ms=0</code> (default) matlab har message alag request &mdash; low latency, bahut kam throughput. <code>linger.ms=20</code> + <code>batch.size=64KB</code> par high&#8209;volume topics par 5&ndash;10&times; throughput milta hai, 20ms latency dekar.</p><p>Saath mein <code>compression.type=lz4</code> lagao &mdash; compression batch level par hota hai, isliye bada batch = better compression ratio.</p></div></details>
+
+      <details class="qa" data-cat="producer"><summary><span class="qn">Q12</span><span>Key null bhejo to Kafka partition kaise chunta hai?</span><span class="caret">+</span></summary>
+      <div class="ans"><p>Modern Kafka mein <b>sticky partitioner</b>: producer ek partition chun ke usme batch bharta hai, batch bhejne ke baad doosri partition par switch karta hai. Purana behaviour pure round&#8209;robin tha (chhote batches, zyada requests).</p><p>Trade&#8209;off saaf hai &mdash; load perfectly even, par ordering ki koi guarantee nahi. Isliye null key sirf tab jab har event independent ho, jaise page&#8209;view analytics.</p></div></details>
+
+      <details class="qa" data-cat="consumer"><summary><span class="qn">Q13</span><span>At&#8209;most&#8209;once, at&#8209;least&#8209;once, exactly&#8209;once &mdash; code mein farq kya hai?</span><span class="caret">+</span></summary>
+      <div class="ans"><ul><li><b>At&#8209;most&#8209;once:</b> pehle offset commit, phir process. Crash = message gaya. <code>enable.auto.commit=true</code> ka default risk yehi hai.</li><li><b>At&#8209;least&#8209;once:</b> pehle process, phir commit. Crash = duplicate. Ye 95% systems ka sahi default hai.</li><li><b>Exactly&#8209;once:</b> Kafka&rarr;Kafka ke liye transactions se; external DB ke saath sirf <b>idempotent consumer</b> se "effectively once".</li></ul><p>Interview line: "Kafka gives at&#8209;least&#8209;once delivery; exactly&#8209;once is a property of my processing, not of the broker."</p></div></details>
+
+      <details class="qa" data-cat="consumer"><summary><span class="qn">Q14</span><span>Rebalance kab trigger hota hai aur usse kaise kam karein?</span><span class="caret">+</span></summary>
+      <div class="ans"><p>Trigger: consumer join/leave, pod restart, <code>session.timeout.ms</code> tak heartbeat na aana, <code>max.poll.interval.ms</code> cross hona, ya partition count badalna.</p><p>Kam karne ke tareeke: <code>CooperativeStickyAssignor</code> (sirf affected partitions move), <code>group.instance.id</code> static membership (rolling restart par rebalance hi nahi), <code>session.timeout.ms=45000</code>, aur processing time ko poll interval ke andar rakhna.</p></div></details>
+
+      <details class="qa" data-cat="consumer"><summary><span class="qn">Q15</span><span>max.poll.interval.ms aur session.timeout.ms mein kya farq hai?</span><span class="caret">+</span></summary>
+      <div class="ans"><p><code>session.timeout.ms</code> &mdash; <b>heartbeat thread</b> ka timeout. Process zinda hai ya nahi, ye batata hai. Alag thread par chalta hai.</p><p><code>max.poll.interval.ms</code> &mdash; do <code>poll()</code> calls ke beech max gap. Process zinda ho par processing mein atka ho (slow DB), tab bhi ye breach hoga aur consumer group se nikal diya jaayega.</p><p>Classic bug: har record par 3 second ka external call, <code>max.poll.records=500</code> &rarr; 1500 second lagenge, interval 300s hai &rarr; infinite rebalance loop. Fix: records ghatao ya interval badhao.</p></div></details>
+
+      <details class="qa" data-cat="consumer"><summary><span class="qn">Q16</span><span>Consumer lag 2 million hai. Aap kya karoge?</span><span class="caret">+</span></summary>
+      <div class="ans"><p>Pehle diagnose, phir scale. Teen sawaal: producer rate badha hai? consumer per&#8209;record time badha hai? ya partitions hi kam hain?</p><ol><li>Metrics dekho: <code>records-lag-max</code> per partition &mdash; sab partitions ka lag high hai ya sirf ek (hot key)?</li><li>Ek hi partition hot hai &rarr; partition key badlo / sub&#8209;shard karo.</li><li>Sab high hain &rarr; partitions badhao aur consumers ko partitions ke barabar le jao.</li><li>Per&#8209;record processing slow hai &rarr; batch listener + bulk insert, sync HTTP hot path se hatao.</li><li>Turant relief chahiye &rarr; temporary non&#8209;critical consumer band karo, autoscaling ko lag metric par set karo (CPU par nahi).</li></ol></div></details>
+
+      <details class="qa" data-cat="consumer"><summary><span class="qn">Q17</span><span>Poison pill kya hai aur kaise handle karoge?</span><span class="caret">+</span></summary>
+      <div class="ans"><p>Aisa message jo deserialize hi nahi ho pata. Deserialization listener ke <b>pehle</b> hoti hai, isliye aapka <code>try/catch</code> aur error handler dono bekaar &mdash; offset aage badh hi nahi sakta aur poori partition ruk jaati hai.</p><p>Ilaaj: <code>ErrorHandlingDeserializer</code> jo asli deserializer ko wrap karta hai. Ab bad record null payload + exception header ke saath aata hai, error handler use pakadta hai aur DLT bhej deta hai.</p><p>Emergency fix production mein: <code>kafka-consumer-groups --reset-offsets --shift-by 1</code> us partition par &mdash; par pehle message ko DLT ya S3 mein copy kar lo.</p></div></details>
+
+      <details class="qa" data-cat="design"><summary><span class="qn">Q18</span><span>Coupon par max 50,000 redemptions hain. 3 lakh parallel requests. Over&#8209;redemption kaise rokoge?</span><span class="caret">+</span></summary>
+      <div class="ans"><p>Kafka ordering par bharosa mat karo &mdash; wo sirf per&#8209;partition hai aur hot key ke liye humne sub&#8209;shard bhi kar diya hai. Final authority <b>database ka atomic conditional UPDATE</b> hoga:</p><p><code>UPDATE coupon SET used_count = used_count + 1 WHERE code = ? AND used_count &lt; max_redemptions</code> &mdash; rows affected 0 matlab budget khatam.</p><p>Uske upar teen layers: (1) Redis se fast pre&#8209;check taaki 90% invalid requests DB tak pahunche hi na, (2) <code>UNIQUE(coupon_code, user_id)</code> per&#8209;user limit ke liye, (3) <code>processed_event</code> table duplicate Kafka delivery ke liye.</p><p class="eng">Key sentence: the counter's guard condition lives inside the write, never in a separate read.</p></div></details>
+
+      <details class="qa" data-cat="design"><summary><span class="qn">Q19</span><span>Ek coupon code par 90% traffic aa raha hai. Hot partition kaise theek karoge?</span><span class="caret">+</span></summary>
+      <div class="ans"><p>Key ko sub&#8209;shard karo: <code>couponCode + "#" + floorMod(userId.hashCode(), 8)</code>. Ab load 8 partitions par baant gaya.</p><p>Isse per&#8209;coupon ordering tootti hai &mdash; par humein wo chahiye hi nahi, kyunki budget safety DB constraint se aa rahi hai, partition ordering se nahi. Ye trade&#8209;off explicitly bolna important hai.</p><p>Doosre options: custom <code>Partitioner</code> jo sirf known hot keys ko spread kare, ya hot coupon ko alag dedicated topic par nikal dena.</p></div></details>
+
+      <details class="qa" data-cat="design"><summary><span class="qn">Q20</span><span>DB mein save ho gaya par Kafka publish fail ho gaya. Ab?</span><span class="caret">+</span></summary>
+      <div class="ans"><p>Ye dual&#8209;write problem hai &mdash; do systems, ek logical operation, koi shared transaction nahi. <code>@Transactional</code> Kafka ko cover nahi karta.</p><p>Solution transactional outbox: event ko <b>usi DB transaction</b> mein <code>outbox</code> table mein likho. Alag relay (Debezium CDC ya <code>FOR UPDATE SKIP LOCKED</code> polling job) usse Kafka par bhejta hai.</p><p>Relay at&#8209;least&#8209;once hai, isliye consumer idempotent hona chahiye. Ye jodi &mdash; outbox + idempotent consumer &mdash; hi standard production answer hai.</p></div></details>
+
+      <details class="qa" data-cat="design"><summary><span class="qn">Q21</span><span>Booking flow ke liye orchestration chunoge ya choreography?</span><span class="caret">+</span></summary>
+      <div class="ans"><p>Booking mein inventory hold, coupon redeem, aur payment &mdash; teeno reversible operations hain aur compensation ka order matter karta hai. Isliye <b>orchestration</b>.</p><p>Reasons: poora flow ek class mein readable, compensation sequence explicit, timeout handling ek jagah, aur "booking abhi kahan hai" ka jawab ek DB row se mil jaata hai.</p><p>Choreography tab jab 2&ndash;3 steps hon, koi compensation na ho, aur services ko genuinely independent rakhna ho &mdash; jaise <code>coupon.redeemed</code> par notification aur analytics ka fan&#8209;out.</p><p>Trade&#8209;off bolna mat bhoolo: orchestrator coupling point aur potential SPOF hai; isliye stateless rakho, state DB mein, replicas 3.</p></div></details>
+
+      <details class="qa" data-cat="design"><summary><span class="qn">Q22</span><span>Same coupon event do baar aa gaya. Design kaise bachayega?</span><span class="caret">+</span></summary>
+      <div class="ans"><p>At&#8209;least&#8209;once delivery hai, isliye duplicate aana normal hai &mdash; usse rokne ki nahi, <b>absorb</b> karne ki design chahiye.</p><p>Layer 1: har event mein producer&#8209;generated <code>eventId</code> (UUID). Consumer <code>processed_event(consumer_group, event_id)</code> par unique constraint ke saath insert karta hai; <code>ON CONFLICT DO NOTHING</code> se 0 rows mile to skip.</p><p>Layer 2: business natural key &mdash; <code>UNIQUE(coupon_code, user_id)</code>. Dedupe table kisi wajah se fail bhi ho jaaye to ye phir bhi double redemption nahi hone dega.</p><p>Dono cheezein <b>ek hi DB transaction</b> mein honi chahiye, warna gap reh jaata hai.</p></div></details>
+
+      <details class="qa" data-cat="design"><summary><span class="qn">Q23</span><span>Coupon apply aur reverse ulte order mein process ho gaye. Kya karoge?</span><span class="caret">+</span></summary>
+      <div class="ans"><p>Root cause: dono events alag partitions mein gaye (alag key ya null key). Fix: dono ka key <code>bookingId</code> &mdash; same partition, same consumer thread, natural order.</p><p>Defence in depth: payload mein <code>version</code> ya <code>occurredAt</code> rakho aur consumer stale event drop kare &mdash; <code>if (event.version &lt;= row.version) return;</code>. Isse late&#8209;arriving event kabhi naye state ko overwrite nahi karega.</p><p>Aur ek baat: consumer ke andar khud ka thread pool mat banao. Partition ordering ka fayda usi waqt khatam ho jaata hai.</p></div></details>
+
+      <details class="qa" data-cat="design"><summary><span class="qn">Q24</span><span>Producer team ne field ka type badal diya. Consumers kaise bachenge?</span><span class="caret">+</span></summary>
+      <div class="ans"><p>Structural fix: Schema Registry with <code>BACKWARD</code> compatibility &mdash; incompatible schema publish hi nahi ho payega, CI mein hi fail ho jaayega.</p><p>Safe change: naya optional field <b>with default</b>. Unsafe: required field remove, rename, ya type change. Breaking change zaroori ho to naya topic <code>coupon.redeemed.v2</code>; dono parallel chalao, consumers migrate karo, phir v1 retire.</p><p>Runtime safety net: <code>ErrorHandlingDeserializer</code> taaki koi purana bad record poison pill na ban jaaye.</p></div></details>
+
+      <details class="qa" data-cat="design"><summary><span class="qn">Q25</span><span>DLQ design kaise karoge? Messages wapas kaise chalenge?</span><span class="caret">+</span></summary>
+      <div class="ans"><p>Naming: <code>&lt;topic&gt;-dlt</code>, same partition number, retention 30 din. Original headers preserve karo &mdash; Spring khud <code>kafka_dlt-exception-message</code>, <code>kafka_dlt-original-topic</code>, <code>kafka_dlt-original-offset</code> add kar deta hai.</p><p>Retry vs DLT ka classification zaroori hai: transient (gateway timeout, DB deadlock) &rarr; backoff retry; permanent (invalid coupon, bad JSON) &rarr; seedha DLT.</p><p>Replay ke liye ek admin endpoint jo DLT se padh ke original topic par wapas publish kare, saath mein <code>replayAttempt</code> header. Aur alert: <b>DLT message count &gt; 0</b> par page karo &mdash; jo DLT kabhi dekha na jaaye wo silent data loss hai.</p></div></details>
+
+      <details class="qa" data-cat="design"><summary><span class="qn">Q26</span><span>Naye analytics service ko 30 din ka purana data chahiye, par retention 7 din hai.</span><span class="caret">+</span></summary>
+      <div class="ans"><p>7 din se purana data Kafka mein hai hi nahi &mdash; wo wapas nahi aayega. Do cheezein karni hain.</p><p>Abhi: warehouse/S3 se ek&#8209;baar ka backfill chalao, aur naye consumer group ko <code>auto-offset-reset=earliest</code> se topic ka available data padhne do. Backfill aur live stream ke overlap ko idempotent writes se handle karo.</p><p>Aage ke liye: audit&#8209;grade topics par retention 30&ndash;90 din, ya tiered storage (S3 backed) on karo. Aur state topics ko <code>compact</code> rakho &mdash; unka current state kabhi expire hi nahi hota.</p></div></details>
+
+      <details class="qa" data-cat="debug"><summary><span class="qn">Q27</span><span>Production mein lag badh raha hai. Step by step kya check karoge?</span><span class="caret">+</span></summary>
+      <div class="ans"><ol><li><code>kafka-consumer-groups --describe --group X</code> &mdash; lag har partition par hai ya ek&#8209;do par?</li><li>Ek partition par &rarr; hot key. Key strategy badlo.</li><li>Sab par &rarr; consumer count vs partition count check karo. Consumers kam hain to scale karo.</li><li>Consumers = partitions already &rarr; per&#8209;record processing time dekho (DB p99, external call p99).</li><li>Rebalance logs check karo &mdash; agar har 5 min par rebalance ho raha hai to consumer actually kaam hi nahi kar raha.</li><li>Producer rate check karo &mdash; kya genuinely traffic 5&times; ho gaya hai (sale/campaign)?</li><li>Quick relief: non&#8209;critical consumers pause, batch size badhao, ya temporarily zyada pods.</li></ol></div></details>
+
+      <details class="qa" data-cat="debug"><summary><span class="qn">Q28</span><span>Consumer group har 2 minute par rebalance ho raha hai. Kyun?</span><span class="caret">+</span></summary>
+      <div class="ans"><p>Sabse common wajah: <code>max.poll.interval.ms</code> breach. Ek poll batch ka processing time interval se zyada ho raha hai, broker consumer ko dead maan ke nikaal deta hai, wo wapas join karta hai, loop chalta rehta hai.</p><p>Check karo: <code>max.poll.records</code> &times; per&#8209;record time &lt; <code>max.poll.interval.ms</code> hona chahiye. Fix: records ghatao (500&rarr;50) ya interval badhao.</p><p>Doosri wajahein: long GC pause (heap tune karo), k8s liveness probe pod restart kar raha hai, network flakiness, ya deployment loop mein pods aa&#8209;ja rahe hain. Static membership + cooperative assignor ye dard bahut kam kar dete hain.</p></div></details>
+
+      <details class="qa" data-cat="debug"><summary><span class="qn">Q29</span><span>Producer log mein "Expiring N records for topic-partition" aa raha hai. Kya matlab?</span><span class="caret">+</span></summary>
+      <div class="ans"><p>Records producer ke buffer mein <code>delivery.timeout.ms</code> tak pade rahe aur bheje nahi ja sake &mdash; ab drop kiye ja rahe hain. Ye <b>data loss</b> hai agar aapne callback handle nahi kiya.</p><p>Common causes: broker/partition leader unavailable, network saturation, <code>buffer.memory</code> bhar gaya, ya <code>min.insync.replicas</code> satisfy nahi ho raha (ISR shrink ho gaya).</p><p>Kya karein: callback mein failure zaroor handle karo (outbox row <code>FAILED</code>), <code>delivery.timeout.ms</code> aur <code>request.timeout.ms</code> tune karo, broker&#8209;side ISR health dekho, aur producer ke <code>record-error-rate</code> par alert lagao.</p></div></details>
+
+      <details class="qa" data-cat="debug"><summary><span class="qn">Q30</span><span>Messages produce ho rahe hain par consumer ko mil hi nahi rahe. Checklist?</span><span class="caret">+</span></summary>
+      <div class="ans"><ol><li>Topic sahi hai? Typo aur version suffix (<code>.v1</code> vs <code>.v2</code>) sabse common galti hai.</li><li><code>--describe</code> se dekho ki messages actually pahunche &mdash; log&#8209;end offset badh raha hai ya nahi.</li><li>Consumer group ka offset already log&#8209;end par hai? Naya group hai to <code>auto-offset-reset=latest</code> ki wajah se purane messages skip ho gaye honge.</li><li>Consumer group active hai? <code>--describe</code> mein assigned partitions dikhni chahiye. Khaali hai to consumer start hi nahi hua.</li><li><code>isolation.level=read_committed</code> hai aur producer transactional hai par commit nahi kar raha &mdash; messages dikhenge hi nahi.</li><li>Deserialization silently fail ho ke DLT mein ja rahi hai? DLT topic check karo.</li><li>Consumer poll kar raha hai par filter/condition sab drop kar raha hai &mdash; listener ke pehle ek debug log lagao.</li></ol></div></details>
+
+    </div>
+  </div>
+</section>
+
+<section id="anim">
+  <div class="wrap">
+    <div class="sec-head">
+      <div class="kicker">Part 7</div>
+      <h2>Ek booking, live — request se response tak</h2>
+      <p class="lede">Poora flow ek page par chalta hua. Success run dekho, phir failure run chalao aur dekho compensation kaise ulte order mein chalta hai.</p>
+    </div>
+
+    <div class="stage">
+      <div class="stage-head">
+        <h3>booking BK&#8209;8F31 · 2 seats · coupon SAVE1200</h3>
+        <div class="stage-ctl">
+          <button id="btnRun" class="live">Play success</button>
+          <button id="btnFail">Play failure</button>
+          <button id="btnReset">Reset</button>
+        </div>
+      </div>
+      <div class="stage-body">
+        <div class="flowpane">
+          <svg viewBox="0 0 420 432" role="img" aria-label="Booking flow animation">
+            <line class="fedge" id="e1" x1="215" y1="50" x2="215" y2="72"></line>
+            <line class="fedge" id="e2" x1="215" y1="112" x2="215" y2="134"></line>
+            <line class="fedge" id="e3" x1="215" y1="174" x2="215" y2="196"></line>
+            <line class="fedge" id="e4" x1="215" y1="236" x2="215" y2="258"></line>
+            <line class="fedge" id="e5" x1="215" y1="298" x2="215" y2="320"></line>
+            <line class="fedge" id="e6" x1="215" y1="360" x2="215" y2="382"></line>
+
+            <g class="fnode" id="n1"><rect x="80" y="10" width="270" height="40" rx="4"></rect>
+              <text x="95" y="28">Client</text><text class="sub" x="95" y="42">POST /bookings · seats C14, C15</text></g>
+            <g class="fnode" id="n2"><rect x="80" y="72" width="270" height="40" rx="4"></rect>
+              <text x="95" y="90">Booking API</text><text class="sub" x="95" y="104">booking(PENDING) + outbox · one txn</text></g>
+            <g class="fnode" id="n3"><rect x="80" y="134" width="270" height="40" rx="4"></rect>
+              <text x="95" y="152">Kafka</text><text class="sub" x="95" y="166">booking.requested.v1 · key = BK-8F31</text></g>
+            <g class="fnode" id="n4"><rect x="80" y="196" width="270" height="40" rx="4"></rect>
+              <text x="95" y="214">Inventory Service</text><text class="sub" x="95" y="228">hold 2 seats · TTL 10 min</text></g>
+            <g class="fnode" id="n5"><rect x="80" y="258" width="270" height="40" rx="4"></rect>
+              <text x="95" y="276">Coupon Service</text><text class="sub" x="95" y="290">SAVE1200 · atomic budget reserve</text></g>
+            <g class="fnode" id="n6"><rect x="80" y="320" width="270" height="40" rx="4"></rect>
+              <text x="95" y="338">Payment Service</text><text class="sub" x="95" y="352">idempotencyKey = BK-8F31</text></g>
+            <g class="fnode" id="n7"><rect x="80" y="382" width="270" height="40" rx="4"></rect>
+              <text x="95" y="400">Saga Orchestrator → Client</text><text class="sub" x="95" y="414">booking.confirmed.v1 → SSE push</text></g>
+
+            <g id="packet"><circle r="6" fill="#3E9FD0"></circle></g>
+          </svg>
+        </div>
+        <div>
+          <div class="console" id="console"></div>
+          <div class="rescard" id="rescard">
+            <div class="rc-t" id="rcTitle">Booking confirmed</div>
+            <div class="rc-r"><span>bookingId</span><b>BK-8F31</b></div>
+            <div class="rc-r"><span>seats</span><b>C14, C15</b></div>
+            <div class="rc-r"><span>coupon</span><b id="rcCoupon">SAVE1200 · −₹1,200</b></div>
+            <div class="rc-r"><span>charged</span><b id="rcAmount">₹4,800</b></div>
+            <div class="rc-r"><span>end-to-end</span><b id="rcTime">1.31s</b></div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <p style="font-size:.9rem;color:var(--ink-3);margin-top:14px;max-width:70ch">Dhyan do: API ne pehle hi second mein jawab de diya tha (<code>202 Accepted</code>). Jo yahan 1.3 second chal raha hai wo <em>background saga</em> hai, aur uska final result user tak SSE se pahunchta hai &mdash; wahi <code>BookingResponseEmitter</code> jo Code 6 mein tha.</p>
+  </div>
+
+  <div class="wrap foot">
+    <p>Padhne ka order jo interview se pehle sabse zyada kaam aata hai: Foundations 01&ndash;08 &rarr; Coupon scenario ka budget guard &rarr; Booking saga &rarr; outbox &rarr; mock questions Q18&ndash;Q26. Baaki sab isi ke around hai.</p>
+  </div>
+</section>
+
+<script>
+(function(){
+  "use strict";
+  var reduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  /* ---------- code rendering ---------- */
+  function esc(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+  function makeKeeper(store){
+    return function(cls){
+      return function(m){ store.push('<span class="'+cls+'">'+m+'</span>'); return '\u0001'+(store.length-1)+'\u0001'; };
+    };
+  }
+  function restore(s, store){
+    for(var i=0;i<6;i++){ s = s.replace(/\u0001(\d+)\u0001/g, function(m,idx){ return store[+idx]; }); }
+    return s;
+  }
+  function hlJava(raw){
+    var s = esc(raw), store = [], keep = makeKeeper(store);
+    s = s.replace(/"(?:[^"\\]|\\.)*"/g, keep('c-str'));
+    s = s.replace(/\/\/.*/g, keep('c-com'));
+    s = s.replace(/@[A-Za-z]\w*/g, keep('c-ann'));
+    s = s.replace(/\b(public|private|protected|class|interface|void|new|return|if|else|for|while|try|catch|finally|throw|throws|final|static|import|package|extends|implements|record|enum|var|this|null|true|false|int|long|boolean|double|switch|case|break|default|instanceof)\b/g, keep('c-kw'));
+    s = s.replace(/\b[A-Z][A-Za-z0-9_]*\b/g, keep('c-typ'));
+    s = s.replace(/\b\d[\d_]*\b/g, keep('c-num'));
+    return restore(s, store);
+  }
+  function hlYaml(raw){
+    var s = esc(raw), store = [], keep = makeKeeper(store);
+    s = s.replace(/#.*/g, keep('c-com'));
+    s = s.replace(/^(\s*)([A-Za-z0-9_.\-]+)(:)/, function(m,a,b,c){ return a + '<span class="c-key">' + b + '</span>' + c; });
+    s = s.replace(/\b(true|false)\b/g, keep('c-kw'));
+    s = s.replace(/\b\d+\b/g, keep('c-num'));
+    return restore(s, store);
+  }
+
+  document.querySelectorAll('pre.code').forEach(function(pre){
+    var lang = pre.getAttribute('data-lang');
+    var lines = pre.textContent.replace(/\s+$/,'').split('\n');
+    pre.innerHTML = lines.map(function(ln, i){
+      var body = lang === 'yaml' ? hlYaml(ln) : hlJava(ln);
+      if(!body.trim()) body = '&nbsp;';
+      return '<div class="cl" data-l="'+(i+1)+'"><span class="num">'+(i+1)+'</span><span class="txt">'+body+'</span></div>';
+    }).join('');
+  });
+
+  function parseLines(spec){
+    var out = [];
+    (spec || '').split(',').forEach(function(part){
+      part = part.trim();
+      if(part.indexOf('-') > 0){
+        var ab = part.split('-');
+        for(var n = +ab[0]; n <= +ab[1]; n++) out.push(n);
+      } else if(part){ out.push(+part); }
+    });
+    return out;
+  }
+
+  document.querySelectorAll('.explain').forEach(function(list){
+    var id = list.getAttribute('data-code');
+    var block = document.querySelector('.codeblock[data-code="'+id+'"]');
+    if(!block) return;
+    var items = Array.prototype.slice.call(list.querySelectorAll('li'));
+
+    function clear(){
+      block.querySelectorAll('.cl.hot').forEach(function(el){ el.classList.remove('hot'); });
+      items.forEach(function(el){ el.classList.remove('hot'); });
+    }
+    function activate(li, scroll){
+      clear();
+      li.classList.add('hot');
+      var nums = parseLines(li.getAttribute('data-lines'));
+      var first = null;
+      nums.forEach(function(n){
+        var el = block.querySelector('.cl[data-l="'+n+'"]');
+        if(el){ el.classList.add('hot'); if(!first) first = el; }
+      });
+      if(first && scroll){ first.scrollIntoView({block:'nearest', behavior: reduced ? 'auto' : 'smooth'}); }
+    }
+    items.forEach(function(li){ li.addEventListener('click', function(){ activate(li, true); }); });
+
+    block.querySelectorAll('.cl').forEach(function(lineEl){
+      lineEl.addEventListener('click', function(){
+        var n = +lineEl.getAttribute('data-l');
+        for(var i=0;i<items.length;i++){
+          if(parseLines(items[i].getAttribute('data-lines')).indexOf(n) !== -1){ activate(items[i], false); return; }
+        }
+      });
+    });
+  });
+
+  /* ---------- hero append-only log ---------- */
+  var track = document.getElementById('lbTrack');
+  if(track){
+    var names = ['booking.requested','inventory.held','coupon.redemption.requested','coupon.redeemed',
+                 'payment.captured','booking.confirmed','coupon.rejected','inventory.released','booking.cancelled'];
+    var endOffset = 812440, lag2 = 3, timer = null, visible = true;
+
+    function cell(off, name, isNew){
+      var d = document.createElement('div');
+      d.className = 'cell' + (isNew ? ' new' : '');
+      d.innerHTML = '<span class="off">offset ' + off.toLocaleString('en-IN') + '</span><span class="ev">' + name + '</span>';
+      return d;
+    }
+    for(var i = 0; i < 7; i++){
+      track.appendChild(cell(endOffset - 6 + i, names[i % names.length], false));
+    }
+    endOffset += 1;
+
+    function tick(){
+      track.appendChild(cell(endOffset, names[Math.floor(Math.random() * names.length)], true));
+      while(track.children.length > 8){ track.removeChild(track.firstChild); }
+      endOffset += 1;
+      lag2 = Math.max(0, Math.min(14, lag2 + (Math.random() < 0.55 ? 1 : -2)));
+      document.getElementById('p3').textContent = endOffset.toLocaleString('en-IN');
+      document.getElementById('p1').textContent = (endOffset - 1).toLocaleString('en-IN');
+      document.getElementById('p2').textContent = (endOffset - lag2).toLocaleString('en-IN');
+      document.getElementById('l1').textContent = '1';
+      var l2 = document.getElementById('l2');
+      l2.textContent = String(lag2);
+      l2.className = 'lagnum' + (lag2 <= 3 ? ' ok' : '');
+    }
+    tick();
+
+    if(!reduced){
+      var io = new IntersectionObserver(function(entries){
+        visible = entries[0].isIntersecting;
+        if(visible && !timer){ timer = setInterval(tick, 1400); }
+        else if(!visible && timer){ clearInterval(timer); timer = null; }
+      }, {threshold: 0.1});
+      io.observe(document.querySelector('.logbox'));
+    }
+  }
+
+  /* ---------- Q&A filter ---------- */
+  var qbar = document.getElementById('qbar');
+  if(qbar){
+    qbar.addEventListener('click', function(e){
+      var btn = e.target.closest('button');
+      if(!btn) return;
+      qbar.querySelectorAll('button').forEach(function(b){ b.classList.remove('on'); });
+      btn.classList.add('on');
+      var cat = btn.getAttribute('data-cat');
+      document.querySelectorAll('#qlist .qa').forEach(function(q){
+        var show = (cat === 'all') || (q.getAttribute('data-cat') === cat);
+        q.style.display = show ? '' : 'none';
+        if(!show) q.open = false;
+      });
+    });
+  }
+
+  /* ---------- scrollspy ---------- */
+  var links = Array.prototype.slice.call(document.querySelectorAll('.topnav a'));
+  if(links.length){
+    var spy = new IntersectionObserver(function(entries){
+      entries.forEach(function(en){
+        if(!en.isIntersecting) return;
+        links.forEach(function(a){
+          a.classList.toggle('on', a.getAttribute('href') === '#' + en.target.id);
+        });
+      });
+    }, {rootMargin: '-70px 0px -70% 0px'});
+    document.querySelectorAll('section[id]').forEach(function(s){ spy.observe(s); });
+  }
+
+  /* ---------- booking flow animation ---------- */
+  var NODE_Y = {n1:30, n2:92, n3:154, n4:216, n5:278, n6:340, n7:402};
+  var consoleEl = document.getElementById('console');
+  var packet = document.getElementById('packet');
+  var card = document.getElementById('rescard');
+  var timers = [];
+
+  function clearTimers(){ timers.forEach(clearTimeout); timers = []; }
+
+  function resetStage(){
+    clearTimers();
+    consoleEl.innerHTML = '';
+    card.classList.remove('show', 'bad');
+    ['n1','n2','n3','n4','n5','n6','n7'].forEach(function(id){
+      document.getElementById(id).setAttribute('class', 'fnode');
+    });
+    ['e1','e2','e3','e4','e5','e6'].forEach(function(id){
+      document.getElementById(id).setAttribute('class', 'fedge');
+    });
+    packet.style.opacity = '0';
+    packet.style.transform = 'translate(64px, 30px)';
+  }
+
+  function movePacket(nodeId){
+    packet.style.opacity = '1';
+    packet.style.transition = reduced ? 'none' : 'transform .55s cubic-bezier(.3,.8,.3,1)';
+    packet.style.transform = 'translate(64px, ' + NODE_Y[nodeId] + 'px)';
+  }
+
+  function logLine(ms, kind, text){
+    var d = document.createElement('div');
+    d.className = 'ln2';
+    var stamp = '+' + (ms / 1000).toFixed(2) + 's';
+    d.innerHTML = '<span class="ts">' + stamp + '</span>  <span class="' + kind + '">' + text + '</span>';
+    consoleEl.appendChild(d);
+    requestAnimationFrame(function(){ d.classList.add('show'); });
+    consoleEl.scrollTop = consoleEl.scrollHeight;
+  }
+
+  var SUCCESS = [
+    {at:0,    node:'n1', lines:[['inf','POST /bookings  seats=[C14,C15]  coupon=SAVE1200']]},
+    {at:41,   node:'n2', edge:'e1', done:'n1', lines:[['ok','202 Accepted · bookingId=BK-8F31'],['inf','booking(PENDING) + outbox row written in one txn']]},
+    {at:96,   node:'n3', edge:'e2', done:'n2', lines:[['inf','→ booking.requested.v1 · partition 7 · offset 902114']]},
+    {at:238,  node:'n4', edge:'e3', done:'n3', lines:[['ok','inventory: 2 seats held · TTL 10m'],['inf','→ booking.inventory.held.v1']]},
+    {at:432,  node:'n5', edge:'e4', done:'n4', lines:[['inf','dedupe: first delivery of eventId 4c1e…'],['ok','SAVE1200 reserved · used 49,998 / 50,000'],['inf','→ coupon.redeemed.v1 · discount ₹1,200']]},
+    {at:914,  node:'n6', edge:'e5', done:'n5', lines:[['ok','payment captured · ₹4,800 · idempotencyKey=BK-8F31']]},
+    {at:1210, node:'n7', edge:'e6', done:'n6', lines:[['inf','→ booking.confirmed.v1'],['ok','SSE push → client · status=CONFIRMED']]},
+    {at:1310, node:null, done:'n7', card:'ok'}
+  ];
+
+  var FAILURE = [
+    {at:0,    node:'n1', lines:[['inf','POST /bookings  seats=[C14,C15]  coupon=SAVE1200']]},
+    {at:41,   node:'n2', edge:'e1', done:'n1', lines:[['ok','202 Accepted · bookingId=BK-8F31']]},
+    {at:96,   node:'n3', edge:'e2', done:'n2', lines:[['inf','→ booking.requested.v1 · partition 7 · offset 902115']]},
+    {at:238,  node:'n4', edge:'e3', done:'n3', lines:[['ok','inventory: 2 seats held · TTL 10m']]},
+    {at:432,  node:'n5', edge:'e4', done:'n4', lines:[['ok','SAVE1200 reserved · used 49,999 / 50,000']]},
+    {at:1180, node:'n6', edge:'e5', done:'n5', err:'n6', lines:[['bad','payment declined · INSUFFICIENT_FUNDS'],['inf','→ booking.payment.failed.v1']]},
+    {at:1340, node:'n5', errEdge:'e5', err:'n5', lines:[['bad','compensating 1/2 → coupon SAVE1200 reversed · used 49,998']]},
+    {at:1490, node:'n4', errEdge:'e4', err:'n4', lines:[['bad','compensating 2/2 → seats C14, C15 released']]},
+    {at:1640, node:'n7', err:'n7', lines:[['bad','booking BK-8F31 → CANCELLED'],['ok','SSE push → client · reason shown, seats free again']]},
+    {at:1760, node:null, card:'bad'}
+  ];
+
+  function applyStep(step){
+    if(step.done){ document.getElementById(step.done).setAttribute('class', 'fnode done'); }
+    if(step.err){ document.getElementById(step.err).setAttribute('class', 'fnode err'); }
+    if(step.edge){ document.getElementById(step.edge).setAttribute('class', 'fedge ok'); }
+    if(step.errEdge){ document.getElementById(step.errEdge).setAttribute('class', 'fedge bad'); }
+    if(step.node){
+      if(!step.err){ document.getElementById(step.node).setAttribute('class', 'fnode act'); }
+      movePacket(step.node);
+    }
+    (step.lines || []).forEach(function(l){ logLine(step.at, l[0], l[1]); });
+    if(step.card){
+      packet.style.opacity = '0';
+      var bad = step.card === 'bad';
+      card.classList.toggle('bad', bad);
+      document.getElementById('rcTitle').textContent = bad ? 'Booking cancelled — nothing charged' : 'Booking confirmed';
+      document.getElementById('rcCoupon').textContent = bad ? 'SAVE1200 · reversed, usable again' : 'SAVE1200 · −₹1,200';
+      document.getElementById('rcAmount').textContent = bad ? '₹0 · payment declined' : '₹4,800';
+      document.getElementById('rcTime').textContent = (step.at / 1000).toFixed(2) + 's';
+      card.classList.add('show');
+    }
+  }
+
+  function play(steps){
+    resetStage();
+    var speed = reduced ? 0 : 1;
+    steps.forEach(function(step){
+      timers.push(setTimeout(function(){ applyStep(step); }, step.at * 0.85 * speed + (speed ? 120 : 0)));
+    });
+  }
+
+  document.getElementById('btnRun').addEventListener('click', function(){ play(SUCCESS); });
+  document.getElementById('btnFail').addEventListener('click', function(){ play(FAILURE); });
+  document.getElementById('btnReset').addEventListener('click', resetStage);
+
+  resetStage();
+  var stageObserver = new IntersectionObserver(function(entries){
+    if(entries[0].isIntersecting){
+      stageObserver.disconnect();
+      play(SUCCESS);
+    }
+  }, {threshold: 0.35});
+  stageObserver.observe(document.querySelector('.stage'));
+})();
+</script>
+</body>
+</html>

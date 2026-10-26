@@ -1,0 +1,2427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spring Boot Internals — Request ka poora safar | HLD + LLD + Tradeoffs</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#EDEFE9;
+  --paper-2:#E4E8DE;
+  --paper-3:#F6F7F3;
+  --ink:#17211B;
+  --ink-2:#4E5C53;
+  --ink-3:#77857B;
+  --rule:#C9D1C4;
+  --leaf:#3E7A1E;
+  --leaf-deep:#2A5513;
+  --leaf-wash:#DDEAD1;
+  --trace:#1B4AA6;
+  --trace-wash:#D7E0F2;
+  --ret:#A6531B;
+  --ret-wash:#F2E2D4;
+  --warn:#8F5A08;
+  --warn-wash:#F3E7CE;
+  --danger:#A32020;
+  --danger-wash:#F3DADA;
+  --code-bg:#131C16;
+  --code-fg:#D8E4D6;
+  --code-dim:#6E8474;
+  --sans:"Space Grotesk",ui-sans-serif,system-ui,sans-serif;
+  --serif:"Newsreader",Georgia,serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --maxw:1260px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:74px}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font-family:var(--serif);font-size:17.5px;line-height:1.65;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 26px}
+h1,h2,h3,h4,.ui{font-family:var(--sans);letter-spacing:-.015em}
+h2{font-size:clamp(26px,3.4vw,38px);line-height:1.1;margin:0 0 10px;font-weight:600}
+h3{font-size:20px;line-height:1.25;margin:26px 0 8px;font-weight:600}
+h4{font-size:15.5px;margin:18px 0 6px;font-weight:600;color:var(--ink-2)}
+p{margin:0 0 14px;max-width:72ch}
+a{color:var(--trace)}
+code{font-family:var(--mono);font-size:.86em;background:var(--paper-2);padding:1px 5px;border-radius:3px;color:var(--leaf-deep);word-break:break-word}
+
+/* ---------- top bar ---------- */
+.topbar{
+  position:sticky;top:0;z-index:60;background:rgba(237,239,233,.93);
+  backdrop-filter:blur(10px);border-bottom:1px solid var(--rule);
+}
+.topbar .wrap{display:flex;align-items:center;gap:16px;height:56px}
+.brand{font-family:var(--sans);font-weight:700;font-size:15px;white-space:nowrap}
+.brand span{color:var(--leaf)}
+.navscroll{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;margin-left:auto}
+.navscroll::-webkit-scrollbar{display:none}
+.navscroll a{
+  font-family:var(--sans);font-size:12.5px;font-weight:500;text-decoration:none;
+  color:var(--ink-2);padding:6px 10px;border-radius:20px;white-space:nowrap;
+}
+.navscroll a:hover{background:var(--paper-2);color:var(--ink)}
+
+/* ---------- hero ---------- */
+.hero{padding:58px 0 44px;border-bottom:1px solid var(--rule)}
+.hero h1{
+  font-size:clamp(34px,6.2vw,66px);line-height:1.02;font-weight:700;
+  margin:0 0 18px;max-width:16ch;
+}
+.hero .lede{font-size:20px;color:var(--ink-2);max-width:60ch;margin-bottom:6px}
+.hero .lede b{color:var(--ink);font-weight:600}
+.herogrid{display:grid;grid-template-columns:1fr 1fr;gap:52px;align-items:center}
+
+/* hero staircase */
+.stair{background:var(--code-bg);border-radius:10px;padding:20px 18px;font-family:var(--mono);font-size:12px;position:relative;overflow:hidden}
+.stair .row{display:flex;align-items:center;gap:8px;height:26px;color:var(--code-dim);transition:color .25s}
+.stair .row.on{color:#EAF3E7}
+.stair .bar{width:3px;height:16px;background:#2C3A30;border-radius:2px;transition:background .25s}
+.stair .row.on .bar{background:var(--leaf)}
+.stair .row.on.ret .bar{background:#D89A5E}
+.stair .tag{font-size:10px;color:#5D7264;margin-left:auto}
+#heroToken{
+  position:absolute;left:0;top:0;width:9px;height:9px;border-radius:50%;
+  background:#7EE07A;box-shadow:0 0 10px 3px rgba(126,224,122,.55);
+  transition:transform .34s cubic-bezier(.4,0,.2,1),background .3s;pointer-events:none;
+}
+
+/* ---------- reading key ---------- */
+.key{display:flex;flex-wrap:wrap;gap:10px;margin-top:26px}
+.key span{
+  font-family:var(--sans);font-size:11.5px;font-weight:500;padding:4px 10px;border-radius:4px;
+}
+.k-in{background:var(--trace-wash);color:var(--trace)}
+.k-out{background:var(--ret-wash);color:var(--ret)}
+.k-sys{background:var(--leaf-wash);color:var(--leaf-deep)}
+.k-warn{background:var(--warn-wash);color:var(--warn)}
+
+/* ---------- section shell ---------- */
+.sec{padding:56px 0;border-bottom:1px solid var(--rule)}
+.sechead{margin-bottom:34px;max-width:74ch}
+.sechead .eyebrow{font-family:var(--mono);font-size:12px;color:var(--leaf);margin-bottom:8px}
+.sechead p{color:var(--ink-2);font-size:18px}
+
+/* ---------- topic: problem left / solution right ---------- */
+.topic{
+  display:grid;grid-template-columns:340px 1fr;gap:46px;
+  padding:34px 0;border-top:1px dashed var(--rule);
+}
+.topic:first-of-type{border-top:none}
+.pcol{position:sticky;top:76px;align-self:start}
+.pcard{
+  background:var(--paper-3);border:1px solid var(--rule);border-left:4px solid var(--trace);
+  border-radius:6px;padding:18px 18px 16px;
+}
+.pnum{font-family:var(--mono);font-size:12px;color:var(--trace);margin-bottom:8px;font-weight:700}
+.pcard h3{margin:0 0 10px;font-size:19px;line-height:1.2}
+.pq{font-size:15.5px;color:var(--ink-2);margin:0}
+.pq em{font-style:normal;background:var(--warn-wash);padding:0 3px;border-radius:2px}
+.asked{
+  margin-top:14px;padding-top:12px;border-top:1px solid var(--rule);
+  font-family:var(--sans);font-size:11.5px;color:var(--ink-3);
+}
+.scol{min-width:0}
+
+/* ---------- code ---------- */
+pre{
+  background:var(--code-bg);color:var(--code-fg);border-radius:8px;
+  padding:16px 18px;overflow-x:auto;font-family:var(--mono);font-size:13px;
+  line-height:1.62;margin:14px 0;
+}
+pre .cm{color:#728C79;font-style:italic}
+pre .kw{color:#8FD1FF}
+pre .an{color:#C9E88B}
+pre .st{color:#F0C182}
+pre .fn{color:#FFE6A6}
+pre .hi{background:rgba(126,224,122,.13);display:block;margin:0 -18px;padding:0 18px;border-left:2px solid var(--leaf)}
+.filelabel{
+  font-family:var(--mono);font-size:11.5px;color:var(--ink-3);
+  margin:16px 0 -8px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;
+}
+.filelabel b{color:var(--leaf-deep);font-weight:500}
+
+/* ---------- callouts ---------- */
+.note{
+  border-left:3px solid var(--leaf);background:var(--leaf-wash);
+  padding:12px 15px;border-radius:0 6px 6px 0;margin:16px 0;font-size:16px;
+}
+.note p{margin:0 0 8px}
+.note p:last-child{margin:0}
+.gotcha{border-left-color:var(--danger);background:var(--danger-wash)}
+.trade{border-left-color:var(--warn);background:var(--warn-wash)}
+.lbl{font-family:var(--sans);font-size:11.5px;font-weight:600;display:block;margin-bottom:4px}
+.note .lbl{color:var(--leaf-deep)}
+.gotcha .lbl{color:var(--danger)}
+.trade .lbl{color:var(--warn)}
+
+/* ---------- tables ---------- */
+.tw{overflow-x:auto;margin:18px 0;border:1px solid var(--rule);border-radius:8px;background:var(--paper-3)}
+table{border-collapse:collapse;width:100%;font-family:var(--sans);font-size:13.5px;min-width:560px}
+th,td{text-align:left;padding:10px 13px;border-bottom:1px solid var(--rule);vertical-align:top}
+th{background:var(--paper-2);font-weight:600;font-size:12.5px;color:var(--ink-2)}
+tr:last-child td{border-bottom:none}
+td code{font-size:12px;background:var(--paper-2)}
+
+/* ---------- flow rail (HLD) ---------- */
+.rail{display:flex;flex-direction:column;gap:0;margin:22px 0;font-family:var(--sans)}
+.st{display:flex;gap:14px;align-items:flex-start;padding:9px 0;position:relative}
+.st .dot{
+  width:11px;height:11px;border-radius:50%;background:var(--trace);flex:0 0 auto;margin-top:6px;
+  box-shadow:0 0 0 3px var(--trace-wash);
+}
+.st.o .dot{background:var(--ret);box-shadow:0 0 0 3px var(--ret-wash)}
+.st.s .dot{background:var(--leaf);box-shadow:0 0 0 3px var(--leaf-wash)}
+.st:not(:last-child):after{
+  content:"";position:absolute;left:5px;top:22px;bottom:-5px;width:1px;background:var(--rule);
+}
+.st .body{min-width:0}
+.st .t{font-weight:600;font-size:14.5px}
+.st .d{font-size:13px;color:var(--ink-2);font-family:var(--serif)}
+.st .cls{font-family:var(--mono);font-size:11.5px;color:var(--leaf-deep)}
+
+/* ---------- version timeline ---------- */
+.vt{display:grid;gap:0;margin-top:10px}
+.vrow{
+  display:grid;grid-template-columns:126px 1fr;gap:22px;
+  padding:18px 0;border-top:1px solid var(--rule);
+}
+.vrow:first-child{border-top:none}
+.vtag{font-family:var(--sans);font-weight:700;font-size:17px;color:var(--leaf-deep)}
+.vdate{font-family:var(--mono);font-size:11px;color:var(--ink-3);display:block;margin-top:2px;font-weight:400}
+.vlist{margin:0;padding-left:18px}
+.vlist li{margin-bottom:7px;font-size:16px}
+.vlist li:last-child{margin-bottom:0}
+
+/* ---------- mock Q ---------- */
+.qa{border:1px solid var(--rule);border-radius:8px;background:var(--paper-3);margin-bottom:10px;overflow:hidden}
+.qa summary{
+  cursor:pointer;padding:14px 16px;font-family:var(--sans);font-weight:600;font-size:15.5px;
+  list-style:none;display:flex;gap:12px;align-items:flex-start;
+}
+.qa summary::-webkit-details-marker{display:none}
+.qa summary:hover{background:var(--paper-2)}
+.qa summary .qn{font-family:var(--mono);font-size:12px;color:var(--leaf);flex:0 0 auto;margin-top:2px}
+.qa summary .ch{margin-left:auto;color:var(--ink-3);font-weight:400;flex:0 0 auto}
+.qa[open] summary .ch{transform:rotate(45deg)}
+.qa .ans{padding:2px 16px 16px 44px;border-top:1px solid var(--rule)}
+.qa .ans p:first-child{margin-top:12px}
+.qtier{
+  display:inline-block;font-family:var(--sans);font-size:10.5px;font-weight:600;
+  padding:2px 7px;border-radius:3px;margin-right:8px;vertical-align:2px;
+}
+.t1{background:var(--leaf-wash);color:var(--leaf-deep)}
+.t2{background:var(--trace-wash);color:var(--trace)}
+.t3{background:var(--danger-wash);color:var(--danger)}
+
+/* ---------- ANIMATION STAGE ---------- */
+.stage{background:var(--code-bg);border-radius:14px;padding:0;overflow:hidden;margin-top:26px}
+.stagebar{
+  display:flex;gap:6px;padding:12px 14px;border-bottom:1px solid #26332A;overflow-x:auto;scrollbar-width:none;
+}
+.stagebar::-webkit-scrollbar{display:none}
+.sbtn{
+  font-family:var(--sans);font-size:12px;font-weight:500;background:#1D2A21;color:#93A79A;
+  border:1px solid #2B3B30;padding:7px 12px;border-radius:20px;cursor:pointer;white-space:nowrap;
+}
+.sbtn:hover{color:#E7F1E4;border-color:#3E5545}
+.sbtn.on{background:var(--leaf);border-color:var(--leaf);color:#fff}
+.stagebody{display:grid;grid-template-columns:1.15fr 1fr;gap:0;min-height:440px}
+.track{padding:20px 16px;position:relative;border-right:1px solid #26332A}
+.stn{
+  display:flex;align-items:center;gap:10px;padding:5px 10px;border-radius:6px;margin-bottom:2px;
+  font-family:var(--mono);font-size:11.5px;color:#61776A;transition:background .2s,color .2s;
+}
+.stn .lay{
+  width:4px;height:18px;border-radius:2px;background:#2A382E;flex:0 0 auto;transition:background .2s,box-shadow .2s;
+}
+.stn .nm{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.stn .ph{margin-left:auto;font-size:9.5px;color:#43564A;flex:0 0 auto;padding-left:8px}
+.stn.act{background:#1E2C23;color:#ECF5E9}
+.stn.act .lay{background:var(--leaf);box-shadow:0 0 8px rgba(126,224,122,.6)}
+.stn.act.rt .lay{background:#D89A5E;box-shadow:0 0 8px rgba(216,154,94,.55)}
+.stn.done{color:#8AA394}
+.stn.done .lay{background:#3E5545}
+#token{
+  position:absolute;width:8px;height:8px;border-radius:50%;background:#7EE07A;
+  box-shadow:0 0 12px 4px rgba(126,224,122,.45);left:8px;top:24px;
+  transition:transform .4s cubic-bezier(.45,0,.2,1),background .3s,box-shadow .3s;
+}
+#token.rt{background:#F0B074;box-shadow:0 0 12px 4px rgba(240,176,116,.4)}
+.panel{padding:20px 20px;display:flex;flex-direction:column}
+.pstep{font-family:var(--mono);font-size:11px;color:var(--leaf);margin-bottom:8px}
+.ptitle{font-family:var(--sans);font-size:19px;font-weight:600;color:#EDF5EA;margin:0 0 10px;line-height:1.2}
+.pdesc{font-family:var(--serif);font-size:15.5px;color:#AFC3B4;margin:0 0 14px;line-height:1.6}
+.pcode{
+  font-family:var(--mono);font-size:11.5px;color:#CBDCC7;background:#0D140F;border:1px solid #24312A;
+  border-radius:6px;padding:11px 13px;overflow-x:auto;white-space:pre;line-height:1.6;
+}
+.pwhy{
+  margin-top:auto;padding-top:14px;border-top:1px solid #26332A;
+  font-family:var(--sans);font-size:12.5px;color:#8DA795;
+}
+.pwhy b{color:#B8D0BC;font-weight:600}
+.ctrls{display:flex;gap:8px;padding:12px 14px;border-top:1px solid #26332A;align-items:center;flex-wrap:wrap}
+.cbtn{
+  font-family:var(--sans);font-size:12.5px;font-weight:600;background:#1D2A21;color:#C3D6C7;
+  border:1px solid #2E3E33;padding:8px 14px;border-radius:6px;cursor:pointer;
+}
+.cbtn:hover{background:#25342A;color:#EAF3E7}
+.cbtn.pri{background:var(--leaf);border-color:var(--leaf);color:#fff}
+.cbtn.pri:hover{background:var(--leaf-deep)}
+.spd{margin-left:auto;display:flex;gap:6px;align-items:center;font-family:var(--sans);font-size:11.5px;color:#7A8F81}
+.prog{height:3px;background:#1E2A22;border-radius:2px;overflow:hidden;flex:1 1 120px;min-width:80px}
+.prog i{display:block;height:100%;background:var(--leaf);width:0;transition:width .3s}
+
+/* ---------- misc ---------- */
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+.mini{
+  border:1px solid var(--rule);border-radius:8px;padding:15px 16px;background:var(--paper-3);
+}
+.mini h4{margin-top:0}
+footer{padding:44px 0 70px;color:var(--ink-3);font-family:var(--sans);font-size:13px}
+.skip{position:absolute;left:-9999px}
+.skip:focus{left:10px;top:10px;background:var(--ink);color:#fff;padding:8px 14px;z-index:99;border-radius:4px}
+:focus-visible{outline:2.5px solid var(--trace);outline-offset:2px;border-radius:3px}
+
+@media(max-width:960px){
+  .herogrid{grid-template-columns:1fr;gap:30px}
+  .topic{grid-template-columns:1fr;gap:20px}
+  .pcol{position:static}
+  .stagebody{grid-template-columns:1fr;min-height:0}
+  .track{border-right:none;border-bottom:1px solid #26332A}
+  .grid2{grid-template-columns:1fr}
+  .vrow{grid-template-columns:1fr;gap:8px}
+}
+@media(max-width:600px){
+  body{font-size:16.5px}
+  .wrap{padding:0 18px}
+  .sec{padding:40px 0}
+  pre{font-size:11.5px;padding:13px 14px}
+  .qa .ans{padding-left:16px}
+}
+@media(prefers-reduced-motion:reduce){
+  *{transition-duration:.001s !important;animation-duration:.001s !important}
+  html{scroll-behavior:auto}
+}
+</style>
+</head>
+<body>
+<div id="sdh-libbar" style="position:relative;z-index:2147483000;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0;padding:8px 16px;background:#0f172a;color:#cbd5e1;font:600 13px/1.5 Inter,'Segoe UI',system-ui,-apple-system,sans-serif;border-bottom:2px solid #4f46e5;box-sizing:border-box;width:100%;text-align:left;letter-spacing:0"><a href="../../index.html" style="color:#fff;text-decoration:none;font-weight:800">SystemDesign<span style="color:#8b8cff">.hinglish</span></a><span style="opacity:.45">/</span><a href="../index.html" style="color:#fff;text-decoration:none">📚 Library</a><span style="opacity:.45">/</span><a href="../index.html#spring-boot" style="color:#cbd5e1;text-decoration:none">Spring Boot &amp; Microservices</a><a href="../files/spring-boot-internals-request-journey-original.html" download style="color:#a5b4fc;text-decoration:none;font-size:12px">⬇ Original</a><span style="margin-left:auto;font-size:11px;padding:2px 9px;border-radius:999px;border:1px solid #6366f1;color:#c7d2fe">📘 HTML ebook</span></div>
+<a class="skip" href="#main">Skip to content</a>
+
+<div class="topbar">
+  <div class="wrap">
+    <div class="brand">Spring Boot <span>Internals</span></div>
+    <nav class="navscroll">
+      <a href="#boot">Startup</a>
+      <a href="#request">Request path</a>
+      <a href="#dispatch">doDispatch</a>
+      <a href="#aop">AOP &amp; Tx</a>
+      <a href="#source">Read the source</a>
+      <a href="#hld">HLD</a>
+      <a href="#lld">LLD</a>
+      <a href="#tradeoff">Tradeoffs</a>
+      <a href="#versions">Versions</a>
+      <a href="#mock">Mock Q&amp;A</a>
+      <a href="#anime">Animation</a>
+    </nav>
+  </div>
+</div>
+
+<main id="main">
+
+<header class="hero">
+  <div class="wrap herogrid">
+    <div>
+      <h1>Ek request ke andar kya hota hai</h1>
+      <p class="lede">
+        Socket se <b>Controller</b> tak, aur wapas <code>200 OK</code> tak — har layer, har class,
+        har interface jise aap khud implement kar sakte ho. Poora flow, real class names ke saath.
+      </p>
+      <p class="lede" style="font-size:16px;color:var(--ink-3)">
+        Problem left, solution right. Har topic mein LLD-level code, tradeoff, aur "kab ignore karna hai" bhi.
+      </p>
+      <div class="key">
+        <span class="k-in">↓ request in</span>
+        <span class="k-out">↑ response out</span>
+        <span class="k-sys">startup / one-time</span>
+        <span class="k-warn">tradeoff ya gotcha</span>
+      </div>
+    </div>
+    <div class="stair" id="heroStair">
+      <div id="heroToken"></div>
+      <div class="row" data-d="0"><span class="bar"></span>TCP socket accept<span class="tag">Tomcat NIO</span></div>
+      <div class="row" data-d="1"><span class="bar" style="margin-left:12px"></span>Engine → Host → Context valves<span class="tag">Pipeline</span></div>
+      <div class="row" data-d="2"><span class="bar" style="margin-left:24px"></span>Filter chain<span class="tag">Servlet API</span></div>
+      <div class="row" data-d="3"><span class="bar" style="margin-left:36px"></span>DispatcherServlet.doDispatch()<span class="tag">Spring MVC</span></div>
+      <div class="row" data-d="4"><span class="bar" style="margin-left:48px"></span>HandlerInterceptor.preHandle()<span class="tag">MVC</span></div>
+      <div class="row" data-d="5"><span class="bar" style="margin-left:60px"></span>AOP proxy → @Transactional<span class="tag">Spring AOP</span></div>
+      <div class="row" data-d="6"><span class="bar" style="margin-left:72px"></span>@Service method — your code<span class="tag">You</span></div>
+      <div class="row ret" data-d="5"><span class="bar" style="margin-left:60px"></span>commit + return value<span class="tag">Tx</span></div>
+      <div class="row ret" data-d="4"><span class="bar" style="margin-left:48px"></span>postHandle → afterCompletion<span class="tag">MVC</span></div>
+      <div class="row ret" data-d="3"><span class="bar" style="margin-left:36px"></span>HttpMessageConverter writes JSON<span class="tag">Jackson</span></div>
+      <div class="row ret" data-d="0"><span class="bar"></span>200 OK flushed, thread freed<span class="tag">Tomcat</span></div>
+    </div>
+  </div>
+</header>
+
+<!-- ===================== PART A : STARTUP ===================== -->
+<section class="sec" id="boot">
+  <div class="wrap">
+    <div class="sechead">
+      <div class="eyebrow">// part A — request aane se pehle</div>
+      <h2>Startup: app khada kaise hota hai</h2>
+      <p>Request aane se pehle Spring teen kaam kar chuka hota hai — context bana, beans bane aur proxy lag gaye,
+      aur Tomcat port pe baith gaya. Ye teen cheezein samajh lo toh request-time ka 70% khud clear ho jaata hai.</p>
+    </div>
+
+    <!-- TOPIC 1 -->
+    <article class="topic">
+      <div class="pcol"><div class="pcard">
+        <div class="pnum">STAGE 01 · PROBLEM</div>
+        <h3>main() mein sirf ek line hai. Phir poora app kaise khada ho gaya?</h3>
+        <p class="pq">Interviewer bolta hai: <em>"run() ke andar step by step kya hota hai?"</em>
+        Aur "Tomcat exactly kis line pe start hota hai?"</p>
+        <div class="asked">Poocha jaata hai: 1–10 yrs · har level pe</div>
+      </div></div>
+      <div class="scol">
+        <p><code>SpringApplication.run()</code> do hisson mein banta hai — <b>constructor</b> (setup) aur
+        <b>run() instance method</b> (execution). Constructor decide karta hai "kaunsa app type hai",
+        run() usko zinda karta hai.</p>
+
+        <div class="filelabel"><b>spring-boot.jar</b> → <code>org.springframework.boot.SpringApplication</code></div>
+<pre><span class="cm">// Constructor — sirf faisle, koi bean nahi banta yahan</span>
+<span class="kw">public</span> SpringApplication(ResourceLoader rl, Class&lt;?&gt;... sources) {
+  <span class="hi">this.webApplicationType = WebApplicationType.deduceFromClasspath();  <span class="cm">// SERVLET / REACTIVE / NONE</span></span>
+  this.bootstrapRegistryInitializers = getSpringFactoriesInstances(BootstrapRegistryInitializer.class);
+  setInitializers(getSpringFactoriesInstances(ApplicationContextInitializer.class));
+  setListeners(getSpringFactoriesInstances(ApplicationListener.class));
+  this.mainApplicationClass = deduceMainApplicationClass(); <span class="cm">// stack trace se main() dhoondta hai</span>
+}
+
+<span class="cm">// run() — yahan actual kaam hota hai</span>
+<span class="kw">public</span> ConfigurableApplicationContext run(String... args) {
+  DefaultBootstrapContext bootstrapContext = createBootstrapContext();
+  SpringApplicationRunListeners listeners = getRunListeners(args);
+  listeners.starting(...);                       <span class="cm">// 1. ApplicationStartingEvent</span>
+  ConfigurableEnvironment env = prepareEnvironment(listeners, ...);  <span class="cm">// 2. properties/profile resolve</span>
+  Banner printedBanner = printBanner(env);       <span class="cm">// 3. banner.txt</span>
+  context = createApplicationContext();          <span class="cm">// 4. AnnotationConfigServletWebServerApplicationContext</span>
+  prepareContext(..., context, ...);             <span class="cm">// 5. initializers + primary source register</span>
+  <span class="hi">refreshContext(context);                       <span class="cm">// 6. ★ ASLI KAAM — beans + Tomcat yahan bante hain</span></span>
+  afterRefresh(context, args);
+  listeners.started(context, timeTaken);         <span class="cm">// 7. ApplicationStartedEvent</span>
+  <span class="hi">callRunners(context, args);                    <span class="cm">// 8. CommandLineRunner / ApplicationRunner</span></span>
+  listeners.ready(context, timeTaken);           <span class="cm">// 9. ApplicationReadyEvent</span>
+  <span class="kw">return</span> context;
+}</pre>
+
+        <div class="note"><span class="lbl">Tomcat exactly kahan start hota hai</span>
+        <p><code>refreshContext()</code> → <code>AbstractApplicationContext.refresh()</code> → <code>onRefresh()</code>.
+        <code>ServletWebServerApplicationContext.onRefresh()</code> override karke <code>createWebServer()</code> call karta hai —
+        wahan Tomcat object banta aur start hota hai. Lekin <b>connector traffic accept karna</b>
+        <code>finishRefresh()</code> mein shuru karta hai. Isliye startup fail ho toh bhi port kabhi-kabhi bind nahi hota.</p></div>
+
+        <h3>Yahan apna logic kaise ghusayein</h3>
+        <p>Startup ke har phase pe ek extension point hai. Order yaad rakho — <b>EnvironmentPostProcessor sabse jaldi,
+        ApplicationRunner sabse late.</b></p>
+
+        <div class="filelabel">Aapka code · <b>src/main/java/.../bootstrap/</b></div>
+<pre><span class="cm">// 1. Sabse pehle chalti hai — environment ready hone se pehle properties inject karna</span>
+<span class="kw">public class</span> TenantEnvironmentPostProcessor <span class="kw">implements</span> EnvironmentPostProcessor {
+  <span class="an">@Override</span>
+  <span class="kw">public void</span> <span class="fn">postProcessEnvironment</span>(ConfigurableEnvironment env, SpringApplication app) {
+    Map&lt;String, Object&gt; resolved = <span class="fn">resolveTenantPropertiesFromVault</span>(env);
+    env.getPropertySources().addFirst(<span class="kw">new</span> MapPropertySource(<span class="st">"tenant-vault"</span>, resolved));
+  }
+  <span class="kw">private</span> Map&lt;String, Object&gt; <span class="fn">resolveTenantPropertiesFromVault</span>(ConfigurableEnvironment env) { ... }
+}
+
+<span class="cm">// 2. Context bana lekin refresh nahi hua — bean definitions chhed sakte ho</span>
+<span class="kw">public class</span> FeatureFlagContextInitializer
+       <span class="kw">implements</span> ApplicationContextInitializer&lt;ConfigurableApplicationContext&gt; {
+  <span class="an">@Override</span>
+  <span class="kw">public void</span> <span class="fn">initialize</span>(ConfigurableApplicationContext ctx) {
+    ctx.getBeanFactory().registerSingleton(<span class="st">"featureFlagSnapshot"</span>, <span class="fn">loadFlagSnapshot</span>());
+  }
+  <span class="kw">private</span> FeatureFlagSnapshot <span class="fn">loadFlagSnapshot</span>() { ... }
+}
+
+<span class="cm">// 3. Sab ready — cache warm karna, health ping bhejna</span>
+<span class="an">@Component</span>
+<span class="kw">public class</span> CacheWarmupRunner <span class="kw">implements</span> ApplicationRunner {
+  <span class="kw">private final</span> PricingCache pricingCache;
+  <span class="an">@Override</span>
+  <span class="kw">public void</span> <span class="fn">run</span>(ApplicationArguments args) {
+    <span class="kw">if</span> (args.containsOption(<span class="st">"skip-warmup"</span>)) <span class="kw">return</span>;
+    pricingCache.<span class="fn">preloadActiveSkuPrices</span>();
+  }
+}</pre>
+
+        <div class="filelabel">Registration · <b>src/main/resources/META-INF/spring.factories</b></div>
+<pre><span class="cm"># EnvironmentPostProcessor aur ApplicationContextInitializer ABHI BHI spring.factories se</span>
+<span class="cm"># aate hain. Sirf AUTO-CONFIGURATION move hui hai AutoConfiguration.imports mein.</span>
+org.springframework.boot.env.EnvironmentPostProcessor=\
+  com.acme.bootstrap.TenantEnvironmentPostProcessor
+
+org.springframework.context.ApplicationContextInitializer=\
+  com.acme.bootstrap.FeatureFlagContextInitializer</pre>
+
+        <div class="note trade"><span class="lbl">Tradeoff — kab kaunsa use karein</span>
+        <p><b>ApplicationRunner use karo</b> jab kaam ke liye poora context chahiye (DB, cache, repositories).
+        99% cases yahi hai.</p>
+        <p><b>EnvironmentPostProcessor tabhi</b> jab property khud <i>bean creation ko affect</i> karti ho —
+        jaise datasource URL Vault se aa rahi ho. Iske andar bean inject nahi kar sakte, sirf Environment milta hai.</p>
+        <p><b>Ignore karo</b> <code>ApplicationContextInitializer</code> agar aap sirf startup pe kuch chalana chahte ho —
+        wo over-engineering hai, <code>@EventListener(ApplicationReadyEvent.class)</code> kaafi hai.</p></div>
+      </div>
+    </article>
+
+    <!-- TOPIC 2 -->
+    <article class="topic">
+      <div class="pcol"><div class="pcard">
+        <div class="pnum">STAGE 02 · PROBLEM</div>
+        <h3>refresh() ke 12 steps kya hain, aur proxy kis step pe lagta hai?</h3>
+        <p class="pq">Ye wo jagah hai jahan log atak jaate hain: <em>BeanFactoryPostProcessor aur BeanPostProcessor
+        mein difference kya hai?</em> Aur circular dependency exactly kahan resolve hoti hai?</p>
+        <div class="asked">Poocha jaata hai: 3+ yrs · core Spring round</div>
+      </div></div>
+      <div class="scol">
+        <p><code>AbstractApplicationContext.refresh()</code> ek <code>synchronized</code> template method hai.
+        Iske steps fixed hain — Spring 3 se aaj tak lagbhag same.</p>
+
+        <div class="filelabel"><b>spring-context.jar</b> → <code>org.springframework.context.support.AbstractApplicationContext</code></div>
+<pre><span class="kw">public void</span> <span class="fn">refresh</span>() <span class="kw">throws</span> BeansException {
+  prepareRefresh();                          <span class="cm">// 1. startupDate, placeholder validate</span>
+  beanFactory = obtainFreshBeanFactory();    <span class="cm">// 2. DefaultListableBeanFactory ready</span>
+  prepareBeanFactory(beanFactory);           <span class="cm">// 3. ClassLoader, Aware ignore-list, env beans</span>
+  postProcessBeanFactory(beanFactory);       <span class="cm">// 4. subclass hook (web: scopes register)</span>
+  <span class="hi">invokeBeanFactoryPostProcessors(bf);       <span class="cm">// 5. ★ @Configuration parse + autoconfig import</span></span>
+  <span class="hi">registerBeanPostProcessors(beanFactory);   <span class="cm">// 6. ★ AOP/Tx post-processors register (chalte nahi)</span></span>
+  initMessageSource();                       <span class="cm">// 7. i18n</span>
+  initApplicationEventMulticaster();         <span class="cm">// 8. event bus</span>
+  <span class="hi">onRefresh();                               <span class="cm">// 9. ★ Tomcat/Netty banta hai</span></span>
+  registerListeners();                       <span class="cm">// 10. ApplicationListener beans attach</span>
+  <span class="hi">finishBeanFactoryInitialization(bf);       <span class="cm">// 11. ★ SAARE singleton beans yahan bante hain</span></span>
+  finishRefresh();                           <span class="cm">// 12. Lifecycle start, web server accept, ContextRefreshedEvent</span>
+}</pre>
+
+        <div class="note"><span class="lbl">BFPP vs BPP — one-line difference</span>
+        <p><b>BeanFactoryPostProcessor (step 5)</b> — bean ki <i>recipe</i> (BeanDefinition) badalta hai. Object abhi bana hi nahi.
+        Example: <code>ConfigurationClassPostProcessor</code>, <code>PropertySourcesPlaceholderConfigurer</code>.</p>
+        <p><b>BeanPostProcessor (step 6 pe register, step 11 pe chalta)</b> — bana hua <i>object</i> badalta ya replace karta hai.
+        Example: <code>AnnotationAwareAspectJAutoProxyCreator</code> — yahi aapke <code>@Transactional</code> bean ko proxy se badalta hai.</p></div>
+
+        <h4>Bean ka poora lifecycle (step 11 ke andar)</h4>
+        <div class="rail">
+          <div class="st s"><span class="dot"></span><div class="body"><div class="t">1 · Instantiate</div><div class="d">Constructor call. Constructor injection yahin hoti hai.</div><div class="cls">AbstractAutowireCapableBeanFactory#createBeanInstance</div></div></div>
+          <div class="st s"><span class="dot"></span><div class="body"><div class="t">2 · Early reference expose</div><div class="d">Adhoora object <code>singletonFactories</code> (level-3 cache) mein daala jaata hai — yahi circular dependency ka fix hai.</div><div class="cls">DefaultSingletonBeanRegistry#addSingletonFactory</div></div></div>
+          <div class="st s"><span class="dot"></span><div class="body"><div class="t">3 · Populate</div><div class="d">Field aur setter injection — <code>@Autowired</code>, <code>@Value</code>.</div><div class="cls">AutowiredAnnotationBeanPostProcessor</div></div></div>
+          <div class="st s"><span class="dot"></span><div class="body"><div class="t">4 · Aware callbacks</div><div class="d">BeanNameAware, BeanFactoryAware, ApplicationContextAware.</div><div class="cls">invokeAwareMethods</div></div></div>
+          <div class="st s"><span class="dot"></span><div class="body"><div class="t">5 · BPP.postProcessBeforeInitialization</div><div class="d">Yahan <code>@PostConstruct</code> chalta hai (CommonAnnotationBeanPostProcessor ke through).</div><div class="cls">applyBeanPostProcessorsBeforeInitialization</div></div></div>
+          <div class="st s"><span class="dot"></span><div class="body"><div class="t">6 · InitializingBean + init-method</div><div class="d"><code>afterPropertiesSet()</code> phir custom init.</div><div class="cls">invokeInitMethods</div></div></div>
+          <div class="st s"><span class="dot"></span><div class="body"><div class="t">7 · BPP.postProcessAfterInitialization ★</div><div class="d"><b>Yahan proxy banta hai.</b> Aapka <code>OrderService</code> ab <code>OrderService$$SpringCGLIB$$0</code> ban chuka hai.</div><div class="cls">AbstractAutoProxyCreator#wrapIfNecessary</div></div></div>
+          <div class="st o"><span class="dot"></span><div class="body"><div class="t">8 · Shutdown</div><div class="d"><code>@PreDestroy</code> → <code>DisposableBean.destroy()</code> → custom destroy-method.</div><div class="cls">DisposableBeanAdapter</div></div></div>
+        </div>
+
+        <div class="filelabel">Apna BeanPostProcessor · <b>audit ke liye har repository ko wrap karna</b></div>
+<pre><span class="an">@Component</span>
+<span class="kw">public class</span> SlowQueryLoggingBeanPostProcessor <span class="kw">implements</span> BeanPostProcessor {
+
+  <span class="kw">private static final long</span> SLOW_THRESHOLD_MS = 200;
+
+  <span class="an">@Override</span>
+  <span class="kw">public</span> Object <span class="fn">postProcessAfterInitialization</span>(Object bean, String beanName) {
+    <span class="kw">if</span> (!<span class="fn">isJpaRepository</span>(bean)) <span class="kw">return</span> bean;
+
+    <span class="kw">return</span> Proxy.newProxyInstance(
+        bean.getClass().getClassLoader(),
+        bean.getClass().getInterfaces(),
+        (proxy, method, args) -&gt; <span class="fn">invokeAndLogIfSlow</span>(bean, beanName, method, args));
+  }
+
+  <span class="kw">private</span> Object <span class="fn">invokeAndLogIfSlow</span>(Object target, String beanName,
+                                     Method method, Object[] args) <span class="kw">throws</span> Throwable {
+    <span class="kw">long</span> startNanos = System.nanoTime();
+    <span class="kw">try</span> {
+      <span class="kw">return</span> method.invoke(target, args);
+    } <span class="kw">finally</span> {
+      <span class="kw">long</span> elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
+      <span class="kw">if</span> (elapsedMs &gt; SLOW_THRESHOLD_MS) {
+        log.warn(<span class="st">"slow-repo bean={} method={} tookMs={}"</span>, beanName, method.getName(), elapsedMs);
+      }
+    }
+  }
+
+  <span class="kw">private boolean</span> <span class="fn">isJpaRepository</span>(Object bean) {
+    <span class="kw">return</span> bean <span class="kw">instanceof</span> Repository&lt;?, ?&gt;;
+  }
+}</pre>
+
+        <div class="note gotcha"><span class="lbl">Gotcha — BeanPostProcessor khud jaldi banta hai</span>
+        <p>BPP step 6 pe instantiate hota hai, baaki beans se <b>pehle</b>. Isliye BPP ke andar
+        <code>@Autowired DataSource</code> mat karo — wo DataSource ko time se pehle force karega,
+        aur uspe koi proxy/AOP apply nahi hoga. Log mein dikhega:
+        <code>is not eligible for getting processed by all BeanPostProcessors</code>.
+        Fix: <code>ObjectProvider&lt;DataSource&gt;</code> ya <code>@Lazy</code> use karo.</p></div>
+      </div>
+    </article>
+
+    <!-- TOPIC 3 -->
+    <article class="topic">
+      <div class="pcol"><div class="pcard">
+        <div class="pnum">STAGE 03 · PROBLEM</div>
+        <h3>Auto-configuration kaam kaise karta hai — aur kaise pata chale kya load hua?</h3>
+        <p class="pq"><em>"Maine sirf dependency daali, DataSource kahan se aa gaya?"</em>
+        Aur ulta sawaal: <em>"mera bean hai toh Boot ka default kyun nahi bana?"</em></p>
+        <div class="asked">Poocha jaata hai: 2+ yrs · lagbhag har Boot interview</div>
+      </div></div>
+      <div class="scol">
+        <p><code>@SpringBootApplication</code> teen annotations ka bundle hai:
+        <code>@SpringBootConfiguration</code> + <code>@ComponentScan</code> + <code>@EnableAutoConfiguration</code>.
+        Teesra sabse important hai — wo <code>AutoConfigurationImportSelector</code> ko import karta hai.</p>
+
+        <h4>Chain</h4>
+        <div class="rail">
+          <div class="st s"><span class="dot"></span><div class="body"><div class="t">@EnableAutoConfiguration → @Import(AutoConfigurationImportSelector.class)</div><div class="d">Ye ek <b>DeferredImportSelector</b> hai — matlab aapke saare <code>@Configuration</code> parse hone ke <i>baad</i> chalta hai. Isi wajah se <code>@ConditionalOnMissingBean</code> kaam karta hai.</div></div></div>
+          <div class="st s"><span class="dot"></span><div class="body"><div class="t">Candidate list padhi jaati hai</div><div class="d">File: <code>META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports</code> — ek line, ek class name.</div><div class="cls">ImportCandidates#load</div></div></div>
+          <div class="st s"><span class="dot"></span><div class="body"><div class="t">Filter — 3 conditions fast-path pe</div><div class="d"><code>OnClassCondition</code> (classpath pe class hai?), <code>OnBeanCondition</code> (bean already hai?), <code>OnWebApplicationCondition</code>. Baaki <code>@Conditional</code> baad mein.</div><div class="cls">AutoConfigurationImportFilter</div></div></div>
+          <div class="st s"><span class="dot"></span><div class="body"><div class="t">Order lagta hai</div><div class="d"><code>@AutoConfigureBefore</code> / <code>@AutoConfigureAfter</code> / <code>@AutoConfigureOrder</code>.</div><div class="cls">AutoConfigurationSorter</div></div></div>
+          <div class="st s"><span class="dot"></span><div class="body"><div class="t">Surviving classes bean definitions ban jaate hain</div><div class="d">Ab normal <code>@Bean</code> methods ki tarah register ho gaye.</div></div></div>
+        </div>
+
+        <div class="filelabel">Kya load hua — ye chalao</div>
+<pre><span class="cm"># Terminal: CONDITIONS EVALUATION REPORT print karega</span>
+java -jar app.jar --debug
+
+<span class="cm"># Ya properties mein</span>
+debug=true
+
+<span class="cm"># Actuator se (best — searchable JSON)</span>
+management.endpoints.web.exposure.include=conditions,beans,configprops
+<span class="cm"># GET /actuator/conditions   -&gt; positiveMatches / negativeMatches</span>
+<span class="cm"># GET /actuator/beans        -&gt; har bean ka type + dependencies</span></pre>
+
+        <div class="note"><span class="lbl">Output padhna seekho</span>
+        <p><b>Positive matches</b> — kyun load hua. <b>Negative matches</b> — kyun nahi hua
+        (<code>@ConditionalOnClass did not find required class</code>).
+        <b>Exclusions</b> — kisne mana kiya. Ye report 90% "mera config kyun nahi chala" ka jawaab de deti hai.</p></div>
+
+        <h3>Apna starter likhna</h3>
+        <div class="filelabel">Aapka library module · <b>acme-ratelimit-spring-boot-starter</b></div>
+<pre><span class="an">@AutoConfiguration</span>                                  <span class="cm">// Boot 2.7+ : @Configuration ki jagah</span>
+<span class="an">@ConditionalOnClass</span>(RedisTemplate.<span class="kw">class</span>)              <span class="cm">// classpath check</span>
+<span class="an">@ConditionalOnProperty</span>(prefix = <span class="st">"acme.ratelimit"</span>, name = <span class="st">"enabled"</span>, havingValue = <span class="st">"true"</span>,
+                       matchIfMissing = <span class="kw">true</span>)
+<span class="an">@EnableConfigurationProperties</span>(RateLimitProperties.<span class="kw">class</span>)
+<span class="an">@AutoConfigureAfter</span>(RedisAutoConfiguration.<span class="kw">class</span>)      <span class="cm">// Redis pehle ban jaaye</span>
+<span class="kw">public class</span> RateLimitAutoConfiguration {
+
+  <span class="an">@Bean</span>
+  <span class="an">@ConditionalOnMissingBean</span>                          <span class="cm">// ★ user ka bean hamesha jeetega</span>
+  <span class="kw">public</span> RateLimiter <span class="fn">redisSlidingWindowRateLimiter</span>(RedisTemplate&lt;String, String&gt; redis,
+                                                  RateLimitProperties props) {
+    <span class="kw">return new</span> RedisSlidingWindowRateLimiter(redis, props.getPermitsPerMinute());
+  }
+
+  <span class="an">@Bean</span>
+  <span class="an">@ConditionalOnMissingBean</span>
+  <span class="kw">public</span> FilterRegistrationBean&lt;RateLimitFilter&gt; <span class="fn">rateLimitFilterRegistration</span>(RateLimiter limiter) {
+    FilterRegistrationBean&lt;RateLimitFilter&gt; reg = <span class="kw">new</span> FilterRegistrationBean&lt;&gt;();
+    reg.setFilter(<span class="kw">new</span> RateLimitFilter(limiter));
+    reg.setOrder(Ordered.HIGHEST_PRECEDENCE + 30);
+    reg.addUrlPatterns(<span class="st">"/api/*"</span>);
+    <span class="kw">return</span> reg;
+  }
+}</pre>
+
+        <div class="filelabel">Registration file · <b>Boot 2.7+ / 3.x / 4.x</b></div>
+<pre><span class="cm"># src/main/resources/META-INF/spring/</span>
+<span class="cm">#   org.springframework.boot.autoconfigure.AutoConfiguration.imports</span>
+com.acme.ratelimit.RateLimitAutoConfiguration
+
+<span class="cm"># ---- Boot 2.6 aur pehle (ab kaam nahi karta 3.x pe) ----</span>
+<span class="cm"># META-INF/spring.factories</span>
+<span class="cm"># org.springframework.boot.autoconfigure.EnableAutoConfiguration=\</span>
+<span class="cm">#   com.acme.ratelimit.RateLimitAutoConfiguration</span></pre>
+
+        <div class="note gotcha"><span class="lbl">Gotcha — @EnableWebMvc Boot mein lagbhag hamesha galti hai</span>
+        <p><code>@EnableWebMvc</code> lagate hi <code>WebMvcAutoConfiguration</code> band ho jaata hai
+        (uspe <code>@ConditionalOnMissingBean(WebMvcConfigurationSupport.class)</code> laga hai).
+        Matlab Boot ke saare defaults chale gaye — static resource handling, message converters ki
+        configuration, error handling, content negotiation.</p>
+        <p>Symptom: "mera <code>/static</code> folder ka CSS 404 de raha hai" ya "JSON serialize hi nahi ho raha".
+        <b>Fix:</b> <code>@EnableWebMvc</code> hatao aur sirf <code>WebMvcConfigurer</code> implement karo —
+        wo Boot ke defaults ke <i>upar</i> add karta hai, unhe replace nahi karta.</p></div>
+
+        <div class="note trade"><span class="lbl">Tradeoff — starter banayein ya sirf @Configuration?</span>
+        <p><b>Auto-config banao</b> jab library ko 3+ teams consume karengi aur zero-config chahiye.
+        Cost: conditions test karna padta hai (<code>ApplicationContextRunner</code> use karo), aur debugging ek layer gehri ho jaati hai.</p>
+        <p><b>Ignore karo</b> single application ke andar. Wahan plain <code>@Configuration</code> zyada readable hai —
+        koi condition magic nahi, jo likha hai wahi chalega. Auto-config ka poora point <i>redistribution</i> hai, organisation nahi.</p></div>
+      </div>
+    </article>
+  </div>
+</section>
+
+<!-- ===================== PART B : REQUEST PATH ===================== -->
+<section class="sec" id="request">
+  <div class="wrap">
+    <div class="sechead">
+      <div class="eyebrow">// part B — request andar aa rahi hai</div>
+      <h2>Socket se Filter tak</h2>
+      <p>Spring ka code shuru hone se pehle Tomcat ka apna poora architecture chal chuka hota hai.
+      Ye hissa log skip kar dete hain — aur phir "thread pool exhausted" production issue debug nahi kar paate.</p>
+    </div>
+
+    <!-- TOPIC 4 -->
+    <article class="topic">
+      <div class="pcol"><div class="pcard">
+        <div class="pnum">STAGE 04 · PROBLEM</div>
+        <h3>Request ko thread milta kahan se hai? <code>http-nio-8080-exec-7</code> kaun banata hai?</h3>
+        <p class="pq"><em>"200 concurrent users aaye toh kya hoga?"</em> — is sawaal ka jawaab Spring mein nahi,
+        Tomcat ke connector mein hai.</p>
+        <div class="asked">Poocha jaata hai: 4+ yrs · performance / SRE round</div>
+      </div></div>
+      <div class="scol">
+        <p>Tomcat NIO connector mein <b>teen alag role</b> hote hain. Ek hi thread sab kuch nahi karta —
+        yahi NIO ka poora point hai.</p>
+
+        <div class="rail">
+          <div class="st"><span class="dot"></span><div class="body"><div class="t">Acceptor thread (1 per connector)</div><div class="d">Sirf <code>serverSocket.accept()</code> karta hai. Naya socket mila → Poller ki queue mein daal diya. Kabhi data nahi padhta.</div><div class="cls">org.apache.tomcat.util.net.Acceptor</div></div></div>
+          <div class="st"><span class="dot"></span><div class="body"><div class="t">Poller thread (default 1–2)</div><div class="d"><code>Selector.select()</code> pe baitha hai. Hazaron idle connections yahi hold karta hai — bina thread kharch kiye. Data aaya → <code>SocketProcessor</code> banakar worker pool ko de diya.</div><div class="cls">NioEndpoint$Poller</div></div></div>
+          <div class="st"><span class="dot"></span><div class="body"><div class="t">Worker thread — <code>http-nio-8080-exec-N</code></div><div class="d"><b>Yahan se aapka poora request synchronous chalta hai.</b> HTTP parse → CoyoteAdapter → Mapper → valve pipeline → filter chain → DispatcherServlet → aapka controller → response. Sab isi ek thread pe.</div><div class="cls">NioEndpoint$SocketProcessor → Http11Processor → CoyoteAdapter#service</div></div></div>
+          <div class="st"><span class="dot"></span><div class="body"><div class="t">Container pipeline (valves)</div><div class="d">StandardEngineValve → StandardHostValve → <b>ErrorReportValve</b> → StandardContextValve → StandardWrapperValve. Yahi last wala filter chain banata hai.</div><div class="cls">StandardWrapperValve#invoke</div></div></div>
+        </div>
+
+        <div class="filelabel">Tuning · <b>application.yml</b></div>
+<pre>server:
+  tomcat:
+    threads:
+      max: 200            <span class="cm"># worker pool ceiling — ek time pe 200 request "in flight"</span>
+      min-spare: 10
+    accept-count: 100     <span class="cm"># OS backlog queue — pool bhara toh yahan wait karenge</span>
+    max-connections: 8192 <span class="cm"># Poller kitne socket hold kar sakta hai (keep-alive included)</span>
+    connection-timeout: 20s
+    max-keep-alive-requests: 100</pre>
+
+        <div class="note gotcha"><span class="lbl">Production maths — ye number samjho</span>
+        <p><code>max-connections: 8192</code> matlab 8192 log <b>connected</b> ho sakte hain.
+        <code>threads.max: 200</code> matlab sirf <b>200</b> ek saath <i>kaam</i> karwa sakte hain.
+        Baaki 7992 Poller pe park hain — free.</p>
+        <p>Agar har request 500 ms DB pe blocked hai → throughput = 200 / 0.5s = <b>400 req/sec</b>. Bas.
+        CPU idle padi rahegi. Isliye slow downstream call pe thread block karna sabse mehnga mistake hai.</p></div>
+
+        <div class="note trade"><span class="lbl">Tradeoff — thread pool badhayein ya async karein?</span>
+        <p><b>threads.max badhao</b> tab jab kaam I/O-bound ho aur thread stack memory affordable ho (~1 MB/thread → 800 threads ≈ 800 MB).
+        Simple, zero code change. 500–800 tak theek hai.</p>
+        <p><b>Virtual threads on karo</b> (<code>spring.threads.virtual.enabled=true</code>, Boot 3.2+, Java 21+)
+        agar blocking I/O hi bottleneck hai. Code same rehta hai, blocking sasta ho jaata hai.
+        <span style="color:var(--danger)">Par dhyaan do:</span> <code>synchronized</code> block carrier thread pin kar deta hai,
+        aur thread-pool-based rate limiting ka natural backpressure khatam ho jaata hai.</p>
+        <p><b>WebFlux pe mat jao</b> sirf throughput ke liye — poora stack reactive karna padega
+        (driver, security, tracing sab). Ignore karo jab tak aap 10k+ concurrent connections ya streaming na kar rahe ho.</p></div>
+      </div>
+    </article>
+
+    <!-- TOPIC 5 -->
+    <article class="topic">
+      <div class="pcol"><div class="pcard">
+        <div class="pnum">STAGE 05 · PROBLEM</div>
+        <h3>Filter, Interceptor aur AOP — teeno "beech mein" hain. Kaun pehle chalega?</h3>
+        <p class="pq">Classic question: <em>"Filter aur Interceptor mein difference?"</em>
+        Sirf "Filter servlet-level hai" bolna 2-yr answer hai. Asli answer <b>"kya dikhta hai aur kya control milta hai"</b> hai.</p>
+        <div class="asked">Poocha jaata hai: har level · sabse common question</div>
+      </div></div>
+      <div class="scol">
+        <p>Order hamesha ye hai — bahar se andar:</p>
+<pre>Tomcat valves
+ └─ <span class="an">Filter</span> (jakarta.servlet.Filter)           ← ServletRequest, koi Spring context nahi
+     └─ <span class="an">DispatcherServlet</span>
+         └─ <span class="an">HandlerInterceptor</span>                  ← HandlerMethod pata hai, ModelAndView milta hai
+             └─ <span class="an">ArgumentResolver</span> + <span class="an">@Valid</span>
+                 └─ <span class="an">AOP advice</span> (@Around, @Transactional)  ← typed args + return value
+                     └─ <span class="an">your method body</span></pre>
+
+        <div class="tw"><table>
+          <tr><th style="width:15%">Layer</th><th>Kya dikhta hai</th><th>Kya nahi kar sakta</th><th>Isi ke liye use karo</th></tr>
+          <tr>
+            <td><b>Filter</b></td>
+            <td>Raw <code>HttpServletRequest/Response</code>, headers, body stream, URL. Request ko <b>wrap</b> kar sakta hai.</td>
+            <td>Handler method kaunsa hai — pata nahi. <code>@Autowired</code> tabhi jab Spring bean ho.</td>
+            <td>Auth, CORS, rate limit, request/response logging, body caching, MDC/correlation-id, compression</td>
+          </tr>
+          <tr>
+            <td><b>Interceptor</b></td>
+            <td>Sab kuch + <code>HandlerMethod</code> object → controller class, method, <b>annotations</b> padh sakte ho.</td>
+            <td>Request body nahi badal sakta (wo abhi tak parse hi nahi hua).</td>
+            <td>Method-level auth, per-endpoint metrics, tenant resolve, locale, timing per handler</td>
+          </tr>
+          <tr>
+            <td><b>AOP</b></td>
+            <td><b>Typed method arguments</b> aur <b>return value</b>. HTTP ka koi concept nahi.</td>
+            <td>HTTP status set nahi kar sakta (bina exception throw kiye). Self-invocation pe nahi chalta.</td>
+            <td>Transaction, retry, cache, business audit, service-layer logging</td>
+          </tr>
+          <tr>
+            <td><b>@ControllerAdvice</b></td>
+            <td>Exception + return value (<code>ResponseBodyAdvice</code>), <code>@InitBinder</code>, <code>@ModelAttribute</code>.</td>
+            <td>Pre-processing nahi kar sakta.</td>
+            <td>Global error handling, response envelope, validation error shaping</td>
+          </tr>
+        </table></div>
+
+        <div class="filelabel">Filter · <b>correlation id + MDC, OncePerRequestFilter se</b></div>
+<pre><span class="an">@Component</span>
+<span class="kw">public class</span> CorrelationIdFilter <span class="kw">extends</span> OncePerRequestFilter {
+
+  <span class="kw">private static final</span> String HEADER = <span class="st">"X-Correlation-Id"</span>;
+  <span class="kw">private static final</span> String MDC_KEY = <span class="st">"correlationId"</span>;
+
+  <span class="an">@Override</span>
+  <span class="kw">protected void</span> <span class="fn">doFilterInternal</span>(HttpServletRequest request,
+                                  HttpServletResponse response,
+                                  FilterChain chain) <span class="kw">throws</span> ServletException, IOException {
+    String correlationId = <span class="fn">resolveOrGenerateCorrelationId</span>(request);
+    MDC.put(MDC_KEY, correlationId);
+    response.setHeader(HEADER, correlationId);
+    <span class="kw">try</span> {
+      <span class="hi">chain.doFilter(request, response);   <span class="cm">// ★ isse aage ka POORA stack andar hai</span></span>
+    } <span class="kw">finally</span> {
+      <span class="hi">MDC.remove(MDC_KEY);   <span class="cm">// ★ ThreadLocal saaf karo — thread pool mein reuse hoga</span></span>
+    }
+  }
+
+  <span class="kw">private</span> String <span class="fn">resolveOrGenerateCorrelationId</span>(HttpServletRequest request) {
+    String incoming = request.getHeader(HEADER);
+    <span class="kw">return</span> StringUtils.hasText(incoming) ? incoming : UUID.randomUUID().toString();
+  }
+}</pre>
+
+        <div class="filelabel">Filter ka order control · <b>@Component se order nahi milta, ye karo</b></div>
+<pre><span class="an">@Configuration</span>
+<span class="kw">public class</span> FilterOrderConfig {
+
+  <span class="an">@Bean</span>
+  <span class="kw">public</span> FilterRegistrationBean&lt;CorrelationIdFilter&gt; <span class="fn">correlationIdFilterRegistration</span>() {
+    FilterRegistrationBean&lt;CorrelationIdFilter&gt; reg = <span class="kw">new</span> FilterRegistrationBean&lt;&gt;();
+    reg.setFilter(<span class="kw">new</span> CorrelationIdFilter());
+    <span class="hi">reg.setOrder(Ordered.HIGHEST_PRECEDENCE);  <span class="cm">// sabse bahar — security se bhi pehle log chahiye</span></span>
+    reg.addUrlPatterns(<span class="st">"/*"</span>);
+    <span class="kw">return</span> reg;
+  }
+}
+<span class="cm">// Reference orders: CharacterEncodingFilter = HIGHEST+1, springSecurityFilterChain = -100,
+// RequestContextFilter = HIGHEST+5. Apne filters -110 ya 0..100 range mein rakho.</span></pre>
+
+        <div class="note gotcha"><span class="lbl">Gotcha — filter do baar chal jaata hai</span>
+        <p>Plain <code>Filter</code> forward, include aur <code>/error</code> dispatch pe <b>dobara</b> chalta hai.
+        Isliye hamesha <code>OncePerRequestFilter</code> extend karo — wo request attribute laga ke duplicate rokta hai.
+        Agar error dispatch pe bhi chalana ho toh <code>shouldNotFilterErrorDispatch()</code> override karke <code>false</code> return karo.</p></div>
+
+        <div class="filelabel">Interceptor · <b>annotation padh ke method-level check</b></div>
+<pre><span class="an">@Component</span>
+<span class="kw">public class</span> ApiQuotaInterceptor <span class="kw">implements</span> HandlerInterceptor {
+
+  <span class="kw">private final</span> QuotaService quotaService;
+
+  <span class="an">@Override</span>
+  <span class="kw">public boolean</span> <span class="fn">preHandle</span>(HttpServletRequest req, HttpServletResponse res, Object handler) {
+    <span class="kw">if</span> (!(handler <span class="kw">instanceof</span> HandlerMethod handlerMethod)) <span class="kw">return true</span>; <span class="cm">// static resource</span>
+
+    <span class="hi">Quota quota = handlerMethod.getMethodAnnotation(Quota.<span class="kw">class</span>);  <span class="cm">// ★ Filter ye NAHI kar sakta</span></span>
+    <span class="kw">if</span> (quota == <span class="kw">null</span>) <span class="kw">return true</span>;
+
+    <span class="kw">boolean</span> allowed = quotaService.<span class="fn">tryConsume</span>(<span class="fn">currentTenantId</span>(), quota.cost());
+    <span class="kw">if</span> (!allowed) {
+      res.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
+      <span class="kw">return false</span>;  <span class="cm">// ★ false = chain rukega, afterCompletion phir bhi chalega</span>
+    }
+    req.setAttribute(<span class="st">"quota.startNanos"</span>, System.nanoTime());
+    <span class="kw">return true</span>;
+  }
+
+  <span class="an">@Override</span>
+  <span class="kw">public void</span> <span class="fn">afterCompletion</span>(HttpServletRequest req, HttpServletResponse res,
+                              Object handler, Exception ex) {
+    <span class="fn">recordLatencyMetric</span>(req, res, ex);  <span class="cm">// exception aaye ya na aaye — ye hamesha chalega</span>
+  }
+
+  <span class="kw">private void</span> <span class="fn">recordLatencyMetric</span>(HttpServletRequest req, HttpServletResponse res, Exception ex) { ... }
+  <span class="kw">private</span> String <span class="fn">currentTenantId</span>() { ... }
+}
+
+<span class="an">@Configuration</span>
+<span class="kw">public class</span> WebMvcConfig <span class="kw">implements</span> WebMvcConfigurer {
+  <span class="kw">private final</span> ApiQuotaInterceptor apiQuotaInterceptor;
+
+  <span class="an">@Override</span>
+  <span class="kw">public void</span> <span class="fn">addInterceptors</span>(InterceptorRegistry registry) {
+    registry.addInterceptor(apiQuotaInterceptor)
+            .addPathPatterns(<span class="st">"/api/**"</span>)
+            .excludePathPatterns(<span class="st">"/api/health"</span>, <span class="st">"/api/public/**"</span>)
+            .order(10);
+  }
+}</pre>
+
+        <div class="note trade"><span class="lbl">Decision rule — ek line mein</span>
+        <p>Request <b>body ya headers</b> chhedne hain → <b>Filter</b>.<br>
+        <b>Kaunsa endpoint hai</b> uspe decision lena hai → <b>Interceptor</b>.<br>
+        <b>Business method</b> ke around kuch karna hai → <b>AOP</b>.<br>
+        <b>Response shape ya error</b> badalna hai → <b>@ControllerAdvice</b>.</p>
+        <p><b>Ignore karo:</b> Interceptor mat use karo authentication ke liye agar Spring Security already hai —
+        do jagah auth logic rakhna sabse common production bug hai. Security ko filter chain pe hi rehne do.</p></div>
+      </div>
+    </article>
+  </div>
+</section>
+
+<!-- ===================== doDispatch ===================== -->
+<section class="sec" id="dispatch">
+  <div class="wrap">
+    <div class="sechead">
+      <div class="eyebrow">// part B — Spring MVC ka dil</div>
+      <h2>DispatcherServlet.doDispatch() — line by line</h2>
+      <p>Agar sirf ek method yaad rakhna ho toh yahi. ~90 lines mein poora Spring MVC hai.
+      Breakpoint lagane ki sabse acchi jagah bhi yahi hai.</p>
+    </div>
+
+    <!-- TOPIC 6 -->
+    <article class="topic">
+      <div class="pcol"><div class="pcard">
+        <div class="pnum">STAGE 06 · PROBLEM</div>
+        <h3>URL se controller method tak mapping kaise hoti hai — runtime pe ya startup pe?</h3>
+        <p class="pq"><em>"Har request pe Spring saare controllers scan karta hai kya?"</em>
+        Nahi. Aur ye "nahi" hi asli answer hai.</p>
+        <div class="asked">Poocha jaata hai: 3+ yrs · MVC deep-dive</div>
+      </div></div>
+      <div class="scol">
+        <p>Mapping <b>startup pe ek baar</b> banti hai. <code>RequestMappingHandlerMapping</code>
+        <code>InitializingBean</code> implement karta hai — uska <code>afterPropertiesSet()</code>
+        saare beans scan karke ek in-memory <code>MappingRegistry</code> bana deta hai.</p>
+
+        <div class="filelabel"><b>spring-webmvc.jar</b> → <code>AbstractHandlerMethodMapping</code></div>
+<pre><span class="an">@Override</span>
+<span class="kw">public void</span> <span class="fn">afterPropertiesSet</span>() {          <span class="cm">// STARTUP — sirf ek baar</span>
+  initHandlerMethods();
+}
+
+<span class="kw">protected void</span> <span class="fn">initHandlerMethods</span>() {
+  <span class="kw">for</span> (String beanName : getCandidateBeanNames()) {
+    <span class="kw">if</span> (isHandler(getApplicationContext().getType(beanName))) {  <span class="cm">// @Controller ya @RequestMapping?</span>
+      detectHandlerMethods(beanName);      <span class="cm">// har method ka RequestMappingInfo banao</span>
+    }
+  }
+}
+<span class="cm">// Result: MappingRegistry — Map&lt;RequestMappingInfo, HandlerMethod&gt; + URL path lookup index</span></pre>
+
+        <div class="filelabel">Runtime pe sirf lookup hota hai · <code>lookupHandlerMethod()</code></div>
+<pre><span class="kw">protected</span> HandlerMethod <span class="fn">lookupHandlerMethod</span>(String lookupPath, HttpServletRequest request) {
+  List&lt;Match&gt; matches = <span class="kw">new</span> ArrayList&lt;&gt;();
+  <span class="hi">List&lt;RequestMappingInfo&gt; direct = this.mappingRegistry.getMappingsByDirectPath(lookupPath); <span class="cm">// O(1) hash hit</span></span>
+  <span class="kw">if</span> (direct != <span class="kw">null</span>) addMatchingMappings(direct, matches, request);
+  <span class="kw">if</span> (matches.isEmpty()) addMatchingMappings(allMappings, matches, request); <span class="cm">// {id} wale patterns</span>
+
+  <span class="kw">if</span> (matches.isEmpty()) <span class="kw">return</span> handleNoMatch(...);   <span class="cm">// → 404</span>
+  matches.sort(comparator);                              <span class="cm">// sabse specific pehle</span>
+  <span class="kw">if</span> (matches.size() &gt; 1 &amp;&amp; comparator.compare(m0, m1) == 0) {
+    <span class="kw">throw new</span> IllegalStateException(<span class="st">"Ambiguous handler methods mapped for '"</span> + lookupPath + <span class="st">"'"</span>);
+  }
+  <span class="kw">return</span> matches.get(0).getHandlerMethod();
+}</pre>
+
+        <div class="note"><span class="lbl">Matching kis order mein hoti hai</span>
+        <p>Ek <code>RequestMappingInfo</code> mein 7 condition hote hain aur <b>sab match hone chahiye</b>:
+        path → method (GET/POST) → params → headers → <code>consumes</code> (Content-Type) → <code>produces</code> (Accept) → custom.</p>
+        <p>Isiliye galat <code>Content-Type</code> pe <b>415</b> milta hai aur galat <code>Accept</code> pe <b>406</b> —
+        404 nahi. Path toh match ho gaya tha, condition fail hui.</p></div>
+
+        <div class="note gotcha"><span class="lbl">Version gotcha — path matching Spring 5.3 mein badla</span>
+        <p><code>AntPathMatcher</code> → <code>PathPatternParser</code> (Boot 2.6 se default).
+        Ab <code>/api/users</code> aur <code>/api/users/</code> <b>alag</b> hain, aur <code>**</code> sirf pattern ke end mein aa sakta hai.
+        Purana behaviour: <code>spring.mvc.pathmatch.matching-strategy=ant_path_matcher</code>
+        (Boot 3.x mein deprecated, 4.x mein hata diya gaya).</p></div>
+      </div>
+    </article>
+
+    <!-- TOPIC 7 -->
+    <article class="topic">
+      <div class="pcol"><div class="pcard">
+        <div class="pnum">STAGE 07 · PROBLEM</div>
+        <h3>doDispatch() ke andar exact sequence kya hai? postHandle kab skip hota hai?</h3>
+        <p class="pq"><em>"preHandle false return kare toh afterCompletion chalega ya nahi?"</em> —
+        ye trick question hai. Aur <em>"@ResponseBody pe postHandle mein ModelAndView null kyun hai?"</em></p>
+        <div class="asked">Poocha jaata hai: 4+ yrs · LLD round ka favourite</div>
+      </div></div>
+      <div class="scol">
+        <div class="filelabel"><b>spring-webmvc.jar</b> → <code>org.springframework.web.servlet.DispatcherServlet</code></div>
+<pre><span class="kw">protected void</span> <span class="fn">doDispatch</span>(HttpServletRequest request, HttpServletResponse response) <span class="kw">throws</span> Exception {
+  HttpServletRequest processedRequest = request;
+  HandlerExecutionChain mappedHandler = <span class="kw">null</span>;
+  <span class="kw">boolean</span> multipartRequestParsed = <span class="kw">false</span>;
+  Exception dispatchException = <span class="kw">null</span>;
+  ModelAndView mv = <span class="kw">null</span>;
+
+  <span class="kw">try</span> {
+    <span class="cm">// ── 1. multipart? request ko MultipartHttpServletRequest se wrap karo</span>
+    processedRequest = checkMultipart(request);
+    multipartRequestParsed = (processedRequest != request);
+
+    <span class="cm">// ── 2. handler dhoondo → controller + uske interceptors ka bundle</span>
+    <span class="hi">mappedHandler = getHandler(processedRequest);</span>
+    <span class="kw">if</span> (mappedHandler == <span class="kw">null</span>) { noHandlerFound(...); <span class="kw">return</span>; }   <span class="cm">// → 404</span>
+
+    <span class="cm">// ── 3. is handler ko chala sakne wala adapter dhoondo</span>
+    HandlerAdapter ha = getHandlerAdapter(mappedHandler.getHandler());
+
+    <span class="cm">// ── 4. PRE-HANDLE : forward order mein 1,2,3...</span>
+    <span class="hi">if (!mappedHandler.applyPreHandle(processedRequest, response)) {
+      return;   <span class="cm">// ★ koi false bola → handler NAHI chalega. Lekin usse pehle wale</span>
+    }           <span class="cm">//   interceptors ka afterCompletion ANDAR hi trigger ho chuka hai.</span></span>
+
+    <span class="cm">// ── 5. ★ CONTROLLER YAHAN CHALTA HAI (args resolve + reflection invoke + return handle)</span>
+    <span class="hi">mv = ha.handle(processedRequest, response, mappedHandler.getHandler());</span>
+
+    <span class="cm">// ── 6. async shuru ho gaya? toh abhi kuch mat karo, thread chhod do</span>
+    <span class="kw">if</span> (asyncManager.isConcurrentHandlingStarted()) {
+      <span class="kw">return</span>;   <span class="cm">// ★ postHandle SKIP. Baad mein dobara dispatch hoga.</span>
+    }
+
+    applyDefaultViewName(processedRequest, mv);
+
+    <span class="cm">// ── 7. POST-HANDLE : REVERSE order mein 3,2,1</span>
+    <span class="hi">mappedHandler.applyPostHandle(processedRequest, response, mv);</span>
+  }
+  <span class="kw">catch</span> (Exception ex)  { dispatchException = ex; }
+  <span class="kw">catch</span> (Throwable err) { dispatchException = <span class="kw">new</span> NestedServletException(<span class="st">"Handler failed"</span>, err); }
+
+  <span class="cm">// ── 8. view render YA exception resolve — dono yahin</span>
+  <span class="hi">processDispatchResult(processedRequest, response, mappedHandler, mv, dispatchException);</span>
+  <span class="cm">//      ↑ iske andar: HandlerExceptionResolverComposite → ViewResolver → view.render()</span>
+  <span class="cm">//        aur end mein mappedHandler.triggerAfterCompletion(...)</span>
+
+  <span class="kw">finally</span> {
+    <span class="kw">if</span> (asyncManager.isConcurrentHandlingStarted()) {
+      mappedHandler.applyAfterConcurrentHandlingStarted(...);
+    } <span class="kw">else if</span> (multipartRequestParsed) {
+      cleanupMultipart(processedRequest);   <span class="cm">// temp files delete</span>
+    }
+  }
+}</pre>
+
+        <h4>Interceptor ke teeno callbacks — exact rules</h4>
+        <div class="tw"><table>
+          <tr><th style="width:20%">Callback</th><th style="width:14%">Order</th><th>Kab chalega</th><th>Kab NAHI chalega</th></tr>
+          <tr><td><code>preHandle</code></td><td>1 → 2 → 3</td><td>Handler milne ke baad, controller se pehle. <code>false</code> return = chain stop.</td><td>Handler na mile (404) toh bilkul nahi.</td></tr>
+          <tr><td><code>postHandle</code></td><td>3 → 2 → 1</td><td>Controller successfully return kar gaya, view render se <b>pehle</b>.</td><td>Exception aayi toh nahi. Async start hua toh nahi.</td></tr>
+          <tr><td><code>afterCompletion</code></td><td>3 → 2 → 1</td><td><b>Lagbhag hamesha</b> — success ho ya exception. View render hone ke baad. Metrics/cleanup ke liye yahi sahi jagah.</td><td>Sirf un interceptors ka jinka <code>preHandle</code> chala hi nahi tha.</td></tr>
+        </table></div>
+
+        <div class="note"><span class="lbl">Trick question ka jawaab</span>
+        <p>Interceptor #2 ne <code>preHandle</code> mein <code>false</code> return kiya:</p>
+        <p>✅ #1 ka <code>afterCompletion</code> <b>chalega</b> (uska preHandle successful tha).<br>
+        ❌ #2 ka <code>afterCompletion</code> <b>nahi</b> chalega (Spring maanta hai "tumne khud rok diya, tumhara cleanup tumhari zimmedari").<br>
+        ❌ #3 ka kuch nahi chalega.<br>
+        ❌ Kisi ka <code>postHandle</code> nahi chalega.</p></div>
+
+        <div class="note gotcha"><span class="lbl">@ResponseBody + postHandle = null ModelAndView</span>
+        <p><code>@RestController</code> mein return value <code>RequestResponseBodyMethodProcessor</code> handle karta hai,
+        jo <b>usi waqt response body likh deta hai</b> aur <code>mavContainer.setRequestHandled(true)</code> set karta hai.
+        Isliye <code>ha.handle()</code> se <code>null</code> ModelAndView aata hai.</p>
+        <p>Matlab: <code>postHandle</code> chalega, lekin <code>mv</code> null hoga <b>aur response already committed ho chuka hai</b> —
+        wahan header set karne ki koshish silently fail hogi. REST API mein response badalna ho toh
+        <code>ResponseBodyAdvice</code> use karo, interceptor nahi.</p></div>
+      </div>
+    </article>
+
+    <!-- TOPIC 8 -->
+    <article class="topic">
+      <div class="pcol"><div class="pcard">
+        <div class="pnum">STAGE 08 · PROBLEM</div>
+        <h3><code>ha.handle()</code> ke andar JSON kaise object ban gaya?</h3>
+        <p class="pq"><em>"@RequestBody se POJO kaise bana? Custom type inject karna ho toh?"</em>
+        Yahan do interfaces hain jo sabse zyada useful hain.</p>
+        <div class="asked">Poocha jaata hai: 4+ yrs · extension point round</div>
+      </div></div>
+      <div class="scol">
+        <p><code>RequestMappingHandlerAdapter.invokeHandlerMethod()</code> ek
+        <code>ServletInvocableHandlerMethod</code> banata hai. Uske teen kaam hain:</p>
+
+        <div class="rail">
+          <div class="st"><span class="dot"></span><div class="body"><div class="t">1 · Arguments resolve</div><div class="d">Har parameter ke liye 27+ <code>HandlerMethodArgumentResolver</code> mein se pehla <code>supportsParameter()</code> true bolne wala chuna jaata hai. <code>@RequestBody</code> → <code>RequestResponseBodyMethodProcessor</code> → <code>HttpMessageConverter</code> → Jackson.</div><div class="cls">HandlerMethodArgumentResolverComposite</div></div></div>
+          <div class="st"><span class="dot"></span><div class="body"><div class="t">2 · Validate + reflection invoke</div><div class="d"><code>@Valid</code> ho toh <code>DataBinder</code> validate karta hai, fail pe <code>MethodArgumentNotValidException</code>. Phir <code>method.invoke(bean, args)</code> — aur yahan <b>bean = proxy</b> hai agar AOP laga ho.</div><div class="cls">InvocableHandlerMethod#doInvoke</div></div></div>
+          <div class="st o"><span class="dot"></span><div class="body"><div class="t">3 · Return value handle</div><div class="d">15+ <code>HandlerMethodReturnValueHandler</code>. <code>@ResponseBody</code>/<code>ResponseEntity</code> → converter se JSON likh diya. <code>String</code> → view name.</div><div class="cls">HandlerMethodReturnValueHandlerComposite</div></div></div>
+        </div>
+
+        <div class="filelabel">Custom argument resolver · <b>har controller se boilerplate hatao</b></div>
+<pre><span class="cm">// Pehle: har method mein `@RequestHeader("X-Tenant") String tenant` + manual lookup</span>
+<span class="cm">// Baad mein: `@CurrentTenant Tenant tenant` — bas.</span>
+
+<span class="an">@Target</span>(ElementType.PARAMETER) <span class="an">@Retention</span>(RetentionPolicy.RUNTIME)
+<span class="kw">public @interface</span> CurrentTenant { }
+
+<span class="an">@Component</span>
+<span class="kw">public class</span> CurrentTenantArgumentResolver <span class="kw">implements</span> HandlerMethodArgumentResolver {
+
+  <span class="kw">private final</span> TenantRepository tenantRepository;
+
+  <span class="an">@Override</span>
+  <span class="kw">public boolean</span> <span class="fn">supportsParameter</span>(MethodParameter parameter) {
+    <span class="kw">return</span> parameter.hasParameterAnnotation(CurrentTenant.<span class="kw">class</span>)
+        &amp;&amp; Tenant.<span class="kw">class</span>.isAssignableFrom(parameter.getParameterType());
+  }
+
+  <span class="an">@Override</span>
+  <span class="kw">public</span> Object <span class="fn">resolveArgument</span>(MethodParameter parameter, ModelAndViewContainer mavContainer,
+                                NativeWebRequest webRequest, WebDataBinderFactory binderFactory) {
+    String tenantHeader = webRequest.getHeader(<span class="st">"X-Tenant-Id"</span>);
+    <span class="kw">if</span> (!StringUtils.hasText(tenantHeader)) {
+      <span class="kw">throw new</span> MissingRequestHeaderException(<span class="st">"X-Tenant-Id"</span>, parameter);
+    }
+    <span class="kw">return</span> tenantRepository.<span class="fn">findActiveByCode</span>(tenantHeader)
+        .orElseThrow(() -&gt; <span class="kw">new</span> UnknownTenantException(tenantHeader));
+  }
+}
+
+<span class="an">@Configuration</span>
+<span class="kw">public class</span> WebMvcConfig <span class="kw">implements</span> WebMvcConfigurer {
+  <span class="kw">private final</span> CurrentTenantArgumentResolver currentTenantArgumentResolver;
+
+  <span class="an">@Override</span>
+  <span class="kw">public void</span> <span class="fn">addArgumentResolvers</span>(List&lt;HandlerMethodArgumentResolver&gt; resolvers) {
+    resolvers.add(currentTenantArgumentResolver);  <span class="cm">// custom resolvers built-in ke BAAD lagte hain</span>
+  }
+}
+
+<span class="cm">// Ab controller saaf:</span>
+<span class="an">@GetMapping</span>(<span class="st">"/orders"</span>)
+<span class="kw">public</span> Page&lt;OrderDto&gt; <span class="fn">listOrdersForTenant</span>(<span class="an">@CurrentTenant</span> Tenant tenant, Pageable pageable) {
+  <span class="kw">return</span> orderService.<span class="fn">findOrdersByTenant</span>(tenant.getId(), pageable);
+}</pre>
+
+        <div class="filelabel">Response envelope · <b>ResponseBodyAdvice — har JSON wrap karo</b></div>
+<pre><span class="an">@RestControllerAdvice</span>(basePackages = <span class="st">"com.acme.api"</span>)
+<span class="kw">public class</span> ApiEnvelopeResponseAdvice <span class="kw">implements</span> ResponseBodyAdvice&lt;Object&gt; {
+
+  <span class="an">@Override</span>
+  <span class="kw">public boolean</span> <span class="fn">supports</span>(MethodParameter returnType,
+                          Class&lt;? <span class="kw">extends</span> HttpMessageConverter&lt;?&gt;&gt; converterType) {
+    <span class="kw">return</span> !returnType.hasMethodAnnotation(SkipEnvelope.<span class="kw">class</span>);
+  }
+
+  <span class="an">@Override</span>
+  <span class="kw">public</span> Object <span class="fn">beforeBodyWrite</span>(Object body, MethodParameter returnType, MediaType contentType,
+                                Class&lt;? <span class="kw">extends</span> HttpMessageConverter&lt;?&gt;&gt; converterType,
+                                ServerHttpRequest request, ServerHttpResponse response) {
+    <span class="kw">if</span> (body <span class="kw">instanceof</span> ApiEnvelope&lt;?&gt; alreadyWrapped) <span class="kw">return</span> alreadyWrapped;
+    <span class="kw">return</span> ApiEnvelope.<span class="fn">success</span>(body, <span class="fn">correlationIdFrom</span>(request));
+  }
+
+  <span class="kw">private</span> String <span class="fn">correlationIdFrom</span>(ServerHttpRequest request) {
+    <span class="kw">return</span> request.getHeaders().getFirst(<span class="st">"X-Correlation-Id"</span>);
+  }
+}</pre>
+
+        <div class="note gotcha"><span class="lbl">Gotcha — String return type par ResponseBodyAdvice crash karta hai</span>
+        <p><code>StringHttpMessageConverter</code> pehle aata hai <code>MappingJackson2HttpMessageConverter</code> se.
+        Agar aapka controller <code>String</code> return kare aur aap envelope object return karo, toh
+        <code>ClassCastException</code> milegi. Fix: <code>supports()</code> mein
+        <code>!StringHttpMessageConverter.class.isAssignableFrom(converterType)</code> check daalo.</p></div>
+      </div>
+    </article>
+  </div>
+</section>
+
+<!-- ===================== AOP & TX ===================== -->
+<section class="sec" id="aop">
+  <div class="wrap">
+    <div class="sechead">
+      <div class="eyebrow">// part C — sabse andar ki layer</div>
+      <h2>AOP, @Transactional aur save/update ka asli flow</h2>
+      <p>Yahan Spring ka sabse bada "magic" hai — aur sabse bade bugs bhi. Proxy kahan lagta hai,
+      kyun kabhi-kabhi nahi lagta, aur <code>save()</code> ke baad DB mein turant kuch kyun nahi jaata.</p>
+    </div>
+
+    <!-- TOPIC 9 -->
+    <article class="topic">
+      <div class="pcol"><div class="pcard">
+        <div class="pnum">STAGE 09 · PROBLEM</div>
+        <h3>Same class ke andar method call pe @Transactional kyun nahi chalta?</h3>
+        <p class="pq"><em>"Maine @Transactional lagaya, rollback nahi hua."</em> —
+        90% cases mein wajah self-invocation hai. Proxy ki nature samajhna padegi.</p>
+        <div class="asked">Poocha jaata hai: 3+ yrs · sabse zyada real-world impact</div>
+      </div></div>
+      <div class="scol">
+        <p>Spring AOP <b>proxy-based</b> hai, bytecode-weaving nahi. Aapka bean container mein
+        wo bean nahi hai jo aapne likha — uske upar ek wrapper hai.</p>
+
+<pre><span class="cm">// Container mein jo bean hai:</span>
+OrderService$$SpringCGLIB$$0  extends  OrderService
+        │
+        ├── TransactionInterceptor      (order 100 by default)
+        ├── CacheInterceptor
+        ├── YourCustomAspect
+        └── target.<span class="fn">placeOrder</span>(...)     ← AAPKA asli object
+
+<span class="cm">// Call bahar se aayi  → proxy.placeOrder()  → interceptors chale ✅</span>
+<span class="cm">// Call andar se aayi  → this.placeOrder()   → proxy bypass ❌</span></pre>
+
+        <div class="filelabel">❌ Ye kaam NAHI karega</div>
+<pre><span class="an">@Service</span>
+<span class="kw">public class</span> OrderService {
+
+  <span class="kw">public void</span> <span class="fn">importOrderBatch</span>(List&lt;OrderRequest&gt; requests) {
+    <span class="kw">for</span> (OrderRequest request : requests) {
+      <span class="hi">this.<span class="fn">saveSingleOrder</span>(request);   <span class="cm">// ★ 'this' = raw object, proxy nahi. Tx SHURU HI NAHI HOGA.</span></span>
+    }
+  }
+
+  <span class="an">@Transactional</span>(propagation = Propagation.REQUIRES_NEW)
+  <span class="kw">public void</span> <span class="fn">saveSingleOrder</span>(OrderRequest request) { ... }
+}</pre>
+
+        <div class="filelabel">✅ Teen sahi fix</div>
+<pre><span class="cm">// FIX 1 — Alag bean mein nikaalo (sabse saaf, yahi default choice honi chahiye)</span>
+<span class="an">@Service</span>
+<span class="kw">public class</span> OrderBatchImporter {
+  <span class="kw">private final</span> SingleOrderWriter singleOrderWriter;   <span class="cm">// alag bean = proxy ke through jaayega</span>
+
+  <span class="kw">public</span> ImportReport <span class="fn">importOrderBatch</span>(List&lt;OrderRequest&gt; requests) {
+    <span class="kw">return</span> requests.stream()
+        .map(singleOrderWriter::<span class="fn">saveSingleOrderInNewTransaction</span>)
+        .collect(ImportReport.<span class="fn">collector</span>());
+  }
+}
+
+<span class="cm">// FIX 2 — Self-injection (kaam karta hai, par code smell)</span>
+<span class="an">@Service</span>
+<span class="kw">public class</span> OrderService {
+  <span class="an">@Lazy</span> <span class="kw">private final</span> OrderService self;   <span class="cm">// @Lazy zaroori — warna circular dep</span>
+
+  <span class="kw">public void</span> <span class="fn">importOrderBatch</span>(List&lt;OrderRequest&gt; requests) {
+    requests.forEach(self::<span class="fn">saveSingleOrder</span>);   <span class="cm">// proxy ke through ✅</span>
+  }
+}
+
+<span class="cm">// FIX 3 — Programmatic (best jab tx boundary dynamic ho)</span>
+<span class="an">@Service</span>
+<span class="kw">public class</span> OrderService {
+  <span class="kw">private final</span> TransactionTemplate transactionTemplate;
+
+  <span class="kw">public void</span> <span class="fn">importOrderBatch</span>(List&lt;OrderRequest&gt; requests) {
+    <span class="kw">for</span> (OrderRequest request : requests) {
+      transactionTemplate.<span class="fn">executeWithoutResult</span>(status -&gt; <span class="fn">saveSingleOrder</span>(request));
+    }
+  }
+}</pre>
+
+        <h4>JDK proxy vs CGLIB</h4>
+        <div class="tw"><table>
+          <tr><th style="width:24%"> </th><th>JDK dynamic proxy</th><th>CGLIB</th></tr>
+          <tr><td>Kaam kaise karta hai</td><td>Interface implement karta hai</td><td>Class ko <b>subclass</b> karta hai</td></tr>
+          <tr><td>Requirement</td><td>Bean ke paas interface hona chahiye</td><td>Class final na ho, method final na ho</td></tr>
+          <tr><td>Boot default</td><td>—</td><td>✅ <code>spring.aop.proxy-target-class=true</code> (Boot 2.0 se)</td></tr>
+          <tr><td>Silent failure</td><td>Interface pe cast karo warna <code>ClassCastException</code></td><td><code>private</code>/<code>final</code>/<code>static</code> method pe advice chupchap skip</td></tr>
+        </table></div>
+
+        <div class="note gotcha"><span class="lbl">Yahan @Transactional chupchap fail hota hai</span>
+        <p>❌ Method <code>private</code>, <code>final</code> ya <code>static</code> hai<br>
+        ❌ Same class se call (self-invocation)<br>
+        ❌ Class <code>new</code> se banayi, Spring bean nahi<br>
+        ❌ Checked exception throw hui — default rollback sirf <code>RuntimeException</code> aur <code>Error</code> pe hai.
+        Fix: <code>@Transactional(rollbackFor = Exception.class)</code><br>
+        ❌ Exception aapne khud <code>try/catch</code> mein nigal li — Spring ko pata hi nahi chala<br>
+        ❌ <code>@Async</code> aur <code>@Transactional</code> ek hi method pe — alag thread, alag context</p></div>
+
+        <div class="note trade"><span class="lbl">Tradeoff — AOP kab use karein, kab bilkul na karein</span>
+        <p><b>Use karo</b> jab concern sach mein cross-cutting ho: transaction, cache, retry, audit, metrics.
+        4+ classes mein same wrapper logic repeat ho raha ho toh aspect banao.</p>
+        <p><b>Ignore karo</b> jab business rule ho. <code>@Around</code> mein discount calculate karna
+        debugging ko narak bana deta hai — stack trace mein sirf proxy dikhega, aur naya dev kabhi nahi
+        dhoondh paayega ki logic kahan hai. <b>Explicit call &gt; invisible magic.</b></p>
+        <p><b>Ignore karo</b> performance ke naam pe AOP hatana — ek proxy call ~50–100 ns hai.
+        Wo kabhi aapka bottleneck nahi hoga.</p></div>
+      </div>
+    </article>
+
+    <!-- TOPIC 10 -->
+    <article class="topic">
+      <div class="pcol"><div class="pcard">
+        <div class="pnum">STAGE 10 · PROBLEM</div>
+        <h3><code>save()</code> call kiya — DB mein INSERT kab jaata hai?</h3>
+        <p class="pq"><em>"save() ke baad turant INSERT chala ya nahi?"</em> Aur
+        <em>"maine sirf setter call kiya, update kaise ho gaya?"</em> — dirty checking ka sawaal.</p>
+        <div class="asked">Poocha jaata hai: 3+ yrs · JPA + Spring Data round</div>
+      </div></div>
+      <div class="scol">
+        <p>Jawaab: <code>save()</code> pe SQL <b>nahi</b> chalta (zyadatar). Wo sirf entity ko
+        persistence context mein daalta hai. SQL <b>flush</b> pe chalta hai, aur flush commit se just pehle hota hai.</p>
+
+        <div class="filelabel">Poora call chain · <b>controller → DB</b></div>
+<pre>orderController.<span class="fn">placeOrder</span>()
+  └─ OrderService$$SpringCGLIB$$0.<span class="fn">placeOrder</span>()          <span class="cm">// proxy</span>
+      └─ TransactionInterceptor.<span class="fn">invoke</span>()
+          └─ TransactionAspectSupport.<span class="fn">invokeWithinTransaction</span>()
+              ├─ <span class="hi">tm.getTransaction(txAttr)  <span class="cm">// JpaTransactionManager: EntityManager banao,</span></span>
+              │                          <span class="cm">// Hikari se connection lo, autoCommit=false</span>
+              │                          <span class="cm">// ThreadLocal (TransactionSynchronizationManager) mein bind karo</span>
+              ├─ invocation.<span class="fn">proceedWithInvocation</span>()      <span class="cm">// ★ AAPKA method</span>
+              │    ├─ orderRepository.<span class="fn">save</span>(order)     <span class="cm">// → em.persist() — sirf memory mein</span>
+              │    ├─ inventory.<span class="fn">setReservedQty</span>(5)     <span class="cm">// → koi SQL nahi, entity managed hai</span>
+              │    └─ <span class="kw">return</span> orderId
+              ├─ <span class="hi">tm.commit(status)
+              │    ├─ em.<span class="fn">flush</span>()   <span class="cm">// ★ dirty checking: snapshot vs current compare</span>
+              │    │              <span class="cm">//   → INSERT orders ...</span>
+              │    │              <span class="cm">//   → UPDATE inventory SET reserved_qty=5 WHERE id=? AND version=?</span>
+              │    ├─ connection.<span class="fn">commit</span>()
+              │    └─ em.<span class="fn">close</span>() + connection HikariCP ko wapas</span>
+              └─ <span class="kw">catch</span> RuntimeException → tm.<span class="fn">rollback</span>(status)</pre>
+
+        <div class="note"><span class="lbl">Dirty checking — "update" likhna kyun nahi padta</span>
+        <p>Jab entity load hoti hai, Hibernate uski ek <b>snapshot copy</b> rakh leta hai.
+        Flush pe wo har managed entity ka current state snapshot se compare karta hai.
+        Farak mila → <code>UPDATE</code> generate. Isiliye <code>@Transactional</code> ke andar
+        sirf <code>setStatus(SHIPPED)</code> kaafi hai — koi <code>save()</code> nahi chahiye.</p>
+        <p>Flush trigger hota hai: (1) commit se pehle, (2) JPQL query chalane se pehle
+        (taaki query stale data na padhe), (3) manual <code>flush()</code>.</p></div>
+
+        <div class="filelabel">Tx boundary sahi jagah pe · <b>service pe, repository pe nahi</b></div>
+<pre><span class="an">@Service</span>
+<span class="kw">public class</span> OrderPlacementService {
+
+  <span class="kw">private final</span> OrderRepository orderRepository;
+  <span class="kw">private final</span> InventoryRepository inventoryRepository;
+  <span class="kw">private final</span> PaymentGatewayClient paymentGatewayClient;
+  <span class="kw">private final</span> ApplicationEventPublisher eventPublisher;
+
+  <span class="an">@Transactional</span>                           <span class="cm">// ★ ek hi tx, dono writes atomic</span>
+  <span class="kw">public</span> OrderId <span class="fn">placeOrder</span>(PlaceOrderCommand command) {
+    Inventory inventory = inventoryRepository
+        .<span class="fn">findBySkuForUpdate</span>(command.sku())          <span class="cm">// pessimistic lock</span>
+        .orElseThrow(() -&gt; <span class="kw">new</span> SkuNotFoundException(command.sku()));
+
+    inventory.<span class="fn">reserve</span>(command.quantity());          <span class="cm">// dirty checking — save() ki zaroorat nahi</span>
+
+    Order order = Order.<span class="fn">newPendingOrder</span>(command);
+    orderRepository.<span class="fn">save</span>(order);
+
+    <span class="cm">// ★ Payment call tx ke ANDAR mat karo — 3s HTTP call = 3s DB lock</span>
+    eventPublisher.<span class="fn">publishEvent</span>(<span class="kw">new</span> OrderPlacedEvent(order.getId()));
+    <span class="kw">return</span> order.getId();
+  }
+}
+
+<span class="an">@Component</span>
+<span class="kw">public class</span> PaymentChargeListener {
+
+  <span class="hi"><span class="an">@TransactionalEventListener</span>(phase = TransactionPhase.AFTER_COMMIT)   <span class="cm">// commit ke BAAD</span></span>
+  <span class="an">@Async</span>
+  <span class="kw">public void</span> <span class="fn">chargeCustomerAfterOrderCommitted</span>(OrderPlacedEvent event) {
+    paymentGatewayClient.<span class="fn">charge</span>(event.orderId());
+  }
+}</pre>
+
+        <div class="note gotcha"><span class="lbl">Sabse mehnga production bug</span>
+        <p><b>Transaction ke andar external HTTP call.</b> Aapka DB connection tab tak Hikari pool se bahar hai.
+        Default pool size 10 hai. Payment gateway 5 second lag gaya → 10 concurrent orders ne poora pool khaali kar diya →
+        <b>poora application</b> band, sirf order flow nahi.</p>
+        <p>Rule: transaction chhota rakho. I/O, email, queue publish — sab
+        <code>AFTER_COMMIT</code> pe bhejo.</p></div>
+
+        <div class="note trade"><span class="lbl">Tradeoff — @Transactional kahan lagayein</span>
+        <p><b>Service layer pe</b> — default aur sahi. Ek business operation = ek transaction.</p>
+        <p><b>Controller pe mat lagao</b> — view render aur JSON serialization tx ke andar aa jaayenge.
+        Iska matlab connection tab tak hold rahega jab tak response likha na jaaye.</p>
+        <p><b>Repository pe mat lagao</b> — Spring Data pehle hi har method pe laga chuka hai
+        (<code>SimpleJpaRepository</code> class-level <code>@Transactional(readOnly=true)</code> hai).
+        Service pe lagaoge toh wo outer tx mein <code>REQUIRED</code> se join kar jaayega — jo aap chahte ho.</p>
+        <p><b>Read-only pe <code>readOnly = true</code> zaroor lagao</b> — Hibernate
+        dirty-check snapshot hi nahi banata, memory bachti hai aur replica routing bhi possible hoti hai.</p></div>
+      </div>
+    </article>
+
+    <!-- TOPIC 11 -->
+    <article class="topic">
+      <div class="pcol"><div class="pcard">
+        <div class="pnum">STAGE 11 · PROBLEM</div>
+        <h3>Exception throw hui — 500 tak pahunchne mein kitni layers hain?</h3>
+        <p class="pq"><em>"@ControllerAdvice kaam nahi kar raha filter ki exception pe"</em> —
+        kyunki filter DispatcherServlet ke <b>bahar</b> hai.</p>
+        <div class="asked">Poocha jaata hai: 3+ yrs · error handling round</div>
+      </div></div>
+      <div class="scol">
+        <p><code>processDispatchResult()</code> exception ko <code>HandlerExceptionResolverComposite</code> ko deta hai.
+        Wo teen resolvers try karta hai, <b>isi order mein</b>:</p>
+
+        <div class="rail">
+          <div class="st o"><span class="dot"></span><div class="body"><div class="t">1 · ExceptionHandlerExceptionResolver</div><div class="d">Aapke <code>@ExceptionHandler</code> / <code>@ControllerAdvice</code> yahan match hote hain. Sabse specific exception type jeetega.</div><div class="cls">ExceptionHandlerMethodResolver</div></div></div>
+          <div class="st o"><span class="dot"></span><div class="body"><div class="t">2 · ResponseStatusExceptionResolver</div><div class="d">Exception class pe <code>@ResponseStatus</code> laga ho, ya <code>ResponseStatusException</code> ho.</div></div></div>
+          <div class="st o"><span class="dot"></span><div class="body"><div class="t">3 · DefaultHandlerExceptionResolver</div><div class="d">Spring ke apne standard mappings — <code>NoHandlerFoundException</code>→404, <code>HttpRequestMethodNotSupportedException</code>→405, <code>HttpMediaTypeNotSupportedException</code>→415, <code>MethodArgumentNotValidException</code>→400.</div></div></div>
+          <div class="st o"><span class="dot"></span><div class="body"><div class="t">4 · Koi nahi handle kar paaya → re-throw</div><div class="d">Exception Tomcat tak jaati hai → container <code>/error</code> pe <b>naya dispatch</b> karta hai → <code>BasicErrorController</code> → default error JSON/Whitelabel page.</div><div class="cls">org.springframework.boot.web.servlet.error.BasicErrorController</div></div></div>
+        </div>
+
+        <div class="filelabel">Modern global handler · <b>ProblemDetail (RFC 7807), Spring 6+</b></div>
+<pre><span class="an">@RestControllerAdvice</span>
+<span class="kw">public class</span> GlobalApiExceptionHandler <span class="kw">extends</span> ResponseEntityExceptionHandler {
+
+  <span class="an">@ExceptionHandler</span>(SkuNotFoundException.<span class="kw">class</span>)
+  <span class="kw">public</span> ProblemDetail <span class="fn">handleSkuNotFound</span>(SkuNotFoundException ex) {
+    ProblemDetail problem = ProblemDetail.<span class="fn">forStatusAndDetail</span>(HttpStatus.NOT_FOUND, ex.getMessage());
+    problem.setTitle(<span class="st">"SKU not found"</span>);
+    problem.setType(URI.create(<span class="st">"https://api.acme.com/errors/sku-not-found"</span>));
+    problem.setProperty(<span class="st">"sku"</span>, ex.getSku());
+    problem.setProperty(<span class="st">"correlationId"</span>, MDC.get(<span class="st">"correlationId"</span>));
+    <span class="kw">return</span> problem;
+  }
+
+  <span class="cm">// @Valid failure ko readable banao</span>
+  <span class="an">@Override</span>
+  <span class="kw">protected</span> ResponseEntity&lt;Object&gt; <span class="fn">handleMethodArgumentNotValid</span>(
+      MethodArgumentNotValidException ex, HttpHeaders headers,
+      HttpStatusCode status, WebRequest request) {
+
+    ProblemDetail problem = ProblemDetail.<span class="fn">forStatus</span>(HttpStatus.BAD_REQUEST);
+    problem.setTitle(<span class="st">"Validation failed"</span>);
+    problem.setProperty(<span class="st">"fieldErrors"</span>, <span class="fn">toFieldErrorMap</span>(ex));
+    <span class="kw">return</span> ResponseEntity.badRequest().body(problem);
+  }
+
+  <span class="kw">private</span> Map&lt;String, String&gt; <span class="fn">toFieldErrorMap</span>(MethodArgumentNotValidException ex) {
+    <span class="kw">return</span> ex.getBindingResult().getFieldErrors().stream()
+        .collect(Collectors.toMap(FieldError::getField,
+                                  fe -&gt; Objects.requireNonNullElse(fe.getDefaultMessage(), <span class="st">"invalid"</span>),
+                                  (a, b) -&gt; a));
+  }
+}</pre>
+
+        <div class="note gotcha"><span class="lbl">@ControllerAdvice yahan nahi pahunchta</span>
+        <p>❌ <b>Filter ki exception</b> — DispatcherServlet ke bahar. Filter mein khud try/catch karke
+        response likho, ya Security ka <code>AuthenticationEntryPoint</code>/<code>AccessDeniedHandler</code> use karo.<br>
+        ❌ <b>404 by default</b> — koi handler mila hi nahi toh <code>ExceptionHandlerExceptionResolver</code> tak baat jaati hi nahi.
+        Fix: <code>spring.mvc.throw-exception-if-no-handler-found=true</code> (Boot 3.2+ default hai).<br>
+        ❌ <b>Async thread ki exception</b> — <code>@Async</code> method mein. Wahan
+        <code>AsyncUncaughtExceptionHandler</code> lagao.<br>
+        ❌ <b>Response already committed</b> — stream pe kuch likha ja chuka ho toh status badal nahi sakte.</p></div>
+      </div>
+    </article>
+  </div>
+</section>
+
+<!-- ===================== READ THE SOURCE ===================== -->
+<section class="sec" id="source">
+  <div class="wrap">
+    <div class="sechead">
+      <div class="eyebrow">// part D — khud jaake dekho</div>
+      <h2>Spring ka source code kaise padhein</h2>
+      <p>"Internal files kaise check karein" ka jawaab: jar decompile mat karo, <b>sources jar attach karo</b>
+      aur 6 breakpoints lagao. Ek ghante mein poora flow aankhon se dikh jaayega.</p>
+    </div>
+
+    <article class="topic">
+      <div class="pcol"><div class="pcard">
+        <div class="pnum">STAGE 12 · PROBLEM</div>
+        <h3>Jar ke andar kaunsi class dekhni hai, aur breakpoint kahan lagana hai?</h3>
+        <p class="pq">Source khulta hai toh 40,000 lines dikhti hain. <em>Kahan se shuru karein?</em></p>
+        <div class="asked">Skill: sabse zyada leverage wali · ek baar seekh lo, hamesha kaam aayegi</div>
+      </div></div>
+      <div class="scol">
+        <h4>Setup — 2 minute</h4>
+<pre><span class="cm"># Maven: saare dependencies ke source jars download karo</span>
+mvn dependency:sources
+mvn dependency:resolve -Dclassifier=javadoc
+
+<span class="cm"># Gradle (build.gradle)</span>
+idea { module { downloadSources = true; downloadJavadoc = true } }
+
+<span class="cm"># Ab IntelliJ mein:</span>
+<span class="cm">#   Ctrl/Cmd + N        → class name se jaao (e.g. "DispatcherServlet")</span>
+<span class="cm">#   Ctrl/Cmd + F12      → us class ke saare methods ki list</span>
+<span class="cm">#   Ctrl/Cmd + Alt + B  → interface se saari implementations</span>
+<span class="cm">#   Ctrl/Cmd + Alt + H  → call hierarchy: "ise kaun call karta hai?"</span></pre>
+
+        <h4>6 breakpoints jo poora flow dikha denge</h4>
+        <div class="tw"><table>
+          <tr><th style="width:5%">#</th><th style="width:32%">Class → method</th><th>Kya dikhega</th></tr>
+          <tr><td>1</td><td><code>DispatcherServlet#doDispatch</code></td><td>Poora request flow. <b>Yahi se shuru karo.</b> Ek baar F8 (step over) karte hue poora method dekh lo.</td></tr>
+          <tr><td>2</td><td><code>AbstractHandlerMethodMapping#lookupHandlerMethod</code></td><td>URL se controller method kaise mila. <code>mappingRegistry</code> variable expand karke saare routes dekho.</td></tr>
+          <tr><td>3</td><td><code>InvocableHandlerMethod#doInvoke</code></td><td>Arguments resolve ho chuke. <code>args[]</code> array mein aapke typed parameters. Agla step aapka controller.</td></tr>
+          <tr><td>4</td><td><code>TransactionAspectSupport#invokeWithinTransaction</code></td><td>Tx boundary. <code>txAttr</code> mein propagation, isolation, rollbackFor — sab dikhega.</td></tr>
+          <tr><td>5</td><td><code>AbstractAutoProxyCreator#wrapIfNecessary</code></td><td><b>Startup pe</b>. Dekho aapka bean proxy ban raha hai ya nahi — "@Transactional kaam nahi kar raha" ka direct jawaab.</td></tr>
+          <tr><td>6</td><td><code>AutoConfigurationImportSelector#getCandidateConfigurations</code></td><td><b>Startup pe</b>. Saari auto-config classes ki list ek variable mein.</td></tr>
+        </table></div>
+
+        <div class="note"><span class="lbl">Debugging trick — stack trace hi map hai</span>
+        <p>Apne controller mein breakpoint lagao aur <b>frames panel</b> dekho. Neeche se upar padho:
+        <code>NioEndpoint$SocketProcessor</code> → <code>CoyoteAdapter</code> → <code>StandardWrapperValve</code> →
+        <code>ApplicationFilterChain</code> → <code>DispatcherServlet</code> → <code>RequestMappingHandlerAdapter</code> →
+        aapka method. Ye poora architecture ek screen mein hai — theory padhne se zyada clear.</p></div>
+
+        <h3>Kaunsa jar mein kya hai</h3>
+        <div class="tw"><table>
+          <tr><th style="width:30%">Jar</th><th>Isme kya dhoondhoge</th></tr>
+          <tr><td><code>spring-boot.jar</code></td><td><code>SpringApplication</code>, <code>ServletWebServerApplicationContext</code>, <code>TomcatWebServer</code>, <code>ConfigDataEnvironmentPostProcessor</code></td></tr>
+          <tr><td><code>spring-boot-autoconfigure.jar</code></td><td><code>AutoConfigurationImportSelector</code>, saare <code>*AutoConfiguration</code>, <code>@Conditional*</code>. <span style="color:var(--warn)">Boot 4.x mein ~70 modules mein split ho gaya.</span></td></tr>
+          <tr><td><code>spring-web.jar</code></td><td><code>HttpMessageConverter</code>, <code>RestClient</code>/<code>RestTemplate</code>, <code>OncePerRequestFilter</code>, <code>CorsFilter</code></td></tr>
+          <tr><td><code>spring-webmvc.jar</code></td><td><code>DispatcherServlet</code>, <code>RequestMappingHandlerMapping</code>, <code>RequestMappingHandlerAdapter</code>, <code>HandlerInterceptor</code></td></tr>
+          <tr><td><code>spring-context.jar</code></td><td><code>AbstractApplicationContext</code>, <code>ConfigurationClassPostProcessor</code>, <code>@Bean</code>/<code>@Configuration</code>, event system</td></tr>
+          <tr><td><code>spring-beans.jar</code></td><td><code>DefaultListableBeanFactory</code>, <code>AbstractAutowireCapableBeanFactory</code>, <code>BeanPostProcessor</code>, 3-level cache</td></tr>
+          <tr><td><code>spring-aop.jar</code></td><td><code>AbstractAutoProxyCreator</code>, <code>JdkDynamicAopProxy</code>, <code>CglibAopProxy</code>, <code>Advisor</code></td></tr>
+          <tr><td><code>spring-tx.jar</code></td><td><code>TransactionInterceptor</code>, <code>TransactionAspectSupport</code>, <code>PlatformTransactionManager</code></td></tr>
+          <tr><td><code>tomcat-embed-core.jar</code></td><td><code>NioEndpoint</code>, <code>Http11Processor</code>, <code>CoyoteAdapter</code>, <code>ApplicationFilterChain</code>, valves</td></tr>
+        </table></div>
+
+        <h3>Extension point cheat sheet — "apna logic kahan daalein"</h3>
+        <div class="tw"><table>
+          <tr><th style="width:34%">Interface</th><th style="width:16%">Kab chalta hai</th><th>Isliye implement karo</th></tr>
+          <tr><td><code>EnvironmentPostProcessor</code></td><td>Startup, sabse pehle</td><td>Vault/remote se properties inject karna</td></tr>
+          <tr><td><code>ApplicationContextInitializer</code></td><td>refresh se pehle</td><td>Bean definitions programmatically register</td></tr>
+          <tr><td><code>BeanFactoryPostProcessor</code></td><td>refresh step 5</td><td>BeanDefinition metadata badalna</td></tr>
+          <tr><td><code>BeanPostProcessor</code></td><td>Har bean ke create pe</td><td>Bean ko wrap ya replace karna</td></tr>
+          <tr><td><code>ApplicationRunner</code> / <code>CommandLineRunner</code></td><td>Startup ke end mein</td><td>Cache warmup, migration, seed data</td></tr>
+          <tr><td><code>SmartLifecycle</code></td><td>Start/stop phases</td><td>Kafka consumer, scheduler — graceful shutdown ke saath</td></tr>
+          <tr><td><code>Filter</code> / <code>OncePerRequestFilter</code></td><td>Har request, sabse bahar</td><td>Auth, CORS, logging, MDC, body caching</td></tr>
+          <tr><td><code>HandlerInterceptor</code></td><td>Handler mile ke baad</td><td>Method-level checks, per-endpoint metrics</td></tr>
+          <tr><td><code>HandlerMethodArgumentResolver</code></td><td>Args resolve karte waqt</td><td>Custom parameter types (<code>@CurrentUser</code>)</td></tr>
+          <tr><td><code>HandlerMethodReturnValueHandler</code></td><td>Return ke baad</td><td>Custom return types</td></tr>
+          <tr><td><code>HttpMessageConverter</code></td><td>Body read/write</td><td>Protobuf, CSV, custom media type</td></tr>
+          <tr><td><code>ResponseBodyAdvice</code> / <code>RequestBodyAdvice</code></td><td>Serialize se just pehle/baad</td><td>Envelope, field masking, decryption</td></tr>
+          <tr><td><code>HandlerExceptionResolver</code></td><td>Exception pe</td><td>Custom error pipeline (zyadatar <code>@ControllerAdvice</code> kaafi hai)</td></tr>
+          <tr><td><code>WebMvcConfigurer</code></td><td>Startup, MVC config</td><td>Interceptors, CORS, formatters, resolvers register karna</td></tr>
+          <tr><td><code>MethodInterceptor</code> + <code>Advisor</code></td><td>Method call pe</td><td>Custom AOP without AspectJ annotations</td></tr>
+          <tr><td><code>HealthIndicator</code></td><td><code>/actuator/health</code> pe</td><td>Custom dependency health</td></tr>
+          <tr><td><code>TransactionSynchronization</code></td><td>Commit/rollback pe</td><td>After-commit hooks (ya <code>@TransactionalEventListener</code>)</td></tr>
+        </table></div>
+      </div>
+    </article>
+  </div>
+</section>
+
+<!-- ===================== HLD ===================== -->
+<section class="sec" id="hld">
+  <div class="wrap">
+    <div class="sechead">
+      <div class="eyebrow">// high level design</div>
+      <h2>HLD — poora system ek nazar mein</h2>
+      <p>Interview mein whiteboard pe yahi banana hai. Layer, uska owner, aur uska ek-line responsibility.</p>
+    </div>
+
+    <div class="grid2">
+      <div>
+        <h3>Layer stack</h3>
+<pre>┌─────────────────────────────────────────┐
+│ CLIENT                     browser / app│
+└──────────────────┬──────────────────────┘
+                   │ HTTP/1.1 · HTTP/2
+┌──────────────────▼──────────────────────┐
+│ EMBEDDED CONTAINER      tomcat-embed    │
+│  Acceptor → Poller → Worker pool        │
+│  Valves: Engine→Host→Context→Wrapper    │
+└──────────────────┬──────────────────────┘
+┌──────────────────▼──────────────────────┐
+│ SERVLET FILTER CHAIN     jakarta.servlet│
+│  encoding · security · cors · your own  │
+└──────────────────┬──────────────────────┘
+┌──────────────────▼──────────────────────┐
+│ DISPATCHER SERVLET       spring-webmvc  │
+│  mapping · adapter · interceptor        │
+│  argResolver · converter · exResolver   │
+└──────────────────┬──────────────────────┘
+┌──────────────────▼──────────────────────┐
+│ AOP PROXY LAYER          spring-aop/tx  │
+│  @Transactional · @Cacheable · @Retry   │
+└──────────────────┬──────────────────────┘
+┌──────────────────▼──────────────────────┐
+│ YOUR CODE                               │
+│  Controller → Service → Repository      │
+└──────────────────┬──────────────────────┘
+┌──────────────────▼──────────────────────┐
+│ PERSISTENCE       hibernate · HikariCP  │
+└─────────────────────────────────────────┘</pre>
+      </div>
+      <div>
+        <h3>Har layer ka contract</h3>
+        <div class="tw"><table>
+          <tr><th>Layer</th><th>Single responsibility</th></tr>
+          <tr><td>Container</td><td>Bytes ko <code>HttpServletRequest</code> banana, thread dena</td></tr>
+          <tr><td>Filter chain</td><td>Request-level, handler-agnostic concerns</td></tr>
+          <tr><td>DispatcherServlet</td><td>Routing + orchestration. Khud koi business logic nahi.</td></tr>
+          <tr><td>HandlerMapping</td><td>URL → <code>HandlerMethod</code></td></tr>
+          <tr><td>HandlerAdapter</td><td>HandlerMethod ko invoke karna</td></tr>
+          <tr><td>ArgumentResolver</td><td>HTTP → typed Java objects</td></tr>
+          <tr><td>AOP proxy</td><td>Cross-cutting behaviour, transparently</td></tr>
+          <tr><td>Service</td><td>Business rules + transaction boundary</td></tr>
+          <tr><td>Repository</td><td>Persistence, koi business rule nahi</td></tr>
+        </table></div>
+
+        <div class="note"><span class="lbl">Design pattern jo yahan use hue hain</span>
+        <p><b>Front Controller</b> — DispatcherServlet<br>
+        <b>Strategy</b> — HandlerMapping, ViewResolver, MessageConverter (sab pluggable)<br>
+        <b>Adapter</b> — HandlerAdapter (@Controller, HttpRequestHandler, functional — sab ek hi tarah invoke hote hain)<br>
+        <b>Chain of Responsibility</b> — FilterChain, HandlerExceptionResolverComposite<br>
+        <b>Template Method</b> — <code>refresh()</code>, <code>OncePerRequestFilter</code><br>
+        <b>Proxy + Decorator</b> — AOP<br>
+        <b>Observer</b> — ApplicationEvent<br>
+        <b>Composite</b> — <code>*Composite</code> wali saari classes</p></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===================== LLD ===================== -->
+<section class="sec" id="lld">
+  <div class="wrap">
+    <div class="sechead">
+      <div class="eyebrow">// low level design</div>
+      <h2>LLD — ek POST request ka 26-step trace</h2>
+      <p><code>POST /api/orders</code> · JSON body · <code>@Valid</code> · <code>@Transactional</code> service.
+      Ye exact sequence hai — interview mein bolne ke liye, aur debug karte waqt match karne ke liye.</p>
+    </div>
+
+    <div class="rail">
+      <div class="st"><span class="dot"></span><div class="body"><div class="t">01 · TCP connection accept</div><div class="d">Acceptor thread socket uthata hai, Poller ko de deta hai.</div><div class="cls">NioEndpoint$Acceptor#run</div></div></div>
+      <div class="st"><span class="dot"></span><div class="body"><div class="t">02 · Bytes aaye, worker thread assign</div><div class="d">Poller ne <code>SocketProcessor</code> bana ke pool ko diya. Ab <code>http-nio-8080-exec-7</code> is request ka malik hai.</div><div class="cls">NioEndpoint$Poller#run</div></div></div>
+      <div class="st"><span class="dot"></span><div class="body"><div class="t">03 · HTTP parse</div><div class="d">Request line, headers parse. Body abhi <b>nahi</b> padha gaya — stream khula hai.</div><div class="cls">Http11Processor#service</div></div></div>
+      <div class="st"><span class="dot"></span><div class="body"><div class="t">04 · Coyote → Servlet API bridge</div><div class="d"><code>Request</code>/<code>Response</code> ko <code>HttpServletRequest</code>/<code>HttpServletResponse</code> mein convert.</div><div class="cls">CoyoteAdapter#service</div></div></div>
+      <div class="st"><span class="dot"></span><div class="body"><div class="t">05 · Mapper → valve pipeline</div><div class="d">Host aur Context resolve. <code>StandardWrapperValve</code> tak pahuncha.</div><div class="cls">Mapper#map → StandardEngineValve</div></div></div>
+      <div class="st"><span class="dot"></span><div class="body"><div class="t">06 · Filter chain banti hai</div><div class="d">URL pattern se matching filters ka array. Ab <code>doFilter</code> recursion shuru.</div><div class="cls">ApplicationFilterFactory#createFilterChain</div></div></div>
+      <div class="st"><span class="dot"></span><div class="body"><div class="t">07 · CharacterEncodingFilter</div><div class="d">UTF-8 set.</div></div></div>
+      <div class="st"><span class="dot"></span><div class="body"><div class="t">08 · Security filter chain (15+ filters)</div><div class="d">JWT/session se authenticate → <code>SecurityContextHolder</code> (ThreadLocal) set → authorize.</div><div class="cls">FilterChainProxy#doFilterInternal</div></div></div>
+      <div class="st"><span class="dot"></span><div class="body"><div class="t">09 · Aapka CorrelationIdFilter</div><div class="d">MDC set, response header set.</div></div></div>
+      <div class="st"><span class="dot"></span><div class="body"><div class="t">10 · DispatcherServlet.service() → doDispatch()</div><div class="d">FrameworkServlet request attributes set karta hai, phir doDispatch.</div><div class="cls">FrameworkServlet#processRequest</div></div></div>
+      <div class="st"><span class="dot"></span><div class="body"><div class="t">11 · checkMultipart</div><div class="d"><code>application/json</code> hai, multipart nahi — skip.</div></div></div>
+      <div class="st"><span class="dot"></span><div class="body"><div class="t">12 · getHandler() → HandlerExecutionChain</div><div class="d"><code>MappingRegistry</code> se O(1) lookup: <code>OrderController#placeOrder</code> + matching interceptors.</div><div class="cls">AbstractHandlerMapping#getHandler</div></div></div>
+      <div class="st"><span class="dot"></span><div class="body"><div class="t">13 · getHandlerAdapter()</div><div class="d"><code>RequestMappingHandlerAdapter.supports(handler)</code> → true.</div></div></div>
+      <div class="st"><span class="dot"></span><div class="body"><div class="t">14 · applyPreHandle() — forward order</div><div class="d">Aapka <code>ApiQuotaInterceptor.preHandle()</code>. <code>true</code> mila, aage badho.</div></div></div>
+      <div class="st"><span class="dot"></span><div class="body"><div class="t">15 · Argument resolution shuru</div><div class="d">Har parameter pe loop. <code>@RequestBody PlaceOrderRequest</code> ke liye <code>RequestResponseBodyMethodProcessor</code> mila.</div><div class="cls">HandlerMethodArgumentResolverComposite#resolveArgument</div></div></div>
+      <div class="st"><span class="dot"></span><div class="body"><div class="t">16 · ★ Body ab padha jaata hai</div><div class="d"><code>MappingJackson2HttpMessageConverter</code> → Jackson <code>ObjectMapper.readValue()</code> → POJO. <b>Yahi wo point hai jahan input stream consume ho jaata hai</b> — isiliye filter mein body padhna ho toh <code>ContentCachingRequestWrapper</code> chahiye.</div><div class="cls">AbstractJackson2HttpMessageConverter#read</div></div></div>
+      <div class="st"><span class="dot"></span><div class="body"><div class="t">17 · @Valid validation</div><div class="d">Hibernate Validator. Fail → <code>MethodArgumentNotValidException</code> → seedha step 23 pe jump.</div><div class="cls">DataBinder#validate</div></div></div>
+      <div class="st"><span class="dot"></span><div class="body"><div class="t">18 · Reflection invoke</div><div class="d"><code>method.invoke(controllerBean, args)</code>. Controller chala.</div><div class="cls">InvocableHandlerMethod#doInvoke</div></div></div>
+      <div class="st"><span class="dot"></span><div class="body"><div class="t">19 · ★ Service call → AOP proxy hit</div><div class="d"><code>OrderService$$SpringCGLIB$$0</code> → <code>TransactionInterceptor</code> → tx begin, connection Hikari se.</div><div class="cls">TransactionAspectSupport#invokeWithinTransaction</div></div></div>
+      <div class="st"><span class="dot"></span><div class="body"><div class="t">20 · Business logic + repository</div><div class="d"><code>save()</code> = persistence context mein daalna. SQL abhi nahi.</div></div></div>
+      <div class="st o"><span class="dot"></span><div class="body"><div class="t">21 · ↑ Commit</div><div class="d"><code>flush()</code> → dirty checking → INSERT/UPDATE → <code>commit()</code> → connection wapas pool mein.</div></div></div>
+      <div class="st o"><span class="dot"></span><div class="body"><div class="t">22 · ↑ Return value handler</div><div class="d"><code>ResponseEntity&lt;OrderDto&gt;</code> → status + headers set → <code>ResponseBodyAdvice.beforeBodyWrite()</code> → Jackson writes JSON → <code>setRequestHandled(true)</code>.</div><div class="cls">RequestResponseBodyMethodProcessor#handleReturnValue</div></div></div>
+      <div class="st o"><span class="dot"></span><div class="body"><div class="t">23 · ↑ applyPostHandle() — reverse order</div><div class="d"><code>mv</code> null hai (@ResponseBody). Exception aayi thi toh ye skip, seedha exception resolver.</div></div></div>
+      <div class="st o"><span class="dot"></span><div class="body"><div class="t">24 · ↑ processDispatchResult()</div><div class="d">Exception ho toh resolve, warna view render (yahan kuch nahi — body already likhi ja chuki). Phir <code>triggerAfterCompletion()</code>.</div></div></div>
+      <div class="st o"><span class="dot"></span><div class="body"><div class="t">25 · ↑ Filters unwind</div><div class="d"><code>finally</code> blocks reverse order mein: MDC clear, SecurityContext clear, RequestContextHolder reset.</div></div></div>
+      <div class="st o"><span class="dot"></span><div class="body"><div class="t">26 · ↑ Response flush, thread free</div><div class="d">Tomcat buffer flush karta hai, socket keep-alive pe park hota hai, <code>exec-7</code> pool mein wapas.</div></div></div>
+    </div>
+
+    <div class="note gotcha"><span class="lbl">Step 25 — ThreadLocal leak</span>
+    <p>Thread pool mein thread <b>reuse</b> hota hai. Agar aapne <code>ThreadLocal</code> (MDC, SecurityContext, tenant context)
+    set kiya aur <code>finally</code> mein clear nahi kiya, toh <b>agla user</b> pichle user ka data dekh sakta hai.
+    Ye sirf memory leak nahi, <b>security bug</b> hai. Har ThreadLocal set ke saath ek <code>finally { remove(); }</code> zaroori hai.</p></div>
+  </div>
+</section>
+
+<!-- ===================== TRADEOFFS ===================== -->
+<section class="sec" id="tradeoff">
+  <div class="wrap">
+    <div class="sechead">
+      <div class="eyebrow">// decisions</div>
+      <h2>Tradeoffs — kab kya use karein, aur kya ignore karein</h2>
+      <p>Interview mein "kya" batana 50% hai. "Kyun aur kab nahi" batana baaki 50%.
+      Har row mein cost bhi likhi hai, sirf benefit nahi.</p>
+    </div>
+
+    <h3>Cross-cutting logic kahan rakhein</h3>
+    <div class="tw"><table>
+      <tr><th style="width:17%">Requirement</th><th style="width:17%">Use karo</th><th>Kyun</th><th style="width:22%">Ise ignore karo</th></tr>
+      <tr><td>JWT verify karna</td><td>Security filter</td><td>Controller tak pahunchne se pehle reject karna hai; handler ki zaroorat nahi</td><td>Interceptor — Security se duplicate ho jaayega</td></tr>
+      <tr><td>Request/response body log</td><td>Filter + <code>ContentCaching*Wrapper</code></td><td>Stream sirf ek baar padha ja sakta hai, wrap karna hi padega</td><td>AOP — wahan body nahi, typed object milta hai</td></tr>
+      <tr><td>Per-endpoint rate limit</td><td>Interceptor</td><td><code>HandlerMethod</code> se annotation padh sakte ho</td><td>Filter — usse endpoint pata nahi</td></tr>
+      <tr><td>Response envelope</td><td><code>ResponseBodyAdvice</code></td><td>Serialization se pehle typed object milta hai</td><td>Filter — tab tak JSON string ban chuki hogi</td></tr>
+      <tr><td>Method timing/metrics</td><td>AOP ya <code>@Timed</code></td><td>Micrometer already integrated hai</td><td>Manual <code>System.nanoTime()</code> har method mein</td></tr>
+      <tr><td>Retry on failure</td><td><code>@Retryable</code></td><td>Declarative, backoff/jitter built-in</td><td>Custom loop — jitter aur max-attempt bugs guarantee</td></tr>
+      <tr><td>Global error shape</td><td><code>@RestControllerAdvice</code></td><td>Ek jagah, typed exceptions</td><td>Har controller mein try/catch</td></tr>
+      <tr><td>Multi-tenancy</td><td>Filter (set) + <code>ArgumentResolver</code> (read)</td><td>Set jaldi, read type-safely</td><td>Har method signature mein <code>String tenantId</code> pass karna</td></tr>
+    </table></div>
+
+    <h3>Architecture-level calls</h3>
+    <div class="grid2" style="margin-top:20px">
+      <div class="mini">
+        <h4>MVC vs WebFlux</h4>
+        <p style="font-size:15.5px;margin-bottom:8px"><b>MVC chuno</b> — default. Debuggable stack traces, blocking JDBC,
+        har library compatible, poori team samajhti hai. Virtual threads ne iski scalability ka gap
+        lagbhag khatam kar diya hai.</p>
+        <p style="font-size:15.5px;margin:0"><b>WebFlux tabhi</b> — 10k+ concurrent connections, SSE/streaming,
+        ya poora stack already reactive (R2DBC + reactive Redis + reactive security).
+        <span style="color:var(--danger)">Ek bhi blocking call</span> event loop pe poora app gira degi.</p>
+      </div>
+      <div class="mini">
+        <h4>Auto-config vs explicit @Configuration</h4>
+        <p style="font-size:15.5px;margin-bottom:8px"><b>Auto-config</b> — shared library, 3+ consumer teams,
+        zero-config chahiye. Cost: conditions test karne padte hain, debugging gehri.</p>
+        <p style="font-size:15.5px;margin:0"><b>Explicit</b> — single app ke andar hamesha.
+        "Jo likha hai wahi chalega" &gt; "pata nahi kya load hua".</p>
+      </div>
+      <div class="mini">
+        <h4>Field vs constructor injection</h4>
+        <p style="font-size:15.5px;margin-bottom:8px"><b>Constructor</b> — hamesha. <code>final</code> fields,
+        immutable, <code>new</code> se test ho jaata hai, circular dependency compile/startup pe pakdi jaati hai.</p>
+        <p style="font-size:15.5px;margin:0"><b>Field injection ignore karo</b> — chhupi hui dependencies,
+        test mein reflection chahiye, aur circular dependency chup chaap pass ho jaati hai
+        (Boot 2.6 se wo bhi by default fail hoti hai).</p>
+      </div>
+      <div class="mini">
+        <h4>Thread pool vs virtual threads</h4>
+        <p style="font-size:15.5px;margin-bottom:8px"><b>Platform threads</b> — jab load predictable ho aur
+        pool size hi aapka backpressure ho. Simple, proven.</p>
+        <p style="font-size:15.5px;margin:0"><b>Virtual threads</b> — I/O-heavy, high concurrency, Java 21+.
+        <span style="color:var(--danger)">Pehle audit karo:</span> <code>synchronized</code> blocks,
+        ThreadLocal-heavy libraries, aur pool-based rate limiting — teeno assumption tootengi.</p>
+      </div>
+    </div>
+
+    <div class="note trade" style="margin-top:22px"><span class="lbl">Ek meta-rule — interview mein ye bolo</span>
+    <p>"Main default simplest option chunta hoon, aur complexity tabhi add karta hoon jab <b>measured</b> problem ho.
+    Har abstraction ka ek debugging cost hota hai jo naya joining dev pay karta hai — isliye magic tabhi
+    justified hai jab wo repetition ko meaningfully khatam kare, sirf clever dikhne ke liye nahi."</p>
+    <p>Ye line har tradeoff question ka safe aur honest jawaab hai.</p></div>
+  </div>
+</section>
+
+<!-- ===================== VERSIONS ===================== -->
+<section class="sec" id="versions">
+  <div class="wrap">
+    <div class="sechead">
+      <div class="eyebrow">// version-wise changes</div>
+      <h2>Version ke saath kya-kya badla</h2>
+      <p>Migration interview ka favourite topic hai. Har release ka sirf wo point jo <b>aapke code ko todta hai</b>
+      ya architecture change karta hai.</p>
+    </div>
+
+    <div class="vt">
+      <div class="vrow">
+        <div><span class="vtag">Boot 1.5</span><span class="vdate">2017 · EOL</span></div>
+        <ul class="vlist">
+          <li><code>spring.factories</code> se saari auto-config. Java 8, Spring Framework 4.</li>
+          <li><code>WebMvcConfigurerAdapter</code> extend karna padta tha (Java 7 compat ke liye).</li>
+        </ul>
+      </div>
+      <div class="vrow">
+        <div><span class="vtag">Boot 2.0</span><span class="vdate">Mar 2018</span></div>
+        <ul class="vlist">
+          <li><b>CGLIB default proxy</b> — <code>spring.aop.proxy-target-class=true</code>. Interface na ho toh bhi proxy ban jaata hai.</li>
+          <li><b>HikariCP</b> default connection pool (Tomcat JDBC ki jagah).</li>
+          <li><b>WebFlux</b> introduce. Actuator endpoints poori tarah redesign (<code>/actuator/*</code> prefix).</li>
+          <li><code>WebMvcConfigurer</code> default methods ke saath — <code>Adapter</code> deprecated.</li>
+        </ul>
+      </div>
+      <div class="vrow">
+        <div><span class="vtag">Boot 2.3 – 2.4</span><span class="vdate">2020</span></div>
+        <ul class="vlist">
+          <li><b>Graceful shutdown</b> — <code>server.shutdown=graceful</code>. Kubernetes ke liye must.</li>
+          <li><b>Layered jars</b> — Docker image layers, faster rebuilds. Buildpacks support.</li>
+          <li><b>Config file processing rewrite</b> (2.4) — <code>spring.config.import</code>, multi-document YAML ka order badla. Ye silently break karta hai.</li>
+          <li><code>spring-boot-starter-validation</code> ab web starter mein include nahi — alag se add karna padta hai.</li>
+        </ul>
+      </div>
+      <div class="vrow">
+        <div><span class="vtag">Boot 2.6</span><span class="vdate">Nov 2021</span></div>
+        <ul class="vlist">
+          <li><b>Circular references by default BAN</b> — <code>spring.main.allow-circular-references=true</code> se hi chalega. Ye upgrade pe sabse pehla error hota hai.</li>
+          <li><b><code>PathPatternParser</code> default</b> — trailing slash aur <code>**</code> ka behaviour badla.</li>
+        </ul>
+      </div>
+      <div class="vrow">
+        <div><span class="vtag">Boot 2.7</span><span class="vdate">May 2022 · last 2.x</span></div>
+        <ul class="vlist">
+          <li><b><code>@AutoConfiguration</code> annotation</b> aur naya registration file:
+          <code>META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports</code>.
+          <code>spring.factories</code> abhi kaam karta hai par deprecated.</li>
+          <li><code>WebSecurityConfigurerAdapter</code> deprecated → component-based <code>SecurityFilterChain</code> bean.</li>
+          <li>Upgrade karne wale <b>yahin ruko</b>, phir 3.0 pe jao.</li>
+        </ul>
+      </div>
+      <div class="vrow">
+        <div><span class="vtag">Boot 3.0</span><span class="vdate">Nov 2022 · bada break</span></div>
+        <ul class="vlist">
+          <li><b><code>javax.*</code> → <code>jakarta.*</code></b> — Jakarta EE 9+. Har import badalna padega. <code>javax.servlet.Filter</code> ab <code>jakarta.servlet.Filter</code>.</li>
+          <li><b>Java 17 minimum</b>, Spring Framework 6.</li>
+          <li><code>spring.factories</code> se auto-config <b>bilkul</b> kaam nahi karti — sirf <code>.imports</code> file.</li>
+          <li><b><code>ProblemDetail</code></b> (RFC 7807) built-in error format.</li>
+          <li><b>GraalVM native image</b> first-class, AOT processing.</li>
+          <li><b>Micrometer Observation</b> — Spring Cloud Sleuth retire, tracing built-in.</li>
+          <li>Security 6: <code>antMatchers()</code> → <code>requestMatchers()</code>, <code>WebSecurityConfigurerAdapter</code> <b>hata diya</b>.</li>
+          <li>Spring MVC se <b>theme support hata</b> — <code>ThemeResolver</code> gone, <code>initStrategies()</code> ab 8 strategies init karta hai.</li>
+          <li><code>@ConstructorBinding</code> ab class-level pe nahi, single-constructor pe implicit.</li>
+        </ul>
+      </div>
+      <div class="vrow">
+        <div><span class="vtag">Boot 3.1 – 3.2</span><span class="vdate">2023</span></div>
+        <ul class="vlist">
+          <li><b>Virtual threads</b> (3.2) — <code>spring.threads.virtual.enabled=true</code>, Java 21+. Tomcat har request pe naya virtual thread deta hai.</li>
+          <li><b><code>RestClient</code></b> (3.2) — <code>RestTemplate</code> ka fluent successor, <code>WebClient</code> jaisa API par synchronous.</li>
+          <li><b>Docker Compose support</b> aur <b>Testcontainers</b> integration (3.1) — dev mein DB automatically start.</li>
+          <li><b>SSL bundles</b> (3.1) — certificates ka central config, hot reload.</li>
+          <li><code>spring.mvc.throw-exception-if-no-handler-found</code> ab default <code>true</code> (3.2) — 404 pe <code>@ControllerAdvice</code> kaam karta hai.</li>
+        </ul>
+      </div>
+      <div class="vrow">
+        <div><span class="vtag">Boot 3.3 – 3.5</span><span class="vdate">2024 – 2025 · last 3.x</span></div>
+        <ul class="vlist">
+          <li><b>Structured logging</b> (3.4) — ECS / Logstash / GELF JSON built-in, koi appender config nahi.</li>
+          <li><b>CDS support</b> (3.3) — class data sharing se startup tez.</li>
+          <li>Actuator: <code>management.endpoint.&lt;id&gt;.enabled</code> → <code>.access</code> (read-only / unrestricted / none).</li>
+          <li><b>Bean background initialization</b> (3.4) — startup parallelize.</li>
+          <li>3.5 = 3.x line ka aakhri minor. Yahan se 4.x.</li>
+        </ul>
+      </div>
+      <div class="vrow">
+        <div><span class="vtag">Boot 4.0</span><span class="vdate">20 Nov 2025 · generational reset</span></div>
+        <ul class="vlist">
+          <li><b>Modularization</b> — ek <code>spring-boot-autoconfigure</code> jar ~70 focused modules mein split.
+          Package rename: <code>org.springframework.boot.autoconfigure.amqp</code> → <code>org.springframework.boot.amqp.autoconfigure</code>.
+          Har technology ka apna starter. <b>Yahi sabse bada breaking change hai.</b></li>
+          <li>Migration bridge: <code>spring-boot-starter-classic</code> aur <code>spring-boot-starter-test-classic</code> daalo,
+          app chalao, phir dhire-dhire specific starters pe shift karo.</li>
+          <li><b>Spring Framework 7</b>, Jakarta EE 11. Java 17 minimum rakha gaya (taaki 3.x apps bina JDK upgrade migrate ho sakein), Java 25 recommended.</li>
+          <li><b>JSpecify null-safety</b> — poore codebase pe <code>@Nullable</code>/<code>@NonNull</code>. Kotlin ya null-checker use karte ho toh compile errors aayenge.</li>
+          <li><b>API versioning</b> support built-in.</li>
+          <li><b><code>@HttpServiceClient</code></b> — declarative HTTP clients, Feign ki zaroorat kam.</li>
+          <li><b>Resilience Framework mein aa gaya</b> — <code>@Retryable</code>, <code>@ConcurrencyLimit</code>. Spring Retry alag project ki zaroorat nahi.</li>
+          <li><b>Jackson 3.x</b> — API badla hai, custom serializers touch karne padenge.</li>
+          <li>Naya <code>spring-boot-starter-opentelemetry</code>. Spring Security 7.</li>
+        </ul>
+      </div>
+      <div class="vrow">
+        <div><span class="vtag">Boot 4.1</span><span class="vdate">10 Jun 2026 · current</span></div>
+        <ul class="vlist">
+          <li>Spring Framework 7.0.8 pe. Naye projects ke liye recommended target.</li>
+          <li><b>gRPC auto-configuration</b> built-in.</li>
+          <li><b>HTTP client SSRF mitigation</b> — outbound calls pe guardrails.</li>
+          <li><b>Lazy datasource connections</b> — connection tabhi lo jab actually query chale. Tx-heavy apps ke liye bada win.</li>
+          <li><b><code>@Async</code> pe context propagation</b> — MDC/tracing ab automatically carry hoti hai.</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="note"><span class="lbl">Migration ka safe path</span>
+    <p><b>2.x → 4.x seedha mat karo.</b> Steps: 2.x se <b>2.7</b> (yahan sab deprecation warnings theek karo) →
+    <b>3.0</b> (sirf javax→jakarta + Java 17, aur kuch nahi) → <b>3.5</b> → <b>4.x</b> (classic starters ke saath).</p>
+    <p>Har step pe OpenRewrite recipes hain — <code>org.openrewrite.java.spring.boot3.UpgradeSpringBoot_3_5</code>,
+    <code>...boot4.MigrateToModularStarters</code>. Manually 500 imports badalne se behtar hai.</p>
+    <p style="margin-top:8px;font-size:15px;color:var(--ink-3)">Support window: har minor ko 12 mahine OSS patches milte hain,
+    naya minor lagbhag har 6 mahine (May aur November). Spring Boot mein "LTS" jaisa kuch nahi hai.</p></div>
+  </div>
+</section>
+
+<!-- ===================== MOCK Q&A ===================== -->
+<section class="sec" id="mock">
+  <div class="wrap">
+    <div class="sechead">
+      <div class="eyebrow">// mock interview</div>
+      <h2>26 questions — pehle khud socho, phir kholo</h2>
+      <p>Har jawaab wahi hai jo ek interviewer sunna chahta hai: pehle ek line ka direct answer,
+      phir uske peeche ka mechanism. Tap karke expand karo.</p>
+      <div class="key" style="margin-top:18px">
+        <span class="k-sys">basic · 0–2 yrs</span>
+        <span class="k-in">core · 3–6 yrs</span>
+        <span class="k-warn">deep · 7+ yrs</span>
+      </div>
+    </div>
+
+    <details class="qa"><summary><span class="qn">Q1</span><span><span class="qtier t1">basic</span>@SpringBootApplication ke andar kya hai?</span><span class="ch">+</span></summary>
+    <div class="ans"><p>Teen annotations ka meta-annotation: <code>@SpringBootConfiguration</code> (khud <code>@Configuration</code> hai),
+    <code>@ComponentScan</code> (current package aur usse neeche scan), aur <code>@EnableAutoConfiguration</code>.</p>
+    <p>Teesra sabse important — wo <code>@Import(AutoConfigurationImportSelector.class)</code> karta hai jo
+    <code>AutoConfiguration.imports</code> file padh ke conditional beans register karta hai.</p>
+    <p><b>Follow-up jo aayega:</b> "Main class ko root package mein kyun rakhte hain?" — kyunki
+    <code>@ComponentScan</code> ka base package wahi hai. Bahar rakh doge toh aapke beans scan hi nahi honge.</p></div></details>
+
+    <details class="qa"><summary><span class="qn">Q2</span><span><span class="qtier t1">basic</span>Embedded server ka fayda kya hai? WAR se kya farak?</span><span class="ch">+</span></summary>
+    <div class="ans"><p>App khud apna server leke chalti hai — <code>java -jar app.jar</code> bas. Server ka version
+    aapke build mein pinned hai, "mere laptop pe Tomcat 8 tha" wala problem khatam.</p>
+    <p>Fat jar ki structure: <code>BOOT-INF/classes</code> + <code>BOOT-INF/lib</code> + <code>org/springframework/boot/loader</code>.
+    <code>JarLauncher</code> ek custom classloader banata hai jo nested jars padh sakta hai — normal Java ye nahi kar sakta.</p>
+    <p><b>Kab WAR chahiye:</b> jab existing corporate app server (WebLogic/WebSphere) mandatory ho.
+    Tab <code>SpringBootServletInitializer</code> extend karo.</p></div></details>
+
+    <details class="qa"><summary><span class="qn">Q3</span><span><span class="qtier t1">basic</span>Filter aur Interceptor mein difference?</span><span class="ch">+</span></summary>
+    <div class="ans"><p><b>Ek line:</b> Filter Servlet spec ka hai aur DispatcherServlet ke bahar chalta hai;
+    Interceptor Spring MVC ka hai aur andar chalta hai — isliye usse <code>HandlerMethod</code> pata hota hai.</p>
+    <p>Practical difference: Filter request/response ko <b>wrap</b> kar sakta hai (body cache, compression) —
+    Interceptor nahi. Interceptor controller ki <b>annotations padh sakta hai</b> — Filter nahi.</p>
+    <p>Filter ke teen callbacks nahi hote, ek <code>doFilter</code> hai jisme aap <code>chain.doFilter()</code> ke
+    around code likhte ho. Interceptor ke teen hooks hain: <code>preHandle</code>, <code>postHandle</code>, <code>afterCompletion</code>.</p></div></details>
+
+    <details class="qa"><summary><span class="qn">Q4</span><span><span class="qtier t2">core</span>doDispatch() mein exact sequence batao</span><span class="ch">+</span></summary>
+    <div class="ans"><p>checkMultipart → getHandler (HandlerExecutionChain) → getHandlerAdapter →
+    <b>applyPreHandle</b> (forward order) → <b>ha.handle()</b> (args resolve + invoke + return value handle) →
+    async check → applyDefaultViewName → <b>applyPostHandle</b> (reverse order) →
+    processDispatchResult (exception resolve ya view render) → <b>triggerAfterCompletion</b> (reverse) →
+    finally cleanupMultipart.</p>
+    <p><b>Do jagah log phaste hain:</b> postHandle reverse order mein chalta hai, aur async start hone pe
+    postHandle bilkul skip ho jaata hai.</p></div></details>
+
+    <details class="qa"><summary><span class="qn">Q5</span><span><span class="qtier t2">core</span>preHandle false return kare toh afterCompletion chalega?</span><span class="ch">+</span></summary>
+    <div class="ans"><p>Jis interceptor ne <code>false</code> bola, <b>uska</b> afterCompletion nahi chalega.
+    Lekin usse <b>pehle</b> wale jitne interceptors successfully pass ho chuke the, un sabka chalega.</p>
+    <p>Mechanism: <code>HandlerExecutionChain</code> ek <code>interceptorIndex</code> rakhta hai. preHandle loop
+    mein har success pe index badhta hai. False milte hi <code>triggerAfterCompletion()</code> call hota hai jo
+    <code>interceptorIndex</code> se <b>ulta</b> 0 tak jaata hai — matlab current wala included nahi.</p>
+    <p>Logic: "tumne khud rok diya, toh cleanup bhi tum khud kar lo".</p></div></details>
+
+    <details class="qa"><summary><span class="qn">Q6</span><span><span class="qtier t2">core</span>Same class mein @Transactional method call kiya, kaam nahi kiya. Kyun?</span><span class="ch">+</span></summary>
+    <div class="ans"><p>Self-invocation. Spring AOP proxy-based hai — annotation ka effect tabhi hota hai jab call
+    <b>proxy se hoke</b> jaaye. <code>this.method()</code> raw object pe seedha jaata hai, proxy bypass ho jaata hai.</p>
+    <p><b>Fix (priority order):</b> 1) method ko alag bean mein nikalo — sabse saaf.
+    2) <code>@Lazy</code> self-injection. 3) <code>TransactionTemplate</code> programmatically.
+    4) <code>AopContext.currentProxy()</code> — kaam karta hai par <code>exposeProxy=true</code> chahiye aur code gandha hota hai.</p>
+    <p><b>Follow-up:</b> "AspectJ load-time weaving se kaam karega?" — Haan, kyunki wahan bytecode
+    modify hota hai, proxy nahi banta. Par setup cost zyada hai, 99% projects mein justified nahi.</p></div></details>
+
+    <details class="qa"><summary><span class="qn">Q7</span><span><span class="qtier t2">core</span>Circular dependency Spring kaise solve karta hai?</span><span class="ch">+</span></summary>
+    <div class="ans"><p>Three-level cache se, aur <b>sirf setter/field injection</b> ke liye:</p>
+    <p><code>singletonObjects</code> (L1 — poore bane beans) · <code>earlySingletonObjects</code> (L2 — adhoore, exposed)
+    · <code>singletonFactories</code> (L3 — <code>ObjectFactory</code> jo zaroorat padne pe early reference deta hai).</p>
+    <p>A bana → L3 mein factory daali → A ko B chahiye → B bana → B ko A chahiye → L3 se A ka adhoora
+    reference mila → B poora hua → A poora hua. L3 isliye chahiye kyunki agar A pe proxy lagna hai toh
+    <b>early reference bhi proxy hona chahiye</b> — factory wo decide karti hai.</p>
+    <p><b>Constructor injection mein solve nahi hota</b> — object bina dependency ke exist hi nahi kar sakta.
+    Aur Boot 2.6 se circular references <b>by default fail</b> karti hain. Ye feature nahi, warning hai —
+    fix design karo, flag mat lagao.</p></div></details>
+
+    <details class="qa"><summary><span class="qn">Q8</span><span><span class="qtier t2">core</span>BeanFactoryPostProcessor vs BeanPostProcessor</span><span class="ch">+</span></summary>
+    <div class="ans"><p><b>BFPP</b> — BeanDefinition (recipe) badalta hai, object banne se pehle.
+    refresh() step 5. Example: <code>ConfigurationClassPostProcessor</code>, placeholder resolver.</p>
+    <p><b>BPP</b> — bana hua object badalta/wrap karta hai. Har bean ke init ke around chalta hai.
+    Example: <code>AutowiredAnnotationBeanPostProcessor</code>, <code>AnnotationAwareAspectJAutoProxyCreator</code> (AOP proxy),
+    <code>CommonAnnotationBeanPostProcessor</code> (<code>@PostConstruct</code>).</p>
+    <p><b>Memory trick:</b> BFPP = blueprint edit karta hai. BPP = bana hua ghar repaint karta hai.</p></div></details>
+
+    <details class="qa"><summary><span class="qn">Q9</span><span><span class="qtier t2">core</span>Bean scopes kaunse hain? Singleton mein prototype inject karo toh?</span><span class="ch">+</span></summary>
+    <div class="ans"><p><code>singleton</code> (default), <code>prototype</code>, aur web scopes: <code>request</code>,
+    <code>session</code>, <code>application</code>, <code>websocket</code>.</p>
+    <p><b>Trap:</b> singleton mein prototype inject karoge toh wo <b>sirf ek baar</b> inject hoga —
+    singleton khud ek hi baar banta hai. Har call pe naya chahiye toh:
+    <code>ObjectProvider&lt;T&gt;</code> (modern, best), <code>@Lookup</code> method,
+    ya <code>@Scope(proxyMode = TARGET_CLASS)</code>.</p>
+    <p><code>ObjectProvider</code> isliye best hai kyunki wo optional aur multiple beans bhi handle karta hai,
+    aur test mein mock karna trivial hai.</p></div></details>
+
+    <details class="qa"><summary><span class="qn">Q10</span><span><span class="qtier t2">core</span>Auto-configuration ne mera bean override kyun nahi kiya?</span><span class="ch">+</span></summary>
+    <div class="ans"><p>Kiya hi nahi jaana chahiye — <b>aapka bean hamesha jeetega</b>. Wajah:
+    <code>AutoConfigurationImportSelector</code> ek <code>DeferredImportSelector</code> hai, jo
+    aapke saare <code>@Configuration</code> parse hone ke <b>baad</b> chalta hai.
+    Tab tak aapka bean registered hai, isliye <code>@ConditionalOnMissingBean</code> false ho jaata hai.</p>
+    <p>Agar ulta ho raha hai (aapka bean nahi ban raha), toh check karo: bean same <b>type</b> ka hai?
+    Component scan range mein hai? <code>--debug</code> chalao aur negative matches padho.</p>
+    <p><b>Force override:</b> <code>@SpringBootApplication(exclude = DataSourceAutoConfiguration.class)</code>
+    ya <code>spring.autoconfigure.exclude</code> property.</p></div></details>
+
+    <details class="qa"><summary><span class="qn">Q11</span><span><span class="qtier t2">core</span>@RequestBody se JSON POJO kaise ban jaata hai?</span><span class="ch">+</span></summary>
+    <div class="ans"><p><code>RequestResponseBodyMethodProcessor</code> (ek <code>HandlerMethodArgumentResolver</code>)
+    <code>Content-Type</code> dekhta hai, matching <code>HttpMessageConverter</code> chunta hai —
+    JSON ke liye <code>MappingJackson2HttpMessageConverter</code> — aur Jackson ka
+    <code>ObjectMapper.readValue()</code> chalta hai.</p>
+    <p><b>Important side-effect:</b> yahin request input stream <b>consume</b> ho jaata hai.
+    Isiliye aage koi bhi body dobara nahi padh sakta, aur filter mein body log karne ke liye
+    <code>ContentCachingRequestWrapper</code> chahiye.</p>
+    <p>ObjectMapper customize karne ka sahi tareeka: <code>Jackson2ObjectMapperBuilderCustomizer</code> bean —
+    <code>ObjectMapper</code> ko poora replace mat karo, warna Boot ki saari default settings chali jaayengi.</p></div></details>
+
+    <details class="qa"><summary><span class="qn">Q12</span><span><span class="qtier t2">core</span>@ControllerAdvice filter ki exception kyun nahi pakadta?</span><span class="ch">+</span></summary>
+    <div class="ans"><p>Kyunki filter DispatcherServlet ke <b>bahar</b> hai. <code>@ControllerAdvice</code>
+    <code>ExceptionHandlerExceptionResolver</code> ke through kaam karta hai, jo
+    <code>processDispatchResult()</code> ke andar call hota hai — matlab DispatcherServlet ke andar.</p>
+    <p>Filter ki exception seedha Tomcat tak jaati hai → container <code>/error</code> pe naya dispatch karta hai →
+    <code>BasicErrorController</code> default response deta hai.</p>
+    <p><b>Fix options:</b> filter mein khud try/catch karke JSON likho; Spring Security ke liye
+    <code>AuthenticationEntryPoint</code>/<code>AccessDeniedHandler</code>; ya <code>ErrorController</code>
+    override karke <code>/error</code> customize karo.</p></div></details>
+
+    <details class="qa"><summary><span class="qn">Q13</span><span><span class="qtier t2">core</span>save() call kiya — SQL turant chala?</span><span class="ch">+</span></summary>
+    <div class="ans"><p>Nahi (zyadatar). <code>save()</code> entity ko persistence context mein daalta hai.
+    SQL <b>flush</b> pe generate hota hai, jo commit se just pehle hota hai.</p>
+    <p><b>Exception:</b> <code>IDENTITY</code> generation strategy mein Hibernate ko ID chahiye hoti hai,
+    isliye <code>INSERT</code> turant chal jaata hai — aur isi wajah se JDBC batching kaam nahi karti.
+    High-volume inserts ke liye <code>SEQUENCE</code> + <code>allocationSize</code> use karo.</p>
+    <p><b>Update ke liye save() zaroori nahi</b> — managed entity pe setter kaafi hai, dirty checking
+    flush pe UPDATE bana degi.</p></div></details>
+
+    <details class="qa"><summary><span class="qn">Q14</span><span><span class="qtier t2">core</span>Transaction propagation types samjhao — REQUIRED vs REQUIRES_NEW</span><span class="ch">+</span></summary>
+    <div class="ans"><p><b>REQUIRED</b> (default) — tx chal rahi hai toh usi mein join karo, warna nayi banao.
+    Matlab inner method ki exception poori outer tx rollback kar degi.</p>
+    <p><b>REQUIRES_NEW</b> — outer tx <b>suspend</b> karo, nayi banao, commit karo, phir outer resume.
+    Do alag connections use hote hain. Audit log ke liye perfect — main operation fail ho toh bhi log bacha rahe.</p>
+    <p><b>Deadlock warning:</b> REQUIRES_NEW ke andar wahi row lock karne ki koshish ki jo outer ne
+    lock kar rakhi hai → guaranteed deadlock, kyunki dono alag connection hain.</p>
+    <p>Baaki: <code>SUPPORTS</code>, <code>NOT_SUPPORTED</code> (suspend karke bina tx chalao),
+    <code>MANDATORY</code> (tx nahi hai toh exception), <code>NEVER</code>,
+    <code>NESTED</code> (savepoint — sirf JDBC, JPA mein reliable nahi).</p></div></details>
+
+    <details class="qa"><summary><span class="qn">Q15</span><span><span class="qtier t2">core</span>Checked exception pe rollback kyun nahi hota?</span><span class="ch">+</span></summary>
+    <div class="ans"><p>Spring ki default rule: rollback sirf <code>RuntimeException</code> aur <code>Error</code> pe.
+    Checked exception ko Spring "expected business outcome" maanta hai — aapne declare kiya hai,
+    matlab aap handle kar rahe ho.</p>
+    <p><b>Fix:</b> <code>@Transactional(rollbackFor = Exception.class)</code>.</p>
+    <p><b>Bada trap:</b> agar aapne khud <code>try/catch</code> mein exception nigal li, toh
+    <code>rollbackFor</code> bhi bekar hai — Spring ko exception dikhi hi nahi. Tab
+    <code>TransactionAspectSupport.currentTransactionStatus().setRollbackOnly()</code> manually call karo.</p></div></details>
+
+    <details class="qa"><summary><span class="qn">Q16</span><span><span class="qtier t2">core</span>Tomcat thread pool kaise kaam karta hai? 200 threads, 1000 users?</span><span class="ch">+</span></summary>
+    <div class="ans"><p>Teen roles: <b>Acceptor</b> (socket accept), <b>Poller</b> (selector pe hazaron idle
+    connections hold), <b>Worker pool</b> (asli kaam, <code>http-nio-8080-exec-N</code>).</p>
+    <p>1000 users aaye: sab connect ho jaayenge (<code>max-connections</code> 8192 tak), par sirf 200
+    ek saath process honge. 201st request <code>accept-count</code> queue mein wait karegi. Queue bhar gayi
+    toh connection refuse.</p>
+    <p><b>Math:</b> har request 500ms → 200/0.5 = 400 req/s ceiling. Latency badhi toh throughput
+    proportionally girega. Isiliye p99 latency aur throughput ek hi cheez ke do naap hain.</p></div></details>
+
+    <details class="qa"><summary><span class="qn">Q17</span><span><span class="qtier t2">core</span>ThreadLocal thread pool mein kyun khatarnak hai?</span><span class="ch">+</span></summary>
+    <div class="ans"><p>Threads reuse hote hain. Agar aapne MDC/SecurityContext/tenant set kiya aur clear nahi kiya,
+    toh <b>agla request</b> — jo kisi aur user ka ho sakta hai — wahi value dekhega.</p>
+    <p>Ye sirf memory leak nahi, <b>data leakage bug</b> hai. Real production incident pattern:
+    user A ka tenant id user B ke response mein.</p>
+    <p><b>Rule:</b> har <code>ThreadLocal.set()</code> ke saath ek <code>finally { remove(); }</code>.
+    Spring apne saare context holders ke liye ye khud karta hai — aapko sirf apne wale sambhalne hain.
+    <code>@Async</code> ke saath ho toh <code>TaskDecorator</code> use karo context propagate karne ke liye
+    (Boot 4.1 mein ye built-in ho gaya hai).</p></div></details>
+
+    <details class="qa"><summary><span class="qn">Q18</span><span><span class="qtier t3">deep</span>Apna Spring Boot starter kaise banayein?</span><span class="ch">+</span></summary>
+    <div class="ans"><p>Do modules: <code>acme-x-spring-boot-autoconfigure</code> (logic) aur
+    <code>acme-x-spring-boot-starter</code> (sirf dependencies, koi code nahi). Naming convention important hai —
+    <code>spring-boot-starter-x</code> Spring ke apne starters ke liye reserved hai.</p>
+    <p>Steps: 1) <code>@AutoConfiguration</code> class + <code>@ConditionalOnClass</code>/<code>@ConditionalOnProperty</code>
+    2) har bean pe <code>@ConditionalOnMissingBean</code> (user override kar sake)
+    3) <code>@ConfigurationProperties</code> typed config ke liye
+    4) class name <code>META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports</code> mein
+    5) <code>spring-boot-configuration-processor</code> add karo — IDE mein autocomplete milega.</p>
+    <p><b>Test:</b> <code>ApplicationContextRunner</code> — har condition ka positive aur negative case.
+    Ye starter ka sabse important test hai.</p></div></details>
+
+    <details class="qa"><summary><span class="qn">Q19</span><span><span class="qtier t3">deep</span>Graceful shutdown internally kya karta hai?</span><span class="ch">+</span></summary>
+    <div class="ans"><p><code>server.shutdown=graceful</code> pe SIGTERM aane par:
+    1) connector <b>naye connections accept karna band</b> kar deta hai
+    2) chal rahi requests ko <code>spring.lifecycle.timeout-per-shutdown-phase</code> (default 30s) tak
+    complete hone ka time milta hai
+    3) phir <code>SmartLifecycle.stop()</code> phases reverse order mein
+    4) <code>@PreDestroy</code> → <code>DisposableBean.destroy()</code>
+    5) connection pools band.</p>
+    <p><b>Kubernetes ke saath:</b> readiness probe ko shutdown se <b>pehle</b> fail hona chahiye,
+    warna load balancer naye requests bhejta rahega. Isliye <code>preStop</code> hook mein
+    5–10 second <code>sleep</code> daalo — LB ko endpoint hatane ka time mil jaata hai.
+    Ye sabse common "deploy pe 502" ka fix hai.</p></div></details>
+
+    <details class="qa"><summary><span class="qn">Q20</span><span><span class="qtier t3">deep</span>@Async method ki exception kahan jaati hai?</span><span class="ch">+</span></summary>
+    <div class="ans"><p>Return type pe depend karta hai. <code>void</code> return → exception
+    <b>chup chaap gayab</b> ho jaati hai (default <code>SimpleAsyncUncaughtExceptionHandler</code> sirf log karta hai).
+    <code>CompletableFuture</code>/<code>Future</code> return → exception future ke andar wrap ho jaati hai,
+    <code>get()</code> pe milegi.</p>
+    <p>Custom handling: <code>AsyncConfigurer</code> implement karke
+    <code>getAsyncUncaughtExceptionHandler()</code> override karo.</p>
+    <p><b>Do aur gotchas:</b> <code>@Async</code> + <code>@Transactional</code> ek hi method pe — naya thread,
+    naya tx context, outer tx se koi relation nahi. Aur <code>@Async</code> bhi proxy-based hai —
+    self-invocation pe silently synchronous chal jaayega.</p></div></details>
+
+    <details class="qa"><summary><span class="qn">Q21</span><span><span class="qtier t3">deep</span>Virtual threads on karne se pehle kya check karoge?</span><span class="ch">+</span></summary>
+    <div class="ans"><p>Teen cheezein:</p>
+    <p><b>1. <code>synchronized</code> blocks</b> jo I/O ke around hain — wo carrier thread ko <b>pin</b> kar dete hain,
+    poora fayda khatam. <code>ReentrantLock</code> se replace karo. (Java 24+ mein ye kaafi improve hua hai,
+    par legacy libraries ab bhi issue hain.)</p>
+    <p><b>2. ThreadLocal-heavy code</b> — ab har request pe naya virtual thread hai, toh pooling
+    assumptions toot jaayengi. Memory usage pattern badlega.</p>
+    <p><b>3. Backpressure</b> — pehle thread pool hi aapka natural rate limiter tha.
+    Virtual threads unbounded hain — matlab 50,000 concurrent requests aapke DB pool pe
+    seedha gir sakti hain. Explicit semaphore/bulkhead lagana zaroori hai.</p>
+    <p>Flag: <code>spring.threads.virtual.enabled=true</code>, Boot 3.2+, Java 21+.
+    Pin detect karne ke liye: <code>-Djdk.tracePinnedThreads=full</code>.</p></div></details>
+
+    <details class="qa"><summary><span class="qn">Q22</span><span><span class="qtier t3">deep</span>Boot 2.7 se 3.x migration mein kya-kya todega?</span><span class="ch">+</span></summary>
+    <div class="ans"><p><b>1. <code>javax.*</code> → <code>jakarta.*</code></b> — sabse bada. Har servlet, validation,
+    persistence import. OpenRewrite se automate karo.</p>
+    <p><b>2. Java 17 minimum</b> — build toolchain, aur reflection-heavy libraries check karo.</p>
+    <p><b>3. <code>spring.factories</code> se auto-config band</b> — custom starters ki registration file badalni padegi.</p>
+    <p><b>4. Spring Security 6</b> — <code>WebSecurityConfigurerAdapter</code> gone,
+    <code>antMatchers()</code> → <code>requestMatchers()</code>, lambda DSL mandatory.</p>
+    <p><b>5. Third-party libs</b> — jo bhi <code>javax.servlet</code> pe depend karti hai, uska
+    Jakarta-compatible version chahiye. Ye aksar blocker hota hai.</p>
+    <p><b>Strategy:</b> pehle 2.7 pe jao aur saare deprecation warnings zero karo. 3.0 pe jaate waqt
+    <b>sirf</b> jakarta + Java 17 karo, aur kuch nahi. Ek PR, ek concern.</p></div></details>
+
+    <details class="qa"><summary><span class="qn">Q23</span><span><span class="qtier t3">deep</span>Boot 4.0 ka modularization kya tod sakta hai?</span><span class="ch">+</span></summary>
+    <div class="ans"><p>Ek <code>spring-boot-autoconfigure</code> jar ~70 modules mein split ho gaya.
+    Consequence: jo feature pehle "free" mein aa jaati thi, ab uska apna starter chahiye.
+    Classic symptom — H2 console ya koi auto-config upgrade ke baad chupchap band.</p>
+    <p>Package names bhi badle: <code>org.springframework.boot.autoconfigure.amqp</code> →
+    <code>org.springframework.boot.amqp.autoconfigure</code>. Custom auto-config jo Boot ki internal
+    classes reference karti hai, wo compile fail hogi.</p>
+    <p><b>Do-step strategy:</b> pehle <code>spring-boot-starter-classic</code> +
+    <code>spring-boot-starter-test-classic</code> daal ke app chalao (sab available ho jaayega).
+    Phir broken imports fix karo, phir classic hatao aur specific starters add karo.
+    OpenRewrite recipe: <code>...boot4.MigrateToModularStarters</code>.</p>
+    <p>Saath mein: Jackson 3.x API change, JSpecify nullability se compile errors (Kotlin mein zyada).</p></div></details>
+
+    <details class="qa"><summary><span class="qn">Q24</span><span><span class="qtier t3">deep</span>Filter mein request body do baar kaise padhein?</span><span class="ch">+</span></summary>
+    <div class="ans"><p><code>ServletInputStream</code> ek baar hi padha ja sakta hai. Solution:
+    <code>ContentCachingRequestWrapper</code> se request wrap karo — wo bytes internally buffer karta hai.</p>
+<pre><span class="an">@Component</span>
+<span class="kw">public class</span> RequestBodyLoggingFilter <span class="kw">extends</span> OncePerRequestFilter {
+  <span class="an">@Override</span>
+  <span class="kw">protected void</span> <span class="fn">doFilterInternal</span>(HttpServletRequest req, HttpServletResponse res,
+                                  FilterChain chain) <span class="kw">throws</span> IOException, ServletException {
+    ContentCachingRequestWrapper cachedRequest = <span class="kw">new</span> ContentCachingRequestWrapper(req);
+    ContentCachingResponseWrapper cachedResponse = <span class="kw">new</span> ContentCachingResponseWrapper(res);
+    <span class="kw">try</span> {
+      chain.doFilter(cachedRequest, cachedResponse);
+    } <span class="kw">finally</span> {
+      <span class="fn">logPayloads</span>(cachedRequest, cachedResponse);
+      <span class="hi">cachedResponse.copyBodyToResponse();  <span class="cm">// ★ bhoole toh client ko EMPTY body milegi</span></span>
+    }
+  }
+}</pre>
+    <p><b>Do warnings:</b> (1) <code>ContentCachingRequestWrapper</code> body tabhi cache karta hai jab wo
+    <b>actually padhi jaaye</b> — isliye <code>getContentAsByteArray()</code> hamesha
+    <code>chain.doFilter()</code> ke <i>baad</i> call karo. (2) Poora body memory mein aata hai —
+    large uploads pe size limit lagao warna OOM.</p></div></details>
+
+    <details class="qa"><summary><span class="qn">Q25</span><span><span class="qtier t3">deep</span>Ek endpoint slow ho gaya. Kaise debug karoge?</span><span class="ch">+</span></summary>
+    <div class="ans"><p>Layer by layer, upar se neeche — ye structure interviewer ko impress karta hai:</p>
+    <p><b>1. Confirm karo kahan slow hai</b> — Actuator <code>/actuator/metrics/http.server.requests</code>
+    se p50/p95/p99 dekho. Average jhooth bolta hai.</p>
+    <p><b>2. Thread pool saturated hai?</b> — <code>tomcat.threads.busy</code> vs <code>tomcat.threads.config.max</code>.
+    Agar busy ≈ max, toh problem is endpoint mein nahi, kisi <i>aur</i> endpoint mein hai jo threads kha raha hai.</p>
+    <p><b>3. Connection pool?</b> — <code>hikaricp.connections.pending</code> aur <code>...acquire</code> timer.
+    Pending &gt; 0 matlab threads DB connection ka wait kar rahe hain.</p>
+    <p><b>4. SQL?</b> — N+1 query sabse common. <code>spring.jpa.properties.hibernate.generate_statistics=true</code>
+    ya Hypersistence/datasource-proxy se query count. Fix: <code>@EntityGraph</code> ya <code>JOIN FETCH</code>.</p>
+    <p><b>5. Thread dump</b> — <code>jcmd &lt;pid&gt; Thread.print</code>. Saare <code>http-nio-*-exec-*</code>
+    threads ek hi line pe blocked dikhenge — wahi aapka culprit hai.</p>
+    <p><b>6. Distributed?</b> — Micrometer Tracing se span breakdown, dekho kaunsi downstream call kha rahi hai.</p></div></details>
+
+    <details class="qa"><summary><span class="qn">Q26</span><span><span class="qtier t3">deep</span>Spring Boot app ki startup slow hai. Kya karoge?</span><span class="ch">+</span></summary>
+    <div class="ans"><p><b>Measure pehle:</b> <code>-Ddebug</code> se condition report, aur
+    <code>ApplicationStartup</code> API (<code>BufferingApplicationStartup</code>) +
+    <code>/actuator/startup</code> — har step ka exact time.</p>
+    <p><b>Common wins:</b></p>
+    <p>1. <b>Component scan narrow karo</b> — <code>@ComponentScan</code> ka base package specific ho,
+    poora <code>com.company</code> nahi.<br>
+    2. <b>Unused auto-config exclude karo</b> — condition report se dekho kya load ho raha hai jo chahiye hi nahi.<br>
+    3. <b>Lazy initialization</b> — <code>spring.main.lazy-initialization=true</code>.
+    <span style="color:var(--danger)">Dev mein acchi, prod mein risky</span> — first request slow hogi
+    aur config errors startup ke bajaye runtime pe milenge.<br>
+    4. <b>CDS</b> (Boot 3.3+) — class loading time ~30% kam.<br>
+    5. <b>AOT + GraalVM native</b> — startup milliseconds mein. Cost: build time badhta hai,
+    reflection ke liye hints chahiye, debugging mushkil.<br>
+    6. <b>Bean background initialization</b> (Boot 3.4+) — slow beans parallel mein banenge.</p>
+    <p><b>Honest answer:</b> serverless ya frequent-scaling ke alawa startup time
+    zyadatar optimize karne layak nahi hota. Pehle poocho — "ye actually problem hai ya lag raha hai?"</p></div></details>
+  </div>
+</section>
+
+<!-- ===================== ANIMATION ===================== -->
+<section class="sec" id="anime" style="border-bottom:none">
+  <div class="wrap">
+    <div class="sechead">
+      <div class="eyebrow">// one page animation</div>
+      <h2>Poora flow chalta hua dekho</h2>
+      <p>Chaar scenes. Har step pe class name, code aur "ye layer kyun exist karti hai" ka jawaab.
+      Play dabao, ya arrow keys se ek-ek step aage-peeche karo. Indent = nesting depth —
+      jitna andar, utna deep stack mein.</p>
+    </div>
+
+    <div class="stage">
+      <div class="stagebar" id="sceneBar"></div>
+      <div class="stagebody">
+        <div class="track" id="track"><div id="token"></div></div>
+        <div class="panel">
+          <div class="pstep" id="pStep">step 1 / 1</div>
+          <h3 class="ptitle" id="pTitle">—</h3>
+          <p class="pdesc" id="pDesc">—</p>
+          <div class="pcode" id="pCode">—</div>
+          <div class="pwhy" id="pWhy">—</div>
+        </div>
+      </div>
+      <div class="ctrls">
+        <button class="cbtn pri" id="btnPlay" aria-label="Play or pause the animation">▶ Play</button>
+        <button class="cbtn" id="btnPrev" aria-label="Previous step">◀ Back</button>
+        <button class="cbtn" id="btnNext" aria-label="Next step">Next ▶</button>
+        <button class="cbtn" id="btnReset" aria-label="Restart from first step">↺ Restart</button>
+        <div class="spd">
+          <div class="prog" aria-hidden="true"><i id="progBar"></i></div>
+          <button class="cbtn" id="btnSpeed" style="padding:6px 10px" aria-label="Change playback speed">1×</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid2" style="margin-top:26px">
+      <div class="mini">
+        <h4>Ye animation kis cheez ka model hai</h4>
+        <p style="font-size:15.5px;margin:0">Har station ek real class ka method hai, aur indentation actual
+        call-stack depth hai. Debugger ka frames panel bilkul aisa hi dikhta hai — neeche Tomcat,
+        upar aapka code. Isi order mein exception bhi upar uthti hai.</p>
+      </div>
+      <div class="mini">
+        <h4>Isse kya yaad rakhna hai</h4>
+        <p style="font-size:15.5px;margin:0">Green = andar jaati request. Orange = bahar aata response.
+        Jo layer andar jaate waqt jaldi aayi, wo wapas aate waqt <b>sabse baad</b> mein aayegi.
+        Yahi reason hai ki <code>afterCompletion</code> reverse order mein chalta hai.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <p style="margin-bottom:6px">Spring Boot internals · request lifecycle, bean lifecycle, transactions, and the layers in between.</p>
+    <p style="margin:0;font-size:12px">Version details current as of Spring Boot 4.1 (June 2026). Class names and method
+    signatures are from Spring Framework 6.x/7.x — minor releases may shift line-level details, so always confirm
+    against the sources jar in your own project.</p>
+  </div>
+</footer>
+</main>
+
+<script>
+(function(){
+  "use strict";
+
+  /* ---------- hero: one orchestrated load animation ---------- */
+  function runHeroSequence(){
+    var stair = document.getElementById('heroStair');
+    if(!stair) return;
+    var rows = stair.querySelectorAll('.row');
+    var token = document.getElementById('heroToken');
+    var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if(reduced){ rows.forEach(function(r){ r.classList.add('on'); }); token.style.display='none'; return; }
+
+    var i = 0;
+    (function advance(){
+      if(i >= rows.length){
+        setTimeout(function(){
+          rows.forEach(function(r){ r.classList.remove('on'); });
+          i = 0; setTimeout(advance, 700);
+        }, 1400);
+        return;
+      }
+      var row = rows[i];
+      row.classList.add('on');
+      var bar = row.querySelector('.bar');
+      var sr = stair.getBoundingClientRect(), br = bar.getBoundingClientRect();
+      token.style.transform = 'translate(' + (br.left - sr.left - 1) + 'px,' + (br.top - sr.top + 4) + 'px)';
+      token.style.background = row.classList.contains('ret') ? '#F0B074' : '#7EE07A';
+      i++;
+      setTimeout(advance, 520);
+    })();
+  }
+
+  /* ---------- scene data ---------- */
+  var SCENES = [
+    {
+      id: 'request',
+      label: 'Request lifecycle',
+      steps: [
+        {d:0,t:'TCP connection accept',dsc:'Acceptor thread naya socket uthata hai aur Poller ko de deta hai. Ye thread kabhi data nahi padhta — bas accept karta hai.',c:'NioEndpoint$Acceptor#run()\n  socket = serverSock.accept();\n  poller.register(socket);',w:'<b>Kyun alag thread:</b> accept aur read alag rakhne se ek slow client poore server ko block nahi kar sakta.'},
+        {d:0,t:'Poller → worker thread',dsc:'Poller selector pe hazaron idle connections hold karta hai. Data aaya toh SocketProcessor banakar worker pool ko de diya.',c:'NioEndpoint$Poller#run()\n  selector.select();\n  executor.execute(new SocketProcessor(...));\n// thread ka naam: http-nio-8080-exec-7',w:'<b>Yahan se aage sab kuch ek hi thread pe hai.</b> Isi thread ka number aapke logs mein dikhta hai.'},
+        {d:0,t:'HTTP parse + Servlet bridge',dsc:'Request line aur headers parse hue. Body abhi NAHI padha gaya — stream khula pada hai.',c:'Http11Processor#service()\nCoyoteAdapter#service()\n  → HttpServletRequest / HttpServletResponse',w:'<b>Body lazy hai:</b> isiliye 100 MB upload pe bhi routing decision turant ho jaata hai.'},
+        {d:1,t:'Valve pipeline',dsc:'Engine → Host → Context → Wrapper. Har valve ek chain link hai. ErrorReportValve yahin baitha hai — unhandled exception ka last resort.',c:'StandardEngineValve#invoke()\n  StandardHostValve#invoke()\n    StandardContextValve#invoke()\n      StandardWrapperValve#invoke()',w:'<b>Chain of Responsibility pattern.</b> Spring ka FilterChain bhi yahi idea hai, bas Servlet spec ke andar.'},
+        {d:2,t:'CharacterEncodingFilter',dsc:'Sabse pehla filter. UTF-8 set kar deta hai taaki aage koi encoding guess na kare.',c:'CharacterEncodingFilter#doFilterInternal()\n  request.setCharacterEncoding("UTF-8");\n  chain.doFilter(request, response);',w:'<b>Order matters:</b> encoding body padhne se pehle set hona chahiye, warna already-decoded bytes kharab honge.'},
+        {d:2,t:'Security filter chain',dsc:'15+ filters: JWT/session parse, authenticate, SecurityContextHolder (ThreadLocal) set, phir authorize.',c:'FilterChainProxy#doFilterInternal()\n  → BearerTokenAuthenticationFilter\n  → AuthorizationFilter\n  SecurityContextHolder.setContext(ctx);',w:'<b>Yahan reject = sasta.</b> Unauthorized request ko Spring MVC tak laane ka koi fayda nahi.'},
+        {d:2,t:'Aapka CorrelationIdFilter',dsc:'MDC set hota hai. Ab is request ke saare logs mein correlation id automatically aayegi.',c:'MDC.put("correlationId", id);\ntry { chain.doFilter(req, res); }\nfinally { MDC.remove("correlationId"); }',w:'<b>finally zaroori hai</b> — thread pool mein reuse hoga, warna agle user ke logs mein aapki id chali jaayegi.'},
+        {d:3,t:'DispatcherServlet.doDispatch()',dsc:'Front Controller yahan se orchestration shuru karta hai. Ye khud kuch business kaam nahi karta — sirf delegate karta hai.',c:'FrameworkServlet#processRequest()\n  → DispatcherServlet#doDispatch()',w:'<b>Ek hi entry point</b> — isiliye har request pe consistent behaviour milta hai, aur breakpoint lagane ki best jagah yahi hai.'},
+        {d:4,t:'getHandler() → HandlerExecutionChain',dsc:'MappingRegistry se O(1) lookup. Controller method + uske matching interceptors ka bundle mila.',c:'AbstractHandlerMapping#getHandler()\n// mapping STARTUP pe ban chuki thi:\n//   afterPropertiesSet() → initHandlerMethods()\nHandlerExecutionChain{ OrderController#placeOrder, [ApiQuotaInterceptor] }',w:'<b>Startup pe build, runtime pe lookup.</b> Isiliye per-request routing cost lagbhag zero hai.'},
+        {d:4,t:'preHandle() — forward order',dsc:'Interceptors 1 → 2 → 3. false return hua toh chain yahin ruk jaayegi.',c:'boolean ok = mappedHandler.applyPreHandle(req, res);\nif (!ok) return;   // handler chalega hi nahi',w:'<b>HandlerMethod yahan available hai</b> — isiliye method ki annotations padh sakte ho. Filter mein ye possible nahi tha.'},
+        {d:5,t:'Argument resolution + body read',dsc:'Yahan Jackson JSON ko POJO banata hai. Input stream ab consume ho gaya — dobara nahi padha ja sakta.',c:'RequestResponseBodyMethodProcessor#resolveArgument()\n  → MappingJackson2HttpMessageConverter#read()\n    → objectMapper.readValue(inputStream, PlaceOrderRequest.class)',w:'<b>Isi wajah se</b> filter mein body log karne ke liye ContentCachingRequestWrapper chahiye.'},
+        {d:5,t:'@Valid validation',dsc:'Hibernate Validator constraints check karta hai. Fail hua toh MethodArgumentNotValidException — controller chalega hi nahi.',c:'DataBinder#validate()\n// fail → MethodArgumentNotValidException → 400',w:'<b>Fail fast:</b> invalid data service layer tak pahunchni hi nahi chahiye.'},
+        {d:6,t:'Controller invoke (reflection)',dsc:'method.invoke(controller, args). Ab aapka code chal raha hai.',c:'InvocableHandlerMethod#doInvoke()\n  method.invoke(bean, args);\n\n@PostMapping("/api/orders")\npublic ResponseEntity<OrderDto> placeOrder(@Valid @RequestBody PlaceOrderRequest r)',w:'Controller sirf <b>translate</b> karta hai — HTTP ko domain call mein. Business logic yahan nahi honi chahiye.'},
+        {d:7,t:'AOP proxy hit → transaction begin',dsc:'Service call proxy pe lagti hai. TransactionInterceptor tx shuru karta hai, HikariCP se connection leta hai.',c:'OrderService$$SpringCGLIB$$0.placeOrder()\n  TransactionInterceptor#invoke()\n    TransactionAspectSupport#invokeWithinTransaction()\n      tm.getTransaction(txAttr);  // autoCommit = false',w:'<b>Sabse andar ki layer.</b> Yahan HTTP ka koi concept nahi — sirf typed method call.'},
+        {d:8,t:'Business logic + repository',dsc:'save() sirf persistence context mein daalta hai. SQL abhi tak nahi chala.',c:'inventory.reserve(qty);          // dirty checking hogi\norderRepository.save(order);     // em.persist() — memory only',w:'<b>Yahi aapka asli code hai.</b> Baaki 7 layers isko saaf aur focused rakhne ke liye hain.'},
+        {d:7,t:'↑ Commit',dsc:'flush() pe dirty checking chalti hai, SQL generate hoti hai, phir commit. Connection pool mein wapas.',c:'em.flush();\n  → INSERT INTO orders ...\n  → UPDATE inventory SET reserved_qty=? WHERE id=? AND version=?\nconnection.commit();',r:1,w:'<b>Dirty checking:</b> Hibernate load ke time snapshot rakhta hai, flush pe compare karta hai.'},
+        {d:5,t:'↑ Return value → JSON',dsc:'ResponseEntity handle hua, ResponseBodyAdvice chala, Jackson ne body likh di.',c:'RequestResponseBodyMethodProcessor#handleReturnValue()\n  → ResponseBodyAdvice#beforeBodyWrite()\n  → objectMapper.writeValue(outputStream, dto)\n  mavContainer.setRequestHandled(true);',r:1,w:'<b>setRequestHandled(true)</b> ka matlab: view rendering skip karo, body already likhi ja chuki.'},
+        {d:4,t:'↑ postHandle() — reverse order',dsc:'3 → 2 → 1. ModelAndView null hai kyunki @ResponseBody tha. Exception aayi hoti toh ye step skip hota.',c:'mappedHandler.applyPostHandle(req, res, mv);\n// mv == null for @RestController',r:1,w:'<b>Response already committed hai</b> — yahan header set karna silently fail karega.'},
+        {d:4,t:'↑ afterCompletion()',dsc:'Reverse order. Success ho ya exception — ye hamesha chalega. Metrics aur cleanup ki sahi jagah.',c:'mappedHandler.triggerAfterCompletion(req, res, ex);\n// for (i = interceptorIndex; i >= 0; i--)',r:1,w:'<b>Ye try/finally jaisa hai.</b> Isiliye latency metrics yahan record karo, postHandle mein nahi.'},
+        {d:2,t:'↑ Filters unwind',dsc:'Har filter ka finally block, reverse order mein. MDC clear, SecurityContext clear.',c:'finally {\n  MDC.remove("correlationId");\n  SecurityContextHolder.clearContext();\n}',r:1,w:'<b>Andar jaate waqt pehla = bahar aate waqt aakhri.</b> Ye nesting ka natural niyam hai.'},
+        {d:0,t:'↑ 200 OK flushed, thread free',dsc:'Tomcat buffer flush karta hai, socket keep-alive pe park hota hai, exec-7 pool mein wapas.',c:'HTTP/1.1 200 OK\nContent-Type: application/json\nX-Correlation-Id: 9f2c...\n\n{"orderId":"ORD-10421","status":"PENDING"}',r:1,w:'<b>Thread ab free hai</b> — agla request ise reuse karega. Isiliye ThreadLocal cleanup itna critical tha.'}
+      ]
+    },
+    {
+      id: 'startup',
+      label: 'Startup & bean lifecycle',
+      steps: [
+        {d:0,t:'SpringApplication constructor',dsc:'Koi bean nahi banta — sirf faisle. App type deduce, initializers aur listeners spring.factories se load.',c:'webApplicationType = deduceFromClasspath();  // SERVLET\nsetInitializers(getSpringFactoriesInstances(ApplicationContextInitializer.class));\nmainApplicationClass = deduceMainApplicationClass();',w:'<b>deduceMainApplicationClass()</b> stack trace mein "main" dhoondh ke pata karta hai — chhota sa clever hack.'},
+        {d:1,t:'prepareEnvironment()',dsc:'application.yml, env vars, command-line args, profiles — sab merge hokar ek Environment banta hai.',c:'ConfigDataEnvironmentPostProcessor\n// priority: CLI args > env vars > application-{profile}.yml > application.yml',w:'<b>EnvironmentPostProcessor yahan chalta hai</b> — Vault/remote config inject karne ki sabse jaldi wali jagah.'},
+        {d:1,t:'createApplicationContext()',dsc:'Servlet app ke liye AnnotationConfigServletWebServerApplicationContext banta hai. Abhi khaali hai.',c:'ApplicationContextFactory.DEFAULT.create(webApplicationType);\n// → AnnotationConfigServletWebServerApplicationContext',w:'<b>Type yahin fix hota hai</b> — web, reactive ya plain. Aage ka poora behaviour isi pe depend karta hai.'},
+        {d:2,t:'refresh() step 5 — invokeBeanFactoryPostProcessors',dsc:'ConfigurationClassPostProcessor saare @Configuration parse karta hai. Yahi auto-configuration bhi import karta hai.',c:'ConfigurationClassPostProcessor#processConfigBeanDefinitions()\n  → @ComponentScan, @Import, @Bean methods\n  → AutoConfigurationImportSelector (DeferredImportSelector)\n    → AutoConfiguration.imports padho\n    → @ConditionalOnClass / OnBean / OnProperty se filter',w:'<b>Deferred isliye</b> taaki aapke beans pehle register ho jaayein — tabhi @ConditionalOnMissingBean sahi kaam karta hai.'},
+        {d:2,t:'refresh() step 6 — registerBeanPostProcessors',dsc:'AOP aur @PostConstruct wale post-processors register hote hain. Chalte abhi nahi — bas taiyaar hain.',c:'AnnotationAwareAspectJAutoProxyCreator   // AOP + @Transactional\nAutowiredAnnotationBeanPostProcessor      // @Autowired\nCommonAnnotationBeanPostProcessor         // @PostConstruct',w:'<b>BPP baaki beans se pehle bante hain</b> — isiliye BPP mein DataSource inject karna ek classic mistake hai.'},
+        {d:2,t:'refresh() step 9 — onRefresh() → Tomcat banta hai',dsc:'ServletWebServerApplicationContext web server create karta hai. Traffic abhi accept nahi ho raha.',c:'ServletWebServerApplicationContext#createWebServer()\n  factory.getWebServer(getSelfInitializer());\n  // TomcatWebServer — port bind, par connector paused',w:'<b>Traffic finishRefresh() pe shuru hota hai</b> — taaki adhoora app kabhi request na le le.'},
+        {d:3,t:'Bean: instantiate',dsc:'Constructor call hua. Constructor injection yahin resolve hoti hai.',c:'AbstractAutowireCapableBeanFactory#createBeanInstance()\nnew OrderService(orderRepository, inventoryRepository);',w:'<b>Constructor injection preferred</b> — final fields, immutable, aur circular dependency yahin pakdi jaati hai.'},
+        {d:3,t:'Bean: early reference expose',dsc:'Adhoora object level-3 cache mein daala jaata hai. Yahi circular dependency ka mechanism hai.',c:'addSingletonFactory(beanName, () -> getEarlyBeanReference(bean));\n// L1 singletonObjects | L2 earlySingletonObjects | L3 singletonFactories',w:'<b>Factory isliye</b> kyunki agar proxy lagni hai toh early reference bhi proxy hona chahiye.'},
+        {d:3,t:'Bean: populate + Aware callbacks',dsc:'@Autowired fields aur setters inject hote hain, phir BeanNameAware / ApplicationContextAware.',c:'populateBean(beanName, mbd, instanceWrapper);\ninvokeAwareMethods(beanName, bean);',w:'<b>Aware interfaces</b> framework ko bean ke andar leak karte hain — use minimal rakho.'},
+        {d:3,t:'Bean: @PostConstruct → afterPropertiesSet()',dsc:'Initialization callbacks. Dependencies ab set ho chuki hain, validation ka sahi time.',c:'applyBeanPostProcessorsBeforeInitialization()  // @PostConstruct yahan\ninvokeInitMethods()                            // afterPropertiesSet()',w:'<b>@PostConstruct preferred</b> — pure Java annotation hai, Spring interface implement nahi karna padta.'},
+        {d:3,t:'Bean: ★ proxy banta hai',dsc:'postProcessAfterInitialization mein AutoProxyCreator decide karta hai ki bean ko wrap karna hai ya nahi.',c:'AbstractAutoProxyCreator#wrapIfNecessary()\n  Advisor[] advisors = getAdvicesAndAdvisorsForBean(...);\n  if (advisors != null) return createProxy(...);\n// → OrderService$$SpringCGLIB$$0',w:'<b>"@Transactional kaam nahi kar raha" ka debug yahi hai.</b> Breakpoint lagao aur dekho proxy ban raha hai ya nahi.'},
+        {d:2,t:'refresh() step 12 — finishRefresh()',dsc:'Lifecycle beans start, Tomcat connector traffic accept karna shuru, ContextRefreshedEvent publish.',c:'getLifecycleProcessor().onRefresh();\nwebServer.start();  // ab port sun raha hai\npublishEvent(new ContextRefreshedEvent(this));',w:'<b>Yahan se pehle</b> koi request accept nahi hoti — adhoore context pe traffic kabhi nahi aata.'},
+        {d:1,t:'callRunners() → ApplicationReadyEvent',dsc:'ApplicationRunner aur CommandLineRunner chalte hain. Phir app ready.',c:'callRunners(context, args);\nlisteners.ready(context, timeTaken);\n// log: Started Application in 2.847 seconds',w:'<b>Cache warmup, migration, seed data</b> — sab yahan. Poora context available hai.'},
+        {d:0,t:'↑ Graceful shutdown (SIGTERM pe)',dsc:'Naye connections band, chal rahi requests complete, phir reverse order mein sab band.',c:'server.shutdown=graceful\nspring.lifecycle.timeout-per-shutdown-phase=30s\n\nSmartLifecycle.stop() → @PreDestroy → destroy() → pools close',r:1,w:'<b>Kubernetes tip:</b> preStop hook mein 5–10s sleep daalo, taaki LB endpoint hata sake. Warna deploy pe 502.'}
+      ]
+    },
+    {
+      id: 'save',
+      label: 'Save / update in DB',
+      steps: [
+        {d:0,t:'Controller → service call',dsc:'Controller sirf translate karta hai — DTO se command object. Koi business rule nahi.',c:'@PostMapping("/api/orders")\npublic ResponseEntity<OrderDto> placeOrder(@Valid @RequestBody PlaceOrderRequest request) {\n  OrderId id = orderPlacementService.placeOrder(request.toCommand());\n  return ResponseEntity.created(...).body(OrderDto.from(id));\n}',w:'<b>Thin controller</b> — isse service ko HTTP ke bina test kar sakte ho.'},
+        {d:1,t:'Proxy intercept',dsc:'Container mein jo bean hai wo CGLIB subclass hai. Call pehle interceptor chain se guzregi.',c:'OrderPlacementService$$SpringCGLIB$$0.placeOrder()\n  → TransactionInterceptor  (order 100)\n  → target.placeOrder()',w:'<b>Agar ye call same class ke andar se aati</b> toh proxy bypass ho jaata aur tx shuru hi nahi hoti.'},
+        {d:2,t:'Transaction begin',dsc:'JpaTransactionManager EntityManager banata hai, HikariCP se connection leta hai, autoCommit off karta hai, aur ThreadLocal mein bind karta hai.',c:'TransactionAspectSupport#invokeWithinTransaction()\n  tm.getTransaction(txAttr);\n    EntityManager em = emf.createEntityManager();\n    connection.setAutoCommit(false);\n    TransactionSynchronizationManager.bindResource(emf, holder);',w:'<b>Connection ab pool se bahar hai.</b> Yahan se commit tak jitna time lagega, utni der ek connection blocked hai.'},
+        {d:3,t:'Entity load (pessimistic lock)',dsc:'SELECT ... FOR UPDATE. Row lock lag gaya. Hibernate ek snapshot copy bhi rakh leta hai.',c:'@Lock(LockModeType.PESSIMISTIC_WRITE)\nOptional<Inventory> findBySkuForUpdate(String sku);\n\n// SELECT * FROM inventory WHERE sku = ? FOR UPDATE',w:'<b>Snapshot hi dirty checking ka base hai</b> — flush pe current state isse compare hoga.'},
+        {d:3,t:'Setter call — koi SQL nahi',dsc:'Entity managed hai. Sirf memory mein value badli. Koi save() call karne ki zaroorat nahi.',c:'inventory.reserve(command.quantity());\n// internally: this.reservedQty += qty;\n// ZERO SQL. Abhi tak kuch nahi gaya DB pe.',w:'<b>Ye JPA ka sabse confusing part hai</b> — "maine save nahi kiya, update kaise hua?" Jawaab: dirty checking.'},
+        {d:3,t:'save() — persist to context',dsc:'Naya entity persistence context mein add hua. INSERT abhi nahi chali (SEQUENCE strategy pe).',c:'orderRepository.save(order);\n  → em.persist(order);   // sirf context mein\n\n// IDENTITY strategy ho toh INSERT TURANT chalegi (ID chahiye)',w:'<b>Batching ke liye SEQUENCE use karo</b> — IDENTITY pe JDBC batch insert possible hi nahi.'},
+        {d:2,t:'↑ flush() — dirty checking',dsc:'Commit se just pehle Hibernate har managed entity ka current state snapshot se compare karta hai. Farak = SQL.',c:'em.flush();\n\n  INSERT INTO orders (id, sku, qty, status) VALUES (?,?,?,?)\n  UPDATE inventory SET reserved_qty = ?, version = version + 1\n    WHERE id = ? AND version = ?      -- optimistic lock',r:1,w:'<b>version check</b> zero rows return kare toh OptimisticLockException — kisi aur ne beech mein badal diya.'},
+        {d:2,t:'↑ commit + connection release',dsc:'Actual COMMIT chala, EntityManager close hua, connection HikariCP mein wapas.',c:'connection.commit();\nem.close();\nTransactionSynchronizationManager.unbindResource(emf);\n// connection → HikariPool',r:1,w:'<b>Ab pool ko connection wapas mil gaya.</b> Transaction jitni chhoti, utna zyada throughput.'},
+        {d:2,t:'↑ AFTER_COMMIT listeners',dsc:'Ab safe hai external kaam karna — data DB mein pakka ja chuka hai.',c:'@TransactionalEventListener(phase = AFTER_COMMIT)\n@Async\npublic void chargeCustomerAfterOrderCommitted(OrderPlacedEvent e) {\n  paymentGatewayClient.charge(e.orderId());\n}',r:1,w:'<b>Payment tx ke andar karna sabse mehnga bug hai</b> — 3s HTTP call = 3s tak DB connection blocked.'},
+        {d:1,t:'↑ Rollback path (agar exception hui)',dsc:'RuntimeException pe rollback. Checked exception pe DEFAULT rollback nahi hota.',c:'catch (RuntimeException ex) {\n  tm.rollback(status);   // ROLLBACK\n  throw ex;\n}\n// Checked ke liye: @Transactional(rollbackFor = Exception.class)',r:1,w:'<b>Exception nigal li toh rollback nahi hoga.</b> Tab setRollbackOnly() manually call karo.'},
+        {d:0,t:'↑ Response',dsc:'OrderDto JSON ban ke client tak. Poora operation atomic tha.',c:'HTTP/1.1 201 Created\nLocation: /api/orders/ORD-10421\n\n{"orderId":"ORD-10421","status":"PENDING"}',r:1,w:'<b>Ek business operation = ek transaction.</b> Yahi service layer pe @Transactional lagane ka reason hai.'}
+      ]
+    },
+    {
+      id: 'race',
+      label: 'Filter vs Interceptor vs AOP',
+      steps: [
+        {d:0,t:'Request aayi — sabse pehle kaun?',dsc:'Teeno "beech mein" baithte hain, par alag depth pe. Nesting order hamesha same hai.',c:'Filter  →  Interceptor  →  AOP  →  your method\n(bahar)                              (andar)',w:'<b>Yaad rakhne ka tareeka:</b> Filter Servlet spec ka, Interceptor Spring MVC ka, AOP Spring Core ka. Jitna specific framework, utna andar.'},
+        {d:1,t:'FILTER — sabse bahar',dsc:'Raw HttpServletRequest milta hai. Request ko wrap kar sakta hai. Handler kaunsa hai — pata NAHI.',c:'public void doFilterInternal(HttpServletRequest req, HttpServletResponse res, FilterChain chain) {\n  // ✅ headers, body stream, URL, wrap karna\n  // ❌ kaunsa @Controller method chalega — pata nahi\n  chain.doFilter(req, res);\n}',w:'<b>Isliye use karo:</b> auth, CORS, rate limit, body caching, MDC, compression. Handler-agnostic sab kuch.'},
+        {d:2,t:'INTERCEPTOR — DispatcherServlet ke andar',dsc:'HandlerMethod object mil gaya. Ab controller class, method aur annotations padh sakte ho.',c:'public boolean preHandle(HttpServletRequest req, HttpServletResponse res, Object handler) {\n  HandlerMethod hm = (HandlerMethod) handler;\n  Quota quota = hm.getMethodAnnotation(Quota.class);   // ✅ Filter ye nahi kar sakta\n  // ❌ request body — abhi parse hi nahi hua\n  return true;\n}',w:'<b>Isliye use karo:</b> per-endpoint metrics, method-level checks, tenant resolve, locale.'},
+        {d:3,t:'ARGUMENT RESOLVER — beech ka pul',dsc:'Yahan HTTP typed Java objects ban jaati hai. Iske baad HTTP ka concept khatam.',c:'public Object resolveArgument(MethodParameter p, ...) {\n  return tenantRepository.findActiveByCode(header);\n}\n\n// controller: placeOrder(@CurrentTenant Tenant tenant, @Valid @RequestBody Req r)',w:'<b>Yahi wo boundary hai</b> jahan web layer khatam aur domain layer shuru hoti hai.'},
+        {d:4,t:'AOP — sabse andar',dsc:'Typed arguments aur return value dikhte hain. HttpServletRequest ka koi access nahi.',c:'@Around("@annotation(Audited)")\npublic Object auditBusinessOperation(ProceedingJoinPoint pjp) throws Throwable {\n  // ✅ typed args, return value, exception\n  // ❌ HTTP status set karna (bina exception throw kiye)\n  return pjp.proceed();\n}',w:'<b>Isliye use karo:</b> transaction, cache, retry, business audit. Service layer ke concerns.'},
+        {d:5,t:'Aapka method chala',dsc:'Saari layers paar. Ab sirf business logic.',c:'public OrderId placeOrder(PlaceOrderCommand command) {\n  // pure domain logic — koi HTTP, koi framework nahi\n}',w:'<b>Ye teeno layers ka poora maqsad</b> yahi hai: is method ko saaf rakhna.'},
+        {d:4,t:'↑ AOP advice returns',dsc:'@Around ka after-part, transaction commit — sab yahan.',c:'// finally block in advice\n// TransactionInterceptor → commit',r:1,w:'<b>Sabse andar wali layer sabse pehle wapas aati hai.</b> Nesting ka niyam.'},
+        {d:2,t:'↑ postHandle + afterCompletion',dsc:'Reverse order. afterCompletion exception ke case mein bhi chalega.',c:'applyPostHandle()      // reverse: 3 → 2 → 1, exception pe SKIP\ntriggerAfterCompletion() // reverse, HAMESHA chalega',r:1,w:'<b>Metrics afterCompletion mein record karo</b>, postHandle mein nahi — warna error cases miss ho jaayenge.'},
+        {d:1,t:'↑ Filter ka finally',dsc:'Sabse bahar wala filter sabse aakhir mein khatam hota hai. ThreadLocal cleanup ki last chance.',c:'finally {\n  MDC.remove("correlationId");\n  SecurityContextHolder.clearContext();\n}',r:1,w:'<b>Pehla andar = aakhri bahar.</b> Yahi stack ka fundamental behaviour hai.'},
+        {d:0,t:'↑ Decision rule',dsc:'Teeno ko yaad rakhne ka ek line formula.',c:'Body ya headers chhedne hain        →  FILTER\nKaunsa endpoint hai, uspe decision  →  INTERCEPTOR\nBusiness method ke around           →  AOP\nResponse shape ya error             →  @ControllerAdvice',r:1,w:'<b>Ek hi concern do jagah mat rakho.</b> Auth Filter mein hai toh Interceptor mein mat duplicate karo — production bug guarantee.'}
+      ]
+    }
+  ];
+
+  /* ---------- player ---------- */
+  var sceneIndex = 0, stepIndex = 0, playing = false, timer = null;
+  var speeds = [1, 1.5, 2, 0.5], speedPos = 0;
+
+  var track     = document.getElementById('track');
+  var token     = document.getElementById('token');
+  var sceneBar  = document.getElementById('sceneBar');
+  var pStep     = document.getElementById('pStep');
+  var pTitle    = document.getElementById('pTitle');
+  var pDesc     = document.getElementById('pDesc');
+  var pCode     = document.getElementById('pCode');
+  var pWhy      = document.getElementById('pWhy');
+  var progBar   = document.getElementById('progBar');
+  var btnPlay   = document.getElementById('btnPlay');
+  var btnSpeed  = document.getElementById('btnSpeed');
+
+  function buildSceneBar(){
+    sceneBar.innerHTML = '';
+    SCENES.forEach(function(scene, i){
+      var b = document.createElement('button');
+      b.className = 'sbtn' + (i === sceneIndex ? ' on' : '');
+      b.textContent = scene.label;
+      b.addEventListener('click', function(){ selectScene(i); });
+      sceneBar.appendChild(b);
+    });
+  }
+
+  function buildTrack(){
+    var steps = SCENES[sceneIndex].steps;
+    Array.prototype.slice.call(track.querySelectorAll('.stn')).forEach(function(n){ n.remove(); });
+    steps.forEach(function(step, i){
+      var row = document.createElement('div');
+      row.className = 'stn' + (step.r ? ' rt' : '');
+      row.style.paddingLeft = (10 + step.d * 13) + 'px';
+      row.innerHTML = '<span class="lay"></span><span class="nm"></span><span class="ph"></span>';
+      row.querySelector('.nm').textContent = step.t;
+      row.querySelector('.ph').textContent = step.r ? 'out' : 'in';
+      row.addEventListener('click', function(){ pause(); goTo(i); });
+      track.appendChild(row);
+    });
+  }
+
+  function render(){
+    var steps = SCENES[sceneIndex].steps;
+    var step  = steps[stepIndex];
+    var rows  = track.querySelectorAll('.stn');
+
+    rows.forEach(function(row, i){
+      row.classList.toggle('act', i === stepIndex);
+      row.classList.toggle('done', i < stepIndex);
+    });
+
+    pStep.textContent  = 'step ' + (stepIndex + 1) + ' / ' + steps.length;
+    pTitle.textContent = step.t;
+    pDesc.textContent  = step.dsc;
+    pCode.textContent  = step.c;
+    pWhy.innerHTML     = step.w;
+    progBar.style.width = (((stepIndex + 1) / steps.length) * 100) + '%';
+
+    var active = rows[stepIndex];
+    if(active){
+      token.classList.toggle('rt', !!step.r);
+      var tr = track.getBoundingClientRect(), ar = active.getBoundingClientRect();
+      token.style.transform = 'translate(' + (ar.left - tr.left + 10 + step.d * 13 - 8) +
+                              'px,' + (ar.top - tr.top - 24 + ar.height / 2 - 4) + 'px)';
+      if(active.scrollIntoView && window.innerWidth <= 960){
+        active.scrollIntoView({block:'nearest', behavior:'smooth'});
+      }
+    }
+  }
+
+  function goTo(i){
+    var steps = SCENES[sceneIndex].steps;
+    stepIndex = Math.max(0, Math.min(i, steps.length - 1));
+    render();
+  }
+
+  function selectScene(i){
+    pause();
+    sceneIndex = i; stepIndex = 0;
+    buildSceneBar(); buildTrack(); render();
+  }
+
+  function tick(){
+    var steps = SCENES[sceneIndex].steps;
+    if(stepIndex >= steps.length - 1){ pause(); return; }
+    goTo(stepIndex + 1);
+    timer = setTimeout(tick, 2600 / speeds[speedPos]);
+  }
+
+  function play(){
+    var steps = SCENES[sceneIndex].steps;
+    if(stepIndex >= steps.length - 1) stepIndex = 0;
+    playing = true; btnPlay.textContent = '❚❚ Pause';
+    render();
+    timer = setTimeout(tick, 1400 / speeds[speedPos]);
+  }
+
+  function pause(){
+    playing = false; btnPlay.textContent = '▶ Play';
+    if(timer){ clearTimeout(timer); timer = null; }
+  }
+
+  btnPlay.addEventListener('click', function(){ playing ? pause() : play(); });
+  document.getElementById('btnNext').addEventListener('click', function(){ pause(); goTo(stepIndex + 1); });
+  document.getElementById('btnPrev').addEventListener('click', function(){ pause(); goTo(stepIndex - 1); });
+  document.getElementById('btnReset').addEventListener('click', function(){ pause(); goTo(0); });
+  btnSpeed.addEventListener('click', function(){
+    speedPos = (speedPos + 1) % speeds.length;
+    btnSpeed.textContent = speeds[speedPos] + '×';
+    if(playing){ pause(); play(); }
+  });
+
+  document.addEventListener('keydown', function(e){
+    var stage = document.getElementById('anime');
+    if(!stage) return;
+    var box = stage.getBoundingClientRect();
+    var visible = box.top < window.innerHeight && box.bottom > 0;
+    if(!visible) return;
+    if(e.key === 'ArrowRight'){ pause(); goTo(stepIndex + 1); e.preventDefault(); }
+    if(e.key === 'ArrowLeft'){  pause(); goTo(stepIndex - 1); e.preventDefault(); }
+  });
+
+  window.addEventListener('resize', function(){ render(); });
+
+  buildSceneBar(); buildTrack(); render(); runHeroSequence();
+})();
+</script>
+</body>
+</html>

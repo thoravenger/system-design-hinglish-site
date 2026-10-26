@@ -1,0 +1,2663 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Latency Lab — p99, Throughput &amp; Tradeoffs (HLD + LLD)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   DESIGN TOKENS — "Latency Lab" instrument-paper system
+   hot   = symptom / SLO breach
+   trace = the tail, the tradeoff, the thing you pay
+   cool  = the applied fix
+   ============================================================ */
+:root{
+  --ink:#101A24;
+  --ink-2:#3A5266;
+  --ink-3:#6B8296;
+  --paper:#EDF1F4;
+  --card:#FFFFFF;
+  --rule:#CCD7DF;
+  --rule-soft:#E1E8ED;
+
+  --hot:#C9313F;
+  --hot-wash:#FCEBED;
+  --cool:#0B8F7C;
+  --cool-wash:#E2F4F0;
+  --trace:#C87A00;
+  --trace-wash:#FBF0DC;
+  --violet:#4F46B8;
+
+  --scope:#0B141C;
+  --scope-2:#132330;
+  --scope-line:#223A4C;
+  --scope-text:#BFD2DF;
+  --scope-dim:#7B95A8;
+
+  --maxw:1180px;
+  --radius:3px;
+  --shadow:0 1px 0 rgba(16,26,36,.06), 0 12px 28px -22px rgba(16,26,36,.55);
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:76px}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:"IBM Plex Sans",system-ui,-apple-system,Segoe UI,sans-serif;
+  font-size:16.5px;
+  line-height:1.62;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4{font-family:"Bricolage Grotesque","IBM Plex Sans",sans-serif;line-height:1.08;margin:0;letter-spacing:-.015em}
+p{margin:0 0 .85em}
+p:last-child{margin-bottom:0}
+code,pre,.mono,.num{font-family:"IBM Plex Mono",ui-monospace,Menlo,monospace;font-variant-ligatures:none}
+a{color:var(--violet)}
+:focus-visible{outline:2.5px solid var(--violet);outline-offset:3px;border-radius:2px}
+
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 22px}
+
+/* ---------- HERO : dark scope panel ---------- */
+.hero{background:var(--scope);color:var(--scope-text);position:relative;overflow:hidden}
+.hero::after{
+  content:"";position:absolute;inset:0;pointer-events:none;
+  background-image:linear-gradient(var(--scope-line) 1px,transparent 1px),linear-gradient(90deg,var(--scope-line) 1px,transparent 1px);
+  background-size:44px 44px;opacity:.22;
+}
+.hero-in{position:relative;z-index:2;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.05fr);gap:52px;align-items:center;padding:64px 0 58px}
+.hero h1{
+  font-size:clamp(2.5rem,6.4vw,4.35rem);font-weight:800;color:#fff;
+  letter-spacing:-.035em;margin-bottom:18px;
+}
+.hero h1 .u{
+  box-shadow:inset 0 -3px 0 var(--trace);
+  padding:0 .04em .04em;
+}
+.hero-sub{font-size:1.06rem;color:var(--scope-text);max-width:46ch;margin-bottom:26px}
+.hero-sub b{color:#fff;font-weight:600}
+.hero-meta{display:flex;flex-wrap:wrap;gap:10px}
+.pill{
+  border:1px solid var(--scope-line);background:rgba(255,255,255,.03);
+  color:var(--scope-text);font-size:.78rem;padding:5px 11px;border-radius:999px;
+  font-family:"IBM Plex Mono",monospace;
+}
+.pill.on{border-color:var(--trace);color:#FFD79A}
+
+/* hero scope readout */
+.scope-box{border:1px solid var(--scope-line);background:var(--scope-2);padding:16px 16px 12px;border-radius:var(--radius)}
+.scope-head{display:flex;justify-content:space-between;align-items:baseline;font-size:.72rem;color:var(--scope-dim);font-family:"IBM Plex Mono",monospace;margin-bottom:10px}
+.hist{display:flex;align-items:flex-end;gap:2px;height:172px;position:relative}
+.hist i{
+  display:block;flex:1;background:linear-gradient(180deg,#2C6E8F,#1B4A63);
+  transform:scaleY(.02);transform-origin:bottom;border-radius:1px 1px 0 0;
+  animation:grow .9s cubic-bezier(.2,.8,.3,1) forwards;
+}
+.hist i.tail{background:linear-gradient(180deg,#E09A2B,#B25E12)}
+.hist i.far{background:linear-gradient(180deg,#E4525F,#93202C)}
+@keyframes grow{to{transform:scaleY(1)}}
+.mark{position:absolute;top:-4px;bottom:0;border-left:1.5px dashed rgba(255,255,255,.42);opacity:0;animation:snap .5s ease forwards}
+.mark span{position:absolute;top:-2px;left:5px;font-size:.66rem;font-family:"IBM Plex Mono",monospace;color:#fff;background:rgba(11,20,28,.85);padding:1px 5px;border-radius:2px;white-space:nowrap}
+.mark.p99{border-color:var(--trace)}.mark.p99 span{color:#FFD79A}
+.mark.p999{border-color:#E4525F}.mark.p999 span{color:#FFB3BA}
+@keyframes snap{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
+.scope-foot{display:flex;justify-content:space-between;font-size:.68rem;color:var(--scope-dim);font-family:"IBM Plex Mono",monospace;margin-top:8px;border-top:1px solid var(--scope-line);padding-top:8px}
+
+/* ---------- STICKY NAV ---------- */
+.topnav{position:sticky;top:0;z-index:60;background:rgba(237,241,244,.93);backdrop-filter:blur(9px);border-bottom:1px solid var(--rule)}
+.topnav-in{display:flex;gap:6px;overflow-x:auto;padding:9px 22px;max-width:var(--maxw);margin:0 auto;scrollbar-width:thin}
+.topnav a{
+  flex:0 0 auto;font-size:.8rem;text-decoration:none;color:var(--ink-2);
+  padding:5px 11px;border:1px solid var(--rule);border-radius:999px;background:var(--card);white-space:nowrap;
+}
+.topnav a:hover{border-color:var(--ink);color:var(--ink)}
+
+/* ---------- SECTION SHELL ---------- */
+.band{padding:62px 0}
+.band + .band{border-top:1px solid var(--rule)}
+.band-head{max-width:62ch;margin-bottom:34px}
+.band-head h2{font-size:clamp(1.7rem,3.6vw,2.45rem);font-weight:700;margin-bottom:12px}
+.band-head p{color:var(--ink-2)}
+.kicker{
+  font-family:"IBM Plex Mono",monospace;font-size:.74rem;color:var(--ink-3);
+  display:block;margin-bottom:9px;
+}
+
+/* ---------- FUNDAMENTALS GRID ---------- */
+.defs{display:grid;grid-template-columns:repeat(auto-fit,minmax(232px,1fr));gap:0;border:1px solid var(--rule);background:var(--card)}
+.def{padding:20px 20px 22px;border-right:1px solid var(--rule-soft)}
+.def:last-child{border-right:0}
+.def h3{font-size:1.02rem;margin-bottom:6px}
+.def .num{display:block;font-size:1.45rem;color:var(--ink);margin-bottom:2px;letter-spacing:-.02em}
+.def p{font-size:.9rem;color:var(--ink-2);line-height:1.55}
+
+.formula{
+  margin-top:26px;border:1px solid var(--rule);background:var(--card);
+  display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+}
+.formula div{padding:18px 20px;border-right:1px solid var(--rule-soft)}
+.formula div:last-child{border-right:0}
+.formula .eq{font-family:"IBM Plex Mono",monospace;font-size:1.05rem;color:var(--violet);margin-bottom:6px}
+.formula p{font-size:.88rem;color:var(--ink-2)}
+
+/* ---------- TOPIC : PROBLEM | SOLUTION ---------- */
+.topic{border:1px solid var(--rule);background:var(--card);margin-bottom:26px}
+.topic-bar{
+  display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;
+  padding:13px 18px;border-bottom:1px solid var(--rule);background:#F7F9FB;
+}
+.topic-id{font-family:"IBM Plex Mono",monospace;font-size:.74rem;color:var(--ink-3)}
+.topic-bar h3{font-size:1.12rem;flex:1 1 260px;min-width:0}
+.tags{display:flex;gap:6px;flex-wrap:wrap}
+.tag{font-size:.68rem;font-family:"IBM Plex Mono",monospace;padding:3px 8px;border-radius:2px;border:1px solid}
+.tag.hld{color:var(--violet);border-color:#C8C4EC;background:#EFEEFB}
+.tag.lld{color:var(--cool);border-color:#B4E0D6;background:var(--cool-wash)}
+.tag.lvl{color:var(--ink-2);border-color:var(--rule);background:#fff}
+
+/* percentile impact strip — which percentile does this topic move? */
+.pstrip{display:flex;gap:3px;align-items:center}
+.pstrip b{font-size:.64rem;font-family:"IBM Plex Mono",monospace;color:var(--ink-3);font-weight:400;margin-right:3px}
+.pstrip i{
+  width:26px;height:7px;background:var(--rule);border-radius:1px;position:relative;
+}
+.pstrip i.hit{background:var(--trace)}
+.pstrip i::after{content:attr(data-p);position:absolute;top:9px;left:0;font-size:.56rem;font-family:"IBM Plex Mono",monospace;color:var(--ink-3)}
+
+.split{display:grid;grid-template-columns:1fr 1fr}
+.side{padding:22px 22px 24px;min-width:0}
+.side.prob{border-right:1px solid var(--rule);border-left:4px solid var(--hot);background:linear-gradient(90deg,var(--hot-wash),transparent 34%)}
+.side.sol{border-left:4px solid var(--cool);background:linear-gradient(90deg,var(--cool-wash),transparent 34%)}
+.side h4{font-size:.82rem;font-family:"IBM Plex Mono",monospace;font-weight:500;letter-spacing:.02em;margin-bottom:12px}
+.side.prob h4{color:var(--hot)}
+.side.sol h4{color:var(--cool)}
+.side p{font-size:.945rem}
+.side ul{margin:.6em 0 .9em;padding-left:1.05em}
+.side li{margin-bottom:.4em;font-size:.93rem}
+.side li::marker{color:var(--ink-3)}
+.hi{background:#FBF0DC;padding:0 3px;border-radius:2px}
+.side .callout{
+  margin-top:14px;border-top:1px dashed var(--rule);padding-top:11px;
+  font-size:.86rem;color:var(--ink-2);
+}
+.side .callout b{color:var(--ink)}
+
+/* ---------- CODE : dark scope block ---------- */
+.codeblock{background:var(--scope);color:var(--scope-text);border-top:1px solid var(--rule)}
+.code-head{
+  display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;
+  padding:10px 18px;border-bottom:1px solid var(--scope-line);
+  font-family:"IBM Plex Mono",monospace;font-size:.75rem;color:var(--scope-dim);
+}
+.code-head b{color:#fff;font-weight:500}
+pre{margin:0;padding:18px;overflow-x:auto;font-size:.815rem;line-height:1.72;tab-size:2}
+pre code{color:#D7E5EE}
+.k{color:#7FB2E5}      /* keyword */
+.a{color:#E0A34F}      /* annotation */
+.s{color:#8FD1A6}      /* string */
+.t{color:#63C3C8}      /* type */
+.c{color:#5F7A8C;font-style:italic} /* comment */
+.m{color:#E9E0A6}      /* number/method-ish */
+.mk{color:#F09090;font-weight:600}  /* (1) markers */
+
+.lines{background:var(--scope-2);border-top:1px solid var(--scope-line);padding:16px 18px 18px;margin:0;list-style:none;counter-reset:ln}
+.lines li{
+  display:grid;grid-template-columns:34px 1fr;gap:12px;
+  font-size:.85rem;color:var(--scope-text);padding:6px 0;border-bottom:1px solid rgba(34,58,76,.55);
+}
+.lines li:last-child{border-bottom:0}
+.lines li b{font-family:"IBM Plex Mono",monospace;color:#F09090;font-weight:600;font-size:.78rem}
+.lines li span code{background:rgba(255,255,255,.07);padding:1px 4px;border-radius:2px;font-size:.8rem;color:#9FD7E0}
+
+@media(max-width:860px){
+  .hero-in{grid-template-columns:1fr;gap:34px;padding:44px 0 40px}
+  .split{grid-template-columns:1fr}
+  .side.prob{border-right:0;border-bottom:1px solid var(--rule)}
+  .def{border-right:0;border-bottom:1px solid var(--rule-soft)}
+  .formula div{border-right:0;border-bottom:1px solid var(--rule-soft)}
+}
+/* ---------- TRADEOFF LEDGER ---------- */
+.ledger{width:100%;border-collapse:collapse;background:var(--card);border:1px solid var(--rule);font-size:.9rem}
+.ledger caption{text-align:left;color:var(--ink-3);font-size:.8rem;padding:0 0 10px;font-family:"IBM Plex Mono",monospace}
+.ledger th{
+  text-align:left;font-size:.75rem;font-weight:600;color:var(--ink-2);
+  padding:11px 14px;border-bottom:2px solid var(--ink);background:#F7F9FB;vertical-align:bottom;
+}
+.ledger td{padding:13px 14px;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+.ledger tr:last-child td{border-bottom:0}
+.ledger td:first-child{font-weight:600;width:22%}
+.ledger .apply{color:var(--cool)}
+.ledger .skip{color:var(--hot)}
+.ledger .why{color:var(--ink-2);font-size:.86rem}
+.tablescroll{overflow-x:auto;-webkit-overflow-scrolling:touch}
+.tablescroll .ledger{min-width:720px}
+
+.rules{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:16px;margin-top:28px}
+.rule{background:var(--card);border:1px solid var(--rule);border-top:3px solid var(--trace);padding:16px 18px}
+.rule h4{font-size:.98rem;margin-bottom:7px}
+.rule p{font-size:.88rem;color:var(--ink-2)}
+
+/* ---------- MOCK Q&A ---------- */
+.levelbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:20px}
+.levelbtn{
+  font:inherit;font-size:.82rem;cursor:pointer;background:var(--card);
+  border:1px solid var(--rule);color:var(--ink-2);padding:7px 14px;border-radius:999px;
+}
+.levelbtn[aria-pressed="true"]{background:var(--ink);color:#fff;border-color:var(--ink)}
+.qa{border:1px solid var(--rule);background:var(--card);margin-bottom:9px}
+.qa[hidden]{display:none}
+.qa summary{
+  cursor:pointer;padding:14px 16px;display:flex;gap:12px;align-items:flex-start;
+  font-weight:600;font-size:.96rem;list-style:none;
+}
+.qa summary::-webkit-details-marker{display:none}
+.qa summary::before{
+  content:"+";font-family:"IBM Plex Mono",monospace;color:var(--violet);
+  font-size:1.1rem;line-height:1.35;flex:0 0 auto;
+}
+.qa[open] summary::before{content:"−"}
+.qa summary .qlvl{
+  margin-left:auto;flex:0 0 auto;font-size:.66rem;font-family:"IBM Plex Mono",monospace;
+  font-weight:400;color:var(--ink-3);border:1px solid var(--rule);padding:2px 7px;border-radius:2px;
+}
+.qa .ans{padding:0 16px 16px 40px;font-size:.93rem;color:var(--ink-2);border-top:1px solid var(--rule-soft);padding-top:14px;margin-top:0}
+.qa .ans b{color:var(--ink)}
+.qa .ans ul{padding-left:1.1em;margin:.5em 0}
+.qa .ans li{margin-bottom:.35em}
+.qa .ans code{background:#EEF2F5;border:1px solid var(--rule-soft);padding:1px 5px;border-radius:2px;font-size:.85em}
+.qa .ans .signal{
+  margin-top:12px;padding:10px 12px;background:var(--trace-wash);
+  border-left:3px solid var(--trace);font-size:.87rem;color:var(--ink);
+}
+
+/* ---------- ANIMATION STAGE ---------- */
+.stage-band{background:var(--scope);color:var(--scope-text);padding:60px 0 66px}
+.stage-band h2{color:#fff}
+.stage-band .band-head p{color:var(--scope-dim)}
+.stage-band .kicker{color:var(--scope-dim)}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.tabbtn{
+  font:inherit;font-size:.8rem;cursor:pointer;background:transparent;color:var(--scope-dim);
+  border:1px solid var(--scope-line);padding:7px 13px;border-radius:2px;
+}
+.tabbtn[aria-selected="true"]{background:var(--scope-2);color:#fff;border-color:#3E6D8A}
+.stage{border:1px solid var(--scope-line);background:var(--scope-2);border-radius:var(--radius)}
+.stage-top{
+  display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;
+  padding:10px 14px;border-bottom:1px solid var(--scope-line);
+  font-family:"IBM Plex Mono",monospace;font-size:.74rem;color:var(--scope-dim);
+}
+.ctrl{font:inherit;font-size:.74rem;cursor:pointer;background:transparent;color:#9FD7E0;border:1px solid var(--scope-line);padding:4px 11px;border-radius:2px}
+.ctrl:hover{border-color:#3E6D8A;color:#fff}
+.panel{padding:8px 10px 16px}
+.panel[hidden]{display:none}
+.panel svg{width:100%;height:auto;display:block}
+.legend{display:flex;gap:16px;flex-wrap:wrap;padding:10px 6px 0;font-size:.76rem;color:var(--scope-dim);font-family:"IBM Plex Mono",monospace}
+.legend span{display:flex;align-items:center;gap:6px}
+.legend i{width:10px;height:10px;border-radius:50%;display:inline-block}
+.paused .flow{animation-play-state:paused !important}
+.flow{animation-play-state:running}
+
+/* svg text + node styles */
+.n-box{fill:#0B141C;stroke:#2F5670;stroke-width:1.2}
+.n-box.sync{stroke:#E4525F}
+.n-box.async{stroke:#2FBFA5}
+.n-lbl{fill:#D7E5EE;font-family:"IBM Plex Sans",sans-serif;font-size:11.5px;font-weight:600}
+.n-sub{fill:#7B95A8;font-family:"IBM Plex Mono",monospace;font-size:9px}
+.wire{stroke:#284A61;stroke-width:1.4;fill:none}
+.wire.dash{stroke-dasharray:4 4}
+.sec-lbl{fill:#7B95A8;font-family:"IBM Plex Mono",monospace;font-size:9.5px}
+
+/* fan-out slider */
+.fanctl{display:flex;align-items:center;gap:14px;flex-wrap:wrap;padding:14px 6px 4px}
+.fanctl label{font-size:.8rem;color:var(--scope-dim);font-family:"IBM Plex Mono",monospace}
+.fanctl input[type=range]{flex:1 1 200px;accent-color:#E09A2B}
+.fanout-out{font-family:"IBM Plex Mono",monospace;font-size:.9rem;color:#FFD79A;min-width:72px;text-align:right}
+
+/* footer */
+.foot{background:#08111A;color:var(--scope-dim);padding:34px 0 44px;font-size:.85rem;border-top:1px solid var(--scope-line)}
+.foot b{color:var(--scope-text);font-weight:600}
+.foot ol{padding-left:1.1em;margin:.6em 0 0;columns:2;column-gap:34px}
+.foot li{margin-bottom:.3em;break-inside:avoid}
+@media(max-width:640px){.foot ol{columns:1}}
+
+@media(max-width:640px){
+  body{font-size:16px}
+  .wrap{padding:0 16px}
+  .band{padding:46px 0}
+  .topnav a{font-size:.75rem;padding:4px 9px}
+  .topic-bar{padding:12px 14px;gap:9px}
+  .topic-bar h3{font-size:1rem;flex-basis:100%}
+  .side{padding:18px 16px 20px}
+  .side p,.side li{font-size:.9rem}
+  .code-head{font-size:.68rem;padding:9px 14px}
+  pre{font-size:.685rem;line-height:1.66;padding:14px}
+  .lines{padding:14px}
+  .lines li{grid-template-columns:26px 1fr;gap:9px;font-size:.82rem}
+  .qa summary{font-size:.9rem;padding:12px 14px}
+  .qa .ans{padding:14px 14px 16px 32px}
+  .panel{padding:6px 2px 12px}
+  .stage-top{font-size:.68rem}
+  .rule{padding:14px 15px}
+}
+
+/* ---------- flow animations ---------- */
+.wp-sync  {animation:wpSync  5s linear infinite}
+.wp-async {animation:wpAsync 5s linear infinite}
+.wp-async2{animation:wpAsync 5s linear infinite;animation-delay:2.5s}
+.rd-cdn   {animation:rdCdn  2.6s linear infinite}
+.rd-hit   {animation:rdHit    4s linear infinite}
+.rd-miss  {animation:rdMiss   6s linear infinite}
+.wf-bar   {animation:wfGrow   7s ease-out infinite both}
+.tail-bar {animation:tailGrow 8s ease-out infinite both}
+
+@keyframes wpSync{
+  0%{transform:translate(62px,54px)}   6%{transform:translate(62px,54px)}
+  20%{transform:translate(198px,54px)} 34%{transform:translate(344px,54px)}
+  48%{transform:translate(510px,54px)} 58%{transform:translate(510px,54px)}
+  61%{transform:translate(470px,76px)} 65%{transform:translate(470px,104px)}
+  82%{transform:translate(62px,104px)} 88%{transform:translate(62px,54px)}
+  100%{transform:translate(62px,54px)}
+}
+@keyframes wpAsync{
+  0%{transform:translate(545px,76px);opacity:0}
+  12%{transform:translate(545px,76px);opacity:0}
+  16%{transform:translate(545px,86px);opacity:1}
+  30%{transform:translate(545px,168px)}
+  36%{transform:translate(545px,190px)}
+  44%{transform:translate(680px,190px)}
+  54%{transform:translate(829px,190px)}
+  64%{transform:translate(829px,266px)}
+  70%{transform:translate(710px,290px)}
+  76%{transform:translate(710px,312px)}
+  88%{transform:translate(510px,312px)}
+  97%{transform:translate(320px,312px);opacity:1}
+  100%{transform:translate(320px,312px);opacity:0}
+}
+@keyframes rdCdn{
+  0%{transform:translate(62px,60px)}   25%{transform:translate(198px,60px)}
+  40%{transform:translate(198px,60px)} 55%{transform:translate(198px,124px)}
+  85%{transform:translate(62px,124px)} 95%{transform:translate(62px,60px)}
+  100%{transform:translate(62px,60px)}
+}
+@keyframes rdHit{
+  0%{transform:translate(62px,60px)}   14%{transform:translate(198px,60px)}
+  30%{transform:translate(340px,60px)} 46%{transform:translate(480px,60px)}
+  60%{transform:translate(634px,60px)} 68%{transform:translate(634px,60px)}
+  74%{transform:translate(634px,124px)} 94%{transform:translate(62px,124px)}
+  99%{transform:translate(62px,60px)}  100%{transform:translate(62px,60px)}
+}
+@keyframes rdMiss{
+  0%{transform:translate(62px,60px)}   10%{transform:translate(198px,60px)}
+  22%{transform:translate(340px,60px)} 34%{transform:translate(480px,60px)}
+  44%{transform:translate(634px,60px)} 54%{transform:translate(634px,212px)}
+  66%{transform:translate(634px,212px)} 76%{transform:translate(634px,60px)}
+  82%{transform:translate(634px,124px)} 97%{transform:translate(62px,124px)}
+  100%{transform:translate(62px,60px)}
+}
+@keyframes wfGrow{
+  0%{transform:scaleX(0);opacity:.35}  8%{transform:scaleX(1);opacity:1}
+  88%{transform:scaleX(1);opacity:1}   97%{transform:scaleX(0);opacity:.35}
+  100%{transform:scaleX(0);opacity:.35}
+}
+@keyframes tailGrow{
+  0%{transform:scaleY(0)}   12%{transform:scaleY(1)}
+  92%{transform:scaleY(1)}  100%{transform:scaleY(0)}
+}
+
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms !important;animation-iteration-count:1 !important;transition-duration:.001ms !important}
+  .hist i{transform:scaleY(1)}
+  .mark{opacity:1}
+  .wf-bar,.tail-bar{animation:none !important;transform:none !important}
+  .wp-sync,.wp-async,.wp-async2,.rd-cdn,.rd-hit,.rd-miss{animation:none !important;opacity:0}
+}
+</style>
+</head>
+<body>
+<div id="sdh-libbar" style="position:relative;z-index:2147483000;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0;padding:8px 16px;background:#0f172a;color:#cbd5e1;font:600 13px/1.5 Inter,'Segoe UI',system-ui,-apple-system,sans-serif;border-bottom:2px solid #4f46e5;box-sizing:border-box;width:100%;text-align:left;letter-spacing:0"><a href="../../index.html" style="color:#fff;text-decoration:none;font-weight:800">SystemDesign<span style="color:#8b8cff">.hinglish</span></a><span style="opacity:.45">/</span><a href="../index.html" style="color:#fff;text-decoration:none">📚 Library</a><span style="opacity:.45">/</span><a href="../index.html#system-design" style="color:#cbd5e1;text-decoration:none">System Design &amp; Architecture</a><a href="../files/latency-p99-throughput-hld-lld-original.html" download style="color:#a5b4fc;text-decoration:none;font-size:12px">⬇ Original</a><span style="margin-left:auto;font-size:11px;padding:2px 9px;border-radius:999px;border:1px solid #6366f1;color:#c7d2fe">📘 HTML ebook</span></div>
+
+<!-- ============================ HERO ============================ -->
+<header class="hero">
+  <div class="wrap hero-in">
+    <div>
+      <h1>Aapka average theek hai.<br>Aapka <span class="u">p99</span> aag lagi hai.</h1>
+      <p class="hero-sub">Latency, throughput aur tail percentiles ka poora interview playbook — <b>HLD + LLD, Java / Spring Boot code</b>, tradeoff ledger (kab kya apply karein, kya ignore karein), mock questions aur ek animated architecture walkthrough.</p>
+      <div class="hero-meta">
+        <span class="pill on">13 topics · problem → solution</span>
+        <span class="pill">Java 21 · Spring Boot 3</span>
+        <span class="pill">SDE-1/2 · SDE-3 · Staff</span>
+        <span class="pill">Hinglish + English</span>
+      </div>
+    </div>
+
+    <div class="scope-box" aria-hidden="true">
+      <div class="scope-head"><span>checkout-api · latency distribution · 1M requests</span><span>ms</span></div>
+      <div class="hist" id="heroHist"></div>
+      <div class="scope-foot"><span>0 ms</span><span>avg = 84 ms &nbsp;·&nbsp; p99 = 1,240 ms</span><span>3,000 ms</span></div>
+    </div>
+  </div>
+</header>
+
+<!-- ============================ NAV ============================ -->
+<nav class="topnav" aria-label="Sections">
+  <div class="topnav-in">
+    <a href="#basics">Fundamentals</a>
+    <a href="#t1">1 · Percentiles</a>
+    <a href="#t2">2 · Coordinated omission</a>
+    <a href="#t3">3 · Tail amplification</a>
+    <a href="#t4">4 · Little's Law</a>
+    <a href="#t5">5 · Bulkhead</a>
+    <a href="#t6">6 · DB pool</a>
+    <a href="#t7">7 · Timeout &amp; retry</a>
+    <a href="#t8">8 · Hedged requests</a>
+    <a href="#t9">9 · Cache stampede</a>
+    <a href="#t10">10 · Write path</a>
+    <a href="#t11">11 · Load shedding</a>
+    <a href="#t12">12 · GC pauses</a>
+    <a href="#t13">13 · Measurement</a>
+    <a href="#tradeoff">Tradeoff ledger</a>
+    <a href="#mock">Mock Q&amp;A</a>
+    <a href="#anim">Animation</a>
+  </div>
+</nav>
+
+<!-- ============================ FUNDAMENTALS ============================ -->
+<section class="band" id="basics">
+  <div class="wrap">
+    <div class="band-head">
+      <span class="kicker">00 · vocabulary</span>
+      <h2>Pehle vocabulary saaf karo, warna interview mein ghoomte reh jaoge</h2>
+      <p>Interviewer ye sunna chahta hai ki aap latency aur throughput ko alag-alag cheez maanate ho, aur percentile ko "average ka fancy naam" nahi samajhte. Ye char definitions har round ka base hain.</p>
+    </div>
+
+    <div class="defs">
+      <div class="def">
+        <span class="num">latency</span>
+        <h3>Ek request ka time</h3>
+        <p>Request bhejne se leke poora response milne tak ka duration. Ye <em>ek</em> user ka experience hai. Unit: milliseconds. Hamesha <b>distribution</b> hoti hai, single number nahi.</p>
+      </div>
+      <div class="def">
+        <span class="num">throughput</span>
+        <h3>Kitni requests / second</h3>
+        <p>System ek second mein kitna kaam nipta raha hai (RPS / QPS / TPS). Ye <em>system</em> ki capacity hai. High throughput ≠ low latency — dono alag knobs hain.</p>
+      </div>
+      <div class="def">
+        <span class="num">p99</span>
+        <h3>100 mein se 99 iske andar</h3>
+        <p>Requests ko sort karo, 99th percentile point uthao. Matlab 1% requests isse <em>slow</em> hain. p99 = 1.2s ka matlab: 1M requests par 10,000 log dukhi hain.</p>
+      </div>
+      <div class="def">
+        <span class="num">tail</span>
+        <h3>p99 se aage ka hissa</h3>
+        <p>p99.9 / p99.99 — sabse slow requests. Yahi GC pause, cache miss, retry, lock contention aur noisy-neighbour chhupa ke rakhta hai. Tail hi aapka <b>real</b> SLO hai.</p>
+      </div>
+    </div>
+
+    <div class="formula">
+      <div>
+        <div class="eq">L = λ × W</div>
+        <p><b>Little's Law.</b> Concurrency (L) = arrival rate (λ) × latency (W). Interview mein sabse zyada return dene wala formula. 500 RPS × 200ms = 100 concurrent requests chahiye. Isse thread pool aur connection pool dono size hote hain.</p>
+      </div>
+      <div>
+        <div class="eq">P(slow) = 1 − (1 − p)^n</div>
+        <p><b>Tail amplification.</b> Ek service ka p99 = 1%. Agar ek request 100 services ko parallel call karti hai, to 63% requests slow ho jayengi. Microservices mein p99 apne aap kharab hota hai.</p>
+      </div>
+      <div>
+        <div class="eq">W = S / (1 − ρ)</div>
+        <p><b>Queueing.</b> ρ = utilization. 50% par latency 2× service time, 90% par 10×, 95% par 20×. Isliye capacity planning 100% utilization par nahi, ~60–70% par hoti hai.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ TOPICS 1–4 ============================ -->
+<section class="band" id="topics">
+  <div class="wrap">
+    <div class="band-head">
+      <span class="kicker">01 · problem → solution</span>
+      <h2>Left mein problem, right mein solution — topic by topic</h2>
+      <p>Har topic ka same shape hai: symptom kya dikhta hai, root cause kya hai, fix kya hai, aur us fix ki keemat kya hai. Code blocks Java 21 + Spring Boot 3 mein hain, har marked line ka explanation neeche diya hai.</p>
+    </div>
+
+    <!-- ============ T1 ============ -->
+    <article class="topic" id="t1">
+      <div class="topic-bar">
+        <span class="topic-id">T-01</span>
+        <h3>Average latency jhooth bolta hai</h3>
+        <div class="pstrip"><b>hits</b><i data-p="p50"></i><i class="hit" data-p="p90"></i><i class="hit" data-p="p99"></i><i class="hit" data-p="p99.9"></i></div>
+        <div class="tags"><span class="tag hld">HLD</span><span class="tag lld">LLD</span><span class="tag lvl">SDE-1/2</span></div>
+      </div>
+
+      <div class="split">
+        <div class="side prob">
+          <h4>&#9888; problem</h4>
+          <p>Dashboard par <b>avg latency = 84ms</b> chamak raha hai, SLO green hai, par support tickets aa rahe hain: "checkout hang ho jaata hai".</p>
+          <ul>
+            <li>Average <span class="hi">outliers ko dabata hai</span>. 990 requests 40ms par aur 10 requests 5s par — average phir bhi 89ms.</li>
+            <li>Average se aap kabhi nahi bata sakte ki <em>kitne</em> users affected hain.</li>
+            <li>Latency distribution normal nahi, <b>right-skewed / multi-modal</b> hoti hai (cache hit ek hump, cache miss doosra hump). Aise data par mean meaningless hai.</li>
+            <li>Aur bada bug: teams p99 ko <span class="hi">average of p99s</span> nikaal ke aggregate karti hain — mathematically galat. Percentiles average nahi hote.</li>
+          </ul>
+          <div class="callout"><b>Interview trap:</b> "Aapka p99 kya hai?" ka jawab agar "average 80ms hai" hai, to round wahin khatam.</div>
+        </div>
+
+        <div class="side sol">
+          <h4>&#10003; solution</h4>
+          <p>Latency ko hamesha <b>distribution</b> ki tarah store karo — histogram buckets mein, single number mein nahi.</p>
+          <ul>
+            <li><b>Histogram publish karo, summary nahi.</b> Micrometer ka <code>publishPercentileHistogram</code> raw buckets Prometheus ko bhejta hai, taaki percentile <em>server side</em> par sahi tarah aggregate ho (<code>histogram_quantile</code>).</li>
+            <li>SLO define karo <b>percentile + threshold + window</b> ke saath: "p99 &lt; 300ms over 30 din, 99.9% availability".</li>
+            <li>Har latency metric par dimension daalo: endpoint, status, cache-hit — taaki bimodal distribution alag-alag dikhe.</li>
+            <li>SLI ke liye <b>bucket-count ratio</b> lo: "kitni requests 300ms bucket ke andar aayi" — ye aggregate-safe hai aur error budget ke liye seedha use hota hai.</li>
+          </ul>
+          <div class="callout"><b>Cost:</b> Har histogram bucket ek time-series hai. 30 buckets × 40 endpoints × 20 pods = cardinality blast. Buckets soch samajh ke chuno.</div>
+        </div>
+      </div>
+
+      <div class="codeblock">
+        <div class="code-head"><b>LatencyMetricsRecorder.java</b><span>Micrometer + Prometheus · aggregate-safe percentiles</span></div>
+<pre><code><span class="a">@Configuration</span>
+<span class="k">public class</span> <span class="t">LatencyMetricsConfig</span> {
+
+  <span class="a">@Bean</span>
+  <span class="t">MeterFilter</span> <span class="m">enableHistogramForApiTimers</span>() {              <span class="mk">// (1)</span>
+    <span class="k">return new</span> <span class="t">MeterFilter</span>() {
+      <span class="a">@Override</span>
+      <span class="k">public</span> <span class="t">DistributionStatisticConfig</span> <span class="m">configure</span>(
+              <span class="t">Meter.Id</span> id, <span class="t">DistributionStatisticConfig</span> config) {
+
+        <span class="k">if</span> (!id.<span class="m">getName</span>().<span class="m">startsWith</span>(<span class="s">"api.request.latency"</span>)) <span class="k">return</span> config;
+
+        <span class="k">return</span> <span class="t">DistributionStatisticConfig</span>.<span class="m">builder</span>()
+            .<span class="m">percentilesHistogram</span>(<span class="k">true</span>)                          <span class="mk">// (2)</span>
+            .<span class="m">serviceLevelObjectives</span>(                                <span class="mk">// (3)</span>
+                <span class="t">Duration</span>.<span class="m">ofMillis</span>(50).<span class="m">toNanos</span>(),
+                <span class="t">Duration</span>.<span class="m">ofMillis</span>(150).<span class="m">toNanos</span>(),
+                <span class="t">Duration</span>.<span class="m">ofMillis</span>(300).<span class="m">toNanos</span>(),
+                <span class="t">Duration</span>.<span class="m">ofMillis</span>(800).<span class="m">toNanos</span>(),
+                <span class="t">Duration</span>.<span class="m">ofSeconds</span>(2).<span class="m">toNanos</span>())
+            .<span class="m">minimumExpectedValue</span>(<span class="t">Duration</span>.<span class="m">ofMillis</span>(5).<span class="m">toNanos</span>())
+            .<span class="m">maximumExpectedValue</span>(<span class="t">Duration</span>.<span class="m">ofSeconds</span>(10).<span class="m">toNanos</span>())  <span class="mk">// (4)</span>
+            .<span class="m">expiry</span>(<span class="t">Duration</span>.<span class="m">ofMinutes</span>(2))
+            .<span class="m">build</span>()
+            .<span class="m">merge</span>(config);
+      }
+    };
+  }
+}
+
+<span class="a">@Component</span>
+<span class="k">public class</span> <span class="t">LatencyMetricsRecorder</span> {
+
+  <span class="k">private final</span> <span class="t">MeterRegistry</span> meterRegistry;
+
+  <span class="k">public</span> <span class="t">LatencyMetricsRecorder</span>(<span class="t">MeterRegistry</span> meterRegistry) {
+    <span class="k">this</span>.meterRegistry = meterRegistry;
+  }
+
+  <span class="c">/** Ek endpoint call ka poora duration record karta hai, saare dimensions ke saath. */</span>
+  <span class="k">public</span> &lt;<span class="t">T</span>&gt; <span class="t">T</span> <span class="m">recordEndpointLatency</span>(<span class="t">String</span> endpoint,
+                                    <span class="t">String</span> cacheOutcome,
+                                    <span class="t">Supplier</span>&lt;<span class="t">T</span>&gt; work) {
+
+    <span class="t">Timer.Sample</span> sample = <span class="t">Timer</span>.<span class="m">start</span>(meterRegistry);        <span class="mk">// (5)</span>
+    <span class="t">String</span> outcome = <span class="s">"success"</span>;
+    <span class="k">try</span> {
+      <span class="k">return</span> work.<span class="m">get</span>();
+    } <span class="k">catch</span> (<span class="t">RuntimeException</span> failure) {
+      outcome = <span class="s">"error"</span>;                                       <span class="mk">// (6)</span>
+      <span class="k">throw</span> failure;
+    } <span class="k">finally</span> {
+      sample.<span class="m">stop</span>(<span class="t">Timer</span>.<span class="m">builder</span>(<span class="s">"api.request.latency"</span>)
+          .<span class="m">tag</span>(<span class="s">"endpoint"</span>, endpoint)
+          .<span class="m">tag</span>(<span class="s">"outcome"</span>, outcome)
+          .<span class="m">tag</span>(<span class="s">"cache"</span>, cacheOutcome)                          <span class="mk">// (7)</span>
+          .<span class="m">register</span>(meterRegistry));
+    }
+  }
+}</code></pre>
+        <ol class="lines">
+          <li><b>(1)</b><span>Ek <code>MeterFilter</code> bean — ye har matching timer par ek hi jagah se config lagata hai. Har controller mein manually likhne ki zaroorat nahi; naya endpoint apne aap sahi histogram config le lega.</span></li>
+          <li><b>(2)</b><span><code>percentilesHistogram(true)</code> raw bucket counts export karta hai. Isse Prometheus mein <code>histogram_quantile(0.99, ...)</code> saare pods par <em>correctly</em> aggregate hota hai. Client-side <code>.publishPercentiles()</code> per-pod numbers deta hai jinhe add nahi kiya ja sakta.</span></li>
+          <li><b>(3)</b><span><code>serviceLevelObjectives</code> exact SLO buckets add karta hai. 300ms bucket ka counter seedha "kitni requests SLO ke andar thi" batata hai — error budget ka numerator mil gaya.</span></li>
+          <li><b>(4)</b><span>min/max range bucket count control karti hai. Ye <span class="mk">cardinality guard</span> hai — bina iske Micrometer bahut saare buckets bana deta hai aur Prometheus ka memory footprint phat jaata hai.</span></li>
+          <li><b>(5)</b><span><code>Timer.Sample</code> monotonic clock par start hota hai (<code>System.nanoTime</code>), wall clock par nahi — NTP jump se latency corrupt nahi hogi.</span></li>
+          <li><b>(6)</b><span>Failures ko alag tag karo. Fail-fast errors 2ms mein return hote hain aur aapka p99 <em>artificially</em> accha dikha dete hain. Success-only latency dekho.</span></li>
+          <li><b>(7)</b><span><code>cache</code> tag bimodal distribution ko do saaf modes mein todta hai. Cache-miss ka p50 dekhna cache-hit ke mixed p99 se zyada actionable hota hai.</span></li>
+        </ol>
+      </div>
+    </article>
+
+    <!-- ============ T2 ============ -->
+    <article class="topic" id="t2">
+      <div class="topic-bar">
+        <span class="topic-id">T-02</span>
+        <h3>Load test bolta hai "p99 = 90ms", production bolta hai "p99 = 4s"</h3>
+        <div class="pstrip"><b>hits</b><i data-p="p50"></i><i data-p="p90"></i><i class="hit" data-p="p99"></i><i class="hit" data-p="p99.9"></i></div>
+        <div class="tags"><span class="tag hld">HLD</span><span class="tag lvl">SDE-3</span></div>
+      </div>
+
+      <div class="split">
+        <div class="side prob">
+          <h4>&#9888; problem — coordinated omission</h4>
+          <p>Load generator har request ka response <em>wait</em> karke agli request bhejta hai. Jab server ek 3 second ka stall karta hai, us dauraan load generator ne <b>koi request bheji hi nahi</b>.</p>
+          <ul>
+            <li>Jo requests sabse zyada suffer karti (stall ke dauraan queue mein khadi hoti), wo <span class="hi">record hi nahi hui</span>.</li>
+            <li>Ek 3s stall = ~150 missing slow samples at 50 RPS. Aapka histogram unhe 0 count deta hai.</li>
+            <li>Result: closed-loop load test ka p99 real p99 se <b>10–100× optimistic</b> hota hai.</li>
+            <li>Same bug app-side mein bhi: agar aap latency queue-entry ke baad measure karte ho, to <b>queue wait time</b> chhut jaata hai — user ne wo bhi jhela hai.</li>
+          </ul>
+          <div class="callout"><b>Symptom:</b> Load test aur prod graph ka shape alag — test smooth, prod spiky.</div>
+        </div>
+
+        <div class="side sol">
+          <h4>&#10003; solution — open-loop + intended-time</h4>
+          <ul>
+            <li><b>Open-loop load model</b> use karo: fixed arrival rate (Gatling <code>constantUsersPerSec</code>, k6 <code>constant-arrival-rate</code>), na ki fixed virtual users. Server slow ho to bhi requests aati rahengi.</li>
+            <li><b>Intended start time</b> se measure karo, actual start time se nahi: <code>latency = responseTime − scheduledSendTime</code>. Ye queue wait ko wapas count karta hai.</li>
+            <li>App ke andar: latency ka timer <b>filter/interceptor ki entry par</b> start karo, service method mein nahi. Aur agar aap khud queue karte ho (async executor), to <code>queueWaitTime</code> alag metric banao.</li>
+            <li>HdrHistogram ka <code>recordValueWithExpectedInterval()</code> synthetic missing samples backfill karta hai.</li>
+          </ul>
+          <div class="callout"><b>Ignore kab karein:</b> Agar aapka traffic genuinely closed-loop hai (fixed 20 batch workers, koi user nahi), tab closed-loop test hi correct model hai.</div>
+        </div>
+      </div>
+
+      <div class="codeblock">
+        <div class="code-head"><b>QueueWaitAwareLatencyFilter.java</b><span>queue time ko latency mein wapas jodna</span></div>
+<pre><code><span class="a">@Component</span>
+<span class="a">@Order</span>(<span class="t">Ordered</span>.<span class="m">HIGHEST_PRECEDENCE</span>)                              <span class="mk">// (1)</span>
+<span class="k">public class</span> <span class="t">QueueWaitAwareLatencyFilter</span> <span class="k">extends</span> <span class="t">OncePerRequestFilter</span> {
+
+  <span class="k">private static final</span> <span class="t">String</span> EDGE_TS_HEADER = <span class="s">"X-Edge-Request-Start-Ms"</span>;
+
+  <span class="k">private final</span> <span class="t">MeterRegistry</span> registry;
+
+  <span class="a">@Override</span>
+  <span class="k">protected void</span> <span class="m">doFilterInternal</span>(<span class="t">HttpServletRequest</span> request,
+                                  <span class="t">HttpServletResponse</span> response,
+                                  <span class="t">FilterChain</span> chain) <span class="k">throws</span> <span class="t">IOException</span>, <span class="t">ServletException</span> {
+
+    <span class="k">long</span> serverEntryNanos = <span class="t">System</span>.<span class="m">nanoTime</span>();
+    <span class="k">long</span> queueWaitMs = <span class="m">calculateEdgeToAppQueueWaitMs</span>(request);       <span class="mk">// (2)</span>
+
+    <span class="k">try</span> {
+      chain.<span class="m">doFilter</span>(request, response);
+    } <span class="k">finally</span> {
+      <span class="k">long</span> serviceMs = (<span class="t">System</span>.<span class="m">nanoTime</span>() - serverEntryNanos) / 1_000_000;
+
+      <span class="m">recordUserPerceivedLatency</span>(request, response, queueWaitMs + serviceMs); <span class="mk">// (3)</span>
+      <span class="m">recordQueueWaitOnly</span>(request, queueWaitMs);                          <span class="mk">// (4)</span>
+    }
+  }
+
+  <span class="c">/** Edge (LB/gateway) ne request stamp ki thi; app tak pahunchne mein jitna laga wahi queue wait hai. */</span>
+  <span class="k">private long</span> <span class="m">calculateEdgeToAppQueueWaitMs</span>(<span class="t">HttpServletRequest</span> request) {
+    <span class="t">String</span> edgeStart = request.<span class="m">getHeader</span>(EDGE_TS_HEADER);
+    <span class="k">if</span> (edgeStart == <span class="k">null</span>) <span class="k">return</span> 0L;                                  <span class="mk">// (5)</span>
+    <span class="k">long</span> wait = <span class="t">System</span>.<span class="m">currentTimeMillis</span>() - <span class="t">Long</span>.<span class="m">parseLong</span>(edgeStart);
+    <span class="k">return</span> <span class="t">Math</span>.<span class="m">max</span>(0L, <span class="t">Math</span>.<span class="m">min</span>(wait, 30_000L));                       <span class="mk">// (6)</span>
+  }
+
+  <span class="k">private void</span> <span class="m">recordUserPerceivedLatency</span>(<span class="t">HttpServletRequest</span> req,
+                                         <span class="t">HttpServletResponse</span> res,
+                                         <span class="k">long</span> totalMs) {
+    <span class="t">Timer</span>.<span class="m">builder</span>(<span class="s">"api.request.latency"</span>)
+        .<span class="m">tag</span>(<span class="s">"endpoint"</span>, req.<span class="m">getRequestURI</span>())
+        .<span class="m">tag</span>(<span class="s">"status"</span>, <span class="t">String</span>.<span class="m">valueOf</span>(res.<span class="m">getStatus</span>()))
+        .<span class="m">register</span>(registry)
+        .<span class="m">record</span>(totalMs, <span class="t">TimeUnit</span>.<span class="m">MILLISECONDS</span>);
+  }
+}</code></pre>
+        <ol class="lines">
+          <li><b>(1)</b><span><code>HIGHEST_PRECEDENCE</code> zaroori hai — ye filter sabse pehle chalega, isliye baaki filters (auth, tracing, compression) ka time bhi count hoga. Neeche rakhoge to unka cost invisible ho jayega.</span></li>
+          <li><b>(2)</b><span>Queue wait pehle nikaalo, kyunki iske baad chain block ho sakti hai. Ye wo time hai jo request Tomcat ke accept queue mein khadi thi.</span></li>
+          <li><b>(3)</b><span>User-perceived latency = queue wait + service time. Yahi wo number hai jo user ne actually jhela. Sirf <code>serviceMs</code> report karna hi coordinated omission ka app-side version hai.</span></li>
+          <li><b>(4)</b><span>Queue wait ka apna metric alag rakho. Agar ye badhta hai to signal saaf hai: <em>capacity</em> kam hai, code slow nahi hua.</span></li>
+          <li><b>(5)</b><span>Header missing ho to 0 return karo, exception nahi. Observability code kabhi request fail nahi karna chahiye.</span></li>
+          <li><b>(6)</b><span>Clamp lagana zaroori hai. Edge aur app ki clocks alag machines par hain; clock skew se negative ya 4-ghante ka wait aa sakta hai jo poora histogram corrupt kar dega.</span></li>
+        </ol>
+      </div>
+    </article>
+
+    <!-- ============ T3 ============ -->
+    <article class="topic" id="t3">
+      <div class="topic-bar">
+        <span class="topic-id">T-03</span>
+        <h3>Har service fast hai, phir bhi page slow hai — tail amplification</h3>
+        <div class="pstrip"><b>hits</b><i data-p="p50"></i><i class="hit" data-p="p90"></i><i class="hit" data-p="p99"></i><i class="hit" data-p="p99.9"></i></div>
+        <div class="tags"><span class="tag hld">HLD</span><span class="tag lld">LLD</span><span class="tag lvl">SDE-3</span></div>
+      </div>
+
+      <div class="split">
+        <div class="side prob">
+          <h4>&#9888; problem</h4>
+          <p>Product page 8 downstream services ko call karta hai. Har service ka p99 = 100ms, p50 = 10ms. Sabhi teams bolti hain "hamari service theek hai". Page ka p99 phir bhi 900ms.</p>
+          <ul>
+            <li>Parallel fan-out mein request <b>sabse slow response ka intezaar</b> karti hai — max, average nahi.</li>
+            <li><code>P(koi ek slow) = 1 − 0.99^8 = 7.7%</code>. Matlab page ka p92 hi 100ms cross kar gaya.</li>
+            <li>100 shards par ye 63% ho jaata hai. Aur agar call <b>sequential</b> hain to latency add hoti hai — 8 × p50 bhi bura hai.</li>
+            <li>Fix karne ki koshish mein team har service ka p99 chase karti hai — jo <span class="hi">infinite aur mehnga</span> game hai.</li>
+          </ul>
+          <div class="callout"><b>Root insight:</b> Ye ek <em>architecture</em> problem hai, individual service ki performance problem nahi.</div>
+        </div>
+
+        <div class="side sol">
+          <h4>&#10003; solution</h4>
+          <ul>
+            <li><b>Fan-out kam karo.</b> Read-optimised denormalised view (materialised view / CQRS read model) banao taaki 8 call ki jagah 1–2 call ho.</li>
+            <li><b>Non-critical calls ko optional banao.</b> "Recommendations" aur "reviews count" ke bina page render ho sakta hai — unhe short deadline do aur timeout par skip kar do (graceful degradation).</li>
+            <li><b>Deadline propagation:</b> poora request ek deadline carry kare (jaise 400ms). Har downstream call ko <em>bacha hua</em> time milta hai, apna fixed timeout nahi.</li>
+            <li>Critical vs optional ka split explicitly code mein dikhao — interview mein yahi maturity dikhti hai.</li>
+          </ul>
+          <div class="callout"><b>Cost:</b> Degraded response = stale ya incomplete UI. Product ke saath decide karo ki kaunsa block missing ho sakta hai.</div>
+        </div>
+      </div>
+
+      <div class="codeblock">
+        <div class="code-head"><b>ProductPageAggregator.java</b><span>deadline-aware fan-out with optional degradation</span></div>
+<pre><code><span class="a">@Service</span>
+<span class="k">public class</span> <span class="t">ProductPageAggregator</span> {
+
+  <span class="k">private static final</span> <span class="t">Duration</span> PAGE_DEADLINE = <span class="t">Duration</span>.<span class="m">ofMillis</span>(400);
+
+  <span class="k">private final</span> <span class="t">Executor</span> fanOutExecutor;   <span class="c">// bulkhead se aaya hua, T-05 dekho</span>
+
+  <span class="k">public</span> <span class="t">ProductPageView</span> <span class="m">buildProductPage</span>(<span class="t">String</span> productId) {
+
+    <span class="t">Deadline</span> deadline = <span class="t">Deadline</span>.<span class="m">startingNow</span>(PAGE_DEADLINE);           <span class="mk">// (1)</span>
+
+    <span class="c">// --- CRITICAL: inke bina page render hi nahi ho sakta ---</span>
+    <span class="t">CompletableFuture</span>&lt;<span class="t">Product</span>&gt; product =
+        <span class="m">callCritical</span>(() -&gt; catalogClient.<span class="m">fetchProduct</span>(productId, deadline));
+    <span class="t">CompletableFuture</span>&lt;<span class="t">Price</span>&gt; price =
+        <span class="m">callCritical</span>(() -&gt; pricingClient.<span class="m">fetchPrice</span>(productId, deadline));
+
+    <span class="c">// --- OPTIONAL: timeout par empty, page phir bhi jayega ---</span>
+    <span class="t">CompletableFuture</span>&lt;<span class="t">List</span>&lt;<span class="t">Review</span>&gt;&gt; reviews =
+        <span class="m">callOptional</span>(() -&gt; reviewClient.<span class="m">fetchTopReviews</span>(productId, deadline),
+                     <span class="t">List</span>.<span class="m">of</span>(), <span class="s">"reviews"</span>);                            <span class="mk">// (2)</span>
+    <span class="t">CompletableFuture</span>&lt;<span class="t">List</span>&lt;<span class="t">Product</span>&gt;&gt; similar =
+        <span class="m">callOptional</span>(() -&gt; recoClient.<span class="m">fetchSimilar</span>(productId, deadline),
+                     <span class="t">List</span>.<span class="m">of</span>(), <span class="s">"recommendations"</span>);
+
+    <span class="t">CompletableFuture</span>.<span class="m">allOf</span>(product, price).<span class="m">join</span>();                    <span class="mk">// (3)</span>
+
+    <span class="k">return new</span> <span class="t">ProductPageView</span>(
+        product.<span class="m">join</span>(), price.<span class="m">join</span>(),
+        reviews.<span class="m">getNow</span>(<span class="t">List</span>.<span class="m">of</span>()),                                    <span class="mk">// (4)</span>
+        similar.<span class="m">getNow</span>(<span class="t">List</span>.<span class="m">of</span>()));
+  }
+
+  <span class="k">private</span> &lt;<span class="t">T</span>&gt; <span class="t">CompletableFuture</span>&lt;<span class="t">T</span>&gt; <span class="m">callCritical</span>(<span class="t">Supplier</span>&lt;<span class="t">T</span>&gt; call) {
+    <span class="k">return</span> <span class="t">CompletableFuture</span>.<span class="m">supplyAsync</span>(call, fanOutExecutor);
+  }
+
+  <span class="c">/** Optional call: fail ya timeout hone par fallback deta hai, exception propagate nahi karta. */</span>
+  <span class="k">private</span> &lt;<span class="t">T</span>&gt; <span class="t">CompletableFuture</span>&lt;<span class="t">T</span>&gt; <span class="m">callOptional</span>(<span class="t">Supplier</span>&lt;<span class="t">T</span>&gt; call,
+                                                  <span class="t">T</span> fallback,
+                                                  <span class="t">String</span> blockName) {
+    <span class="k">return</span> <span class="t">CompletableFuture</span>
+        .<span class="m">supplyAsync</span>(call, fanOutExecutor)
+        .<span class="m">exceptionally</span>(error -&gt; {                                        <span class="mk">// (5)</span>
+          degradationCounter.<span class="m">increment</span>(blockName);
+          <span class="k">return</span> fallback;
+        });
+  }
+}
+
+<span class="c">/** Remaining-time deadline. Har hop apna share nahi, bacha hua time use karta hai. */</span>
+<span class="k">public record</span> <span class="t">Deadline</span>(<span class="k">long</span> expiresAtNanos) {
+
+  <span class="k">public static</span> <span class="t">Deadline</span> <span class="m">startingNow</span>(<span class="t">Duration</span> budget) {
+    <span class="k">return new</span> <span class="t">Deadline</span>(<span class="t">System</span>.<span class="m">nanoTime</span>() + budget.<span class="m">toNanos</span>());
+  }
+
+  <span class="k">public</span> <span class="t">Duration</span> <span class="m">remaining</span>() {
+    <span class="k">return</span> <span class="t">Duration</span>.<span class="m">ofNanos</span>(<span class="t">Math</span>.<span class="m">max</span>(0, expiresAtNanos - <span class="t">System</span>.<span class="m">nanoTime</span>())); <span class="mk">// (6)</span>
+  }
+
+  <span class="k">public boolean</span> <span class="m">isExpired</span>() { <span class="k">return</span> <span class="m">remaining</span>().<span class="m">isZero</span>(); }
+}</code></pre>
+        <ol class="lines">
+          <li><b>(1)</b><span>Deadline <em>ek baar</em> request ke start par banti hai aur neeche pass hoti hai. Ye "har call ko 300ms timeout" se fundamentally behtar hai — 3 sequential calls × 300ms = 900ms worst case, jo aapke 400ms SLO ko tod deta hai.</span></li>
+          <li><b>(2)</b><span>Optional blocks ko explicit fallback (<code>List.of()</code>) milta hai. Ye product decision code mein visible hai — reviewer turant samajh jaayega ki kya degrade ho sakta hai.</span></li>
+          <li><b>(3)</b><span><code>allOf</code> sirf <em>critical</em> futures par wait karta hai. Optional futures ka intezaar nahi hota — yahi tail amplification cut karta hai. n = 8 se effective n = 2 ho gaya.</span></li>
+          <li><b>(4)</b><span><code>getNow(fallback)</code> block nahi karta — jo aa gaya wo le lo, warna default. Yahan <code>join()</code> likhna poori optimisation bekaar kar deta.</span></li>
+          <li><b>(5)</b><span><code>exceptionally</code> failure ko value mein badal deta hai, saath hi ek counter badhata hai taaki silent degradation dashboard par dikhe. Silent fallback sabse khatarnak bug hai.</span></li>
+          <li><b>(6)</b><span><code>Math.max(0, ...)</code> negative duration se bachata hai. Deadline nikal chuki ho to client ko turant fail karna chahiye, na ki negative timeout ke saath call bhejni chahiye.</span></li>
+        </ol>
+      </div>
+    </article>
+
+    <!-- ============ T4 ============ -->
+    <article class="topic" id="t4">
+      <div class="topic-bar">
+        <span class="topic-id">T-04</span>
+        <h3>Throughput badhaya, latency phat gayi — Little's Law aur batching</h3>
+        <div class="pstrip"><b>hits</b><i class="hit" data-p="p50"></i><i class="hit" data-p="p90"></i><i class="hit" data-p="p99"></i><i data-p="p99.9"></i></div>
+        <div class="tags"><span class="tag hld">HLD</span><span class="tag lld">LLD</span><span class="tag lvl">SDE-2</span></div>
+      </div>
+
+      <div class="split">
+        <div class="side prob">
+          <h4>&#9888; problem</h4>
+          <p>Team ne throughput badhane ke liye thread pool 50 se 500 kar diya. RPS thoda badha, par p99 12× ho gaya.</p>
+          <ul>
+            <li>Threads badhane se CPU nahi badhti. Extra threads sirf <span class="hi">queue ko thread pool ke andar chhupa dete</span> hain.</li>
+            <li>Utilization jitna 100% ke paas jaata hai, queueing latency utni <b>exponentially</b> badhti hai: <code>W = S/(1−ρ)</code>.</li>
+            <li>Batching se throughput badhta hai par har item ko <b>batch bharne ka wait</b> jhelna padta hai — ye pure latency cost hai.</li>
+            <li>Ulta bhi sach hai: latency ke liye over-optimise karo (batch size 1, no pooling) to throughput gir jaata hai aur infra cost 3× ho jaata hai.</li>
+          </ul>
+          <div class="callout"><b>Rule:</b> Throughput aur latency ek hi dial ke do sire hain. Dono ek saath maximise nahi hote — aap sirf operating point chunte ho.</div>
+        </div>
+
+        <div class="side sol">
+          <h4>&#10003; solution</h4>
+          <ul>
+            <li><b>Concurrency Little's Law se size karo</b>, guess se nahi: <code>threads = targetRps × p99LatencySeconds</code>, phir headroom ke liye 1.2–1.5×.</li>
+            <li>Pool ko <b>chhota aur bounded</b> rakho + bounded queue. Bhari load par fail-fast karna, silently 4s tak queue karne se behtar hai.</li>
+            <li>Batching ka <b>dono-taraf ka trigger</b> lagao: size (100 items) <em>ya</em> time (10ms) — jo pehle aaye. Ye maxLinger latency ko cap karta hai.</li>
+            <li>Target utilization ~60–70% rakho. 85%+ par p99 exponential curve mein chala jaata hai.</li>
+          </ul>
+          <div class="callout"><b>Ignore kab karein:</b> Batch / offline pipelines mein latency matter hi nahi karti — wahan batch size zyada rakho aur utilization 95% tak le jao. Cost jeetta hai.</div>
+        </div>
+      </div>
+
+      <div class="codeblock">
+        <div class="code-head"><b>BufferedWriteAccumulator.java</b><span>size-or-time flush — throughput bina unbounded latency ke</span></div>
+<pre><code><span class="a">@Component</span>
+<span class="k">public class</span> <span class="t">BufferedWriteAccumulator</span> {
+
+  <span class="k">private static final int</span>  MAX_BATCH_SIZE   = 200;
+  <span class="k">private static final long</span> MAX_LINGER_MILLIS = 10;                     <span class="mk">// (1)</span>
+
+  <span class="k">private final</span> <span class="t">BlockingQueue</span>&lt;<span class="t">EventRow</span>&gt; pendingRows =
+      <span class="k">new</span> <span class="t">ArrayBlockingQueue</span>&lt;&gt;(20_000);                              <span class="mk">// (2)</span>
+
+  <span class="k">private final</span> <span class="t">EventRowRepository</span> repository;
+  <span class="k">private final</span> <span class="t">Timer</span> flushTimer;
+
+  <span class="c">/** Caller block nahi hota. Queue full ho to turant reject — backpressure upar jaata hai. */</span>
+  <span class="k">public boolean</span> <span class="m">offerRowForBatchWrite</span>(<span class="t">EventRow</span> row) {
+    <span class="k">return</span> pendingRows.<span class="m">offer</span>(row);                                   <span class="mk">// (3)</span>
+  }
+
+  <span class="a">@Scheduled</span>(fixedDelay = MAX_LINGER_MILLIS)                            <span class="mk">// (4)</span>
+  <span class="k">public void</span> <span class="m">flushPendingRowsOnScheduleOrWhenFull</span>() {
+    <span class="t">List</span>&lt;<span class="t">EventRow</span>&gt; batch = <span class="k">new</span> <span class="t">ArrayList</span>&lt;&gt;(MAX_BATCH_SIZE);
+    pendingRows.<span class="m">drainTo</span>(batch, MAX_BATCH_SIZE);                       <span class="mk">// (5)</span>
+
+    <span class="k">if</span> (batch.<span class="m">isEmpty</span>()) <span class="k">return</span>;
+
+    flushTimer.<span class="m">record</span>(() -&gt; repository.<span class="m">insertAllInSingleRoundTrip</span>(batch)); <span class="mk">// (6)</span>
+  }
+
+  <span class="c">/**
+   * Little's Law se pool size: L = lambda * W.
+   * 800 RPS aur 120ms p99 -&gt; 96 concurrent, 1.3x headroom -&gt; ~125 threads.
+   */</span>
+  <span class="k">public static int</span> <span class="m">calculateConcurrencyFromLittlesLaw</span>(<span class="k">int</span> targetRps,
+                                                    <span class="t">Duration</span> p99Latency,
+                                                    <span class="k">double</span> headroomFactor) {
+    <span class="k">double</span> concurrency = targetRps * (p99Latency.<span class="m">toMillis</span>() / 1000.0);
+    <span class="k">return</span> (<span class="k">int</span>) <span class="t">Math</span>.<span class="m">ceil</span>(concurrency * headroomFactor);              <span class="mk">// (7)</span>
+  }
+}</code></pre>
+        <ol class="lines">
+          <li><b>(1)</b><span>Linger = <em>maximum extra latency</em> jo aap throughput ke badle dene ko taiyaar ho. Ye number product SLO se aata hai, feeling se nahi. 10ms linger p99 mein 10ms se zyada kabhi nahi jodega.</span></li>
+          <li><b>(2)</b><span><code>ArrayBlockingQueue</code> <b>bounded</b> hai. <code>LinkedBlockingQueue</code> (unbounded) yahan classic blunder hai — wo memory kha jaata hai aur latency ko infinite bana deta hai instead of failing.</span></li>
+          <li><b>(3)</b><span><code>offer()</code> use kiya, <code>put()</code> nahi. <code>put()</code> caller thread ko block karta — matlab web thread ruk jaati aur backpressure poore system mein ulta failta. <code>offer()</code> false return karta hai aur caller decide karta hai (shed / 429).</span></li>
+          <li><b>(4)</b><span><code>fixedDelay</code> (na ki <code>fixedRate</code>) — flush slow ho to overlapping executions nahi honge. <code>fixedRate</code> se pile-up ho sakta hai.</span></li>
+          <li><b>(5)</b><span><code>drainTo(batch, MAX)</code> ek hi lock acquisition mein N items nikalta hai — N alag <code>poll()</code> calls se kaafi sasta. Size cap batch ko bounded rakhta hai.</span></li>
+          <li><b>(6)</b><span>Ek DB round trip mein 200 rows. Network RTT 1ms hai to 200 individual inserts = 200ms, batch = ~3ms. <b>Yahi throughput ka asli source hai</b> — threads badhana nahi.</span></li>
+          <li><b>(7)</b><span>Sizing ko ek named, testable method banao. Interview mein ye line sabse zyada impress karti hai: aap capacity ko <em>derive</em> kar rahe ho, tune nahi.</span></li>
+        </ol>
+      </div>
+    </article>
+
+    <!-- ============ T5 ============ -->
+    <article class="topic" id="t5">
+      <div class="topic-bar">
+        <span class="topic-id">T-05</span>
+        <h3>Ek slow dependency ne poori service le dubi — bulkhead isolation</h3>
+        <div class="pstrip"><b>hits</b><i data-p="p50"></i><i class="hit" data-p="p90"></i><i class="hit" data-p="p99"></i><i class="hit" data-p="p99.9"></i></div>
+        <div class="tags"><span class="tag hld">HLD</span><span class="tag lld">LLD</span><span class="tag lvl">SDE-2/3</span></div>
+      </div>
+
+      <div class="split">
+        <div class="side prob">
+          <h4>&#9888; problem</h4>
+          <p>Recommendation service 8 second lena shuru ho gayi. 5 minute mein <b>poora checkout down</b> ho gaya — jabki checkout ka recommendations se koi lena-dena nahi.</p>
+          <ul>
+            <li>Sab kuch ek hi shared thread pool par tha. Slow calls ne saare 200 threads <span class="hi">occupy</span> kar liye.</li>
+            <li>Health check bhi usi pool se serve hota tha — pod unhealthy mark hua, Kubernetes ne restart kiya, load bache hue pods par gaya, cascade complete.</li>
+            <li>Same pattern DB connection pool aur HTTP client pool mein bhi hota hai — <b>resource exhaustion cascade</b>.</li>
+          </ul>
+          <div class="callout"><b>Yaad rakho:</b> Slow ho jaana, fail ho jaane se zyada khatarnak hai. Failure fast hoti hai; slowness resources hold karti hai.</div>
+        </div>
+
+        <div class="side sol">
+          <h4>&#10003; solution — bulkhead</h4>
+          <ul>
+            <li>Har downstream dependency ka <b>apna bounded pool</b>. Recommendations ke 20 threads khatam — sirf recommendations degrade hoga, checkout chalta rahega.</li>
+            <li>Queue bhi bounded, aur <b>rejection policy explicit</b>: <code>CallerRunsPolicy</code> nahi (wo web thread block karta hai) — <code>AbortPolicy</code> + fallback.</li>
+            <li>Health / readiness endpoints ko <b>alag connector</b> par rakho (Spring Boot management port) taaki wo kabhi app pool se compete na karein.</li>
+            <li>Naming discipline: pool ka naam dependency ke naam par ho, taaki thread dump padhne mein 5 second lage 5 minute nahi.</li>
+          </ul>
+          <div class="callout"><b>Cost:</b> Total threads badh jaate hain aur pools individually under-utilised rehte hain. Ye deliberate waste hai — isolation ki keemat.</div>
+        </div>
+      </div>
+
+      <div class="codeblock">
+        <div class="code-head"><b>DependencyBulkheadConfig.java</b><span>per-dependency isolated pools</span></div>
+<pre><code><span class="a">@Configuration</span>
+<span class="k">public class</span> <span class="t">DependencyBulkheadConfig</span> {
+
+  <span class="a">@Bean</span>(<span class="s">"checkoutCriticalExecutor"</span>)
+  <span class="k">public</span> <span class="t">ThreadPoolTaskExecutor</span> <span class="m">checkoutCriticalExecutor</span>() {
+    <span class="k">return</span> <span class="m">buildBulkhead</span>(<span class="s">"checkout-critical"</span>, 40, 40, 200,          <span class="mk">// (1)</span>
+                         <span class="k">new</span> <span class="t">ThreadPoolExecutor</span>.<span class="t">AbortPolicy</span>());
+  }
+
+  <span class="a">@Bean</span>(<span class="s">"recommendationExecutor"</span>)
+  <span class="k">public</span> <span class="t">ThreadPoolTaskExecutor</span> <span class="m">recommendationExecutor</span>() {
+    <span class="k">return</span> <span class="m">buildBulkhead</span>(<span class="s">"reco-optional"</span>, 10, 20, 50,              <span class="mk">// (2)</span>
+                         <span class="k">new</span> <span class="t">ThreadPoolExecutor</span>.<span class="t">AbortPolicy</span>());
+  }
+
+  <span class="c">/**
+   * Ek isolated, bounded, observable pool banata hai.
+   * Har parameter ka latency par seedha asar hai — koi bhi default mat chhodo.
+   */</span>
+  <span class="k">private</span> <span class="t">ThreadPoolTaskExecutor</span> <span class="m">buildBulkhead</span>(<span class="t">String</span> name,
+                                               <span class="k">int</span> coreThreads,
+                                               <span class="k">int</span> maxThreads,
+                                               <span class="k">int</span> queueCapacity,
+                                               <span class="t">RejectedExecutionHandler</span> onOverflow) {
+
+    <span class="t">ThreadPoolTaskExecutor</span> executor = <span class="k">new</span> <span class="t">ThreadPoolTaskExecutor</span>();
+    executor.<span class="m">setThreadNamePrefix</span>(name + <span class="s">"-"</span>);                          <span class="mk">// (3)</span>
+    executor.<span class="m">setCorePoolSize</span>(coreThreads);
+    executor.<span class="m">setMaxPoolSize</span>(maxThreads);
+    executor.<span class="m">setQueueCapacity</span>(queueCapacity);                          <span class="mk">// (4)</span>
+    executor.<span class="m">setKeepAliveSeconds</span>(60);
+    executor.<span class="m">setRejectedExecutionHandler</span>(onOverflow);                  <span class="mk">// (5)</span>
+    executor.<span class="m">setWaitForTasksToCompleteOnShutdown</span>(<span class="k">true</span>);
+    executor.<span class="m">setAwaitTerminationSeconds</span>(20);                          <span class="mk">// (6)</span>
+    executor.<span class="m">initialize</span>();
+    <span class="k">return</span> executor;
+  }
+
+  <span class="c">/** Har pool ka saturation metric — alert isi par lagta hai, CPU par nahi. */</span>
+  <span class="a">@Bean</span>
+  <span class="k">public</span> <span class="t">MeterBinder</span> <span class="m">bulkheadSaturationMetrics</span>(
+          <span class="t">Map</span>&lt;<span class="t">String</span>, <span class="t">ThreadPoolTaskExecutor</span>&gt; pools) {
+    <span class="k">return</span> registry -&gt; pools.<span class="m">forEach</span>((beanName, pool) -&gt;
+        <span class="t">Gauge</span>.<span class="m">builder</span>(<span class="s">"bulkhead.queue.utilization"</span>, pool,
+                p -&gt; (<span class="k">double</span>) p.<span class="m">getThreadPoolExecutor</span>().<span class="m">getQueue</span>().<span class="m">size</span>()
+                     / (p.<span class="m">getQueueCapacity</span>() + 1))                       <span class="mk">// (7)</span>
+            .<span class="m">tag</span>(<span class="s">"pool"</span>, beanName)
+            .<span class="m">register</span>(registry));
+  }
+}</code></pre>
+        <ol class="lines">
+          <li><b>(1)</b><span>Critical path ko bada, <em>fixed</em> pool (core == max) milta hai. Fixed size ka matlab: load par thread creation ka jitter nahi — thread banane mein hi 1ms+ lag sakta hai aur wo p99 mein dikhta hai.</span></li>
+          <li><b>(2)</b><span>Optional dependency ka pool jaan-boojh ke chhota hai. Reco service mar bhi jaaye to max 20 threads phasengi. Ye blast radius ki definition hai.</span></li>
+          <li><b>(3)</b><span>Thread name prefix — incident ke waqt <code>jstack</code> mein <code>reco-optional-7</code> dikhega, <code>pool-3-thread-7</code> nahi. Ye 3 baje raat ko sabse valuable line hoti hai.</span></li>
+          <li><b>(4)</b><span>Bounded queue. Spring ka default <code>Integer.MAX_VALUE</code> hai — matlab unbounded queue, matlab unbounded latency. Ye default badalna hi bulkhead ka asli kaam hai.</span></li>
+          <li><b>(5)</b><span><code>AbortPolicy</code> exception fenkta hai jise caller fallback mein badal deta hai. <code>CallerRunsPolicy</code> yahan mat lagao — wo task ko <em>web thread</em> par chala dega, aur wahi to aap bachana chahte the.</span></li>
+          <li><b>(6)</b><span>Graceful shutdown. Iske bina rolling deploy ke waqt in-flight requests kat jaati hain aur aapko deploy window mein p99 spike + 5xx dikhta hai.</span></li>
+          <li><b>(7)</b><span>Alert queue utilization par lagao, CPU par nahi. Queue bharna latency badhne se <em>pehle</em> hota hai — ye leading indicator hai, CPU lagging indicator hai.</span></li>
+        </ol>
+      </div>
+    </article>
+
+    <!-- ============ T6 ============ -->
+    <article class="topic" id="t6">
+      <div class="topic-bar">
+        <span class="topic-id">T-06</span>
+        <h3>DB connection pool bada karke latency aur kharab ho gayi</h3>
+        <div class="pstrip"><b>hits</b><i data-p="p50"></i><i class="hit" data-p="p90"></i><i class="hit" data-p="p99"></i><i class="hit" data-p="p99.9"></i></div>
+        <div class="tags"><span class="tag lld">LLD</span><span class="tag lvl">SDE-2</span></div>
+      </div>
+
+      <div class="split">
+        <div class="side prob">
+          <h4>&#9888; problem</h4>
+          <p>"Connection timeout" errors aa rahe the, to pool 20 se 200 kar diya. Ab timeouts to gaye, par har query 3× slow hai.</p>
+          <ul>
+            <li>DB ke paas fixed cores hain. 200 concurrent queries = <span class="hi">context switching, lock contention, disk thrash</span>.</li>
+            <li>Pool bada karne se DB par queue shift ho gayi — jahan aapke paas na visibility hai na control.</li>
+            <li>50 pods × 200 connections = 10,000 connections. Postgres har connection par ~10MB backend memory leta hai. DB OOM.</li>
+            <li>Aur pool se connection lene ka wait time <b>latency metrics mein invisible</b> tha — sirf "query slow hai" dikh raha tha.</li>
+          </ul>
+        </div>
+
+        <div class="side sol">
+          <h4>&#10003; solution</h4>
+          <ul>
+            <li>Pool ko <b>chhota</b> karo. Rule of thumb: <code>connections ≈ (2 × cpuCores) + effectiveSpindleCount</code>. Ek 8-core Postgres ke liye ~20 connections total (saare pods milaake), 200 nahi.</li>
+            <li><code>connectionTimeout</code> chhota rakho (250ms). Fail fast &gt; 30s tak wait.</li>
+            <li>Multi-pod deployments mein <b>PgBouncer</b> jaisa external pooler lagao — connection multiplexing app pool se behtar karta hai.</li>
+            <li><b>Pool acquire time</b> ka apna metric banao. "Query slow" vs "connection ka wait" — do bilkul alag problems hain.</li>
+          </ul>
+          <div class="callout"><b>Counter-intuitive:</b> Chhota pool aksar zyada throughput deta hai. DB ko queue karne dene se behtar hai app mein queue rakhna, jahan aap shed kar sakte ho.</div>
+        </div>
+      </div>
+
+      <div class="codeblock">
+        <div class="code-head"><b>DataSourceTuningConfig.java</b><span>HikariCP — chhota pool, fail-fast, leak detection</span></div>
+<pre><code><span class="a">@Configuration</span>
+<span class="k">public class</span> <span class="t">DataSourceTuningConfig</span> {
+
+  <span class="a">@Bean</span>
+  <span class="k">public</span> <span class="t">DataSource</span> <span class="m">primaryWriteDataSource</span>(<span class="t">DbProperties</span> props) {
+
+    <span class="t">HikariConfig</span> config = <span class="k">new</span> <span class="t">HikariConfig</span>();
+    config.<span class="m">setPoolName</span>(<span class="s">"orders-primary"</span>);
+    config.<span class="m">setJdbcUrl</span>(props.<span class="m">url</span>());
+
+    config.<span class="m">setMaximumPoolSize</span>(
+        <span class="m">calculatePoolSizeForDatabaseCores</span>(props.<span class="m">dbCores</span>(), props.<span class="m">appPods</span>())); <span class="mk">// (1)</span>
+    config.<span class="m">setMinimumIdle</span>(config.<span class="m">getMaximumPoolSize</span>());                 <span class="mk">// (2)</span>
+
+    config.<span class="m">setConnectionTimeout</span>(250);                                  <span class="mk">// (3)</span>
+    config.<span class="m">setValidationTimeout</span>(200);
+    config.<span class="m">setMaxLifetime</span>(<span class="t">Duration</span>.<span class="m">ofMinutes</span>(25).<span class="m">toMillis</span>());          <span class="mk">// (4)</span>
+    config.<span class="m">setKeepaliveTime</span>(<span class="t">Duration</span>.<span class="m">ofMinutes</span>(2).<span class="m">toMillis</span>());
+    config.<span class="m">setLeakDetectionThreshold</span>(5_000);                          <span class="mk">// (5)</span>
+
+    config.<span class="m">addDataSourceProperty</span>(<span class="s">"socketTimeout"</span>, <span class="s">"3"</span>);                <span class="mk">// (6)</span>
+    config.<span class="m">addDataSourceProperty</span>(<span class="s">"tcpKeepAlive"</span>, <span class="s">"true"</span>);
+    config.<span class="m">setMetricRegistry</span>(meterRegistry);                           <span class="mk">// (7)</span>
+
+    <span class="k">return new</span> <span class="t">HikariDataSource</span>(config);
+  }
+
+  <span class="c">/**
+   * Pool size DB ki capacity se derive hota hai, app ki khwahish se nahi.
+   * Poora fleet milkar DB ki safe concurrency cross nahi karna chahiye.
+   */</span>
+  <span class="k">static int</span> <span class="m">calculatePoolSizeForDatabaseCores</span>(<span class="k">int</span> dbCores, <span class="k">int</span> appPods) {
+    <span class="k">int</span> safeTotalConnections = (dbCores * 2) + 2;
+    <span class="k">return</span> <span class="t">Math</span>.<span class="m">max</span>(2, safeTotalConnections / <span class="t">Math</span>.<span class="m">max</span>(1, appPods));
+  }
+}</code></pre>
+        <ol class="lines">
+          <li><b>(1)</b><span>Per-pod pool size fleet-wide budget se nikala gaya hai. Ye ek line 90% "DB down ho gaya after scale-up" incidents rok deti hai. Interview mein ye reasoning likhna hi asli answer hai.</span></li>
+          <li><b>(2)</b><span><code>minimumIdle == maximumPoolSize</code> — fixed pool. Idle connections shrink hone dena matlab traffic spike par naye TCP+TLS+auth handshake — har ek 5–20ms, seedha p99 mein.</span></li>
+          <li><b>(3)</b><span>250ms connection timeout. Agar 250ms mein connection nahi mila, to system already saturated hai; 30s wait karne se user ko sirf slow error milega, jaldi error se behtar kuch nahi.</span></li>
+          <li><b>(4)</b><span><code>maxLifetime</code> DB/LB ke idle timeout se <em>kam</em> hona chahiye. Warna aap dead connection uthaoge aur pehli query fail hogi — classic random 500s jo reproduce nahi hote.</span></li>
+          <li><b>(5)</b><span>Leak detection: 5s se zyada held connection ka stack trace log hota hai. Ye missing <code>@Transactional</code> boundary ya connection leak turant pakad leta hai.</span></li>
+          <li><b>(6)</b><span>JDBC <code>socketTimeout</code> (seconds mein) — ye <b>last line of defence</b> hai. Iske bina, agar DB TCP par respond karna band kar de, thread <em>hamesha</em> ke liye phas jaati hai; koi bhi Java-level timeout use nahi bacha sakta.</span></li>
+          <li><b>(7)</b><span>Hikari ke metrics register karo — <code>hikaricp.connections.acquire</code> ka p99 batata hai ki latency ka source query hai ya pool wait.</span></li>
+        </ol>
+      </div>
+    </article>
+
+    <!-- ============ T7 ============ -->
+    <article class="topic" id="t7">
+      <div class="topic-bar">
+        <span class="topic-id">T-07</span>
+        <h3>Retry ne outage ko 3× lamba kar diya — timeout, budget, breaker</h3>
+        <div class="pstrip"><b>hits</b><i data-p="p50"></i><i data-p="p90"></i><i class="hit" data-p="p99"></i><i class="hit" data-p="p99.9"></i></div>
+        <div class="tags"><span class="tag hld">HLD</span><span class="tag lld">LLD</span><span class="tag lvl">SDE-3</span></div>
+      </div>
+
+      <div class="split">
+        <div class="side prob">
+          <h4>&#9888; problem — retry storm</h4>
+          <p>Inventory service ne 30 second ke liye 5% errors diye. Har caller ne 3 retries kiye. Load 3× ho gaya, service poori tarah gir gayi, aur 20 minute tak wapas nahi aayi.</p>
+          <ul>
+            <li>Retries <b>exactly us waqt</b> load badhate hain jab service already struggling hai — <span class="hi">metastable failure</span>.</li>
+            <li>Nested retries multiply hote hain: gateway 3 × BFF 3 × service 3 = <b>27 calls</b> ek user request ke liye.</li>
+            <li>Fixed backoff se saare clients <b>sync</b> ho jaate hain aur ek saath dobara hit karte hain (thundering herd).</li>
+            <li>Retry after timeout: agar timeout 3s hai aur 3 retries hain, user ka worst case 9s+ hai — aapka SLO 400ms ka tha.</li>
+          </ul>
+        </div>
+
+        <div class="side sol">
+          <h4>&#10003; solution</h4>
+          <ul>
+            <li><b>Retry budget:</b> retries total requests ke ≤10% honi chahiye. Budget khatam = retry band. Ye retry storm ko mathematically impossible bana deta hai.</li>
+            <li><b>Exponential backoff + full jitter</b> — synchronisation todta hai.</li>
+            <li><b>Sirf ek layer par retry karo</b> (aam taur par edge ke sabse paas wali). Baaki layers fail-fast karein.</li>
+            <li><b>Circuit breaker:</b> error rate threshold cross ho to turant fail karo, taaki dying service ko saans mile.</li>
+            <li>Retry sirf <b>idempotent</b> ya idempotency-key wale operations par. Payment ka blind retry = double charge.</li>
+          </ul>
+          <div class="callout"><b>Ignore kab karein:</b> Non-idempotent writes bina idempotency key ke — wahan retry karna bug hai, feature nahi.</div>
+        </div>
+      </div>
+
+      <div class="codeblock">
+        <div class="code-head"><b>BudgetedRetryExecutor.java</b><span>token-bucket retry budget + full jitter + breaker</span></div>
+<pre><code><span class="a">@Component</span>
+<span class="k">public class</span> <span class="t">BudgetedRetryExecutor</span> {
+
+  <span class="k">private static final int</span>    MAX_ATTEMPTS      = 3;
+  <span class="k">private static final double</span> RETRY_RATIO_CAP   = 0.10;                  <span class="mk">// (1)</span>
+  <span class="k">private static final long</span>   BASE_BACKOFF_MS   = 20;
+
+  <span class="k">private final</span> <span class="t">RetryBudget</span> budget = <span class="k">new</span> <span class="t">RetryBudget</span>(RETRY_RATIO_CAP, 10);
+  <span class="k">private final</span> <span class="t">CircuitBreaker</span> breaker;
+
+  <span class="k">public</span> &lt;<span class="t">T</span>&gt; <span class="t">T</span> <span class="m">executeWithBudgetedRetry</span>(<span class="t">String</span> dependency,
+                                        <span class="t">Deadline</span> deadline,
+                                        <span class="t">Callable</span>&lt;<span class="t">T</span>&gt; call) <span class="k">throws</span> <span class="t">Exception</span> {
+
+    budget.<span class="m">recordInitialAttempt</span>();
+    <span class="t">Exception</span> lastFailure = <span class="k">null</span>;
+
+    <span class="k">for</span> (<span class="k">int</span> attempt = 1; attempt &lt;= MAX_ATTEMPTS; attempt++) {
+
+      <span class="k">if</span> (deadline.<span class="m">isExpired</span>()) <span class="k">throw new</span> <span class="t">DeadlineExceededException</span>(dependency); <span class="mk">// (2)</span>
+
+      <span class="k">try</span> {
+        <span class="k">return</span> breaker.<span class="m">executeCallable</span>(call);                            <span class="mk">// (3)</span>
+
+      } <span class="k">catch</span> (<span class="t">CallNotPermittedException</span> open) {
+        <span class="k">throw</span> open;                                                    <span class="mk">// (4)</span>
+
+      } <span class="k">catch</span> (<span class="t">Exception</span> failure) {
+        lastFailure = failure;
+
+        <span class="k">if</span> (!<span class="m">isRetryable</span>(failure))            <span class="k">throw</span> failure;              <span class="mk">// (5)</span>
+        <span class="k">if</span> (attempt == MAX_ATTEMPTS)          <span class="k">break</span>;
+        <span class="k">if</span> (!budget.<span class="m">tryConsumeRetryToken</span>())  <span class="k">break</span>;                       <span class="mk">// (6)</span>
+
+        <span class="m">sleepWithFullJitter</span>(attempt, deadline);                          <span class="mk">// (7)</span>
+      }
+    }
+    <span class="k">throw</span> lastFailure;
+  }
+
+  <span class="c">/** Full jitter: sleep = random(0, base * 2^attempt), deadline ke andar clamp. */</span>
+  <span class="k">private void</span> <span class="m">sleepWithFullJitter</span>(<span class="k">int</span> attempt, <span class="t">Deadline</span> deadline) <span class="k">throws</span> <span class="t">InterruptedException</span> {
+    <span class="k">long</span> ceiling = BASE_BACKOFF_MS * (1L &lt;&lt; (attempt - 1));
+    <span class="k">long</span> sleepMs = <span class="t">ThreadLocalRandom</span>.<span class="m">current</span>().<span class="m">nextLong</span>(ceiling + 1);
+    <span class="t">Thread</span>.<span class="m">sleep</span>(<span class="t">Math</span>.<span class="m">min</span>(sleepMs, deadline.<span class="m">remaining</span>().<span class="m">toMillis</span>()));      <span class="mk">// (8)</span>
+  }
+
+  <span class="c">/** Sirf transient failures retry hoti hain. 4xx retry karna bug amplify karta hai. */</span>
+  <span class="k">private boolean</span> <span class="m">isRetryable</span>(<span class="t">Exception</span> failure) {
+    <span class="k">return</span> failure <span class="k">instanceof</span> <span class="t">SocketTimeoutException</span>
+        || failure <span class="k">instanceof</span> <span class="t">ConnectException</span>
+        || (failure <span class="k">instanceof</span> <span class="t">HttpServerErrorException</span> e
+              &amp;&amp; e.<span class="m">getStatusCode</span>().<span class="m">value</span>() != 501);
+  }
+}
+
+<span class="c">/** Token bucket: har success 'ratio' token deta hai, har retry 1 token kharch karta hai. */</span>
+<span class="k">final class</span> <span class="t">RetryBudget</span> {
+  <span class="k">private final double</span> tokensPerRequest;
+  <span class="k">private final double</span> maxTokens;
+  <span class="k">private final</span> <span class="t">AtomicDouble</span> tokens = <span class="k">new</span> <span class="t">AtomicDouble</span>(0);
+
+  <span class="k">void</span> <span class="m">recordInitialAttempt</span>() {
+    tokens.<span class="m">updateAndGet</span>(t -&gt; <span class="t">Math</span>.<span class="m">min</span>(maxTokens, t + tokensPerRequest));
+  }
+
+  <span class="k">boolean</span> <span class="m">tryConsumeRetryToken</span>() {
+    <span class="k">return</span> tokens.<span class="m">getAndUpdate</span>(t -&gt; t &gt;= 1 ? t - 1 : t) &gt;= 1;         <span class="mk">// (9)</span>
+  }
+}</code></pre>
+        <ol class="lines">
+          <li><b>(1)</b><span>10% cap ka matlab: worst case load 1.1× hoga, 3× nahi. Retry storm structurally impossible ho gaya — ye "max 3 retries" se bahut strong guarantee hai.</span></li>
+          <li><b>(2)</b><span>Har attempt se pehle deadline check. Iske bina retries aapke latency SLO ko silently 3× kar dete hain.</span></li>
+          <li><b>(3)</b><span>Breaker retry loop ke <em>andar</em> hai, bahar nahi. Isse har attempt breaker ke stats mein count hota hai aur breaker sahi decision leta hai.</span></li>
+          <li><b>(4)</b><span>Breaker OPEN hai to turant throw karo, retry bilkul nahi. Breaker ka poora point hi ye hai ki downstream ko rest mile.</span></li>
+          <li><b>(5)</b><span>400 Bad Request retry karna faltu hai — wo dobara bhi fail hoga. Sirf transient failures retry karo. Ye check retry logic ka 50% value hai.</span></li>
+          <li><b>(6)</b><span>Budget check <em>sleep se pehle</em>. Budget khatam to seedha break — sona bhi mat, kyunki wo latency hai bina kisi fayde ke.</span></li>
+          <li><b>(7)</b><span>Full jitter, "equal jitter" ya fixed backoff nahi. AWS ke experiments mein full jitter sabse kam contention aur sabse kam total work deta hai.</span></li>
+          <li><b>(8)</b><span>Sleep ko bache hue deadline se clamp karo. Warna aap 800ms so jaoge jabki request ke paas sirf 40ms bache the.</span></li>
+          <li><b>(9)</b><span>Atomic compare-and-update — bina lock ke thread safe. Ye hot path par hai, isliye yahan <code>synchronized</code> daalna khud ek latency source ban jaata.</span></li>
+        </ol>
+      </div>
+    </article>
+
+    <!-- ============ T8 ============ -->
+    <article class="topic" id="t8">
+      <div class="topic-bar">
+        <span class="topic-id">T-08</span>
+        <h3>p99 ko bina backend chhue theek karna — hedged requests</h3>
+        <div class="pstrip"><b>hits</b><i data-p="p50"></i><i data-p="p90"></i><i class="hit" data-p="p99"></i><i class="hit" data-p="p99.9"></i></div>
+        <div class="tags"><span class="tag hld">HLD</span><span class="tag lld">LLD</span><span class="tag lvl">Staff</span></div>
+      </div>
+
+      <div class="split">
+        <div class="side prob">
+          <h4>&#9888; problem</h4>
+          <p>p99 = 900ms, p50 = 20ms. Profiling se kuch nahi mila kyunki har baar <b>alag alag</b> node slow hota hai — GC pause, noisy neighbour, disk hiccup, network retransmit.</p>
+          <ul>
+            <li>Ye slowness <span class="hi">random aur unpredictable</span> hai. Koi single fix nahi hai.</li>
+            <li>Slow node ko pehle se identify karna impossible hai — jab tak pata chale, request already stuck hai.</li>
+            <li>Simple timeout+retry se madad nahi milti: aap 900ms timeout ka intezaar karke <em>tab</em> retry karte ho, matlab 900ms+ ho gaya.</li>
+          </ul>
+        </div>
+
+        <div class="side sol">
+          <h4>&#10003; solution — hedging (Tail at Scale)</h4>
+          <ul>
+            <li>p95 latency tak wait karo. Response nahi aaya? <b>Doosre replica par duplicate request</b> bhejo. Jo pehle aaye wo lo, doosri cancel.</li>
+            <li>Extra load sirf <b>~5%</b> hai (kyunki sirf 5% requests hedge hoti hain), par p99 lagbhag p95 tak gir jaata hai.</li>
+            <li>Hedge threshold <b>live p95</b> se aana chahiye, hardcoded constant se nahi — traffic pattern badalta rehta hai.</li>
+            <li><b>Sirf idempotent reads</b> par. Writes par hedging duplicate side-effects deta hai.</li>
+          </ul>
+          <div class="callout"><b>Cost:</b> +5% infra load aur double resource usage un requests par. Overload ke waqt hedging <em>band</em> honi chahiye, warna wo fire mein ghee hai.</div>
+        </div>
+      </div>
+
+      <div class="codeblock">
+        <div class="code-head"><b>HedgedReadExecutor.java</b><span>adaptive p95 threshold · first-wins · loser cancelled</span></div>
+<pre><code><span class="a">@Component</span>
+<span class="k">public class</span> <span class="t">HedgedReadExecutor</span> {
+
+  <span class="k">private final</span> <span class="t">Timer</span> latencyTimer;                <span class="c">// live distribution</span>
+  <span class="k">private final</span> <span class="t">ScheduledExecutorService</span> hedgeScheduler;
+  <span class="k">private final</span> <span class="t">AdaptiveLoadShedder</span> loadShedder;
+
+  <span class="c">/**
+   * Idempotent read ko hedge karta hai: p95 par ek duplicate attempt bhejta hai,
+   * pehla successful response return karta hai, doosra cancel kar deta hai.
+   */</span>
+  <span class="k">public</span> &lt;<span class="t">T</span>&gt; <span class="t">CompletableFuture</span>&lt;<span class="t">T</span>&gt; <span class="m">executeHedgedRead</span>(<span class="t">Supplier</span>&lt;<span class="t">CompletableFuture</span>&lt;<span class="t">T</span>&gt;&gt; attempt) {
+
+    <span class="t">CompletableFuture</span>&lt;<span class="t">T</span>&gt; primary = attempt.<span class="m">get</span>();
+
+    <span class="k">if</span> (!<span class="m">shouldHedgeRightNow</span>()) <span class="k">return</span> primary;                       <span class="mk">// (1)</span>
+
+    <span class="t">CompletableFuture</span>&lt;<span class="t">T</span>&gt; winner = <span class="k">new</span> <span class="t">CompletableFuture</span>&lt;&gt;();
+    <span class="t">CompletableFuture</span>&lt;<span class="t">T</span>&gt; hedge   = <span class="k">new</span> <span class="t">CompletableFuture</span>&lt;&gt;();
+
+    <span class="k">long</span> hedgeDelayMs = <span class="m">currentHedgeDelayMillis</span>();                     <span class="mk">// (2)</span>
+
+    <span class="t">ScheduledFuture</span>&lt;?&gt; hedgeTrigger = hedgeScheduler.<span class="m">schedule</span>(() -&gt; {
+      <span class="k">if</span> (primary.<span class="m">isDone</span>()) <span class="k">return</span>;                                  <span class="mk">// (3)</span>
+      hedgeCounter.<span class="m">increment</span>();
+      attempt.<span class="m">get</span>().<span class="m">whenComplete</span>(<span class="m">completeInto</span>(hedge));
+    }, hedgeDelayMs, <span class="t">TimeUnit</span>.<span class="m">MILLISECONDS</span>);
+
+    primary.<span class="m">whenComplete</span>(<span class="m">completeInto</span>(winner));
+    hedge.<span class="m">whenComplete</span>(<span class="m">completeInto</span>(winner));                          <span class="mk">// (4)</span>
+
+    winner.<span class="m">whenComplete</span>((value, error) -&gt; {
+      hedgeTrigger.<span class="m">cancel</span>(<span class="k">false</span>);                                    <span class="mk">// (5)</span>
+      primary.<span class="m">cancel</span>(<span class="k">true</span>);
+      hedge.<span class="m">cancel</span>(<span class="k">true</span>);                                            <span class="mk">// (6)</span>
+    });
+
+    <span class="k">return</span> winner;
+  }
+
+  <span class="c">/** Hedging tabhi jab system healthy ho. Overload mein hedging aag mein ghee hai. */</span>
+  <span class="k">private boolean</span> <span class="m">shouldHedgeRightNow</span>() {
+    <span class="k">return</span> !loadShedder.<span class="m">isUnderPressure</span>()
+        &amp;&amp; hedgeRateLimiter.<span class="m">tryAcquire</span>();                              <span class="mk">// (7)</span>
+  }
+
+  <span class="c">/** Threshold live p95 se, hardcoded value se nahi. */</span>
+  <span class="k">private long</span> <span class="m">currentHedgeDelayMillis</span>() {
+    <span class="k">double</span> p95 = latencyTimer.<span class="m">takeSnapshot</span>()
+                            .<span class="m">percentileValues</span>()[0].<span class="m">value</span>(<span class="t">TimeUnit</span>.<span class="m">MILLISECONDS</span>);
+    <span class="k">return</span> (<span class="k">long</span>) <span class="t">Math</span>.<span class="m">max</span>(10, p95);                                  <span class="mk">// (8)</span>
+  }
+}</code></pre>
+        <ol class="lines">
+          <li><b>(1)</b><span>Pehle guard, phir kaam. Unhealthy system mein hedging load double karke cascade banata hai — ye check hedging ka sabse important hissa hai.</span></li>
+          <li><b>(2)</b><span>Delay ek baar compute hota hai. Har call par snapshot lena mehnga hai (percentile snapshot cheap nahi hota), isliye ise cache karna production mein zaroori hai.</span></li>
+          <li><b>(3)</b><span>Trigger chalne par dobara check — race window mein primary complete ho chuka ho sakta hai. Ye ek faltu backend call bachata hai.</span></li>
+          <li><b>(4)</b><span>Dono futures ek hi <code>winner</code> mein complete karte hain. <code>CompletableFuture.complete()</code> idempotent hai: doosri call ignore ho jaati hai — yahi "first wins" deta hai bina kisi lock ke.</span></li>
+          <li><b>(5)</b><span>Scheduled trigger cancel karo. Warna primary 5ms mein complete hone ke baad bhi 40ms par ek bekaar hedge nikal jayega.</span></li>
+          <li><b>(6)</b><span>Haarne wali request cancel karo. Bina iske aap backend par <em>hamesha</em> extra load daal rahe ho — hedging ka pura cost-benefit ulta ho jaata hai.</span></li>
+          <li><b>(7)</b><span>Rate limiter hedge ratio ko hard cap karta hai (jaise 5%). Do independent guards: health-based aur rate-based.</span></li>
+          <li><b>(8)</b><span>Minimum 10ms floor. Agar p95 = 2ms ho (sab cached) to har request hedge hone lagegi — floor is degenerate case se bachata hai.</span></li>
+        </ol>
+      </div>
+    </article>
+
+    <!-- ============ T9 ============ -->
+    <article class="topic" id="t9">
+      <div class="topic-bar">
+        <span class="topic-id">T-09</span>
+        <h3>Cache expire hua aur 40,000 requests DB par gir gayi — stampede</h3>
+        <div class="pstrip"><b>hits</b><i data-p="p50"></i><i class="hit" data-p="p90"></i><i class="hit" data-p="p99"></i><i class="hit" data-p="p99.9"></i></div>
+        <div class="tags"><span class="tag hld">HLD</span><span class="tag lld">LLD</span><span class="tag lvl">SDE-3</span></div>
+      </div>
+
+      <div class="split">
+        <div class="side prob">
+          <h4>&#9888; problem</h4>
+          <p>Homepage banner ka cache key TTL 300s tha. Har 5 minute par p99 spike aata tha aur DB CPU 95% chhu jaata tha.</p>
+          <ul>
+            <li><b>Thundering herd:</b> ek popular key expire hoti hai, saare concurrent requests <span class="hi">ek saath</span> DB par jaate hain.</li>
+            <li>Saari keys ek hi deploy par warm hui thi, isliye sab <b>same second</b> par expire hoti hain — synchronised stampede.</li>
+            <li>DB slow hua to cache rebuild aur slow hua, jisse aur zyada requests miss hui — <b>feedback loop</b>.</li>
+            <li>Aur cache <em>hit</em> ka p50 2ms tha, isliye average metrics mein ye problem bilkul invisible thi.</li>
+          </ul>
+        </div>
+
+        <div class="side sol">
+          <h4>&#10003; solution — 3 layers</h4>
+          <ul>
+            <li><b>TTL jitter:</b> TTL = base ± random(10%). Ek hi second par saari keys expire nahi hongi.</li>
+            <li><b>Single-flight lock:</b> ek hi caller recompute kare, baaki uska intezaar karein ya stale value lein.</li>
+            <li><b>Probabilistic early refresh (XFetch):</b> TTL khatam hone se <em>pehle</em> hi, badhti hui probability ke saath, ek request background mein refresh kar de. Expiry cliff hi khatam.</li>
+            <li><b>Stale-while-revalidate:</b> logical TTL cross hone ke baad bhi purana data serve karo jab tak naya na aa jaye. Availability &gt; freshness.</li>
+          </ul>
+          <div class="callout"><b>Cost:</b> Stale data ka window. Price aur inventory ke liye ye acceptable nahi ho sakta — wahan single-flight + short TTL use karo.</div>
+        </div>
+      </div>
+
+      <div class="codeblock">
+        <div class="code-head"><b>StampedeSafeCache.java</b><span>jitter + single-flight + probabilistic early refresh</span></div>
+<pre><code><span class="a">@Component</span>
+<span class="k">public class</span> <span class="t">StampedeSafeCache</span> {
+
+  <span class="k">private static final double</span> EARLY_REFRESH_BETA = 1.0;                <span class="mk">// (1)</span>
+
+  <span class="k">private final</span> <span class="t">StringRedisTemplate</span> redis;
+  <span class="k">private final</span> <span class="t">Executor</span> refreshExecutor;
+
+  <span class="k">public</span> &lt;<span class="t">T</span>&gt; <span class="t">T</span> <span class="m">getOrRecompute</span>(<span class="t">String</span> key, <span class="t">Duration</span> baseTtl,
+                             <span class="t">Class</span>&lt;<span class="t">T</span>&gt; type, <span class="t">Supplier</span>&lt;<span class="t">T</span>&gt; loader) {
+
+    <span class="t">CacheEnvelope</span>&lt;<span class="t">T</span>&gt; cached = <span class="m">readEnvelope</span>(key, type);
+
+    <span class="k">if</span> (cached == <span class="k">null</span>) {
+      <span class="k">return</span> <span class="m">recomputeUnderSingleFlightLock</span>(key, baseTtl, loader, <span class="k">null</span>); <span class="mk">// (2)</span>
+    }
+
+    <span class="k">if</span> (<span class="m">shouldRefreshEarly</span>(cached)) {                                 <span class="mk">// (3)</span>
+      refreshExecutor.<span class="m">execute</span>(() -&gt;
+          <span class="m">recomputeUnderSingleFlightLock</span>(key, baseTtl, loader, cached.<span class="m">value</span>()));
+    }
+    <span class="k">return</span> cached.<span class="m">value</span>();                                            <span class="mk">// (4)</span>
+  }
+
+  <span class="c">/**
+   * XFetch: jaise-jaise expiry paas aati hai, refresh ki probability badhti hai.
+   * Mehngi recompute jitni mehngi, utni jaldi refresh trigger hoti hai.
+   */</span>
+  <span class="k">private boolean</span> <span class="m">shouldRefreshEarly</span>(<span class="t">CacheEnvelope</span>&lt;?&gt; envelope) {
+    <span class="k">long</span> now = <span class="t">System</span>.<span class="m">currentTimeMillis</span>();
+    <span class="k">double</span> gap = envelope.<span class="m">recomputeCostMillis</span>()
+               * EARLY_REFRESH_BETA
+               * -<span class="t">Math</span>.<span class="m">log</span>(<span class="t">ThreadLocalRandom</span>.<span class="m">current</span>().<span class="m">nextDouble</span>());     <span class="mk">// (5)</span>
+    <span class="k">return</span> now + gap &gt;= envelope.<span class="m">expiresAtMillis</span>();
+  }
+
+  <span class="k">private</span> &lt;<span class="t">T</span>&gt; <span class="t">T</span> <span class="m">recomputeUnderSingleFlightLock</span>(<span class="t">String</span> key, <span class="t">Duration</span> baseTtl,
+                                             <span class="t">Supplier</span>&lt;<span class="t">T</span>&gt; loader, <span class="t">T</span> staleFallback) {
+
+    <span class="t">String</span> lockKey = <span class="s">"lock:"</span> + key;
+    <span class="k">boolean</span> acquired = <span class="t">Boolean</span>.<span class="m">TRUE</span>.<span class="m">equals</span>(
+        redis.<span class="m">opsForValue</span>().<span class="m">setIfAbsent</span>(lockKey, <span class="s">"1"</span>, <span class="t">Duration</span>.<span class="m">ofSeconds</span>(10))); <span class="mk">// (6)</span>
+
+    <span class="k">if</span> (!acquired) {
+      <span class="k">if</span> (staleFallback != <span class="k">null</span>) <span class="k">return</span> staleFallback;                <span class="mk">// (7)</span>
+      <span class="k">return</span> <span class="m">awaitFreshValueBriefly</span>(key, <span class="t">Duration</span>.<span class="m">ofMillis</span>(120), loader);
+    }
+
+    <span class="k">try</span> {
+      <span class="k">long</span> startedAt = <span class="t">System</span>.<span class="m">currentTimeMillis</span>();
+      <span class="t">T</span> fresh = loader.<span class="m">get</span>();
+      <span class="k">long</span> costMillis = <span class="t">System</span>.<span class="m">currentTimeMillis</span>() - startedAt;
+
+      <span class="m">writeEnvelope</span>(key, fresh, <span class="m">applyJitter</span>(baseTtl), costMillis);       <span class="mk">// (8)</span>
+      <span class="k">return</span> fresh;
+    } <span class="k">finally</span> {
+      redis.<span class="m">delete</span>(lockKey);
+    }
+  }
+
+  <span class="c">/** TTL par +/-15% jitter — synchronised expiry todne ke liye. */</span>
+  <span class="k">private</span> <span class="t">Duration</span> <span class="m">applyJitter</span>(<span class="t">Duration</span> baseTtl) {
+    <span class="k">double</span> factor = 0.85 + (<span class="t">ThreadLocalRandom</span>.<span class="m">current</span>().<span class="m">nextDouble</span>() * 0.30);
+    <span class="k">return</span> <span class="t">Duration</span>.<span class="m">ofMillis</span>((<span class="k">long</span>) (baseTtl.<span class="m">toMillis</span>() * factor));      <span class="mk">// (9)</span>
+  }
+}</code></pre>
+        <ol class="lines">
+          <li><b>(1)</b><span><code>beta</code> aggressiveness knob hai. &gt;1 = jaldi refresh (zyada freshness, zyada backend load), &lt;1 = late refresh. 1.0 balanced default hai.</span></li>
+          <li><b>(2)</b><span>Cold miss par single-flight lock. Ye stampede ka <em>actual</em> fix hai — baaki sab optimisation hai.</span></li>
+          <li><b>(3)</b><span>Probabilistic check har hit par chalta hai par sirf ek-do requests hi true payengi. Expiry "cliff" ek smooth slope ban jaati hai.</span></li>
+          <li><b>(4)</b><span>Early refresh ke dauraan bhi user ko <em>cached</em> value milti hai — zero added latency. Refresh background executor par hai, request path par nahi.</span></li>
+          <li><b>(5)</b><span><code>-log(random)</code> exponential distribution deta hai. Ye XFetch paper ka core hai: expiry ke jitna paas, probability utni exponentially zyada.</span></li>
+          <li><b>(6)</b><span><code>setIfAbsent</code> + TTL = atomic <code>SET NX EX</code>. TTL bina lock rakhna deadlock hai — process crash hua to key hamesha locked reh jaati.</span></li>
+          <li><b>(7)</b><span>Stale-while-revalidate. Lock nahi mila? Purana data de do. 200ms purana data, 3 second ke wait se hamesha behtar hai.</span></li>
+          <li><b>(8)</b><span>Recompute cost ko envelope mein store karo. Mehngi keys apne aap jaldi refresh hongi — self-tuning behaviour, koi manual config nahi.</span></li>
+          <li><b>(9)</b><span>±15% jitter. Ek line ka change jo deploy-ke-baad wale periodic p99 spikes ko poori tarah khatam kar deta hai.</span></li>
+        </ol>
+      </div>
+    </article>
+
+    <!-- ============ T10 ============ -->
+    <article class="topic" id="t10">
+      <div class="topic-bar">
+        <span class="topic-id">T-10</span>
+        <h3>Write path: user ko kis kaam ka intezaar karana hai aur kis ka nahi</h3>
+        <div class="pstrip"><b>hits</b><i class="hit" data-p="p50"></i><i class="hit" data-p="p90"></i><i class="hit" data-p="p99"></i><i class="hit" data-p="p99.9"></i></div>
+        <div class="tags"><span class="tag hld">HLD</span><span class="tag lld">LLD</span><span class="tag lvl">SDE-3 / Staff</span></div>
+      </div>
+
+      <div class="split">
+        <div class="side prob">
+          <h4>&#9888; problem</h4>
+          <p>"Place Order" API 1.8s leti hai. Andar: order save, payment authorise, inventory reserve, email bhejo, analytics likho, search index update karo, loyalty points do — sab <b>synchronously</b>, ek hi request mein.</p>
+          <ul>
+            <li>User un 5 kaamon ka intezaar kar raha hai jinse usse <span class="hi">koi matlab nahi</span>.</li>
+            <li>Sabse slow dependency poore write ka p99 decide karti hai.</li>
+            <li>Agar email service down hai to order fail ho jaata hai — <b>availability chain multiply</b> hoti hai: 0.999^7 = 99.3%.</li>
+            <li>Naive fix — "DB commit ke baad Kafka par event daal do" — <b>dual-write problem</b> banata hai: commit hua par publish fail, ya ulta. Data permanently inconsistent.</li>
+          </ul>
+        </div>
+
+        <div class="side sol">
+          <h4>&#10003; solution</h4>
+          <ul>
+            <li>Write ko do hisso mein baanto: <b>synchronous core</b> (jiske bina order valid hi nahi — order row + payment auth + inventory reserve) aur <b>asynchronous tail</b> (email, analytics, index, loyalty).</li>
+            <li><b>Transactional Outbox:</b> business row aur event row <em>ek hi DB transaction</em> mein likho. Ek relay/CDC process outbox se padh kar Kafka par publish karta hai. Dual-write khatam.</li>
+            <li>Consumers <b>idempotent</b> honge (event id se dedupe), kyunki delivery at-least-once hai.</li>
+            <li>Read-after-write ke liye: cache <b>invalidate</b> karo (update nahi), aur user ko apni hi write dikhane ke liye short window mein primary se padho.</li>
+          </ul>
+          <div class="callout"><b>Cost:</b> Eventual consistency. User ko order dikh gaya par email 3s baad aaya — product ko ye accept karna hoga.</div>
+        </div>
+      </div>
+
+      <div class="codeblock">
+        <div class="code-head"><b>OrderWriteService.java</b><span>sync core + transactional outbox + cache invalidation</span></div>
+<pre><code><span class="a">@Service</span>
+<span class="k">public class</span> <span class="t">OrderWriteService</span> {
+
+  <span class="k">private final</span> <span class="t">OrderRepository</span>  orderRepository;
+  <span class="k">private final</span> <span class="t">OutboxRepository</span> outboxRepository;
+  <span class="k">private final</span> <span class="t">PaymentClient</span>    paymentClient;
+  <span class="k">private final</span> <span class="t">CacheInvalidator</span> cacheInvalidator;
+
+  <span class="c">/**
+   * Synchronous core. Sirf wahi kaam jiske bina order legally exist nahi karta.
+   * Target: p99 &lt; 250ms.
+   */</span>
+  <span class="a">@Transactional</span>(timeout = 2)                                          <span class="mk">// (1)</span>
+  <span class="k">public</span> <span class="t">OrderConfirmation</span> <span class="m">placeOrder</span>(<span class="t">PlaceOrderCommand</span> command) {
+
+    <span class="t">Optional</span>&lt;<span class="t">Order</span>&gt; existing =
+        orderRepository.<span class="m">findByIdempotencyKey</span>(command.<span class="m">idempotencyKey</span>());
+    <span class="k">if</span> (existing.<span class="m">isPresent</span>()) <span class="k">return</span> <span class="t">OrderConfirmation</span>.<span class="m">from</span>(existing.<span class="m">get</span>()); <span class="mk">// (2)</span>
+
+    <span class="t">PaymentAuthorization</span> auth =
+        paymentClient.<span class="m">authorize</span>(command.<span class="m">amount</span>(), command.<span class="m">idempotencyKey</span>()); <span class="mk">// (3)</span>
+
+    <span class="t">Order</span> order = orderRepository.<span class="m">save</span>(<span class="t">Order</span>.<span class="m">confirmed</span>(command, auth));
+
+    <span class="m">appendToOutboxInSameTransaction</span>(order);                            <span class="mk">// (4)</span>
+
+    <span class="t">TransactionSynchronizationManager</span>.<span class="m">registerSynchronization</span>(
+        <span class="k">new</span> <span class="t">TransactionSynchronization</span>() {
+          <span class="a">@Override</span> <span class="k">public void</span> <span class="m">afterCommit</span>() {
+            cacheInvalidator.<span class="m">invalidateCustomerOrderViews</span>(order.<span class="m">customerId</span>()); <span class="mk">// (5)</span>
+          }
+        });
+
+    <span class="k">return</span> <span class="t">OrderConfirmation</span>.<span class="m">from</span>(order);
+  }
+
+  <span class="c">/** Event usi transaction mein likha jaata hai — atomic, isliye dual-write nahi. */</span>
+  <span class="k">private void</span> <span class="m">appendToOutboxInSameTransaction</span>(<span class="t">Order</span> order) {
+    outboxRepository.<span class="m">save</span>(<span class="k">new</span> <span class="t">OutboxEvent</span>(
+        <span class="t">UUID</span>.<span class="m">randomUUID</span>(),
+        <span class="s">"order.placed.v1"</span>,
+        order.<span class="m">id</span>().<span class="m">toString</span>(),                                          <span class="mk">// (6)</span>
+        <span class="t">OrderPlacedPayload</span>.<span class="m">of</span>(order).<span class="m">toJson</span>(),
+        <span class="t">Instant</span>.<span class="m">now</span>()));
+  }
+}
+
+<span class="a">@Component</span>
+<span class="k">public class</span> <span class="t">OutboxRelayPublisher</span> {
+
+  <span class="c">/** Outbox se padh kar Kafka par bhejta hai. At-least-once — consumer idempotent ho. */</span>
+  <span class="a">@Scheduled</span>(fixedDelay = 200)
+  <span class="k">public void</span> <span class="m">publishPendingOutboxEvents</span>() {
+
+    <span class="t">List</span>&lt;<span class="t">OutboxEvent</span>&gt; pending =
+        outboxRepository.<span class="m">lockNextUnpublishedBatch</span>(200);                 <span class="mk">// (7)</span>
+
+    <span class="k">for</span> (<span class="t">OutboxEvent</span> event : pending) {
+      kafkaTemplate.<span class="m">send</span>(event.<span class="m">topic</span>(), event.<span class="m">partitionKey</span>(), event.<span class="m">payload</span>())
+          .<span class="m">whenComplete</span>((result, error) -&gt; {
+            <span class="k">if</span> (error == <span class="k">null</span>) outboxRepository.<span class="m">markPublished</span>(event.<span class="m">id</span>());   <span class="mk">// (8)</span>
+          });
+    }
+  }
+}</code></pre>
+        <ol class="lines">
+          <li><b>(1)</b><span>Transaction par explicit timeout. Bina timeout ke ek stuck transaction row locks pakde rehta hai aur <em>baaki sab</em> ka p99 kharab karta hai. Ye ek attribute poore DB ko bachata hai.</span></li>
+          <li><b>(2)</b><span>Idempotency check sabse pehle. Client retry karega (network timeout par karta hi hai) — bina iske double order aur double charge pakka hai.</span></li>
+          <li><b>(3)</b><span>Payment sync hai kyunki bina auth ke order confirm nahi ho sakta. Notice: idempotency key downstream bhi pass ho rahi hai — retry safe.</span></li>
+          <li><b>(4)</b><span>Outbox row usi transaction mein. Order commit hua = event bhi commit hua. Ye <b>dual-write problem ka standard interview answer</b> hai.</span></li>
+          <li><b>(5)</b><span>Cache invalidation <code>afterCommit</code> par, transaction ke andar nahi. Andar karoge to ek race hai: cache clear hua, koi purana data padh ke wapas cache mein daal gaya, phir commit — cache permanently stale.</span></li>
+          <li><b>(6)</b><span><code>orderId</code> partition key hai. Ek hi order ke events ek hi Kafka partition par jaate hain = per-order ordering guaranteed. Global ordering ki zaroorat nahi hoti.</span></li>
+          <li><b>(7)</b><span><code>SELECT ... FOR UPDATE SKIP LOCKED</code> pattern. Multiple relay instances bina duplicate ya lock contention ke parallel chal sakte hain.</span></li>
+          <li><b>(8)</b><span>Publish ke <em>baad</em> mark karo. Crash hua to event dobara publish hoga — at-least-once. Isliye consumer ko event id par dedupe karna hi padega.</span></li>
+        </ol>
+      </div>
+    </article>
+
+    <!-- ============ T11 ============ -->
+    <article class="topic" id="t11">
+      <div class="topic-bar">
+        <span class="topic-id">T-11</span>
+        <h3>Overload par sab kuch slow — ya sab kuch fast par kuch requests reject</h3>
+        <div class="pstrip"><b>hits</b><i data-p="p50"></i><i class="hit" data-p="p90"></i><i class="hit" data-p="p99"></i><i class="hit" data-p="p99.9"></i></div>
+        <div class="tags"><span class="tag hld">HLD</span><span class="tag lld">LLD</span><span class="tag lvl">Staff</span></div>
+      </div>
+
+      <div class="split">
+        <div class="side prob">
+          <h4>&#9888; problem</h4>
+          <p>Sale ke waqt traffic 5× hua. Kuch reject hone ki jagah, <b>sabhi</b> requests 12 second leni lagi. Har user ne timeout dekha, phir refresh kiya — aur load aur badha.</p>
+          <ul>
+            <li>Bina load shedding ke, overload sabko equally barbaad karta hai — <span class="hi">100% requests fail, 0% goodput</span>.</li>
+            <li>Requests queue mein baithi rehti hain jab tak client already timeout kar chuka hota hai. Server <b>dead work</b> kar raha hai.</li>
+            <li>Fixed rate limit (jaise 1000 RPS) galat number hai — real capacity payload, cache state aur node health ke saath badalti rehti hai.</li>
+          </ul>
+        </div>
+
+        <div class="side sol">
+          <h4>&#10003; solution</h4>
+          <ul>
+            <li><b>Adaptive concurrency limit</b> (Netflix/Vegas style): latency badhne se hi pata chal jaata hai ki queue ban rahi hai. Limit ko latency gradient se auto-adjust karo, hardcode mat karo.</li>
+            <li><b>Priority-aware shedding:</b> checkout aur payment kabhi shed mat karo; recommendations aur analytics pehle shed karo.</li>
+            <li><b>Queue se dead requests nikaalo</b>: processing shuru karne se pehle check karo ki deadline nikal to nahi gayi. Nikal gayi = drop, kaam mat karo.</li>
+            <li>Reject karo <code>429</code> + <code>Retry-After</code> ke saath, taaki client tameez se backoff kare.</li>
+          </ul>
+          <div class="callout"><b>Mindset:</b> Goodput maximise karo, throughput nahi. 70% requests 200ms mein serve karna, 100% ko 12s mein serve karne se kaafi behtar hai.</div>
+        </div>
+      </div>
+
+      <div class="codeblock">
+        <div class="code-head"><b>AdaptiveLoadShedder.java</b><span>latency-gradient limit · priority tiers · dead-request drop</span></div>
+<pre><code><span class="a">@Component</span>
+<span class="k">public class</span> <span class="t">AdaptiveLoadShedder</span> {
+
+  <span class="k">private final</span> <span class="t">AtomicInteger</span> inFlight       = <span class="k">new</span> <span class="t">AtomicInteger</span>();
+  <span class="k">private volatile int</span>        concurrencyLimit = 50;
+  <span class="k">private volatile long</span>       baselineLatencyMs = <span class="t">Long</span>.<span class="m">MAX_VALUE</span>;      <span class="mk">// (1)</span>
+
+  <span class="c">/** Har request ke start par. false = 429 bhejo. */</span>
+  <span class="k">public boolean</span> <span class="m">tryAdmitRequest</span>(<span class="t">RequestPriority</span> priority, <span class="t">Deadline</span> deadline) {
+
+    <span class="k">if</span> (deadline.<span class="m">isExpired</span>()) {
+      droppedDeadCounter.<span class="m">increment</span>();
+      <span class="k">return false</span>;                                                  <span class="mk">// (2)</span>
+    }
+
+    <span class="k">int</span> effectiveLimit = <span class="m">limitForPriority</span>(priority);                  <span class="mk">// (3)</span>
+    <span class="k">int</span> current = inFlight.<span class="m">incrementAndGet</span>();
+
+    <span class="k">if</span> (current &gt; effectiveLimit) {
+      inFlight.<span class="m">decrementAndGet</span>();                                      <span class="mk">// (4)</span>
+      shedCounter.<span class="m">increment</span>(priority.<span class="m">name</span>());
+      <span class="k">return false</span>;
+    }
+    <span class="k">return true</span>;
+  }
+
+  <span class="c">/**
+   * Low priority ko limit ka chhota hissa milta hai.
+   * Overload mein analytics pehle marta hai, checkout aakhir mein.
+   */</span>
+  <span class="k">private int</span> <span class="m">limitForPriority</span>(<span class="t">RequestPriority</span> priority) {
+    <span class="k">return switch</span> (priority) {
+      <span class="k">case</span> CRITICAL -&gt; concurrencyLimit;                               <span class="mk">// (5)</span>
+      <span class="k">case</span> STANDARD -&gt; (<span class="k">int</span>) (concurrencyLimit * 0.70);
+      <span class="k">case</span> BULK     -&gt; (<span class="k">int</span>) (concurrencyLimit * 0.30);
+    };
+  }
+
+  <span class="c">/**
+   * Vegas-style gradient: agar observed latency baseline se kaafi zyada hai,
+   * matlab queue ban rahi hai -&gt; limit ghatao. Warna dheere se badhao.
+   */</span>
+  <span class="k">public void</span> <span class="m">onRequestCompleted</span>(<span class="k">long</span> observedLatencyMs) {
+    inFlight.<span class="m">decrementAndGet</span>();
+    baselineLatencyMs = <span class="t">Math</span>.<span class="m">min</span>(baselineLatencyMs, observedLatencyMs); <span class="mk">// (6)</span>
+
+    <span class="k">double</span> gradient = (<span class="k">double</span>) baselineLatencyMs / <span class="t">Math</span>.<span class="m">max</span>(1, observedLatencyMs);
+    <span class="k">double</span> clamped  = <span class="t">Math</span>.<span class="m">max</span>(0.5, <span class="t">Math</span>.<span class="m">min</span>(1.0, gradient));            <span class="mk">// (7)</span>
+
+    <span class="k">double</span> queueAllowance = <span class="t">Math</span>.<span class="m">sqrt</span>(concurrencyLimit);              <span class="mk">// (8)</span>
+    <span class="k">int</span> next = (<span class="k">int</span>) (concurrencyLimit * clamped + queueAllowance);
+
+    concurrencyLimit = <span class="t">Math</span>.<span class="m">max</span>(10, <span class="t">Math</span>.<span class="m">min</span>(2000, next));            <span class="mk">// (9)</span>
+  }
+
+  <span class="k">public boolean</span> <span class="m">isUnderPressure</span>() {
+    <span class="k">return</span> inFlight.<span class="m">get</span>() &gt; concurrencyLimit * 0.85;                  <span class="mk">// (10)</span>
+  }
+}</code></pre>
+        <ol class="lines">
+          <li><b>(1)</b><span>Baseline = ab tak ka best-observed latency, matlab "bina queue ke" service time. Isi se compare karke pata chalta hai ki queue ban rahi hai ya nahi.</span></li>
+          <li><b>(2)</b><span>Sabse pehle dead requests drop karo. Ye <b>free capacity</b> hai — client already ja chuka hai, uska kaam karna 100% waste hai. Overload mein aksar 30% requests aisi hoti hain.</span></li>
+          <li><b>(3)</b><span>Priority-based limit. Interview mein "load shedding karunga" bolna easy hai; "kis order mein shed karunga" batana senior signal hai.</span></li>
+          <li><b>(4)</b><span>Reject karte waqt counter wapas decrement karna <em>zaroori</em> hai. Ye classic bug hai — leak hone par limit permanently exhausted dikhne lagti hai aur service khud ko throttle kar leti hai.</span></li>
+          <li><b>(5)</b><span>CRITICAL ko poori limit milti hai. Ek hi pool, alag admission thresholds — isse critical traffic ke liye alag infra nahi chahiye.</span></li>
+          <li><b>(6)</b><span>Running minimum. Production mein isme decay hona chahiye (jaise har 10 min par reset), warna ek lucky 2ms sample hamesha ke liye baseline pakad leta hai.</span></li>
+          <li><b>(7)</b><span>Gradient 0.5 par clamp — ek hi bura sample limit ko aadhe se zyada nahi gira sakta. Stability &gt; reaction speed.</span></li>
+          <li><b>(8)</b><span><code>sqrt(limit)</code> allowance limit ko dheere-dheere badhne deta hai jab system healthy ho. Additive-increase / multiplicative-decrease — TCP congestion control ka wahi idea.</span></li>
+          <li><b>(9)</b><span>Absolute floor aur ceiling. Floor bina limit 0 tak gir sakti hai aur service khud ko deadlock kar leti hai; ceiling runaway growth rokta hai.</span></li>
+          <li><b>(10)</b><span>Yahi signal hedging (T-08) aur optional fan-out (T-03) ko band karta hai. Ek jagah pressure detect karo, poore system mein use karo.</span></li>
+        </ol>
+      </div>
+    </article>
+
+    <!-- ============ T12 ============ -->
+    <article class="topic" id="t12">
+      <div class="topic-bar">
+        <span class="topic-id">T-12</span>
+        <h3>Har 40 second par ek 700ms spike — GC aur JVM ka tail</h3>
+        <div class="pstrip"><b>hits</b><i data-p="p50"></i><i data-p="p90"></i><i class="hit" data-p="p99"></i><i class="hit" data-p="p99.9"></i></div>
+        <div class="tags"><span class="tag lld">LLD</span><span class="tag lvl">SDE-3</span></div>
+      </div>
+
+      <div class="split">
+        <div class="side prob">
+          <h4>&#9888; problem</h4>
+          <p>p50 bilkul flat hai, par p99.9 par periodic spikes hain. Application code profiling mein bilkul clean.</p>
+          <ul>
+            <li><b>Stop-the-world GC pause</b> — us dauraan har in-flight request ruk jaati hai.</li>
+            <li>Fan-out ke saath ye multiply hota hai: 100 nodes, har ek 1% time GC mein — <span class="hi">63% requests kisi na kisi paused node se takrayengi</span>.</li>
+            <li>Doosre chhupe hue causes: JIT deoptimisation, biased-lock revocation, <b>safepoint pauses</b>, aur transparent huge pages defrag.</li>
+            <li>Container mein: CPU throttling (<code>cfs_quota</code>) GC threads ko starve karta hai, jisse pause aur lamba hota hai.</li>
+          </ul>
+        </div>
+
+        <div class="side sol">
+          <h4>&#10003; solution</h4>
+          <ul>
+            <li><b>Low-pause collector:</b> ZGC ya Shenandoah — pause &lt;1ms, heap size se independent. G1 tab lo jab throughput priority ho.</li>
+            <li><b>Allocation rate ghatao</b> — GC ka asli ilaaj yahi hai. Per-request garbage kam karo: streaming JSON, object reuse, chhote DTOs.</li>
+            <li>Container mein <code>MaxRAMPercentage</code> set karo aur CPU limits itna tight mat rakho ki GC threads throttle ho.</li>
+            <li>Load balancer par <b>node ko GC ke dauraan drain</b> karo — brownout detection se traffic hata do.</li>
+            <li>Ye jitna kam-jarurat wala lage utna hi important: GC logs on rakho, wo lagbhag free hain.</li>
+          </ul>
+          <div class="callout"><b>Ignore kab karein:</b> Batch jobs mein throughput chahiye, pause nahi. Wahan Parallel GC ya G1 sahi choice hai — ZGC ka throughput overhead faltu hai.</div>
+        </div>
+      </div>
+
+      <div class="codeblock">
+        <div class="code-head"><b>jvm-flags.txt + LatencySensitiveJvm.java</b><span>tail-latency tuned JVM</span></div>
+<pre><code><span class="c"># ---- Container-aware, low-pause, observable ----</span>
+-XX:+UseZGC                          <span class="mk"># (1)</span>
+-XX:+ZGenerational                   <span class="mk"># (2)</span>
+-XX:MaxRAMPercentage=70.0            <span class="mk"># (3)</span>
+-XX:+AlwaysPreTouch                  <span class="mk"># (4)</span>
+-XX:ActiveProcessorCount=4           <span class="mk"># (5)</span>
+-Xlog:gc*,safepoint:file=/var/log/gc.log:time,uptime:filecount=5,filesize=20M
+-XX:+HeapDumpOnOutOfMemoryError
+-XX:StartFlightRecording=settings=profile,maxsize=256m   <span class="mk"># (6)</span>
+
+<span class="c">// ---- Allocation rate ghatane wala pattern ----</span>
+<span class="a">@Component</span>
+<span class="k">public class</span> <span class="t">StreamingOrderExporter</span> {
+
+  <span class="c">/**
+   * 500k orders ko List mein load karne se heap phat jaata hai aur GC pause aata hai.
+   * Streaming se allocation constant rehta hai.
+   */</span>
+  <span class="a">@Transactional</span>(readOnly = <span class="k">true</span>)
+  <span class="k">public void</span> <span class="m">streamOrdersToResponse</span>(<span class="t">LocalDate</span> day, <span class="t">OutputStream</span> out) {
+
+    <span class="k">try</span> (<span class="t">Stream</span>&lt;<span class="t">Order</span>&gt; orders = orderRepository.<span class="m">streamByDay</span>(day);  <span class="mk">// (7)</span>
+         <span class="t">JsonGenerator</span> json = jsonFactory.<span class="m">createGenerator</span>(out)) {
+
+      json.<span class="m">writeStartArray</span>();
+      orders.<span class="m">forEach</span>(order -&gt; {
+        <span class="m">writeOrderRow</span>(json, order);
+        entityManager.<span class="m">detach</span>(order);                                  <span class="mk">// (8)</span>
+      });
+      json.<span class="m">writeEndArray</span>();
+    }
+  }
+}</code></pre>
+        <ol class="lines">
+          <li><b>(1)</b><span>ZGC ke pauses sub-millisecond hain aur heap size ke saath nahi badhte. Latency-sensitive services ke liye default choice — 8GB ho ya 128GB, pause same.</span></li>
+          <li><b>(2)</b><span>Generational ZGC (JDK 21+) young objects ko sasta collect karta hai. Iske bina ZGC ka CPU overhead typical web workloads par kaafi zyada hota hai.</span></li>
+          <li><b>(3)</b><span>Percentage-based heap, fixed <code>-Xmx</code> nahi. Container memory limit badle to JVM apne aap adjust hoga — koi silent OOMKill nahi.</span></li>
+          <li><b>(4)</b><span><code>AlwaysPreTouch</code> startup par saare heap pages commit kar deta hai. Startup slow hota hai par pehle 10 minute ke page-fault spikes gayab ho jaate hain — deploy ke turant baad p99 clean rehta hai.</span></li>
+          <li><b>(5)</b><span>Container mein JVM aksar host ke saare cores dekh leta hai aur zarurat se zyada GC/FJ threads banata hai. Explicit count CPU throttling se bachata hai.</span></li>
+          <li><b>(6)</b><span>JFR hamesha on — overhead ~1%. Jab p99.9 spike aayega, aapke paas already recording hogi. Baad mein reproduce karna lagbhag namumkin hota hai.</span></li>
+          <li><b>(7)</b><span><code>Stream</code> + cursor: rows ek-ek karke aati hain. <code>findAll()</code> se 500k entities heap mein aa jaate — turant full GC.</span></li>
+          <li><b>(8)</b><span><code>detach()</code> persistence context ko badhne se rokta hai. Ye ek line 90% "streaming query ke baad bhi OOM" wale bugs fix karti hai.</span></li>
+        </ol>
+      </div>
+    </article>
+
+    <!-- ============ T13 ============ -->
+    <article class="topic" id="t13">
+      <div class="topic-bar">
+        <span class="topic-id">T-13</span>
+        <h3>"p99 kharab hai" pata hai, par kahan kharab hai ye nahi pata</h3>
+        <div class="pstrip"><b>hits</b><i class="hit" data-p="p50"></i><i class="hit" data-p="p90"></i><i class="hit" data-p="p99"></i><i class="hit" data-p="p99.9"></i></div>
+        <div class="tags"><span class="tag hld">HLD</span><span class="tag lld">LLD</span><span class="tag lvl">SDE-2/3</span></div>
+      </div>
+
+      <div class="split">
+        <div class="side prob">
+          <h4>&#9888; problem</h4>
+          <p>Alert aaya "p99 &gt; 1s". Dashboard par 40 services hain. Kaunsi wajah hai — koi nahi jaanta. Debugging mein 3 ghante gaye.</p>
+          <ul>
+            <li>Metrics batate hain <b>kya</b> hua, par <b>kahan</b> nahi.</li>
+            <li>Head-based sampling 1% par: aapke slow requests sample mein hai hi nahi. Jo chahiye wahi missing.</li>
+            <li>Logs mein trace id nahi hai, isliye ek slow request ko services ke aar-paar follow karna impossible hai.</li>
+          </ul>
+        </div>
+
+        <div class="side sol">
+          <h4>&#10003; solution</h4>
+          <ul>
+            <li><b>RED metrics</b> har service par: Rate, Errors, Duration (histogram). Ye baseline hai.</li>
+            <li><b>Tail-based sampling:</b> request poori hone ke baad decide karo — slow ya error hai to 100% sample, warna 1%. Aapko exactly wahi traces milte hain jo chahiye.</li>
+            <li><b>Exemplars:</b> histogram bucket ko trace id se link karo. Grafana par p99 bucket click karo, seedha ek asli slow trace khul jaata hai.</li>
+            <li>Trace id ko log MDC mein daalo, taaki logs aur traces jud jayein.</li>
+          </ul>
+          <div class="callout"><b>Order:</b> Pehle RED metrics, phir tail-based traces, phir profiling. Ulta karoge to hafte barbad honge.</div>
+        </div>
+      </div>
+
+      <div class="codeblock">
+        <div class="code-head"><b>TailSamplingTracingConfig.java</b><span>slow &amp; error traces 100%, baaki 1%</span></div>
+<pre><code><span class="a">@Configuration</span>
+<span class="k">public class</span> <span class="t">TailSamplingTracingConfig</span> {
+
+  <span class="k">private static final</span> <span class="t">Duration</span> SLOW_THRESHOLD = <span class="t">Duration</span>.<span class="m">ofMillis</span>(500);
+  <span class="k">private static final double</span> BASELINE_SAMPLE_RATE = 0.01;
+
+  <span class="c">/**
+   * Span khatam hone par decide karta hai ki export karna hai ya nahi.
+   * Slow ya failed spans hamesha jaate hain; baaki 1%.
+   */</span>
+  <span class="a">@Bean</span>
+  <span class="k">public</span> <span class="t">SpanExportingPredicate</span> <span class="m">exportSlowAndFailedSpansAlways</span>() {
+    <span class="k">return</span> span -&gt; {
+      <span class="k">if</span> (span.<span class="m">getError</span>() != <span class="k">null</span>)                    <span class="k">return true</span>;    <span class="mk">// (1)</span>
+      <span class="k">if</span> (<span class="m">spanDuration</span>(span).<span class="m">compareTo</span>(SLOW_THRESHOLD) &gt; 0) <span class="k">return true</span>; <span class="mk">// (2)</span>
+      <span class="k">return</span> <span class="m">isInBaselineSample</span>(span.<span class="m">getTraceId</span>());                  <span class="mk">// (3)</span>
+    };
+  }
+
+  <span class="c">/** Trace id ka hash — poore trace par consistent, isliye trace tuta hua nahi aayega. */</span>
+  <span class="k">private boolean</span> <span class="m">isInBaselineSample</span>(<span class="t">String</span> traceId) {
+    <span class="k">int</span> bucket = <span class="t">Math</span>.<span class="m">abs</span>(traceId.<span class="m">hashCode</span>()) % 10_000;
+    <span class="k">return</span> bucket &lt; (BASELINE_SAMPLE_RATE * 10_000);                    <span class="mk">// (4)</span>
+  }
+
+  <span class="c">/** Histogram bucket ko trace se jodta hai — dashboard se seedha trace tak. */</span>
+  <span class="a">@Bean</span>
+  <span class="k">public</span> <span class="t">SpanContextSupplier</span> <span class="m">exemplarTraceContext</span>(<span class="t">Tracer</span> tracer) {
+    <span class="k">return new</span> <span class="t">SpanContextSupplier</span>() {
+      <span class="a">@Override</span> <span class="k">public</span> <span class="t">String</span> <span class="m">getTraceId</span>() {
+        <span class="k">return</span> tracer.<span class="m">currentSpan</span>() == <span class="k">null</span>
+             ? <span class="k">null</span> : tracer.<span class="m">currentSpan</span>().<span class="m">context</span>().<span class="m">traceId</span>();       <span class="mk">// (5)</span>
+      }
+      <span class="a">@Override</span> <span class="k">public boolean</span> <span class="m">isSampled</span>() { <span class="k">return true</span>; }
+    };
+  }
+}</code></pre>
+        <ol class="lines">
+          <li><b>(1)</b><span>Errors hamesha export. Error rate itna kam hota hai ki 100% sampling ka cost negligible hai, par debugging value maximum.</span></li>
+          <li><b>(2)</b><span>Ye poore setup ka dil hai: slow requests <em>guaranteed</em> capture hoti hain. Head sampling mein aapko p99 trace milna luck par depend karta hai.</span></li>
+          <li><b>(3)</b><span>Baseline sample chahiye taaki aapke paas "normal" ka comparison ho. Sirf slow traces dekhne se aap nahi bata paoge ki kya badla.</span></li>
+          <li><b>(4)</b><span>Trace id ka <em>deterministic</em> hash — saari services same decision lengi. Random sampling se aadhe-adhure traces milte hain jo bekaar hote hain.</span></li>
+          <li><b>(5)</b><span>Exemplars Prometheus histogram ko trace id se attach karte hain. "p99 spike" se ek asli slow trace tak ka safar 2 second ka ho jaata hai.</span></li>
+        </ol>
+      </div>
+    </article>
+
+  </div>
+</section>
+
+<!-- ============================ TRADEOFF LEDGER ============================ -->
+<section class="band" id="tradeoff">
+  <div class="wrap">
+    <div class="band-head">
+      <span class="kicker">02 · when / why / which</span>
+      <h2>Tradeoff ledger — kya apply karein, kya jaan-boojh ke ignore karein</h2>
+      <p>Interview mein "main caching lagaunga" bolna junior answer hai. Senior answer hai: "is context mein main X lagaunga aur Y jaan-boojh ke nahi lagaunga, kyunki iski keemat Z hai." Har technique ki keemat hoti hai — jo keemat naam le sake, wo hire hota hai.</p>
+    </div>
+
+    <div class="tablescroll">
+      <table class="ledger">
+        <caption>context → decision. Sabse left wala column aapka system hai, baaki teen aapka jawab.</caption>
+        <thead>
+          <tr>
+            <th>Context</th>
+            <th>Apply karo</th>
+            <th>Ignore karo (deliberately)</th>
+            <th>Kyun</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>Read-heavy public API<br><span class="why">catalog, feed, search</span></td>
+            <td class="apply">CDN + Redis, stale-while-revalidate, hedged reads, read replicas, TTL jitter</td>
+            <td class="skip">Strong consistency, har request par DB hit, synchronous invalidation</td>
+            <td class="why">Reads immutable-ish hain. 2 second purana data user ke liye invisible hai, par DB load 50× kam ho jaata hai.</td>
+          </tr>
+          <tr>
+            <td>Payments / ledger<br><span class="why">money moves</span></td>
+            <td class="apply">Idempotency keys, sync validation, single-flight, tight timeouts, outbox for downstream</td>
+            <td class="skip">Hedged requests, blind retries, cache-first reads on balance</td>
+            <td class="why">Duplicate side-effect ka cost latency ke cost se hazaar guna zyada hai. Yahan correctness jeetta hai.</td>
+          </tr>
+          <tr>
+            <td>Batch / ETL pipeline<br><span class="why">nightly job, no user</span></td>
+            <td class="apply">Bade batches, 90%+ utilization, parallelism, bulk inserts</td>
+            <td class="skip">p99 tracking, hedging, load shedding, low-pause GC</td>
+            <td class="why">Koi user intezaar nahi kar raha. Sirf total completion time aur cost matter karte hain — latency ek non-goal hai.</td>
+          </tr>
+          <tr>
+            <td>Fan-out page<br><span class="why">8+ downstream calls</span></td>
+            <td class="apply">Deadline propagation, critical/optional split, denormalised read model, fan-out ghatana</td>
+            <td class="skip">Har downstream service ka p99 chase karna, per-call fixed timeouts</td>
+            <td class="why">Tail amplification architecture ki problem hai. 8 services ko 10% fast karna kam kaam karta hai bajaye 8 ko 2 karne ke.</td>
+          </tr>
+          <tr>
+            <td>Early-stage product<br><span class="why">&lt;100 RPS, chhoti team</span></td>
+            <td class="apply">Timeouts, bounded pools, RED metrics, ek managed DB</td>
+            <td class="skip">Adaptive shedding, hedging, CQRS, sharding, custom caching layer</td>
+            <td class="why">Ye sab operational complexity add karte hain jo aapki team afford nahi kar sakti. 100 RPS par ek accha index hi kaafi hai.</td>
+          </tr>
+          <tr>
+            <td>Multi-tenant SaaS<br><span class="why">ek tenant sabko dubata hai</span></td>
+            <td class="apply">Per-tenant quota + bulkhead, priority tiers, per-tenant metrics</td>
+            <td class="skip">Sirf global rate limit, shared unbounded pools</td>
+            <td class="why">Global limit ek heavy tenant ko poora budget kha jaane deta hai. Isolation tenant boundary par hona chahiye.</td>
+          </tr>
+          <tr>
+            <td>Hard real-time budget<br><span class="why">ad bidding, &lt;50ms</span></td>
+            <td class="apply">In-memory data, precomputed features, hedging, aggressive shedding</td>
+            <td class="skip">Retries, synchronous DB writes, cross-region calls</td>
+            <td class="why">50ms mein retry ka time hi nahi hai. Deadline miss = request worthless, isliye jaldi drop karna hi sahi hai.</td>
+          </tr>
+          <tr>
+            <td>Mobile / poor network<br><span class="why">2G/3G users</span></td>
+            <td class="apply">Kam round trips, payload compression, field filtering, offline queue</td>
+            <td class="skip">Server-side micro-optimisation (5ms → 3ms), aur endpoints banana</td>
+            <td class="why">400ms RTT ke saamne aapka 5ms improvement noise hai. Yahan round trips ki ginti hi p99 hai.</td>
+          </tr>
+          <tr>
+            <td>Overload / traffic spike<br><span class="why">sale, viral moment</span></td>
+            <td class="apply">Load shedding, priority tiers, dead-request drop, queue bounds, breaker</td>
+            <td class="skip">Hedging, retries, autoscaling par bharosa (bahut slow hai)</td>
+            <td class="why">Overload mein hedging aur retry load badhate hain. Autoscaling 2–5 min leta hai; spike 30 second ka hota hai.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="rules">
+      <div class="rule">
+        <h4>Pehle naapo, phir chhuo</h4>
+        <p>Bina histogram aur trace ke tuning karna guessing hai. Ek din measurement mein lagana, ek hafta galat cheez optimise karne se sasta hai.</p>
+      </div>
+      <div class="rule">
+        <h4>Har cheez bounded ho</h4>
+        <p>Har queue, pool, batch, retry aur cache ka explicit maximum hona chahiye. Unbounded ka matlab hai unbounded latency — aur wo hamesha sabse bure din par dikhta hai.</p>
+      </div>
+      <div class="rule">
+        <h4>Jaldi fail karna, dheere safal hone se behtar</h4>
+        <p>250ms mein 503 dena, 30s ke baad success dene se behtar hai. Fast failure caller ko choice deti hai; slow success sabke resources kha jaata hai.</p>
+      </div>
+      <div class="rule">
+        <h4>Latency budget upar se aata hai</h4>
+        <p>User SLO 400ms → gateway 380 → BFF 350 → service 250 → DB 80. Har layer apna budget kaat kar aage bhejti hai. Neeche se jodna hamesha SLO tod deta hai.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============================ MOCK Q&A ============================ -->
+<section class="band" id="mock">
+  <div class="wrap">
+    <div class="band-head">
+      <span class="kicker">03 · mock interview</span>
+      <h2>Mock questions — jawab ke saath, aur "interviewer kya dhoondh raha hai"</h2>
+      <p>Har jawab ka structure ek jaisa hai: seedha answer, phir reasoning, phir tradeoff. Level filter se apne round ke hisaab se practice karo. Bolte waqt jawab 60–90 second mein khatam karo, phir ruko aur poocho "isme deeper jaana hai?"</p>
+    </div>
+
+    <div class="levelbar" role="group" aria-label="Filter by level">
+      <button class="levelbtn" data-level="all" aria-pressed="true">Sab (22)</button>
+      <button class="levelbtn" data-level="jr" aria-pressed="false">SDE-1 / SDE-2 (8)</button>
+      <button class="levelbtn" data-level="mid" aria-pressed="false">SDE-3 / Senior (8)</button>
+      <button class="levelbtn" data-level="staff" aria-pressed="false">Staff / Architect (6)</button>
+    </div>
+
+    <div id="qaList">
+
+      <details class="qa" data-level="jr">
+        <summary>p50, p95 aur p99 mein kya fark hai — aur p99 par itna focus kyun?<span class="qlvl">SDE-1/2</span></summary>
+        <div class="ans">
+          <p><b>Answer:</b> Requests ko latency se sort karo. p50 beech wali request hai, p95 95th position par, p99 99th par. p99 = 1.2s ka matlab hai 1% requests 1.2s se slow hain.</p>
+          <p>p99 par focus isliye hai kyunki ek user ek request nahi karta. Ek page 20 API calls karta hai — to <code>1 − 0.99^20 = 18%</code> chance hai ki us user ne <em>kam se kam ek</em> slow call dekhi. Matlab "1% slow" actually "18% users unhappy" hai.</p>
+          <p>Aur p99 wale users aksar aapke sabse valuable users hote hain: sabse zyada data, sabse bada cart, sabse purana account — kyunki unka payload sabse bada hai.</p>
+          <div class="signal"><b>Interviewer dekh raha hai:</b> Aap percentile ko user-impact mein translate kar paate ho ya nahi. "1% slow" bolna definition hai; "18% sessions affected" bolna understanding hai.</div>
+        </div>
+      </details>
+
+      <details class="qa" data-level="jr">
+        <summary>Latency aur throughput mein kya rishta hai? Dono ek saath improve ho sakte hain?<span class="qlvl">SDE-1/2</span></summary>
+        <div class="ans">
+          <p><b>Answer:</b> Latency ek request ka time hai, throughput per-second requests hai. Little's Law inhe jodta hai: <code>L = λ × W</code>.</p>
+          <p>Dono ek saath improve ho sakte hain <b>sirf tab</b> jab aap actual kaam kam karo — better index, kam payload, N+1 hatana, kam serialization. Ye "free" wins hain.</p>
+          <p>Par ek baar system efficient ho jaye, to dono ek dusre ke against trade hote hain: batching throughput badhata hai par wait add karta hai; utilization badhana throughput badhata hai par queueing latency exponentially badhati hai <code>(W = S/(1−ρ))</code>.</p>
+          <div class="signal"><b>Signal:</b> "Depends" bolna kaafi nahi. Free wins aur zero-sum tradeoffs ka fark batao — yahi answer ko strong banata hai.</div>
+        </div>
+      </details>
+
+      <details class="qa" data-level="jr">
+        <summary>Average latency 80ms hai par users bol rahe hain app slow hai. Kaise debug karoge?<span class="qlvl">SDE-1/2</span></summary>
+        <div class="ans">
+          <p><b>Answer — order matter karta hai:</b></p>
+          <ul>
+            <li>Pehle <b>percentiles dekho</b>, average nahi. p99/p99.9 nikaalo. Average outliers chhupata hai.</li>
+            <li>Phir <b>endpoint aur dimension se break karo</b> — ho sakta hai ek endpoint (search) ya ek segment (bade accounts) hi slow ho.</li>
+            <li><b>Client-side latency</b> check karo, server-side nahi. Server 80ms bole par TLS, DNS, LB queue aur mobile network milaake user ko 2s dikhe.</li>
+            <li><b>Queue wait</b> alag se measure karo. Agar server-side timer request handling ke baad start hota hai to aap coordinated omission kar rahe ho.</li>
+            <li>Ek slow <b>trace</b> uthao aur poore span breakdown dekho — guess karna band karo.</li>
+          </ul>
+          <div class="signal"><b>Signal:</b> Systematic funnel — user → network → edge → queue → app → DB. Randomly "cache laga dete hain" bolna red flag hai.</div>
+        </div>
+      </details>
+
+      <details class="qa" data-level="jr">
+        <summary>Thread pool size kaise decide karoge? "CPU cores × 2" theek hai?<span class="qlvl">SDE-1/2</span></summary>
+        <div class="ans">
+          <p><b>Answer:</b> Depends ki work CPU-bound hai ya IO-bound.</p>
+          <ul>
+            <li><b>CPU-bound:</b> <code>cores</code> ya <code>cores + 1</code>. Isse zyada sirf context switching hai.</li>
+            <li><b>IO-bound:</b> Little's Law se — <code>threads = targetRps × avgLatencySeconds</code>. 500 RPS × 0.2s = 100 threads, phir 1.3× headroom.</li>
+          </ul>
+          <p>Par size se zyada important ye hai: pool <b>bounded</b> ho, queue <b>bounded</b> ho, aur rejection policy explicit ho. Unbounded queue wala 50-thread pool, bounded queue wale 500-thread pool se zyada khatarnak hai.</p>
+          <div class="signal"><b>Signal:</b> Formula ke saath bounds ka zikr. Sirf formula bolna aadha answer hai.</div>
+        </div>
+      </details>
+
+      <details class="qa" data-level="jr">
+        <summary>Downstream call ka timeout kitna rakhoge, aur wo number kahan se aayega?<span class="qlvl">SDE-1/2</span></summary>
+        <div class="ans">
+          <p><b>Answer:</b> Timeout downstream ke <b>observed p99 (ya p99.9) se thoda upar</b> hona chahiye — jaise p99 × 1.5 — <em>aur</em> aapke apne latency budget ke andar fit hona chahiye. Dono constraints check karo; jo chhota ho wahi lo.</p>
+          <p>Round number (3s, 30s) kabhi mat lo. 30s timeout matlab 30s tak thread hold — matlab overload par cascade.</p>
+          <p>Behtar approach: fixed timeout ki jagah <b>deadline propagate</b> karo. Har hop ko bacha hua time milta hai, isliye 3 sequential calls milkar SLO nahi tod sakti.</p>
+          <div class="signal"><b>Signal:</b> Timeout ko data se derive karna, aur connect timeout vs read timeout ka fark pata hona.</div>
+        </div>
+      </details>
+
+      <details class="qa" data-level="jr">
+        <summary>Cache TTL 5 minute hai. Har 5 minute par latency spike aata hai. Kya ho raha hai?<span class="qlvl">SDE-1/2</span></summary>
+        <div class="ans">
+          <p><b>Answer:</b> Cache stampede. Popular key expire hoti hai, saare concurrent requests miss hote hain, sab ek saath DB par jaate hain. Aur kyunki saari keys ek hi deploy par warm hui thi, wo ek saath expire hoti hain.</p>
+          <p><b>Fix (badhte hue effort ke saath):</b> TTL jitter (±15%) → single-flight lock (ek recompute, baaki wait) → stale-while-revalidate → probabilistic early refresh.</p>
+          <p>Sabse sasta fix jitter hai aur wo aksar 80% problem solve kar deta hai — ek line ka change.</p>
+          <div class="signal"><b>Signal:</b> Solution ko cost ke order mein batana. Seedha "distributed lock lagayenge" bolna over-engineering hai.</div>
+        </div>
+      </details>
+
+      <details class="qa" data-level="jr">
+        <summary>Aapke paas 2 hafte hain aur p99 aadha karna hai. Kahan se shuru karoge?<span class="qlvl">SDE-1/2</span></summary>
+        <div class="ans">
+          <p><b>Answer — sabse zyada return dene wale kaam pehle:</b></p>
+          <ul>
+            <li><b>Naapo:</b> tail-based tracing on karo, ek din ke slow traces dekho. Aksar 70% tail ek hi jagah se aata hai.</li>
+            <li><b>N+1 queries</b> dhoondo — ye lagbhag hamesha milte hain aur fix sasta hota hai.</li>
+            <li><b>Missing index</b> — DB slow query log 10 minute mein bata dega.</li>
+            <li><b>Payload size</b> ghatao — response mein aadhe fields kabhi use hi nahi hote.</li>
+            <li><b>Timeouts kaso</b> — 30s timeout ko 1s karna p99.9 turant theek karta hai.</li>
+          </ul>
+          <p>Jo <em>nahi</em> karna: naya cache layer, service split, ya framework change. 2 hafte mein wo risk hai, fix nahi.</p>
+          <div class="signal"><b>Signal:</b> Pragmatism. Interviewer dekh raha hai ki aap constraint ke andar prioritise kar sakte ho ya har baar rewrite propose karte ho.</div>
+        </div>
+      </details>
+
+      <details class="qa" data-level="mid">
+        <summary>Har service ka p99 = 100ms hai. Page 10 services ko parallel call karta hai. Page ka p99 kya hoga?<span class="qlvl">SDE-3</span></summary>
+        <div class="ans">
+          <p><b>Answer:</b> Page ka p99, service ke p99 se <b>bahut bura</b> hoga — kyunki page sabse slow response ka wait karta hai.</p>
+          <p><code>P(kam se kam ek call &gt; 100ms) = 1 − 0.99^10 = 9.6%</code>. Matlab ~10% requests 100ms cross karengi, to page ka p90 hi 100ms hai. Page ka p99 nikalne ke liye aapko har service ka <b>p99.9</b> dekhna padega.</p>
+          <p><b>Fix architecture level par hai:</b> fan-out ghatao (denormalised read model), optional calls ko degrade karo, deadline propagate karo. Har service ka p99 chase karna infinite regress hai.</p>
+          <div class="signal"><b>Signal:</b> Math karke dikhana, aur phir bolna ki fix per-service tuning nahi balki fan-out reduction hai. Yahi SDE-3 signal hai.</div>
+        </div>
+      </details>
+
+      <details class="qa" data-level="mid">
+        <summary>Downstream ne 30 second ke liye 5% error diye aur poora system 20 minute down ho gaya. Kya hua?<span class="qlvl">SDE-3</span></summary>
+        <div class="ans">
+          <p><b>Answer:</b> Retry storm → metastable failure. 5% errors par sabne retry kiya, load 3× hua, service aur girti gayi, aur error rate badhne se retries aur badhe. Original trigger hat jaane ke baad bhi system <b>apne hi retry load se</b> down raha.</p>
+          <p><b>Rokne ke liye:</b></p>
+          <ul>
+            <li><b>Retry budget</b> — retries ≤10% of requests. Ye storm ko mathematically impossible banata hai.</li>
+            <li><b>Full jitter backoff</b> — synchronised herd todta hai.</li>
+            <li><b>Circuit breaker</b> — dying service ko recover hone ka space deta hai.</li>
+            <li><b>Ek hi layer par retry</b>. Nested retries multiply hote hain (3×3×3 = 27).</li>
+          </ul>
+          <p><b>Recovery:</b> traffic band karo (load shed / feature flag), service ko warm hone do, phir dheere-dheere ramp karo. Bina traffic ghataye system apne aap nahi nikalega — yahi metastable state ki definition hai.</p>
+          <div class="signal"><b>Signal:</b> "Metastable" word bolna, aur ye samajhna ki recovery ke liye load actively ghatana padta hai.</div>
+        </div>
+      </details>
+
+      <details class="qa" data-level="mid">
+        <summary>Load test bolta hai p99 = 90ms, production bolta hai p99 = 4s. Same code, same hardware.<span class="qlvl">SDE-3</span></summary>
+        <div class="ans">
+          <p><b>Answer — sabse pehla suspect: coordinated omission.</b> Closed-loop load generator response ka wait karke agli request bhejta hai. Server stall hone par generator ne requests bheji hi nahi — matlab jo requests sabse slow hoti, wo record hi nahi hui.</p>
+          <p><b>Doosre real differences:</b> production ka data volume aur cardinality alag hai; cache hit ratio alag hai (test mein 5 keys, prod mein 5 million); traffic pattern burst-y hai, smooth nahi; aur prod mein noisy neighbours hain.</p>
+          <p><b>Fix:</b> open-loop model (constant arrival rate), intended-start-time se latency measure karo, production-shaped data use karo, aur burst inject karo — flat load nahi.</p>
+          <div class="signal"><b>Signal:</b> Coordinated omission naam se pehchanna. Ye ek clean senior-level discriminator hai.</div>
+        </div>
+      </details>
+
+      <details class="qa" data-level="mid">
+        <summary>Batching se throughput 4× hua par p99 200ms badh gaya. Rakhein ya hataayein?<span class="qlvl">SDE-3</span></summary>
+        <div class="ans">
+          <p><b>Answer:</b> Ye product question hai, engineering question nahi — par engineer ke paas iska structured jawab hona chahiye.</p>
+          <ul>
+            <li><b>Latency budget check karo:</b> agar SLO 400ms hai aur ab p99 350ms hai, to rakho. Agar 450ms ho gaya, hatao.</li>
+            <li><b>Cost quantify karo:</b> 4× throughput ka matlab 4× kam pods. Wo dollars hain — number lekar aao.</li>
+            <li><b>Dono lena hai to:</b> linger time ghatao (10ms), size-or-time dual trigger lagao, aur latency-sensitive traffic ke liye batching bypass karo (priority flag).</li>
+          </ul>
+          <p>Ideal answer: "Main linger ko itna set karunga ki added latency budget ke andar rahe, aur throughput ka jo bhi hissa us constraint mein milta hai wo le lunga." Batching binary nahi, tunable hai.</p>
+          <div class="signal"><b>Signal:</b> Yes/no ki jagah tunable knob dhoondhna, aur cost ko numbers mein rakhna.</div>
+        </div>
+      </details>
+
+      <details class="qa" data-level="mid">
+        <summary>Connection pool 20 se 200 kiya, ab har query slow hai. Explain.<span class="qlvl">SDE-3</span></summary>
+        <div class="ans">
+          <p><b>Answer:</b> Aapne queue app se DB par shift kar di. DB ke paas fixed cores aur fixed IO hai — 200 concurrent queries ka matlab context switching, lock contention aur buffer pool pressure. Har query ab dheere chalti hai, aur total throughput bhi gir sakta hai.</p>
+          <p>Plus: 50 pods × 200 = 10,000 connections. Postgres har connection par ek backend process aur ~10MB memory leta hai — DB memory pressure mein aa jaata hai.</p>
+          <p><b>Sahi approach:</b> pool chhota rakho (<code>(2 × cores) + spindles</code>, fleet-wide), connection timeout chhota (250ms), aur multi-pod setup mein PgBouncer lagao. Queue app-side rakhna behtar hai kyunki wahan aap dekh sakte ho, priority de sakte ho aur shed kar sakte ho.</p>
+          <div class="signal"><b>Signal:</b> "Queue kahin nahi jaati, sirf shift hoti hai" — ye insight bolna. Aur ye samajhna ki chhota pool aksar zyada throughput deta hai.</div>
+        </div>
+      </details>
+
+      <details class="qa" data-level="mid">
+        <summary>Order save karne ke baad Kafka event bhejna hai. "Commit karo phir publish" mein kya galat hai?<span class="qlvl">SDE-3</span></summary>
+        <div class="ans">
+          <p><b>Answer:</b> Dual-write problem. Do alag systems ko atomically likhna possible nahi hai. Commit ke baad app crash hua to order exist karta hai par event kabhi nahi gaya — inventory update nahi hua, email nahi gaya, permanently inconsistent.</p>
+          <p>Ulta order (publish phir commit) aur bura hai: event chala gaya par transaction rollback ho gaya — downstream ek aise order ko process kar raha hai jo exist hi nahi karta.</p>
+          <p><b>Fix — Transactional Outbox:</b> business row aur event row ek hi DB transaction mein likho. Ek relay (polling with <code>SKIP LOCKED</code>, ya Debezium CDC) outbox se padh kar publish karta hai. Delivery at-least-once hoti hai, isliye consumers event id par dedupe karein.</p>
+          <p><b>Alternative:</b> listen-to-yourself (event se hi state banao) ya event sourcing — par outbox sabse kam invasive hai.</p>
+          <div class="signal"><b>Signal:</b> At-least-once ka zikr aur consumer idempotency. Sirf "outbox lagayenge" bolna aadha answer hai.</div>
+        </div>
+      </details>
+
+      <details class="qa" data-level="mid">
+        <summary>User ne profile update kiya, refresh kiya, purana data dikha. Cache + read replica dono hain. Fix?<span class="qlvl">SDE-3</span></summary>
+        <div class="ans">
+          <p><b>Answer — do alag staleness sources hain, dono handle karo:</b></p>
+          <ul>
+            <li><b>Cache:</b> write ke <code>afterCommit</code> par <em>invalidate</em> karo, update nahi. Update karne mein race hai (purana reader naya cache overwrite kar deta hai).</li>
+            <li><b>Replica lag:</b> write ke baad short window (jaise 5s) tak us user ko <b>primary se padho</b>. Session mein last-write timestamp ya LSN rakho.</li>
+          </ul>
+          <p><b>Behtar pattern — read-your-writes:</b> write ke response mein version/LSN wapas bhejo, client agli read mein wo bheje, aur server ya to us version tak wait kare ya primary par jaye.</p>
+          <p><b>Sabse sasta hack:</b> write ke response mein hi updated object lauta do, taaki client ko refetch karna hi na pade. Ye 80% cases solve kar deta hai.</p>
+          <div class="signal"><b>Signal:</b> Cache staleness aur replica lag ko alag-alag problem maanna, aur sabse sasta fix pehle propose karna.</div>
+        </div>
+      </details>
+
+      <details class="qa" data-level="staff">
+        <summary>Poore checkout flow ka p99 SLO 400ms hai, 6 services involved hain. Budget kaise allocate karoge?<span class="qlvl">Staff</span></summary>
+        <div class="ans">
+          <p><b>Answer — top-down, additive nahi:</b></p>
+          <ul>
+            <li>User-facing SLO 400ms se shuru. Network aur TLS ke liye ~80ms reserve — app ke paas 320ms bacha.</li>
+            <li>Critical path map karo. <b>Sequential</b> hops add hote hain; <b>parallel</b> hops mein max lagta hai. Sirf sequential chain par budget baanto.</li>
+            <li>Har hop ko budget do <em>uske p99 ke hisaab se, average ke nahi</em>: gateway 20, BFF 40, order 120, payment 100, DB 40 = 320.</li>
+            <li><b>10–20% slack</b> chhodo. Bina slack ke koi bhi ek regression SLO tod dega.</li>
+            <li>Har hop ka budget uska <b>timeout</b> ban jaata hai, aur deadline header se propagate hota hai.</li>
+            <li>Fir <b>error budget</b> define karo: 30 din mein 1% requests SLO cross kar sakti hain. Ye release velocity ko control karta hai.</li>
+          </ul>
+          <p>Aur ek important bat: agar allocation possible hi nahi ho rahi, to architecture badalna padega (fan-out ghatao, precompute karo) — budget ko wishful thinking se nahi bhara ja sakta.</p>
+          <div class="signal"><b>Signal:</b> Top-down allocation, parallel vs sequential ka fark, slack, aur budget ka timeout se connection. Ye four points Staff-level answer hain.</div>
+        </div>
+      </details>
+
+      <details class="qa" data-level="staff">
+        <summary>Hedged requests kab lagaoge, kab bilkul nahi? Cost kya hai?<span class="qlvl">Staff</span></summary>
+        <div class="ans">
+          <p><b>Lagao jab:</b> operation idempotent read ho, latency variance zyada ho (p99 &gt;&gt; p50), multiple replicas available hon, aur slowness random ho (koi deterministic slow query nahi).</p>
+          <p><b>Mat lagao jab:</b> writes hon ya non-idempotent operations, system already saturated ho, replicas na hon, ya p99/p50 ratio chhota ho (tab hedging sirf load badhata hai).</p>
+          <p><b>Cost:</b> ~5% extra load agar threshold p95 par ho. Par asli risk ye hai ki overload ke waqt hedging load double karke cascade bana deti hai — isliye hedging ko <b>health signal se gate</b> karna mandatory hai, optional nahi.</p>
+          <p><b>Behtar variant:</b> "tied requests" — dono replicas ko batao ki doosra bhi try kar raha hai, jo pehle uthaye wo doosre ko cancel kar de. Duplicate work aur kam ho jaata hai.</p>
+          <div class="signal"><b>Signal:</b> Hedging ko conditional treat karna aur overload interaction ko khud se uthana. Ye wo detail hai jo sirf production experience se aati hai.</div>
+        </div>
+      </details>
+
+      <details class="qa" data-level="staff">
+        <summary>Load shedding design karo. Kya shed karoge aur kaise decide karoge ki ab shed karna hai?<span class="qlvl">Staff</span></summary>
+        <div class="ans">
+          <p><b>Kab shed karna hai — signal:</b> fixed RPS threshold mat lo (real capacity badalti rehti hai). <b>Latency gradient</b> use karo: observed latency / best-known latency. Ratio badha matlab queue ban rahi hai. Ye adaptive hai aur payload ya cache state badalne par apne aap adjust hota hai.</p>
+          <p><b>Kya shed karna hai — priority order:</b></p>
+          <ul>
+            <li>Pehle <b>dead requests</b> (client deadline nikal chuki) — ye free capacity hai.</li>
+            <li>Phir <b>background / bulk</b> traffic: analytics, prefetch, reporting.</li>
+            <li>Phir <b>optional enrichment</b>: recommendations, reviews, badges.</li>
+            <li>Aakhir mein <b>standard reads</b>.</li>
+            <li><b>Kabhi nahi</b>: checkout, payment, auth, health checks.</li>
+          </ul>
+          <p><b>Kaise shed karna hai:</b> <code>429</code> + <code>Retry-After</code> jitter ke saath. Silently drop mat karo — client ko backoff ka signal chahiye.</p>
+          <p><b>Aur ek cheez:</b> shedding ko har layer par mat lagao, warna aap same request ko 4 baar reject karoge. Edge par ya ek admission point par lagao.</p>
+          <div class="signal"><b>Signal:</b> Goodput vs throughput ka fark, dead-request drop, aur priority classification. Agar aap "429 with Retry-After" bolte ho to client ke bare mein soch rahe ho — accha sign.</div>
+        </div>
+      </details>
+
+      <details class="qa" data-level="staff">
+        <summary>Aapki service ka p99 200ms hai, par usse 50ms lane mein 6 mahine aur 3 engineers lagenge. Kya karoge?<span class="qlvl">Staff</span></summary>
+        <div class="ans">
+          <p><b>Answer:</b> Pehle poochho — <em>kyun</em> 50ms chahiye? Aksar ye number kisi ne feeling se rakh diya hota hai.</p>
+          <ul>
+            <li><b>Business impact measure karo:</b> A/B test karo artificial delay ke saath. Agar 200ms → 250ms se conversion nahi girta, to 200ms → 50ms ka business case hi nahi hai.</li>
+            <li><b>Perceived latency</b> dekho: optimistic UI, skeleton screens, prefetch. 200ms ko 50ms <em>feel</em> karana aksar 6 mahine ke backend kaam se sasta hai.</li>
+            <li>Agar number sach mein zaroori hai (bidding, trading), to <b>architecture</b> badlo — precompute, in-memory, edge par le jao. Incremental tuning 4× improvement nahi deti.</li>
+            <li><b>Explicitly document karo</b> ki hum 200ms accept kar rahe hain, aur kis condition par reconsider karenge.</li>
+          </ul>
+          <p>Staff role ka kaam yahi hai: kabhi-kabhi sahi answer "hum ye nahi karenge, aur ye rahi wajah" hota hai.</p>
+          <div class="signal"><b>Signal:</b> Requirement ko challenge karna (politely, data ke saath), perceived vs actual latency ka fark, aur decision document karna.</div>
+        </div>
+      </details>
+
+      <details class="qa" data-level="staff">
+        <summary>Traffic normal ho gaya par system abhi bhi down hai. Restart karne par 2 minute chalta hai phir gir jaata hai. Diagnosis?<span class="qlvl">Staff</span></summary>
+        <div class="ans">
+          <p><b>Answer:</b> Ye metastable failure hai. System ek aise stable state mein phans gaya hai jahan wo apna hi load generate kar raha hai. Trigger ja chuka hai, par sustaining loop chal raha hai.</p>
+          <p><b>Common sustaining loops:</b> retry amplification; cold cache (miss → DB load → slow → timeout → retry → aur miss); connection storm on restart; queue backlog jo poora hone se pehle hi expire ho jaata hai (100% dead work).</p>
+          <p><b>Recovery — load ghatana zaroori hai, capacity badhana kaafi nahi:</b></p>
+          <ul>
+            <li>Traffic aggressively shed karo (feature flags, edge par rate limit, non-critical band).</li>
+            <li>Cache pre-warm karo <em>traffic wapas dene se pehle</em>.</li>
+            <li>Retries temporarily disable karo.</li>
+            <li>Traffic ko <b>dheere ramp</b> karo — 10%, 25%, 50%. Ek saath 100% dena wapas usi state mein le jayega.</li>
+            <li>Queues drain karo ya expired items drop karo.</li>
+          </ul>
+          <p><b>Prevention:</b> retry budgets, bounded queues, admission control, aur regular cold-start drills.</p>
+          <div class="signal"><b>Signal:</b> Ye samajhna ki "trigger hat gaya" ka matlab "recover ho jayega" nahi hota, aur recovery plan mein <em>ramp</em> ka hona.</div>
+        </div>
+      </details>
+
+      <details class="qa" data-level="staff">
+        <summary>p99.9 ko p99 se alag treat karna chahiye? Kahan line kheenchoge?<span class="qlvl">Staff</span></summary>
+        <div class="ans">
+          <p><b>Answer:</b> Haan, kyunki inke causes alag hain aur cost curve alag hai.</p>
+          <ul>
+            <li><b>p50–p90</b> aapka <em>normal code path</em> hai. Yahan fix algorithmic hai: index, N+1, payload, serialization.</li>
+            <li><b>p99</b> aksar <em>contention</em> hai: queueing, pool waits, lock contention, cache miss.</li>
+            <li><b>p99.9+</b> lagbhag hamesha <em>infrastructure jitter</em> hai: GC pause, kernel scheduling, network retransmit, disk hiccup, noisy neighbour, deploy events.</li>
+          </ul>
+          <p>Isliye p99.9 ko code se fix karna bahut mehnga hai; usse <b>redundancy</b> se fix kiya jaata hai — hedging, retry on a different node, brownout-aware routing.</p>
+          <p><b>Line kahan:</b> user-facing SLO p99 par rakho (measurable, actionable, achievable). p99.9 ko internal engineering metric ki tarah track karo, aur uska paisa tabhi kharch karo jab request volume itna ho ki 0.1% bhi bada number ho — jaise 1B requests/day par 1M unhappy requests.</p>
+          <div class="signal"><b>Signal:</b> Percentile bands ko alag causes se map karna. Ye ek framework hai, list nahi — interviewers isko yaad rakhte hain.</div>
+        </div>
+      </details>
+
+      <details class="qa" data-level="mid">
+        <summary>Sync se async karne se p99 gir gaya. Kya ye "asli" improvement hai?<span class="qlvl">SDE-3</span></summary>
+        <div class="ans">
+          <p><b>Answer:</b> Aadha. API ka p99 sach mein gira — user ko response jaldi mil raha hai, aur ye real user-facing win hai.</p>
+          <p><b>Par latency gayab nahi hui, sirf move ho gayi.</b> Ab aapko ek naya metric chahiye: <b>end-to-end completion time</b> — request se lekar side-effect complete hone tak. Agar email 4 minute baad jaa raha hai to aapne API latency ke badle user experience kharab kiya hai.</p>
+          <p><b>Track karo:</b> queue depth, consumer lag, aur event age at processing (p99). Ye teen metrics async system ka asli SLO hain.</p>
+          <p><b>Aur:</b> async se failure mode badal jaata hai — ab silent failure possible hai. DLQ, alerting on lag, aur idempotent consumers ke bina ye improvement nahi, risk hai.</p>
+          <div class="signal"><b>Signal:</b> "Latency move hoti hai, gayab nahi hoti" — ye line bolna. Aur async ke naye SLOs propose karna.</div>
+        </div>
+      </details>
+
+      <details class="qa" data-level="jr">
+        <summary>Aap p99 kaise measure karoge across 20 pods? Har pod ka p99 average kar sakte hain?<span class="qlvl">SDE-1/2</span></summary>
+        <div class="ans">
+          <p><b>Answer: Nahi.</b> Percentiles average nahi hote. Agar pod A ka p99 = 100ms aur pod B ka p99 = 900ms hai, to fleet ka p99 500ms <em>nahi</em> hai — wo traffic distribution par depend karta hai aur kuch bhi ho sakta hai.</p>
+          <p><b>Sahi tarika:</b> har pod raw <b>histogram buckets</b> export kare (Prometheus histogram). Buckets additive hote hain, isliye unhe fleet-wide sum karke <code>histogram_quantile()</code> se percentile nikala jata hai.</p>
+          <p><b>Iska cost:</b> bucket boundaries pehle se fix karni padti hain aur accuracy bucket resolution par depend karti hai. Iska ilaaj: apne SLO thresholds ko explicitly bucket boundary banao.</p>
+          <p>Alternative: t-digest / HDR histogram jaise mergeable sketches, jo zyada accurate hote hain par tooling support kam hai.</p>
+          <div class="signal"><b>Signal:</b> "Percentiles are not averageable" — ye ek chhota sa fact hai jo aapko turant serious candidate bana deta hai.</div>
+        </div>
+      </details>
+
+    </div>
+  </div>
+</section>
+
+<!-- ============================ ANIMATED ARCHITECTURE ============================ -->
+<section class="stage-band" id="anim">
+  <div class="wrap">
+    <div class="band-head">
+      <span class="kicker">04 · internal architecture, moving</span>
+      <h2>Dekh ke samjho — kaunsa hop user ka time kha raha hai</h2>
+      <p>Char views: save/update ka write path, read path with cache tiers, poora request lifecycle as a waterfall, aur tail latency ka asli behaviour. Red matlab user intezaar kar raha hai. Teal matlab user ja chuka hai.</p>
+    </div>
+
+    <div class="tabs" role="tablist" aria-label="Architecture views">
+      <button class="tabbtn" role="tab" aria-selected="true"  data-panel="pWrite">Write / save path</button>
+      <button class="tabbtn" role="tab" aria-selected="false" data-panel="pRead">Read path</button>
+      <button class="tabbtn" role="tab" aria-selected="false" data-panel="pLife">Request lifecycle</button>
+      <button class="tabbtn" role="tab" aria-selected="false" data-panel="pTail">p99 tail behaviour</button>
+    </div>
+
+    <div class="stage" id="stage">
+      <div class="stage-top">
+        <span id="stageCaption">order.place → commit → outbox → kafka → consumers</span>
+        <button class="ctrl" id="playToggle" aria-pressed="false">Pause motion</button>
+      </div>
+
+      <!-- ---------- PANEL A : WRITE PATH ---------- -->
+      <div class="panel" id="pWrite" role="tabpanel">
+        <svg viewBox="0 0 900 392" role="img" aria-label="Write path: client to gateway to order service to Postgres, then outbox to relay to Kafka to consumers">
+          <text class="sec-lbl" x="16" y="18">SYNCHRONOUS — user is waiting · budget 250 ms</text>
+          <text class="sec-lbl" x="16" y="150">ASYNCHRONOUS — 201 already returned · no user is waiting</text>
+
+          <!-- transaction boundary: order row and outbox row commit together -->
+          <rect x="426" y="22" width="168" height="200" rx="4" fill="none" stroke="#E4525F" stroke-width="1" stroke-dasharray="3 4" opacity=".6"/>
+          <text class="sec-lbl" x="426" y="240" fill="#E4525F">one ACID transaction — order row + outbox row</text>
+
+          <!-- wires -->
+          <path class="wire" d="M108 54 H140"/>
+          <path class="wire" d="M256 54 H280"/>
+          <path class="wire" d="M408 54 H440"/>
+          <path class="wire dash" d="M545 76 V168"/>
+          <path class="wire dash" d="M470 76 V104 H62 V76"/>
+          <path class="wire" d="M580 190 H620"/>
+          <path class="wire" d="M740 190 H770"/>
+          <path class="wire" d="M829 212 V266 H710 V290"/>
+          <path class="wire" d="M620 312 H590"/>
+          <path class="wire" d="M430 312 H400"/>
+
+          <!-- lane A: synchronous -->
+          <rect class="n-box sync" x="16"  y="32" width="92"  height="44" rx="3"/>
+          <text class="n-lbl" x="62"  y="52" text-anchor="middle">Client</text>
+          <text class="n-sub" x="62"  y="66" text-anchor="middle">POST /orders</text>
+
+          <rect class="n-box sync" x="140" y="32" width="116" height="44" rx="3"/>
+          <text class="n-lbl" x="198" y="52" text-anchor="middle">API gateway</text>
+          <text class="n-sub" x="198" y="66" text-anchor="middle">auth · deadline 400ms</text>
+
+          <rect class="n-box sync" x="280" y="32" width="128" height="44" rx="3"/>
+          <text class="n-lbl" x="344" y="52" text-anchor="middle">Order service</text>
+          <text class="n-sub" x="344" y="66" text-anchor="middle">idempotency check</text>
+
+          <rect class="n-box sync" x="440" y="32" width="140" height="44" rx="3"/>
+          <text class="n-lbl" x="510" y="52" text-anchor="middle">Postgres primary</text>
+          <text class="n-sub" x="510" y="66" text-anchor="middle">WAL fsync · ~9 ms</text>
+
+          <text class="n-sub" x="70" y="98" fill="#E4525F">201 Created — user is free from this point on</text>
+
+          <!-- lane B: outbox relay -->
+          <rect class="n-box async" x="440" y="168" width="140" height="44" rx="3"/>
+          <text class="n-lbl" x="510" y="188" text-anchor="middle">Outbox table</text>
+          <text class="n-sub" x="510" y="202" text-anchor="middle">no dual write</text>
+
+          <rect class="n-box async" x="620" y="168" width="120" height="44" rx="3"/>
+          <text class="n-lbl" x="680" y="188" text-anchor="middle">Relay</text>
+          <text class="n-sub" x="680" y="202" text-anchor="middle">SKIP LOCKED poll</text>
+
+          <rect class="n-box async" x="770" y="168" width="118" height="44" rx="3"/>
+          <text class="n-lbl" x="829" y="188" text-anchor="middle">Kafka</text>
+          <text class="n-sub" x="829" y="202" text-anchor="middle">key = orderId</text>
+
+          <!-- lane C: consumers -->
+          <rect class="n-box async" x="620" y="290" width="180" height="44" rx="3"/>
+          <text class="n-lbl" x="710" y="310" text-anchor="middle">Consumers</text>
+          <text class="n-sub" x="710" y="324" text-anchor="middle">dedupe on eventId</text>
+
+          <rect class="n-box async" x="430" y="290" width="160" height="44" rx="3"/>
+          <text class="n-lbl" x="510" y="310" text-anchor="middle">Redis invalidate</text>
+          <text class="n-sub" x="510" y="324" text-anchor="middle">delete, not update</text>
+
+          <rect class="n-box async" x="240" y="290" width="160" height="44" rx="3"/>
+          <text class="n-lbl" x="320" y="310" text-anchor="middle">Search index</text>
+          <text class="n-sub" x="320" y="324" text-anchor="middle">eventual, ~2 s</text>
+
+          <text class="sec-lbl" x="16" y="366">Async side ka apna SLO hota hai: queue depth, consumer lag, aur event age at processing (p99).</text>
+          <text class="sec-lbl" x="16" y="382">API p99 girna aadha kaam hai — baaki aadha in teen metrics par nazar rakhna hai.</text>
+
+          <!-- travelling dots -->
+          <g class="flow wp-sync"><circle r="6" fill="#E4525F"/><circle r="12" fill="#E4525F" opacity=".18"/></g>
+          <g class="flow wp-async"><circle r="6" fill="#2FBFA5"/><circle r="12" fill="#2FBFA5" opacity=".18"/></g>
+          <g class="flow wp-async2"><circle r="5" fill="#2FBFA5" opacity=".7"/></g>
+        </svg>
+        <div class="legend">
+          <span><i style="background:#E4525F"></i>user is blocked</span>
+          <span><i style="background:#2FBFA5"></i>user already left</span>
+          <span>sync p99 target 250 ms · async completes in ~2 s</span>
+        </div>
+      </div>
+
+      <!-- ---------- PANEL B : READ PATH ---------- -->
+      <div class="panel" id="pRead" role="tabpanel" hidden>
+        <svg viewBox="0 0 900 330" role="img" aria-label="Read path with CDN, load balancer, API, Redis cache and read replica">
+          <text class="sec-lbl" x="16" y="20">three tiers, three very different latencies</text>
+
+          <path class="wire" d="M108 60 H140"/><path class="wire" d="M256 60 H288"/>
+          <path class="wire" d="M392 60 H424"/><path class="wire" d="M536 60 H568"/>
+          <path class="wire dash" d="M634 82 V190"/>
+          <path class="wire dash" d="M700 212 H740"/>
+          <path class="wire dash" d="M634 92 V124 H62 V82"/>
+
+          <rect class="n-box" x="16"  y="38" width="92"  height="44" rx="3"/>
+          <text class="n-lbl" x="62"  y="58" text-anchor="middle">Client</text>
+          <text class="n-sub" x="62"  y="72" text-anchor="middle">GET /product/42</text>
+
+          <rect class="n-box" x="140" y="38" width="116" height="44" rx="3" stroke="#2FBFA5"/>
+          <text class="n-lbl" x="198" y="58" text-anchor="middle">CDN edge</text>
+          <text class="n-sub" x="198" y="72" text-anchor="middle">hit → ~15 ms, done</text>
+
+          <rect class="n-box" x="288" y="38" width="104" height="44" rx="3"/>
+          <text class="n-lbl" x="340" y="58" text-anchor="middle">Load balancer</text>
+          <text class="n-sub" x="340" y="72" text-anchor="middle">queue wait counts</text>
+
+          <rect class="n-box" x="424" y="38" width="112" height="44" rx="3"/>
+          <text class="n-lbl" x="480" y="58" text-anchor="middle">API pod</text>
+          <text class="n-sub" x="480" y="72" text-anchor="middle">bounded pool</text>
+
+          <rect class="n-box" x="568" y="38" width="132" height="44" rx="3" stroke="#2FBFA5"/>
+          <text class="n-lbl" x="634" y="58" text-anchor="middle">Redis</text>
+          <text class="n-sub" x="634" y="72" text-anchor="middle">hit → ~3 ms</text>
+
+          <rect class="n-box" x="568" y="190" width="132" height="44" rx="3" stroke="#E09A2B"/>
+          <text class="n-lbl" x="634" y="210" text-anchor="middle">Read replica</text>
+          <text class="n-sub" x="634" y="224" text-anchor="middle">miss → ~28 ms + lag</text>
+
+          <rect class="n-box" x="740" y="190" width="140" height="44" rx="3" stroke="#39586E" stroke-dasharray="3 4"/>
+          <text class="n-lbl" x="810" y="210" text-anchor="middle" fill="#7B95A8">Primary</text>
+          <text class="n-sub" x="810" y="224" text-anchor="middle">read-your-writes only</text>
+
+          <text class="n-sub" x="62" y="140" fill="#7B95A8">response path</text>
+
+          <text class="sec-lbl" x="62" y="176">end-to-end user latency, tier ke hisaab se</text>
+          <text class="n-sub" x="196" y="202" text-anchor="end">CDN hit</text>
+          <rect x="204" y="192" width="58"  height="12" rx="2" fill="#2FBFA5"/>
+          <text class="n-sub" x="270" y="202">15 ms · ~70% of traffic</text>
+          <text class="n-sub" x="196" y="228" text-anchor="end">Redis hit</text>
+          <rect x="204" y="218" width="162" height="12" rx="2" fill="#63C3C8"/>
+          <text class="n-sub" x="374" y="228">42 ms · ~28%</text>
+          <text class="n-sub" x="196" y="254" text-anchor="end">cache miss</text>
+          <rect x="204" y="244" width="300" height="12" rx="2" fill="#E09A2B"/>
+          <text class="n-sub" x="512" y="254">78 ms · ~2% — aur yahi p99 hai</text>
+
+          <text class="sec-lbl" x="16" y="278">Cache miss ratio hi aapka p99 hai. 98% hit + 2% miss = bimodal distribution,</text>
+          <text class="sec-lbl" x="16" y="294">jahan p99 poori tarah miss path se decide hota hai — hit path ko tune karna bekaar hai.</text>
+
+          <g class="flow rd-cdn"><circle r="5" fill="#2FBFA5"/></g>
+          <g class="flow rd-hit"><circle r="6" fill="#63C3C8"/><circle r="12" fill="#63C3C8" opacity=".16"/></g>
+          <g class="flow rd-miss"><circle r="6" fill="#E09A2B"/><circle r="12" fill="#E09A2B" opacity=".18"/></g>
+        </svg>
+        <div class="legend">
+          <span><i style="background:#2FBFA5"></i>CDN hit · 15 ms end-to-end</span>
+          <span><i style="background:#63C3C8"></i>Redis hit · 42 ms end-to-end</span>
+          <span><i style="background:#E09A2B"></i>cache miss · 78 ms end-to-end</span>
+        </div>
+      </div>
+
+      <!-- ---------- PANEL C : LIFECYCLE WATERFALL ---------- -->
+      <div class="panel" id="pLife" role="tabpanel" hidden>
+        <svg viewBox="0 0 900 360" id="lifeSvg" role="img" aria-label="Waterfall of where the milliseconds go in one request"></svg>
+        <div class="legend">
+          <span><i style="background:#E4525F"></i>network &amp; transport</span>
+          <span><i style="background:#E09A2B"></i>queueing &amp; waiting</span>
+          <span><i style="background:#63C3C8"></i>actual work</span>
+          <span>total 226 ms of a 400 ms budget</span>
+        </div>
+      </div>
+
+      <!-- ---------- PANEL D : TAIL ---------- -->
+      <div class="panel" id="pTail" role="tabpanel" hidden>
+        <svg viewBox="0 0 900 300" id="tailSvg" role="img" aria-label="Sorted latency distribution with p50, p90 and p99 markers"></svg>
+        <div class="fanctl">
+          <label for="fanRange">Ek page kitni services ko parallel call karta hai:</label>
+          <input type="range" id="fanRange" min="1" max="200" value="10" step="1">
+          <span class="fanout-out" id="fanN">n = 10</span>
+        </div>
+        <svg viewBox="0 0 900 96" id="fanSvg" role="img" aria-label="Probability that at least one downstream call is slow"></svg>
+        <div class="legend">
+          <span>har service ka p99 = 1% slow</span>
+          <span id="fanText">10 calls → 9.6% requests slow</span>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<footer class="foot">
+  <div class="wrap">
+    <p><b>Ek line mein poora page:</b> latency distribution hoti hai, throughput capacity hai, p99 aapka SLO hai, aur har fix ki ek keemat hai — interview mein wahi keemat naam lena aapko hire karata hai.</p>
+    <p style="margin-top:14px"><b>Revision order — round se ek raat pehle isi kram mein padho:</b></p>
+    <ol>
+      <li>Little's Law aur queueing curve</li>
+      <li>Percentiles kyun averageable nahi hain</li>
+      <li>Tail amplification ka formula</li>
+      <li>Coordinated omission</li>
+      <li>Timeout → deadline propagation</li>
+      <li>Retry budget aur circuit breaker</li>
+      <li>Bulkhead aur bounded queues</li>
+      <li>Cache stampede ke 4 fixes</li>
+      <li>Transactional outbox aur dual-write</li>
+      <li>Load shedding aur goodput</li>
+      <li>Hedged requests ki conditions</li>
+      <li>Latency budget top-down allocation</li>
+    </ol>
+  </div>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+  var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ---------- 1. hero latency histogram ---------- */
+  (function buildHeroHistogram() {
+    var host = document.getElementById("heroHist");
+    if (!host) return;
+    // right-skewed shape: dense left, long thin tail
+    var heights = [4,11,26,48,72,91,100,96,84,70,57,45,36,29,23,19,16,13,11,9,
+                   8,7,6,6,5,5,4,4,4,3,3,3,3,3,2,2,2,2,2,2,3,4,3,2,6,2];
+    heights.forEach(function (h, i) {
+      var bar = document.createElement("i");
+      if (i >= 38) bar.className = "tail";
+      if (i >= 44) bar.className = "far";
+      bar.style.height = Math.max(2, h) + "%";
+      bar.style.animationDelay = (i * 14) + "ms";
+      host.appendChild(bar);
+    });
+    [["p50", 22, ""], ["p99", 78, "p99"], ["p99.9", 94, "p999"]].forEach(function (m, i) {
+      var el = document.createElement("div");
+      el.className = "mark " + m[2];
+      el.style.left = m[1] + "%";
+      el.style.animationDelay = (700 + i * 180) + "ms";
+      el.innerHTML = "<span>" + m[0] + "</span>";
+      host.appendChild(el);
+    });
+  })();
+
+  /* ---------- 2. Q&A level filter ---------- */
+  (function wireLevelFilter() {
+    var buttons = document.querySelectorAll(".levelbtn");
+    var items = document.querySelectorAll("#qaList .qa");
+    buttons.forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var level = btn.getAttribute("data-level");
+        buttons.forEach(function (b) {
+          b.setAttribute("aria-pressed", String(b === btn));
+        });
+        items.forEach(function (item) {
+          item.hidden = !(level === "all" || item.getAttribute("data-level") === level);
+        });
+      });
+    });
+  })();
+
+  /* ---------- 3. animation tabs + play control ---------- */
+  (function wireStage() {
+    var stage = document.getElementById("stage");
+    var caption = document.getElementById("stageCaption");
+    var toggle = document.getElementById("playToggle");
+    var captions = {
+      pWrite: "order.place → commit → outbox → kafka → consumers",
+      pRead:  "GET /product → cdn → lb → api → redis → replica",
+      pLife:  "where the 226 ms actually go, hop by hop",
+      pTail:  "sorted latencies and what fan-out does to them"
+    };
+    document.querySelectorAll(".tabbtn").forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var target = btn.getAttribute("data-panel");
+        document.querySelectorAll(".tabbtn").forEach(function (b) {
+          b.setAttribute("aria-selected", String(b === btn));
+        });
+        document.querySelectorAll(".panel").forEach(function (p) {
+          p.hidden = p.id !== target;
+        });
+        caption.textContent = captions[target];
+      });
+    });
+    toggle.addEventListener("click", function () {
+      var paused = stage.classList.toggle("paused");
+      toggle.setAttribute("aria-pressed", String(paused));
+      toggle.textContent = paused ? "Resume motion" : "Pause motion";
+    });
+    if (reduce) {
+      stage.classList.add("paused");
+      toggle.textContent = "Resume motion";
+      toggle.setAttribute("aria-pressed", "true");
+    }
+  })();
+
+  /* ---------- 4. lifecycle waterfall ---------- */
+  (function buildLifecycleWaterfall() {
+    var svg = document.getElementById("lifeSvg");
+    if (!svg) return;
+    var NS = "http://www.w3.org/2000/svg";
+    var hops = [
+      ["DNS lookup",        12, "net"],
+      ["TCP + TLS setup",   48, "net"],
+      ["CDN edge miss",      6, "net"],
+      ["LB accept queue",    3, "wait"],
+      ["App thread wait",    9, "wait"],
+      ["Auth + validation",  4, "work"],
+      ["Cache lookup",       2, "work"],
+      ["DB query",          38, "work"],
+      ["Fan-out (4 calls)", 62, "work"],
+      ["Serialize JSON",     7, "work"],
+      ["Response transit",  35, "net"]
+    ];
+    var colors = { net: "#E4525F", wait: "#E09A2B", work: "#63C3C8" };
+    var x0 = 196, pxPerMs = 1.68, y = 40, step = 26, budget = 400;
+
+    function add(tag, attrs, text) {
+      var el = document.createElementNS(NS, tag);
+      for (var k in attrs) el.setAttribute(k, attrs[k]);
+      if (text != null) el.textContent = text;
+      svg.appendChild(el);
+      return el;
+    }
+
+    add("text", { x: 16, y: 20, class: "sec-lbl" }, "cumulative waterfall — har bar pichhle ke baad shuru hota hai");
+    add("line", { x1: x0 + budget * pxPerMs, y1: 30, x2: x0 + budget * pxPerMs, y2: y + hops.length * step,
+                  stroke: "#E4525F", "stroke-width": 1.2, "stroke-dasharray": "4 4", opacity: ".7" });
+    add("text", { x: x0 + budget * pxPerMs - 6, y: 26, class: "sec-lbl", "text-anchor": "end", fill: "#E4525F" },
+        "p99 budget 400 ms");
+
+    var cursor = 0;
+    hops.forEach(function (hop, i) {
+      var rowY = y + i * step;
+      add("text", { x: 180, y: rowY + 11, class: "n-sub", "text-anchor": "end", "font-size": "10.5" }, hop[0]);
+      add("rect", { x: x0, y: rowY, width: budget * pxPerMs, height: 14, fill: "#0B141C", opacity: ".55", rx: 2 });
+      var bar = add("rect", {
+        x: x0 + cursor * pxPerMs, y: rowY, width: Math.max(3, hop[1] * pxPerMs), height: 14,
+        rx: 2, fill: colors[hop[2]], class: "flow wf-bar"
+      });
+      bar.style.transformBox = "fill-box";
+      bar.style.transformOrigin = "0% 50%";
+      bar.style.animationDelay = (i * 0.24) + "s";
+      cursor += hop[1];
+      add("text", { x: x0 + cursor * pxPerMs + 7, y: rowY + 11, class: "n-sub", "font-size": "10" },
+          hop[1] + " ms");
+    });
+    add("text", { x: 180, y: y + hops.length * step + 16, class: "n-lbl", "text-anchor": "end" }, "total");
+    add("text", { x: x0 + 6, y: y + hops.length * step + 16, class: "n-lbl", fill: "#FFD79A" },
+        cursor + " ms  ·  174 ms of headroom left");
+  })();
+
+  /* ---------- 5. tail distribution + fan-out amplification ---------- */
+  (function buildTailPanel() {
+    var svg = document.getElementById("tailSvg");
+    if (!svg) return;
+    var NS = "http://www.w3.org/2000/svg";
+    function add(parent, tag, attrs, text) {
+      var el = document.createElementNS(NS, tag);
+      for (var k in attrs) el.setAttribute(k, attrs[k]);
+      if (text != null) el.textContent = text;
+      parent.appendChild(el);
+      return el;
+    }
+
+    var N = 100, baseY = 250, maxH = 200;
+    add(svg, "text", { x: 16, y: 20, class: "sec-lbl" },
+        "100 requests, latency ke hisaab se sorted — yahi wo shape hai jo average chhupa deta hai");
+
+    for (var i = 0; i < N; i++) {
+      // gentle curve for the body, sharp exponential tail
+      var frac = i / (N - 1);
+      var v = 0.10 + Math.pow(frac, 6) * 0.55 + Math.pow(frac, 30) * 0.9;
+      var h = Math.min(maxH, v * maxH);
+      var color = i >= 99 ? "#E4525F" : (i >= 90 ? "#E09A2B" : "#2C6E8F");
+      var bar = add(svg, "rect", {
+        x: 20 + i * 8.5, y: baseY - h, width: 6.4, height: h, rx: 1, fill: color, class: "flow tail-bar"
+      });
+      bar.style.transformBox = "fill-box";
+      bar.style.transformOrigin = "50% 100%";
+      bar.style.animationDelay = (i * 0.012) + "s";
+    }
+
+    [[50, "p50 · 24 ms"], [90, "p90 · 61 ms"], [99, "p99 · 940 ms"]].forEach(function (m) {
+      var x = 20 + m[0] * 8.5 + 3;
+      add(svg, "line", { x1: x, y1: 30, x2: x, y2: baseY + 6, stroke: "#D7E5EE",
+                         "stroke-width": 1, "stroke-dasharray": "3 4", opacity: ".55" });
+      var atEdge = m[0] >= 97;
+      add(svg, "text", {
+        x: atEdge ? x - 6 : x + 5, y: 44, class: "n-sub", "font-size": "10",
+        "text-anchor": atEdge ? "end" : "start"
+      }, m[1]);
+    });
+    add(svg, "line", { x1: 16, y1: baseY + 6, x2: 884, y2: baseY + 6, stroke: "#284A61" });
+    add(svg, "text", { x: 20, y: baseY + 26, class: "sec-lbl" },
+        "average = 47 ms — jo is chart mein kahin dikhta hi nahi");
+
+    /* fan-out amplification */
+    var fanSvg = document.getElementById("fanSvg");
+    var range = document.getElementById("fanRange");
+    var out = document.getElementById("fanN");
+    var text = document.getElementById("fanText");
+    var track = add(fanSvg, "rect", { x: 16, y: 30, width: 868, height: 26, rx: 3, fill: "#0B141C", stroke: "#284A61" });
+    var fill = add(fanSvg, "rect", { x: 17, y: 31, width: 0, height: 24, rx: 2, fill: "#E09A2B" });
+    var label = add(fanSvg, "text", { x: 16, y: 76, class: "sec-lbl" }, "");
+
+    function renderFanOut() {
+      var n = parseInt(range.value, 10);
+      var p = 1 - Math.pow(0.99, n);
+      fill.setAttribute("width", Math.max(1, p * 866));
+      fill.setAttribute("fill", p > 0.5 ? "#E4525F" : (p > 0.2 ? "#E09A2B" : "#2FBFA5"));
+      out.textContent = "n = " + n;
+      var pct = (p * 100).toFixed(1);
+      text.textContent = n + " calls → " + pct + "% requests slow";
+      label.textContent = "P(kam se kam ek call slow) = 1 − 0.99^" + n + " = " + pct +
+                          "%   ·   matlab aapke page ka p" + (100 - Math.min(99, Math.round(p * 100))) +
+                          " already SLO cross kar chuka hai";
+    }
+    range.addEventListener("input", renderFanOut);
+    renderFanOut();
+  })();
+})();
+</script>
+
+</body>
+</html>

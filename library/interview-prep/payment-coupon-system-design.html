@@ -1,0 +1,2203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Payment System with Coupons — HLD &amp; LLD</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#16233A;
+  --ink-2:#41526E;
+  --ink-3:#6B7B95;
+  --paper:#EDF0F4;
+  --panel:#FFFFFF;
+  --rule:#C6D2E0;
+  --rule-soft:#DFE6EE;
+  --settled:#0B6E4F;
+  --pending:#A8690B;
+  --failed:#A32B22;
+  --stamp:#2748B8;
+  --debit:#8C3A2E;
+  --credit:#0B6E4F;
+  --code-bg:#111C2E;
+  --code-fg:#D6DFEC;
+  --maxw:1180px;
+}
+
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;
+  background:var(--paper);
+  color:var(--ink);
+  font-family:"Archivo","Helvetica Neue",Arial,sans-serif;
+  font-size:16.5px;
+  line-height:1.62;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4{margin:0;letter-spacing:-0.021em;font-weight:600;line-height:1.18}
+p{margin:0 0 0.85em}
+p:last-child{margin-bottom:0}
+a{color:var(--stamp)}
+code,kbd{font-family:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace}
+
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 22px}
+
+/* ---------- top bar ---------- */
+.topbar{
+  position:sticky;top:0;z-index:60;
+  background:rgba(237,240,244,.92);
+  backdrop-filter:saturate(1.4) blur(9px);
+  border-bottom:1px solid var(--rule);
+}
+.topbar-in{
+  max-width:var(--maxw);margin:0 auto;padding:9px 22px;
+  display:flex;align-items:center;gap:16px;
+}
+.mark{
+  font-family:"IBM Plex Mono",monospace;font-size:12.5px;font-weight:600;
+  color:var(--ink);white-space:nowrap;letter-spacing:-.02em;
+}
+.mark b{color:var(--stamp);font-weight:600}
+.jump{
+  display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;margin-left:auto;
+}
+.jump::-webkit-scrollbar{display:none}
+.jump a{
+  font-size:12.5px;color:var(--ink-2);text-decoration:none;
+  padding:4px 9px;border-radius:5px;white-space:nowrap;
+}
+.jump a:hover,.jump a:focus-visible{background:var(--panel);color:var(--ink)}
+
+/* ---------- hero ---------- */
+.hero{
+  background:var(--ink);
+  color:#E8EDF4;
+  padding:58px 0 52px;
+  background-image:repeating-linear-gradient(to bottom,transparent 0 33px,rgba(198,210,224,.075) 33px 34px);
+}
+.hero h1{
+  font-size:clamp(31px,6.2vw,60px);font-weight:700;color:#fff;
+  letter-spacing:-.035em;max-width:16ch;
+}
+.hero .sub{
+  margin-top:16px;max-width:58ch;color:#AEBCD1;font-size:clamp(15px,3.4vw,18px);
+}
+.hero .sub em{font-style:normal;color:#fff;font-weight:500}
+.chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:22px}
+.chip{
+  font-family:"IBM Plex Mono",monospace;font-size:11.5px;
+  border:1px solid rgba(198,210,224,.32);color:#C3D0E2;
+  padding:4px 9px;border-radius:20px;
+}
+
+/* live transaction strip (hero anchor) */
+.txn{
+  margin-top:34px;border:1px solid rgba(198,210,224,.26);
+  border-radius:10px;overflow:hidden;background:rgba(255,255,255,.035);
+}
+.txn-top{
+  display:flex;flex-wrap:wrap;gap:12px;align-items:baseline;
+  padding:13px 16px;border-bottom:1px solid rgba(198,210,224,.2);
+}
+.txn-id{font-family:"IBM Plex Mono",monospace;font-size:12px;color:#8FA2BC}
+.txn-amt{
+  font-family:"IBM Plex Mono",monospace;font-weight:600;
+  font-size:clamp(20px,5vw,27px);color:#fff;margin-left:auto;
+  font-variant-numeric:tabular-nums;
+}
+.txn-amt .strike{color:#7E90AC;text-decoration:line-through;font-size:.66em;margin-right:9px;font-weight:400}
+.txn-rail{display:flex;padding:15px 16px 17px;gap:6px}
+.rail-step{flex:1;min-width:0}
+.rail-bar{height:3px;border-radius:2px;background:rgba(198,210,224,.2);overflow:hidden}
+.rail-bar i{display:block;height:100%;width:0;background:#5EE0AE;transition:width .5s linear}
+.rail-step.on .rail-bar i{width:100%}
+.rail-lbl{
+  font-family:"IBM Plex Mono",monospace;font-size:10.5px;margin-top:7px;
+  color:#7E90AC;letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.rail-step.on .rail-lbl{color:#8FEFC6}
+
+/* ---------- section shell ---------- */
+.topic{padding:44px 0 8px;border-top:1px solid var(--rule);margin-top:34px}
+.topic:first-of-type{border-top:none}
+.topic-head{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.entry{
+  font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-3);
+  font-weight:500;padding-top:4px;
+}
+.topic-head h2{font-size:clamp(22px,4.6vw,31px);flex:1 1 240px}
+.tier{
+  font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:500;
+  border:1px solid var(--rule);border-radius:4px;padding:2px 7px;color:var(--ink-2);
+  background:var(--panel);
+}
+.tier.lld{border-color:#B9C6E8;color:var(--stamp)}
+.deck{color:var(--ink-2);max-width:72ch;margin-bottom:22px;font-size:16px}
+
+/* ---------- the ledger split ---------- */
+.ledger{
+  display:grid;grid-template-columns:1fr 1px 1.12fr;gap:0;
+  background:var(--panel);border:1px solid var(--rule);border-radius:10px;overflow:hidden;
+}
+.gutter{background:var(--rule)}
+.col{padding:22px 24px 26px;min-width:0}
+.col-tag{
+  display:inline-flex;align-items:center;gap:7px;
+  font-family:"IBM Plex Mono",monospace;font-size:11.5px;font-weight:500;
+  margin-bottom:12px;
+}
+.col-tag::before{content:"";width:9px;height:9px;border-radius:2px}
+.problem{background:#FCF7F5}
+.problem .col-tag{color:var(--debit)}
+.problem .col-tag::before{background:var(--debit)}
+.solution .col-tag{color:var(--credit)}
+.solution .col-tag::before{background:var(--credit)}
+.col h3{font-size:17.5px;margin:20px 0 8px;font-weight:600}
+.col h3:first-of-type{margin-top:14px}
+.col p,.col li{font-size:15.6px}
+.col ul{margin:0 0 12px;padding-left:19px}
+.col li{margin-bottom:5px}
+.col li::marker{color:var(--ink-3)}
+
+/* failure box inside problem col */
+.fail{
+  border-left:3px solid var(--debit);background:#F7E9E5;
+  padding:11px 14px;border-radius:0 6px 6px 0;margin:14px 0;font-size:14.8px;
+}
+.fail b{color:var(--debit)}
+.note{
+  border-left:3px solid var(--stamp);background:#EEF2FD;
+  padding:11px 14px;border-radius:0 6px 6px 0;margin:14px 0;font-size:14.8px;
+}
+.note b{color:var(--stamp)}
+
+/* inline emphasis helpers */
+.hin{color:var(--ink-2)}
+.term{font-family:"IBM Plex Mono",monospace;font-size:.9em;background:#E7ECF3;padding:1px 5px;border-radius:4px;color:var(--ink)}
+.problem .term{background:#F0DFDA}
+
+/* small data table */
+.tbl{width:100%;border-collapse:collapse;margin:12px 0 16px;font-size:14.5px}
+.tbl th,.tbl td{text-align:left;padding:7px 10px;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+.tbl th{font-weight:600;font-size:12.5px;color:var(--ink-2);border-bottom:1px solid var(--rule)}
+.tbl td:first-child{font-family:"IBM Plex Mono",monospace;font-size:13px;white-space:nowrap}
+.tbl tr:last-child td{border-bottom:none}
+
+/* ---------- code ---------- */
+.codewrap{margin:16px 0 6px;border-radius:9px;overflow:hidden;border:1px solid #24334B}
+.code-head{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  background:#0B1524;padding:8px 13px;border-bottom:1px solid #24334B;
+}
+.code-file{font-family:"IBM Plex Mono",monospace;font-size:12px;color:#9FD4FF;font-weight:500}
+.code-meta{font-family:"IBM Plex Mono",monospace;font-size:11px;color:#63769A;margin-left:auto}
+ol.code{
+  margin:0;padding:12px 0;background:var(--code-bg);list-style:none;counter-reset:cl;
+  overflow-x:auto;font-family:"IBM Plex Mono",monospace;font-size:12.9px;line-height:1.72;
+}
+ol.code li{counter-increment:cl;display:flex;padding:0 14px 0 0;min-width:max-content}
+ol.code li::before{
+  content:counter(cl);width:38px;flex:none;text-align:right;padding-right:13px;
+  color:#4A5B78;user-select:none;font-size:11.5px;
+}
+ol.code li>code{white-space:pre;color:var(--code-fg)}
+ol.code li.hl{background:rgba(95,140,255,.14)}
+ol.code li.hl::before{color:#8FB0FF}
+.tok-k{color:#FF9BC4}
+.tok-a{color:#F0C46B}
+.tok-s{color:#8FE3B0}
+.tok-c{color:#657B9E;font-style:italic}
+.tok-t{color:#7FD4FF}
+.tok-n{color:#E0A876}
+
+/* line-by-line explainer */
+.lines{margin:14px 0 4px;padding:0;list-style:none;counter-reset:none}
+.lines li{
+  display:grid;grid-template-columns:58px 1fr;gap:12px;
+  padding:7px 0;border-bottom:1px dashed var(--rule-soft);font-size:14.6px;
+}
+.lines li:last-child{border-bottom:none}
+.lines .lno{
+  font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:var(--stamp);
+  font-weight:500;padding-top:3px;
+}
+.naming{
+  background:#F3F6FA;border:1px dashed var(--rule);border-radius:7px;
+  padding:12px 14px;margin:16px 0 4px;font-size:14.6px;
+}
+.naming h4{font-size:13px;margin-bottom:7px;color:var(--ink-2);font-weight:600}
+.naming table{width:100%;border-collapse:collapse;font-size:13.4px}
+.naming td{padding:3px 0;vertical-align:top}
+.naming td:first-child{font-family:"IBM Plex Mono",monospace;width:47%;padding-right:12px;color:var(--credit)}
+.naming td.bad{color:var(--debit);text-decoration:line-through}
+
+/* svg diagram */
+.diagram{background:var(--panel);border:1px solid var(--rule);border-radius:10px;padding:16px;margin:18px 0 6px;overflow-x:auto}
+.diagram svg{display:block;min-width:660px;width:100%;height:auto}
+
+/* ---------- mock questions ---------- */
+.qa{padding:52px 0 20px;border-top:3px double var(--rule);margin-top:44px}
+.qa-list{display:grid;gap:9px;margin-top:22px}
+details.q{
+  background:var(--panel);border:1px solid var(--rule);border-radius:9px;overflow:hidden;
+}
+details.q[open]{border-color:var(--stamp)}
+details.q summary{
+  cursor:pointer;list-style:none;padding:14px 17px;font-weight:500;font-size:16px;
+  display:flex;gap:12px;align-items:flex-start;
+}
+details.q summary::-webkit-details-marker{display:none}
+details.q summary::after{
+  content:"+";margin-left:auto;font-family:"IBM Plex Mono",monospace;
+  color:var(--stamp);font-size:19px;line-height:1;flex:none;padding-top:2px;
+}
+details.q[open] summary::after{content:"\2212"}
+.qn{
+  font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-3);
+  flex:none;padding-top:3px;
+}
+.ans{padding:0 17px 17px 46px;font-size:15.4px;color:var(--ink-2);border-top:1px solid var(--rule-soft);padding-top:14px;margin-top:2px}
+.ans strong{color:var(--ink)}
+.ans ul{padding-left:18px;margin:8px 0}
+
+/* ---------- booking finale ---------- */
+.finale{
+  background:var(--ink);color:#E8EDF4;margin-top:56px;padding:56px 0 64px;min-height:100vh;
+  display:flex;align-items:center;
+  background-image:repeating-linear-gradient(to bottom,transparent 0 33px,rgba(198,210,224,.06) 33px 34px);
+}
+.finale h2{color:#fff;font-size:clamp(24px,5.2vw,38px)}
+.finale .deck{color:#A9B8CE}
+.controls{display:flex;flex-wrap:wrap;gap:9px;margin:20px 0 30px}
+.btn{
+  font-family:"Archivo",sans-serif;font-size:14.5px;font-weight:500;cursor:pointer;
+  border-radius:7px;padding:9px 17px;border:1px solid rgba(198,210,224,.34);
+  background:transparent;color:#D5E0EE;transition:background .16s,border-color .16s;
+}
+.btn:hover{background:rgba(255,255,255,.07)}
+.btn.primary{background:#5EE0AE;border-color:#5EE0AE;color:#062D20;font-weight:600}
+.btn.primary:hover{background:#7BE9BF}
+.btn:focus-visible,a:focus-visible,summary:focus-visible{outline:2px solid #7FB3FF;outline-offset:2px}
+
+.stage{display:grid;grid-template-columns:1fr 340px;gap:26px;align-items:start}
+.flowbox{
+  border:1px solid rgba(198,210,224,.22);border-radius:12px;padding:22px 22px 26px;
+  background:rgba(255,255,255,.035);
+}
+.flow-title{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:#8398B6;margin-bottom:18px}
+
+/* stepper */
+.stepper{display:flex;flex-direction:column;gap:0}
+.step{display:grid;grid-template-columns:26px 1fr;gap:14px;align-items:start}
+.step-rail{display:flex;flex-direction:column;align-items:center;height:100%}
+.dot{
+  width:19px;height:19px;border-radius:50%;border:2px solid rgba(198,210,224,.3);
+  flex:none;display:grid;place-items:center;font-size:10px;color:transparent;
+  transition:border-color .3s,background .3s,color .3s;background:var(--ink);
+}
+.line{width:2px;flex:1;min-height:26px;background:rgba(198,210,224,.2);position:relative}
+.line i{position:absolute;inset:0 auto 0 0;width:100%;height:0;background:#5EE0AE;transition:height .45s ease}
+.step.done .dot{border-color:#5EE0AE;background:#5EE0AE;color:#062D20}
+.step.done .line i{height:100%}
+.step.active .dot{border-color:#F0C46B;box-shadow:0 0 0 5px rgba(240,196,107,.16)}
+.step.err .dot{border-color:#FF8A7A;background:#FF8A7A;color:#3A0D07}
+.step.err .line i{background:#FF8A7A;height:100%}
+.step-body{padding-bottom:20px}
+.step-t{font-size:15.5px;font-weight:500;color:#C7D4E4;transition:color .3s}
+.step.done .step-t,.step.active .step-t{color:#fff}
+.step-d{font-family:"IBM Plex Mono",monospace;font-size:11.5px;color:#7A8CA9;margin-top:3px;min-height:1.4em}
+.step.done .step-d{color:#8FEFC6}
+.step.err .step-d{color:#FFB0A4}
+
+/* state chips */
+.states{display:flex;flex-wrap:wrap;gap:7px;margin-top:6px}
+.state{
+  font-family:"IBM Plex Mono",monospace;font-size:11.5px;padding:5px 11px;border-radius:20px;
+  border:1px solid rgba(198,210,224,.24);color:#7A8CA9;transition:all .3s;
+}
+.state.on{border-color:currentColor}
+.state.on.s-pending{color:#F0C46B;background:rgba(240,196,107,.13)}
+.state.on.s-success{color:#5EE0AE;background:rgba(94,224,174,.13)}
+.state.on.s-failed{color:#FF8A7A;background:rgba(255,138,122,.13)}
+.state.on.s-refund{color:#9FC2FF;background:rgba(159,194,255,.13)}
+
+/* ticket */
+.ticket{
+  background:#FBFCFD;color:var(--ink);border-radius:12px;overflow:hidden;
+  opacity:0;transform:translateY(14px) scale(.985);
+  transition:opacity .5s ease,transform .5s cubic-bezier(.22,1,.36,1);
+  box-shadow:0 18px 44px rgba(0,0,0,.4);
+}
+.ticket.show{opacity:1;transform:none}
+.ticket.void{filter:grayscale(.85)}
+.t-top{padding:17px 19px 15px;border-bottom:2px dashed var(--rule)}
+.t-status{
+  font-family:"IBM Plex Mono",monospace;font-size:11px;font-weight:600;
+  padding:3px 9px;border-radius:4px;display:inline-block;margin-bottom:11px;
+}
+.t-status.ok{background:#DCF3E8;color:var(--settled)}
+.t-status.bad{background:#F8E2DF;color:var(--failed)}
+.t-status.ref{background:#E4ECFC;color:var(--stamp)}
+.t-movie{font-size:19px;font-weight:600;letter-spacing:-.02em}
+.t-meta{font-size:13.4px;color:var(--ink-2);margin-top:3px}
+.t-notch{position:relative;height:0}
+.t-notch::before,.t-notch::after{
+  content:"";position:absolute;top:-11px;width:22px;height:22px;border-radius:50%;background:var(--ink);
+}
+.t-notch::before{left:-11px}
+.t-notch::after{right:-11px}
+.t-rows{padding:15px 19px}
+.t-row{display:flex;justify-content:space-between;gap:14px;font-size:14px;padding:4px 0}
+.t-row .lbl{color:var(--ink-2)}
+.t-row .val{font-family:"IBM Plex Mono",monospace;font-variant-numeric:tabular-nums}
+.t-row.disc .val{color:var(--settled)}
+.t-row.total{border-top:1px solid var(--rule);margin-top:8px;padding-top:10px;font-weight:600;font-size:16px}
+.t-foot{
+  padding:13px 19px 17px;border-top:1px dashed var(--rule);
+  display:flex;align-items:center;gap:13px;
+}
+.barcode{display:flex;gap:2px;height:34px;flex:1;align-items:stretch}
+.barcode i{background:var(--ink);border-radius:1px;opacity:.85}
+.t-pnr{font-family:"IBM Plex Mono",monospace;font-size:12px;color:var(--ink-2);text-align:right;line-height:1.3}
+.t-pnr b{display:block;color:var(--ink);font-size:14px;letter-spacing:.04em}
+
+.logline{
+  margin-top:20px;background:#0B1524;border:1px solid #22314A;border-radius:9px;
+  padding:12px 14px;font-family:"IBM Plex Mono",monospace;font-size:11.8px;
+  color:#8FA6C4;max-height:168px;overflow-y:auto;line-height:1.75;
+}
+.logline div{opacity:0;animation:logIn .3s forwards}
+@keyframes logIn{to{opacity:1}}
+.logline .ok{color:#6FE3B4}
+.logline .warn{color:#F0C46B}
+.logline .bad{color:#FF9585}
+
+footer{padding:26px 0 40px;color:var(--ink-3);font-size:13.6px;border-top:1px solid var(--rule)}
+
+@media (max-width:900px){
+  .ledger{grid-template-columns:1fr}
+  .gutter{height:1px;width:auto}
+  .stage{grid-template-columns:1fr}
+  .col{padding:19px 17px 22px}
+  .hero{padding:40px 0 38px}
+  .txn-rail{flex-wrap:wrap;gap:9px}
+  .rail-step{flex:1 1 44%}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms !important;transition-duration:.01ms !important}
+}
+</style>
+</head>
+<body>
+<div id="sdh-libbar" style="position:relative;z-index:2147483000;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0;padding:8px 16px;background:#0f172a;color:#cbd5e1;font:600 13px/1.5 Inter,'Segoe UI',system-ui,-apple-system,sans-serif;border-bottom:2px solid #4f46e5;box-sizing:border-box;width:100%;text-align:left;letter-spacing:0"><a href="../../index.html" style="color:#fff;text-decoration:none;font-weight:800">SystemDesign<span style="color:#8b8cff">.hinglish</span></a><span style="opacity:.45">/</span><a href="../index.html" style="color:#fff;text-decoration:none">📚 Library</a><span style="opacity:.45">/</span><a href="../index.html#interview-prep" style="color:#cbd5e1;text-decoration:none">Payments &amp; Interview Prep</a><a href="../files/payment-coupon-system-design-original.html" download style="color:#a5b4fc;text-decoration:none;font-size:12px">⬇ Original</a><span style="margin-left:auto;font-size:11px;padding:2px 9px;border-radius:999px;border:1px solid #6366f1;color:#c7d2fe">📘 HTML ebook</span></div>
+
+<div class="topbar">
+  <div class="topbar-in">
+    <span class="mark">payments<b>/</b>coupons — HLD + LLD</span>
+    <nav class="jump">
+      <a href="#t1">Scope</a><a href="#t2">Architecture</a><a href="#t3">States</a>
+      <a href="#t4">Idempotency</a><a href="#t5">Coupon model</a><a href="#t6">Race</a>
+      <a href="#t7">Saga</a><a href="#t8">Webhook</a><a href="#t9">Refund</a>
+      <a href="#t10">Data</a><a href="#mock">Mock Q&amp;A</a><a href="#finale">Booking demo</a>
+    </nav>
+  </div>
+</div>
+
+<header class="hero">
+  <div class="wrap">
+    <h1>Payment system with coupons, taken apart</h1>
+    <p class="sub">Har topic do hisson mein: <em>left mein problem</em> jo production ya interview mein actually todti hai, <em>right mein solution</em> — architecture, Java code, aur line-by-line explanation. Beginner se SDE-3 tak, ek hi page mein.</p>
+    <div class="chips">
+      <span class="chip">Java 17</span><span class="chip">Spring Boot 3</span>
+      <span class="chip">Postgres + Redis</span><span class="chip">Kafka</span>
+      <span class="chip">10 topics</span><span class="chip">14 mock questions</span>
+    </div>
+
+    <div class="txn" id="txn">
+      <div class="txn-top">
+        <span class="txn-id">pay_9QK2LxA7f · order_BK4471 · <span id="txnState">CREATED</span></span>
+        <span class="txn-amt"><span class="strike" id="txnOld">₹1,200</span><span id="txnNew">₹1,200</span></span>
+      </div>
+      <div class="txn-rail">
+        <div class="rail-step" data-s="0"><div class="rail-bar"><i></i></div><div class="rail-lbl">CREATED</div></div>
+        <div class="rail-step" data-s="1"><div class="rail-bar"><i></i></div><div class="rail-lbl">COUPON_APPLIED</div></div>
+        <div class="rail-step" data-s="2"><div class="rail-bar"><i></i></div><div class="rail-lbl">AUTHORIZED</div></div>
+        <div class="rail-step" data-s="3"><div class="rail-bar"><i></i></div><div class="rail-lbl">CAPTURED</div></div>
+        <div class="rail-step" data-s="4"><div class="rail-bar"><i></i></div><div class="rail-lbl">SETTLED</div></div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+
+<!-- ================= TOPIC 1 ================= -->
+<section class="topic" id="t1">
+  <div class="topic-head">
+    <span class="entry">Entry 01</span>
+    <h2>Scope, requirements aur scale</h2>
+    <span class="tier">HLD</span>
+  </div>
+  <p class="deck">Har design ka pehla step numbers hain, boxes nahi. Agar aapko TPS nahi pata, toh aap ye decide hi nahi kar sakte ki Redis chahiye ya nahi.</p>
+
+  <div class="ledger">
+    <div class="col problem">
+      <span class="col-tag">Problem</span>
+      <h3>Seedha schema likhne lag jaana</h3>
+      <p>Interviewer bola "design a payment system with coupons" aur aapne turant <span class="term">CREATE TABLE payments</span> shuru kar diya. Ab 20 minute baad aapko pata chalta hai ki requirement clear hi nahi thi.</p>
+      <ul>
+        <li>Kya hum khud card process kar rahe hain, ya Razorpay/Stripe jaisa PSP use kar rahe hain? <span class="hin">(Ye ek sawaal poora PCI-DSS scope badal deta hai.)</span></li>
+        <li>Coupon ek user ek baar use kar sakta hai, ya global limit hai? Dono ke lock strategy alag hain.</li>
+        <li>Peak traffic kitna? IPL ticket drop ya normal Tuesday?</li>
+        <li>Money loss acceptable hai ya zero-loss guarantee chahiye?</li>
+      </ul>
+      <div class="fail">
+        <b>Real failure:</b> Ek team ne coupon limit ko in-memory counter se handle kiya. 3 pods the. Limit thi 1,000. Actual redemptions: 2,940. Har pod apna hi count rakh raha tha. Loss ≈ ₹19 lakh.
+      </div>
+    </div>
+
+    <div class="gutter"></div>
+
+    <div class="col solution">
+      <span class="col-tag">Solution</span>
+      <h3>Pehle requirements likho, phir box banao</h3>
+      <p><strong>Functional (kya karega):</strong> order banana, coupon validate + apply karna, PSP se payment collect karna, booking confirm karna, refund dena, ledger maintain karna, coupon redemption track karna.</p>
+      <p><strong>Non-functional (kaise karega):</strong> ye asli design drive karta hai.</p>
+      <table class="tbl">
+        <tr><th>Requirement</th><th>Target</th><th>Design pe asar / impact</th></tr>
+        <tr><td>Correctness</td><td>Zero double-charge</td><td>Idempotency keys + unique constraints</td></tr>
+        <tr><td>Availability</td><td>99.99%</td><td>PSP failover, async capture</td></tr>
+        <tr><td>Latency p99</td><td>&lt; 400 ms (PSP call chhod ke)</td><td>Coupon validation Redis se</td></tr>
+        <tr><td>Consistency</td><td>Money: strong<br>Booking: eventual</td><td>Saga + outbox, 2PC nahi</td></tr>
+        <tr><td>Auditability</td><td>7 saal retention</td><td>Append-only double-entry ledger</td></tr>
+      </table>
+
+      <h3>Back-of-the-envelope</h3>
+      <ul>
+        <li>5M bookings/day → <span class="term">5,000,000 / 86,400 ≈ 58 TPS</span> average.</li>
+        <li>Peak = 10× average → <span class="term">~600 TPS</span>. Flash sale spike = 40× → <span class="term">~2,300 TPS</span> for 90 seconds.</li>
+        <li>Payment row ≈ 800 bytes → <span class="term">4 GB/day</span>, ledger entries 2× → <span class="term">~12 GB/day</span> total. 7 saal ≈ 30 TB → partitioning zaroori.</li>
+        <li>Coupon validate call payment se 4× zyada hoti hai (log check karte hain, pay nahi karte) → <span class="term">~2,400 TPS</span> read → cache layer chahiye.</li>
+      </ul>
+      <div class="note">
+        <b>Interview tip:</b> Ye numbers bolne se hi aap "junior" bracket se bahar nikal jaate ho. 600 TPS bolna aur phir "isliye single Postgres primary chal jayega, sharding abhi nahi chahiye" bolna — yahi seniority dikhati hai.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= TOPIC 2 ================= -->
+<section class="topic" id="t2">
+  <div class="topic-head">
+    <span class="entry">Entry 02</span>
+    <h2>High-level architecture</h2>
+    <span class="tier">HLD</span>
+  </div>
+  <p class="deck">Services ko is tarah kaato ki failure ek jagah rahe. Payment ka blast radius booking tak nahi pahunchna chahiye.</p>
+
+  <div class="ledger">
+    <div class="col problem">
+      <span class="col-tag">Problem</span>
+      <h3>Ek hi transaction mein sab kuch</h3>
+      <p>Common beginner design — Booking Service directly sab karta hai:</p>
+      <div class="codewrap">
+        <div class="code-head"><span class="code-file">BookingService.java</span><span class="code-meta">anti-pattern</span></div>
+        <ol class="code">
+          <li><code>@Transactional                     // ← poison</code></li>
+          <li><code>public Booking createBooking(BookingRequest req) {</code></li>
+          <li><code>    seatRepository.lockSeats(req.getSeatIds());</code></li>
+          <li><code>    couponRepository.decrementUsageCount(req.getCouponCode());</code></li>
+          <li><code>    RazorpayResponse r = razorpayClient.charge(req);  // 8 sec!</code></li>
+          <li><code>    return bookingRepository.save(toBooking(req, r));</code></li>
+          <li><code>}</code></li>
+        </ol>
+      </div>
+      <div class="fail">
+        <b>Kya toota:</b> Line 5 ek network call hai jo 8 second le sakti hai. Tab tak line 3 ka DB row-lock hold hai. 600 TPS pe connection pool 30 second mein khatam. Poora booking system down — sirf isliye ki Razorpay slow tha.
+        <br><br>Aur agar line 5 timeout ho gaya toh transaction rollback hoga — coupon count wapas aa jayega, lekin Razorpay ne paisa <b>le liya</b> hoga. Ab DB kehta hai "no payment", bank kehta hai "payment done". Ye <b>money leak</b> hai.
+      </div>
+    </div>
+
+    <div class="gutter"></div>
+
+    <div class="col solution">
+      <span class="col-tag">Solution</span>
+      <h3>Orchestrated services + async boundaries</h3>
+      <p>Rule: <strong>external network call kabhi bhi DB transaction ke andar nahi</strong>. Har external call ke aage ek state persist karo, phir call karo.</p>
+
+      <div class="diagram">
+        <svg viewBox="0 0 900 400" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Payment system architecture diagram">
+          <defs>
+            <marker id="ar" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto">
+              <path d="M0,0 L8,4 L0,8 z" fill="#41526E"/>
+            </marker>
+            <style>
+              .bx{fill:#F4F7FA;stroke:#C6D2E0;stroke-width:1.2;rx:7}
+              .bxc{fill:#EEF2FD;stroke:#B9C6E8}
+              .bxm{fill:#FCF7F5;stroke:#E2C6BE}
+              .tl{font:600 12.5px Archivo,sans-serif;fill:#16233A}
+              .ts{font:400 10.5px 'IBM Plex Mono',monospace;fill:#6B7B95}
+              .fl{font:500 10px 'IBM Plex Mono',monospace;fill:#41526E}
+              .ln{stroke:#41526E;stroke-width:1.3;fill:none;marker-end:url(#ar)}
+              .dash{stroke-dasharray:5 4}
+            </style>
+          </defs>
+
+          <rect class="bx" x="10" y="20" width="120" height="52"/>
+          <text class="tl" x="70" y="42" text-anchor="middle">Client</text>
+          <text class="ts" x="70" y="58" text-anchor="middle">app / web</text>
+
+          <rect class="bx" x="10" y="110" width="120" height="52"/>
+          <text class="tl" x="70" y="132" text-anchor="middle">API Gateway</text>
+          <text class="ts" x="70" y="148" text-anchor="middle">authn · rate-limit</text>
+
+          <rect class="bx" x="185" y="20" width="150" height="60"/>
+          <text class="tl" x="260" y="44" text-anchor="middle">Booking Service</text>
+          <text class="ts" x="260" y="60" text-anchor="middle">seat hold · saga</text>
+
+          <rect class="bx bxc" x="185" y="115" width="150" height="60"/>
+          <text class="tl" x="260" y="139" text-anchor="middle">Coupon Service</text>
+          <text class="ts" x="260" y="155" text-anchor="middle">validate · reserve</text>
+
+          <rect class="bx" x="185" y="210" width="150" height="60"/>
+          <text class="tl" x="260" y="234" text-anchor="middle">Payment</text>
+          <text class="ts" x="260" y="250" text-anchor="middle">orchestrator</text>
+
+          <rect class="bx bxm" x="185" y="305" width="150" height="60"/>
+          <text class="tl" x="260" y="329" text-anchor="middle">Ledger Service</text>
+          <text class="ts" x="260" y="345" text-anchor="middle">double-entry</text>
+
+          <rect x="400" y="20" width="60" height="345" rx="7" fill="#16233A"/>
+          <text class="tl" x="430" y="185" text-anchor="middle" fill="#fff" transform="rotate(-90 430 185)">Kafka</text>
+          <text class="ts" x="430" y="290" text-anchor="middle" fill="#8FA2BC" transform="rotate(-90 430 290)">outbox topics</text>
+
+          <rect class="bx" x="520" y="20" width="155" height="58"/>
+          <text class="tl" x="597" y="43" text-anchor="middle">PSP Adapter</text>
+          <text class="ts" x="597" y="59" text-anchor="middle">Razorpay · Stripe</text>
+
+          <rect class="bx" x="520" y="110" width="155" height="58"/>
+          <text class="tl" x="597" y="133" text-anchor="middle">Webhook Ingest</text>
+          <text class="ts" x="597" y="149" text-anchor="middle">HMAC verify · dedupe</text>
+
+          <rect class="bx" x="520" y="200" width="155" height="58"/>
+          <text class="tl" x="597" y="223" text-anchor="middle">Recon Worker</text>
+          <text class="ts" x="597" y="239" text-anchor="middle">T+1 3-way match</text>
+
+          <rect class="bx" x="520" y="290" width="155" height="58"/>
+          <text class="tl" x="597" y="313" text-anchor="middle">Notifier</text>
+          <text class="ts" x="597" y="329" text-anchor="middle">sms · email · push</text>
+
+          <rect class="bx" x="730" y="20" width="150" height="58"/>
+          <text class="tl" x="805" y="43" text-anchor="middle">PSP / Bank</text>
+          <text class="ts" x="805" y="59" text-anchor="middle">external</text>
+
+          <rect class="bx" x="730" y="120" width="150" height="70"/>
+          <text class="tl" x="805" y="146" text-anchor="middle">Postgres</text>
+          <text class="ts" x="805" y="162" text-anchor="middle">payments · coupons</text>
+          <text class="ts" x="805" y="177" text-anchor="middle">outbox · ledger</text>
+
+          <rect class="bx" x="730" y="230" width="150" height="58"/>
+          <text class="tl" x="805" y="253" text-anchor="middle">Redis</text>
+          <text class="ts" x="805" y="269" text-anchor="middle">coupon cache · locks</text>
+
+          <path class="ln" d="M70,72 L70,110"/>
+          <path class="ln" d="M130,136 L185,60"/>
+          <path class="ln" d="M130,136 L185,145"/>
+          <path class="ln" d="M260,80 L260,115"/>
+          <path class="ln" d="M260,175 L260,210"/>
+          <path class="ln" d="M260,270 L260,305"/>
+          <path class="ln" d="M335,240 L400,190"/>
+          <path class="ln" d="M335,340 L400,200"/>
+          <path class="ln" d="M460,120 L520,49"/>
+          <path class="ln" d="M460,250 L520,229"/>
+          <path class="ln" d="M460,300 L520,319"/>
+          <path class="ln" d="M675,49 L730,49"/>
+          <path class="ln dash" d="M730,60 L675,130"/>
+          <path class="ln" d="M675,139 L400,139" />
+          <text class="fl" x="500" y="132">payment.updated</text>
+          <path class="ln dash" d="M805,190 L805,230"/>
+        </svg>
+      </div>
+
+      <h3>Flow — sequence</h3>
+      <ul>
+        <li><strong>1.</strong> Client → Booking Service: seat <em>hold</em> (TTL 8 min), status <span class="term">PENDING_PAYMENT</span>.</li>
+        <li><strong>2.</strong> Booking → Coupon Service: <span class="term">reserveCoupon()</span> — count abhi hi decrement, TTL ke saath.</li>
+        <li><strong>3.</strong> Booking → Payment Orchestrator: <span class="term">initiatePayment()</span>. Row DB mein <span class="term">CREATED</span> state se save.</li>
+        <li><strong>4.</strong> Payment → PSP Adapter: yahan pehli baar external call hoti hai, <em>transaction ke bahar</em>.</li>
+        <li><strong>5.</strong> PSP → Webhook Ingest: async confirmation. Ye source of truth hai, client ka response nahi.</li>
+        <li><strong>6.</strong> Payment → Kafka <span class="term">payment.captured</span> → Booking confirm, Ledger entry, Notifier.</li>
+      </ul>
+      <div class="note">
+        <b>Yaad rakho:</b> Client ka <span class="term">200 OK</span> "payment ho gaya" nahi hota. Sirf <b>webhook + reconciliation</b> hi truth hai. Client browser band kar sakta hai, network gir sakta hai — server-to-server webhook nahi girta.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= TOPIC 3 ================= -->
+<section class="topic" id="t3">
+  <div class="topic-head">
+    <span class="entry">Entry 03</span>
+    <h2>Payment state machine</h2>
+    <span class="tier">HLD</span><span class="tier lld">LLD</span>
+  </div>
+  <p class="deck">Payment ek boolean nahi hai. Ye ek finite state machine hai jismein sirf kuch transitions legal hain — aur illegal transition block karna hi paisa bachata hai.</p>
+
+  <div class="ledger">
+    <div class="col problem">
+      <span class="col-tag">Problem</span>
+      <h3><span class="term">boolean isPaid</span> ka jaal</h3>
+      <div class="codewrap">
+        <div class="code-head"><span class="code-file">Payment.java</span><span class="code-meta">anti-pattern</span></div>
+        <ol class="code">
+          <li><code>private boolean isPaid;      // sirf 2 states</code></li>
+          <li><code>private double amount;       // floating point!</code></li>
+        </ol>
+      </div>
+      <p>Isse ye sab express hi nahi ho sakta:</p>
+      <ul>
+        <li>Authorize ho gaya lekin capture nahi hua (hotel booking pattern).</li>
+        <li>Capture ho gaya lekin bank ne settle nahi kiya.</li>
+        <li>Partially refunded — 2 mein se 1 ticket cancel.</li>
+        <li>Failed, phir retry pe success.</li>
+      </ul>
+      <div class="fail">
+        <b>Kya toota:</b> Refund ke baad koi buggy retry job ne dobara <span class="term">isPaid = true</span> set kar diya. System ne user ko ticket wapas de diya, jabki paisa refund ho chuka tha. Kyunki koi <b>transition guard</b> hi nahi tha — koi bhi field ko kuch bhi set kar sakta tha.
+      </div>
+    </div>
+
+    <div class="gutter"></div>
+
+    <div class="col solution">
+      <span class="col-tag">Solution</span>
+      <h3>Enum + explicit allowed transitions</h3>
+      <p>State machine ko <em>code mein</em> likho, developer ke dimaag mein nahi. Illegal transition exception throw kare, silently ignore na kare.</p>
+
+      <div class="codewrap">
+        <div class="code-head"><span class="code-file">PaymentStatus.java</span><span class="code-meta">Java 17 · enum FSM</span></div>
+        <ol class="code">
+          <li><code>public enum PaymentStatus {</code></li>
+          <li><code></code></li>
+          <li><code>    CREATED, AUTHORIZED, CAPTURED, SETTLED,</code></li>
+          <li><code>    FAILED, PARTIALLY_REFUNDED, REFUNDED, EXPIRED;</code></li>
+          <li><code></code></li>
+          <li><code>    private static final Map&lt;PaymentStatus, Set&lt;PaymentStatus&gt;&gt; ALLOWED = Map.of(</code></li>
+          <li><code>        CREATED,            EnumSet.of(AUTHORIZED, FAILED, EXPIRED),</code></li>
+          <li><code>        AUTHORIZED,         EnumSet.of(CAPTURED, FAILED, EXPIRED),</code></li>
+          <li><code>        CAPTURED,           EnumSet.of(SETTLED, PARTIALLY_REFUNDED, REFUNDED),</code></li>
+          <li><code>        SETTLED,            EnumSet.of(PARTIALLY_REFUNDED, REFUNDED),</code></li>
+          <li><code>        PARTIALLY_REFUNDED, EnumSet.of(PARTIALLY_REFUNDED, REFUNDED),</code></li>
+          <li><code>        FAILED,             EnumSet.noneOf(PaymentStatus.class),</code></li>
+          <li><code>        REFUNDED,           EnumSet.noneOf(PaymentStatus.class),</code></li>
+          <li><code>        EXPIRED,            EnumSet.noneOf(PaymentStatus.class));</code></li>
+          <li><code></code></li>
+          <li><code>    public boolean canTransitionTo(PaymentStatus target) {</code></li>
+          <li><code>        return ALLOWED.getOrDefault(this, Set.of()).contains(target);</code></li>
+          <li><code>    }</code></li>
+          <li><code></code></li>
+          <li><code>    public boolean isTerminal() {</code></li>
+          <li><code>        return ALLOWED.getOrDefault(this, Set.of()).isEmpty();</code></li>
+          <li><code>    }</code></li>
+          <li><code>}</code></li>
+        </ol>
+      </div>
+
+      <ul class="lines">
+        <li><span class="lno">3–4</span><span>Aath states, do groups mein: forward path (CREATED → SETTLED) aur exit paths (FAILED / refunds / EXPIRED).</span></li>
+        <li><span class="lno">6</span><span><span class="term">Map&lt;PaymentStatus, Set&lt;PaymentStatus&gt;&gt;</span> — adjacency list. FSM ka poora truth ek jagah, taaki naya developer 10 files na dhoonde.</span></li>
+        <li><span class="lno">9</span><span>Sabse important line. <span class="term">CAPTURED</span> se aap <em>wapas</em> <span class="term">AUTHORIZED</span> nahi jaa sakte. Retry job ab downgrade nahi kar payegi.</span></li>
+        <li><span class="lno">11</span><span><span class="term">PARTIALLY_REFUNDED → PARTIALLY_REFUNDED</span> allowed hai — self-loop, kyunki multiple partial refunds ho sakte hain.</span></li>
+        <li><span class="lno">12–14</span><span>Terminal states ka set khaali hai. <span class="term">FAILED</span> ke baad kuch nahi — retry hoga toh <b>naya payment row</b> banega, purana update nahi hoga. Ye audit ke liye critical hai.</span></li>
+        <li><span class="lno">16–18</span><span>Guard method. Naam <span class="term">canTransitionTo</span> hai — <span class="term">check()</span> ya <span class="term">valid()</span> nahi. Boolean method ka naam <span class="term">is/has/can</span> se shuru hona chahiye.</span></li>
+        <li><span class="lno">20–22</span><span><span class="term">isTerminal()</span> derived hai, alag list nahi. Ek source of truth = do lists sync se bahar nahi ja sakti.</span></li>
+      </ul>
+
+      <div class="codewrap">
+        <div class="code-head"><span class="code-file">PaymentStateMachine.java</span><span class="code-meta">transition applier</span></div>
+        <ol class="code">
+          <li><code>@Component</code></li>
+          <li><code>public class PaymentStateMachine {</code></li>
+          <li><code></code></li>
+          <li><code>    private static final Logger log = LoggerFactory.getLogger(PaymentStateMachine.class);</code></li>
+          <li><code></code></li>
+          <li><code>    public void applyTransition(Payment payment,</code></li>
+          <li><code>                                PaymentStatus targetStatus,</code></li>
+          <li><code>                                String reasonCode) {</code></li>
+          <li><code></code></li>
+          <li><code>        PaymentStatus current = payment.getStatus();</code></li>
+          <li><code></code></li>
+          <li><code>        if (current == targetStatus) {</code></li>
+          <li><code>            log.info("Duplicate transition ignored paymentId={} state={}",</code></li>
+          <li><code>                     payment.getId(), current);</code></li>
+          <li><code>            return;                       // idempotent no-op</code></li>
+          <li><code>        }</code></li>
+          <li><code></code></li>
+          <li><code>        if (!current.canTransitionTo(targetStatus)) {</code></li>
+          <li><code>            throw new IllegalStateTransitionException(current, targetStatus, payment.getId());</code></li>
+          <li><code>        }</code></li>
+          <li><code></code></li>
+          <li><code>        payment.setStatus(targetStatus);</code></li>
+          <li><code>        payment.setLastTransitionReason(reasonCode);</code></li>
+          <li><code>        payment.setUpdatedAt(Instant.now());</code></li>
+          <li><code>        payment.recordAuditEntry(current, targetStatus, reasonCode);</code></li>
+          <li><code>    }</code></li>
+          <li><code>}</code></li>
+        </ol>
+      </div>
+
+      <ul class="lines">
+        <li><span class="lno">12–16</span><span>Same-state transition ko <b>exception nahi</b>, no-op banaya. Kyun? Kyunki PSP webhook 3 baar aa sakta hai. Duplicate ko crash karoge toh retry storm ban jayega.</span></li>
+        <li><span class="lno">18–20</span><span>Illegal transition pe <b>loud failure</b>. Silent ignore matlab paisa gum hone ka bug 3 mahine baad pata chalega.</span></li>
+        <li><span class="lno">24</span><span>Har transition audit trail mein jaati hai. RBI/PCI audit mein "ye payment REFUNDED kaise hua" ka jawab dena padta hai.</span></li>
+      </ul>
+
+      <div class="naming">
+        <h4>Method naming — kya rakhein, kya nahi</h4>
+        <table>
+          <tr><td>applyTransition(payment, target, reason)</td><td class="bad">updateStatus(p, s)</td></tr>
+          <tr><td>canTransitionTo(target)</td><td class="bad">check(target)</td></tr>
+          <tr><td>isTerminal()</td><td class="bad">getTerminal()</td></tr>
+          <tr><td>recordAuditEntry(from, to, reason)</td><td class="bad">log(a, b, c)</td></tr>
+        </table>
+        <p style="margin-top:9px;font-size:13.4px;color:var(--ink-2)">Rule: method ka naam <b>verb + domain noun</b> ho. Reader ko body padhne ki zaroorat na pade.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= TOPIC 4 ================= -->
+<section class="topic" id="t4">
+  <div class="topic-head">
+    <span class="entry">Entry 04</span>
+    <h2>Idempotency — double charge rokna</h2>
+    <span class="tier">HLD</span><span class="tier lld">LLD</span>
+  </div>
+  <p class="deck">Ye payment system ka sabse zyada poocha jaane wala interview topic hai, aur production mein sabse mehnga bug bhi.</p>
+
+  <div class="ledger">
+    <div class="col problem">
+      <span class="col-tag">Problem</span>
+      <h3>Ek intent, teen charges</h3>
+      <p>Ek hi payment intent teen alag raaston se duplicate ban jaata hai:</p>
+      <ul>
+        <li><strong>User:</strong> Pay button do baar dabaya (button disable nahi tha, ya lagged).</li>
+        <li><strong>Client:</strong> Mobile network timeout pe SDK ne auto-retry kiya. Server ne pehli request process kar li thi, sirf response gaya nahi.</li>
+        <li><strong>PSP:</strong> Webhook at-least-once hota hai. Razorpay <span class="term">payment.captured</span> 3 baar bhej sakta hai.</li>
+      </ul>
+      <div class="fail">
+        <b>Timeline of a real incident:</b><br>
+        <span class="term">10:04:01</span> user taps Pay → charge ₹1,200 ✓<br>
+        <span class="term">10:04:09</span> response timeout, SDK retries<br>
+        <span class="term">10:04:10</span> server dobara charge ₹1,200 ✓<br>
+        <span class="term">10:04:11</span> user ko ek ticket, bank statement mein do debit<br>
+        <span class="term">10:41</span> Twitter pe screenshot. Refund + support cost ≈ 40× transaction value.
+      </div>
+    </div>
+
+    <div class="gutter"></div>
+
+    <div class="col solution">
+      <span class="col-tag">Solution</span>
+      <h3>Idempotency key + DB unique constraint</h3>
+      <p>Client har <em>logical operation</em> ke liye ek UUID generate karta hai aur retry pe <b>wahi</b> UUID bhejta hai. Server us key ko unique index mein daalta hai — duplicate insert fail hoga, aur wahi hamari guarantee hai.</p>
+      <p><strong>Zaroori baat:</strong> sirf key match karna kaafi nahi. Agar koi same key ke saath <em>alag amount</em> bhej de? Isliye request ka <b>fingerprint hash</b> bhi store karo.</p>
+
+      <div class="codewrap">
+        <div class="code-head"><span class="code-file">IdempotencyService.java</span><span class="code-meta">generic guard</span></div>
+        <ol class="code">
+          <li><code>@Service</code></li>
+          <li><code>@RequiredArgsConstructor</code></li>
+          <li><code>public class IdempotencyService {</code></li>
+          <li><code></code></li>
+          <li><code>    private final IdempotencyRecordRepository recordRepository;</code></li>
+          <li><code>    private final ObjectMapper objectMapper;</code></li>
+          <li><code></code></li>
+          <li><code>    @Transactional</code></li>
+          <li><code>    public &lt;T&gt; T executeExactlyOnce(String idempotencyKey,</code></li>
+          <li><code>                                    Object requestPayload,</code></li>
+          <li><code>                                    Class&lt;T&gt; responseType,</code></li>
+          <li><code>                                    Supplier&lt;T&gt; operation) {</code></li>
+          <li><code></code></li>
+          <li><code>        String fingerprint = buildRequestFingerprint(requestPayload);</code></li>
+          <li><code></code></li>
+          <li><code>        Optional&lt;IdempotencyRecord&gt; existing =</code></li>
+          <li><code>                recordRepository.findByIdempotencyKey(idempotencyKey);</code></li>
+          <li><code></code></li>
+          <li><code>        if (existing.isPresent()) {</code></li>
+          <li><code>            IdempotencyRecord record = existing.get();</code></li>
+          <li><code></code></li>
+          <li><code>            if (!record.getRequestFingerprint().equals(fingerprint)) {</code></li>
+          <li><code>                throw new IdempotencyKeyReusedException(idempotencyKey);   // HTTP 422</code></li>
+          <li><code>            }</code></li>
+          <li><code>            if (record.getStatus() == RecordStatus.IN_PROGRESS) {</code></li>
+          <li><code>                throw new RequestInFlightException(idempotencyKey);        // HTTP 409</code></li>
+          <li><code>            }</code></li>
+          <li><code>            return deserializeStoredResponse(record, responseType);        // replay</code></li>
+          <li><code>        }</code></li>
+          <li><code></code></li>
+          <li><code>        IdempotencyRecord claim = recordRepository.saveAndFlush(</code></li>
+          <li><code>                IdempotencyRecord.inProgress(idempotencyKey, fingerprint));</code></li>
+          <li><code></code></li>
+          <li><code>        T result = operation.get();</code></li>
+          <li><code></code></li>
+          <li><code>        claim.completeWith(serialize(result));</code></li>
+          <li><code>        recordRepository.save(claim);</code></li>
+          <li><code>        return result;</code></li>
+          <li><code>    }</code></li>
+          <li><code></code></li>
+          <li><code>    private String buildRequestFingerprint(Object payload) {</code></li>
+          <li><code>        String canonicalJson = writeCanonicalJson(payload);</code></li>
+          <li><code>        return DigestUtils.sha256Hex(canonicalJson);</code></li>
+          <li><code>    }</code></li>
+          <li><code>}</code></li>
+        </ol>
+      </div>
+
+      <ul class="lines">
+        <li><span class="lno">9–12</span><span>Generic method. Ye sirf payment ke liye nahi — refund, coupon redeem, kisi bhi mutating operation pe reuse hoga. <span class="term">Supplier&lt;T&gt;</span> matlab asli kaam caller deta hai, ye class sirf guard hai.</span></li>
+        <li><span class="lno">14</span><span>Request ka SHA-256 hash. Same key + different body = attack ya bug. Dono case mein reject.</span></li>
+        <li><span class="lno">22–23</span><span>Key reuse pe <b>422</b>, kyunki request semantically galat hai. Chup-chaap purana response return karna yahan khatarnak hoga.</span></li>
+        <li><span class="lno">25–27</span><span><span class="term">IN_PROGRESS</span> matlab pehli request abhi chal rahi hai. Client ko <b>409</b> do — "thoda ruk ke retry karo", naya charge mat banao.</span></li>
+        <li><span class="lno">28</span><span>Happy replay: stored response wapas. Client ko lagta hai request naye se chali, actually kuch naya nahi hua. Yahi "exactly-once" ka feel hai.</span></li>
+        <li><span class="lno">31–32</span><span><span class="term">saveAndFlush</span> — flush isliye taaki unique constraint <em>abhi</em> fire ho, transaction commit pe nahi. Race mein doosra thread yahin <span class="term">DataIntegrityViolationException</span> khayega.</span></li>
+        <li><span class="lno">34</span><span>Asli operation. Dhyaan do — ye DB transaction ke andar hai. Agar operation ke andar PSP call hai toh us call ko <span class="term">@Transactional(propagation = NOT_SUPPORTED)</span> ya alag async step mein rakhna hoga.</span></li>
+        <li><span class="lno">41</span><span><b>Canonical</b> JSON — keys sorted, whitespace normalized. Warna field order badalne se hash badal jayega aur idempotency toot jayegi.</span></li>
+      </ul>
+
+      <div class="codewrap">
+        <div class="code-head"><span class="code-file">V3__idempotency.sql</span><span class="code-meta">Postgres · asli guarantee yahan hai</span></div>
+        <ol class="code">
+          <li><code>CREATE TABLE idempotency_record (</code></li>
+          <li><code>    id                BIGSERIAL PRIMARY KEY,</code></li>
+          <li><code>    idempotency_key   VARCHAR(64)  NOT NULL,</code></li>
+          <li><code>    request_fingerprint CHAR(64)   NOT NULL,</code></li>
+          <li><code>    status            VARCHAR(16)  NOT NULL,</code></li>
+          <li><code>    response_body     JSONB,</code></li>
+          <li><code>    created_at        TIMESTAMPTZ  NOT NULL DEFAULT now(),</code></li>
+          <li><code>    expires_at        TIMESTAMPTZ  NOT NULL</code></li>
+          <li><code>);</code></li>
+          <li><code></code></li>
+          <li><code>CREATE UNIQUE INDEX ux_idempotency_key</code></li>
+          <li><code>    ON idempotency_record (idempotency_key);</code></li>
+        </ol>
+      </div>
+      <div class="note">
+        <b>Ye line 11–12 hi poora feature hai.</b> Java code convenience hai; agar unique index na ho toh do concurrent threads dono <span class="term">findBy</span> pe empty payenge aur dono charge kar denge. <b>Uniqueness DB pe enforce hoti hai, application pe nahi.</b> Interview mein yahi bolna hai.
+      </div>
+      <p style="margin-top:12px"><span class="term">expires_at</span> rakho aur 24–48 ghante baad purge karo. Warna ye table sabse tez badhne wali table ban jayegi.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= TOPIC 5 ================= -->
+<section class="topic" id="t5">
+  <div class="topic-head">
+    <span class="entry">Entry 05</span>
+    <h2>Coupon domain model aur discount calculation</h2>
+    <span class="tier lld">LLD</span>
+  </div>
+  <p class="deck">Coupons ki asli complexity discount ka math nahi hai — <em>rules ka combination</em> hai. Aur ye rules har hafte badalte hain, isliye code ko rules ke liye khula rakhna padta hai.</p>
+
+  <div class="ledger">
+    <div class="col problem">
+      <span class="col-tag">Problem</span>
+      <h3>if-else ka pahaad</h3>
+      <div class="codewrap">
+        <div class="code-head"><span class="code-file">CouponHelper.java</span><span class="code-meta">anti-pattern</span></div>
+        <ol class="code">
+          <li><code>public double getDiscount(String code, double total, User u) {</code></li>
+          <li><code>    if (code.equals("FLAT100")) {</code></li>
+          <li><code>        if (total &gt; 500) return 100;</code></li>
+          <li><code>    } else if (code.equals("SAVE20")) {</code></li>
+          <li><code>        if (u.isNew()) return total * 0.2;      // cap kahan hai?</code></li>
+          <li><code>    } else if (code.startsWith("BANK_")) {</code></li>
+          <li><code>        // 40 more lines...</code></li>
+          <li><code>    }</code></li>
+          <li><code>    return 0;                                   // silent failure</code></li>
+          <li><code>}</code></li>
+        </ol>
+      </div>
+      <p>Kya-kya galat hai:</p>
+      <ul>
+        <li><span class="term">double</span> se paisa — <span class="term">0.1 + 0.2 = 0.30000000000000004</span>. Lakhon transactions pe ye paise leak karta hai.</li>
+        <li>Coupon codes <b>code mein hardcoded</b>. Naya coupon = deployment. Marketing team 2 din wait karegi.</li>
+        <li>Line 5 pe cap nahi hai. ₹50,000 ka order → ₹10,000 discount. Kisi ne socha hi nahi.</li>
+        <li>Line 9: coupon invalid ho toh ₹0 return. User ko pata hi nahi chalega ki coupon laga ya nahi — support ticket.</li>
+      </ul>
+      <div class="fail">
+        <b>Kya toota:</b> Ek e-commerce ne percentage coupon bina max-cap ke chhoda. Ek user ne ₹2.4 lakh ka order kiya, 25% off mila = ₹60,000. Terms mein "up to ₹500" likha tha, code mein nahi. Legally honour karna pada.
+      </div>
+    </div>
+
+    <div class="gutter"></div>
+
+    <div class="col solution">
+      <span class="col-tag">Solution</span>
+      <h3>Data-driven rules + Strategy pattern</h3>
+      <p>Coupon ek <b>row</b> hai, ek <b>if branch</b> nahi. Rules DB mein, calculation strategy code mein.</p>
+
+      <div class="codewrap">
+        <div class="code-head"><span class="code-file">Coupon.java</span><span class="code-meta">entity</span></div>
+        <ol class="code">
+          <li><code>@Entity</code></li>
+          <li><code>@Table(name = "coupon")</code></li>
+          <li><code>public class Coupon {</code></li>
+          <li><code></code></li>
+          <li><code>    @Id private Long id;</code></li>
+          <li><code></code></li>
+          <li><code>    @Column(unique = true, nullable = false)</code></li>
+          <li><code>    private String code;                        // "IPL25"</code></li>
+          <li><code></code></li>
+          <li><code>    @Enumerated(EnumType.STRING)</code></li>
+          <li><code>    private DiscountType discountType;          // FLAT | PERCENTAGE | CASHBACK</code></li>
+          <li><code></code></li>
+          <li><code>    private long discountValueMinor;            // 25 (%) or 10000 (₹100 in paise)</code></li>
+          <li><code>    private long maxDiscountMinor;              // ← cap, NEVER null</code></li>
+          <li><code>    private long minOrderValueMinor;</code></li>
+          <li><code></code></li>
+          <li><code>    private Integer totalRedemptionLimit;       // global cap</code></li>
+          <li><code>    private Integer perUserRedemptionLimit;</code></li>
+          <li><code>    private int currentRedemptionCount;</code></li>
+          <li><code></code></li>
+          <li><code>    private Instant validFrom;</code></li>
+          <li><code>    private Instant validUntil;</code></li>
+          <li><code></code></li>
+          <li><code>    @Column(columnDefinition = "jsonb")</code></li>
+          <li><code>    private String eligibilityRulesJson;        // city, first-order, bank BIN</code></li>
+          <li><code></code></li>
+          <li><code>    @Version private Long version;              // optimistic locking</code></li>
+          <li><code>}</code></li>
+        </ol>
+      </div>
+
+      <ul class="lines">
+        <li><span class="lno">13–15</span><span>Sab kuch <span class="term">long</span> mein, <b>minor units</b> (paise). ₹100 = 10000. Kabhi <span class="term">double</span>/<span class="term">float</span> nahi. Naming mein <span class="term">Minor</span> suffix rakho taaki koi confuse na ho.</span></li>
+        <li><span class="lno">14</span><span><span class="term">maxDiscountMinor</span> ko <b>NOT NULL</b> banao. Nullable rakhoge toh ek din koi null chhod dega aur unbounded discount ho jayega. Schema level pe rok do.</span></li>
+        <li><span class="lno">17–19</span><span>Do alag limits: global aur per-user. Dono chahiye — warna ek user 1,000 baar redeem kar lega.</span></li>
+        <li><span class="lno">24</span><span>Flexible rules JSONB mein. Naya rule = data change, deployment nahi. Trade-off: type-safety kam, isliye validation layer strict rakho.</span></li>
+        <li><span class="lno">26</span><span><span class="term">@Version</span> — JPA optimistic locking. Iska poora use Topic 06 mein.</span></li>
+      </ul>
+
+      <div class="codewrap">
+        <div class="code-head"><span class="code-file">DiscountCalculator.java</span><span class="code-meta">strategy</span></div>
+        <ol class="code">
+          <li><code>public interface DiscountCalculator {</code></li>
+          <li><code>    DiscountType supportedType();</code></li>
+          <li><code>    Money calculateDiscount(Coupon coupon, Money orderAmount);</code></li>
+          <li><code>}</code></li>
+          <li><code></code></li>
+          <li><code>@Component</code></li>
+          <li><code>public class PercentageDiscountCalculator implements DiscountCalculator {</code></li>
+          <li><code></code></li>
+          <li><code>    @Override</code></li>
+          <li><code>    public DiscountType supportedType() {</code></li>
+          <li><code>        return DiscountType.PERCENTAGE;</code></li>
+          <li><code>    }</code></li>
+          <li><code></code></li>
+          <li><code>    @Override</code></li>
+          <li><code>    public Money calculateDiscount(Coupon coupon, Money orderAmount) {</code></li>
+          <li><code></code></li>
+          <li><code>        long rawDiscount = orderAmount.minorUnits()</code></li>
+          <li><code>                * coupon.getDiscountValueMinor() / 100L;</code></li>
+          <li><code></code></li>
+          <li><code>        long capped = Math.min(rawDiscount, coupon.getMaxDiscountMinor());</code></li>
+          <li><code></code></li>
+          <li><code>        long safe = Math.min(capped, orderAmount.minorUnits());</code></li>
+          <li><code></code></li>
+          <li><code>        return Money.ofMinor(safe, orderAmount.currency());</code></li>
+          <li><code>    }</code></li>
+          <li><code>}</code></li>
+        </ol>
+      </div>
+
+      <ul class="lines">
+        <li><span class="lno">2</span><span><span class="term">supportedType()</span> — har strategy khud batati hai wo kis type ko handle karti hai. Registry isi se map banati hai, koi central switch nahi.</span></li>
+        <li><span class="lno">17–18</span><span>Integer math. Multiply <b>pehle</b>, divide <b>baad mein</b> — ulta karoge toh precision udd jayegi. Result paise mein floor hota hai, jo business ke haq mein hai (₹0.004 discount nahi milta).</span></li>
+        <li><span class="lno">20</span><span>Cap. Yahi wo line hai jiski kami se ₹60,000 wala incident hua.</span></li>
+        <li><span class="lno">22</span><span>Second guard: discount kabhi order se bada na ho. Warna <b>negative payable amount</b> banega — aur kuch systems us par refund issue kar dete hain. Ye asli exploit hai, theory nahi.</span></li>
+        <li><span class="lno">24</span><span><span class="term">Money</span> value object return — plain <span class="term">long</span> nahi. Currency saath chalti hai, USD/INR mix nahi ho sakta.</span></li>
+      </ul>
+
+      <div class="codewrap">
+        <div class="code-head"><span class="code-file">CouponValidationChain.java</span><span class="code-meta">chain of responsibility</span></div>
+        <ol class="code">
+          <li><code>@Service</code></li>
+          <li><code>public class CouponValidationChain {</code></li>
+          <li><code></code></li>
+          <li><code>    private final List&lt;CouponRule&gt; rules;   // Spring sabhi @Component inject karega</code></li>
+          <li><code></code></li>
+          <li><code>    public CouponValidationChain(List&lt;CouponRule&gt; rules) {</code></li>
+          <li><code>        this.rules = rules.stream()</code></li>
+          <li><code>                .sorted(Comparator.comparingInt(CouponRule::evaluationOrder))</code></li>
+          <li><code>                .toList();</code></li>
+          <li><code>    }</code></li>
+          <li><code></code></li>
+          <li><code>    public ValidationOutcome validateCouponForOrder(Coupon coupon, OrderContext context) {</code></li>
+          <li><code>        for (CouponRule rule : rules) {</code></li>
+          <li><code>            ValidationOutcome outcome = rule.evaluate(coupon, context);</code></li>
+          <li><code>            if (outcome.isRejected()) {</code></li>
+          <li><code>                return outcome;                 // fail fast, reason ke saath</code></li>
+          <li><code>            }</code></li>
+          <li><code>        }</code></li>
+          <li><code>        return ValidationOutcome.accepted();</code></li>
+          <li><code>    }</code></li>
+          <li><code>}</code></li>
+        </ol>
+      </div>
+
+      <ul class="lines">
+        <li><span class="lno">4–10</span><span>Spring saare <span class="term">CouponRule</span> beans khud collect karta hai. Naya rule likhna = ek naya class banana. Purani file <b>chhune ki zaroorat nahi</b> — Open/Closed Principle.</span></li>
+        <li><span class="lno">8</span><span>Order matter karta hai: sasta check pehle (expiry — 0 DB call), mehnga baad mein (per-user redemption count — 1 DB call). 2,400 TPS pe ye seedha CPU aur DB bachata hai.</span></li>
+        <li><span class="lno">16</span><span><b>Reason ke saath</b> return karo, boolean nahi. User ko dikhta hai "Minimum order ₹500 hona chahiye" — na ki "Invalid coupon". Support tickets 60% gir jaate hain.</span></li>
+      </ul>
+
+      <p><strong>Rules jo chain mein aate hain:</strong> <span class="term">CouponExistsRule</span> → <span class="term">CouponWindowRule</span> (validFrom/validUntil) → <span class="term">MinimumOrderValueRule</span> → <span class="term">UserEligibilityRule</span> → <span class="term">PerUserLimitRule</span> → <span class="term">GlobalLimitRule</span> → <span class="term">PaymentMethodRule</span> (bank BIN offers).</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= TOPIC 6 ================= -->
+<section class="topic" id="t6">
+  <div class="topic-head">
+    <span class="entry">Entry 06</span>
+    <h2>Coupon over-redemption — the race condition</h2>
+    <span class="tier">HLD</span><span class="tier lld">LLD</span>
+  </div>
+  <p class="deck">Ye interview ka favourite trap hai. "1,000 coupons hain, 50,000 log ek saath try karte hain — ensure karo 1,001st na chale."</p>
+
+  <div class="ledger">
+    <div class="col problem">
+      <span class="col-tag">Problem</span>
+      <h3>Read-then-write race</h3>
+      <div class="codewrap">
+        <div class="code-head"><span class="code-file">CouponService.java</span><span class="code-meta">anti-pattern</span></div>
+        <ol class="code">
+          <li><code>Coupon c = couponRepository.findByCode(code);        // T1 reads 999</code></li>
+          <li><code>if (c.getCurrentRedemptionCount() &lt; c.getTotalRedemptionLimit()) {</code></li>
+          <li><code>    c.setCurrentRedemptionCount(c.getCurrentRedemptionCount() + 1);</code></li>
+          <li><code>    couponRepository.save(c);                        // T1 writes 1000</code></li>
+          <li><code>}</code></li>
+        </ol>
+      </div>
+      <p>Do threads, timeline:</p>
+      <table class="tbl">
+        <tr><th>Time</th><th>Thread A</th><th>Thread B</th></tr>
+        <tr><td>t0</td><td>read count = 999</td><td>—</td></tr>
+        <tr><td>t1</td><td>—</td><td>read count = 999</td></tr>
+        <tr><td>t2</td><td>999 &lt; 1000 ✓</td><td>999 &lt; 1000 ✓</td></tr>
+        <tr><td>t3</td><td>write 1000</td><td>write 1000</td></tr>
+      </table>
+      <div class="fail">
+        <b>Result:</b> Do redemptions hue, counter 1000 hi dikha raha hai. 50,000 concurrent users pe ye 1,000 ka limit aaram se 1,340 tak pahunch jaata hai. Har extra redemption = seedha paisa loss.
+        <br><br>Aur <b>in-memory counter</b> use kiya toh 3 pods = 3× over-redemption, guaranteed.
+      </div>
+    </div>
+
+    <div class="gutter"></div>
+
+    <div class="col solution">
+      <span class="col-tag">Solution</span>
+      <h3>Char options, trade-off ke saath</h3>
+      <table class="tbl">
+        <tr><th>Approach</th><th>Throughput</th><th>Kab use karein</th></tr>
+        <tr><td>SELECT FOR UPDATE</td><td>Kam — sab serialize</td><td>Limit chhoti, traffic kam</td></tr>
+        <tr><td>@Version optimistic</td><td>Theek — contention pe retry</td><td>Normal coupons</td></tr>
+        <tr><td>Conditional UPDATE</td><td>High — 1 round trip</td><td><b>Default choice</b></td></tr>
+        <tr><td>Redis token pre-issue</td><td>Bahut high</td><td>Flash sale, 2,000+ TPS</td></tr>
+      </table>
+
+      <p><strong>Best default — atomic conditional UPDATE.</strong> Check aur increment ek hi SQL statement mein, isliye race ki koi window hi nahi bachti.</p>
+
+      <div class="codewrap">
+        <div class="code-head"><span class="code-file">CouponRepository.java</span><span class="code-meta">atomic reserve</span></div>
+        <ol class="code">
+          <li><code>public interface CouponRepository extends JpaRepository&lt;Coupon, Long&gt; {</code></li>
+          <li><code></code></li>
+          <li><code>    @Modifying(clearAutomatically = true)</code></li>
+          <li><code>    @Query("""</code></li>
+          <li><code>           UPDATE Coupon c</code></li>
+          <li><code>              SET c.currentRedemptionCount = c.currentRedemptionCount + 1</code></li>
+          <li><code>            WHERE c.code = :code</code></li>
+          <li><code>              AND c.currentRedemptionCount &lt; c.totalRedemptionLimit</code></li>
+          <li><code>              AND :now BETWEEN c.validFrom AND c.validUntil</code></li>
+          <li><code>           """)</code></li>
+          <li><code>    int reserveOneRedemption(@Param("code") String code,</code></li>
+          <li><code>                             @Param("now") Instant now);</code></li>
+          <li><code>}</code></li>
+        </ol>
+      </div>
+
+      <ul class="lines">
+        <li><span class="lno">6</span><span>Increment DB ke andar hota hai (<span class="term">count = count + 1</span>), Java mein nahi. Java ne value padhi hi nahi, toh stale value ka sawaal hi nahi.</span></li>
+        <li><span class="lno">8</span><span><b>Ye line poora race khatam karti hai.</b> Postgres row-level lock leta hai <span class="term">UPDATE</span> ke liye; condition lock ke <em>andar</em> evaluate hoti hai. 1,000th ke baad koi row match hi nahi karegi.</span></li>
+        <li><span class="lno">9</span><span>Validity window bhi usi atomic statement mein. Warna validate aur reserve ke beech coupon expire ho sakta hai (TOCTOU bug).</span></li>
+        <li><span class="lno">11</span><span>Return type <span class="term">int</span> = affected rows. <b>1 = mil gaya, 0 = khatam.</b> Poora concurrency control is ek integer mein.</span></li>
+      </ul>
+
+      <div class="codewrap">
+        <div class="code-head"><span class="code-file">CouponRedemptionService.java</span><span class="code-meta">service layer</span></div>
+        <ol class="code">
+          <li><code>@Service</code></li>
+          <li><code>@RequiredArgsConstructor</code></li>
+          <li><code>public class CouponRedemptionService {</code></li>
+          <li><code></code></li>
+          <li><code>    private final CouponRepository couponRepository;</code></li>
+          <li><code>    private final CouponRedemptionRepository redemptionRepository;</code></li>
+          <li><code>    private final CouponValidationChain validationChain;</code></li>
+          <li><code>    private final DiscountCalculatorRegistry calculatorRegistry;</code></li>
+          <li><code></code></li>
+          <li><code>    @Transactional</code></li>
+          <li><code>    public CouponReservation reserveCouponForOrder(String couponCode,</code></li>
+          <li><code>                                                  OrderContext context) {</code></li>
+          <li><code></code></li>
+          <li><code>        Coupon coupon = couponRepository.findByCode(couponCode)</code></li>
+          <li><code>                .orElseThrow(() -&gt; new CouponNotFoundException(couponCode));</code></li>
+          <li><code></code></li>
+          <li><code>        ValidationOutcome outcome =</code></li>
+          <li><code>                validationChain.validateCouponForOrder(coupon, context);</code></li>
+          <li><code>        if (outcome.isRejected()) {</code></li>
+          <li><code>            throw new CouponRejectedException(outcome.reasonCode(), outcome.message());</code></li>
+          <li><code>        }</code></li>
+          <li><code></code></li>
+          <li><code>        int rowsReserved = couponRepository.reserveOneRedemption(couponCode, Instant.now());</code></li>
+          <li><code>        if (rowsReserved == 0) {</code></li>
+          <li><code>            throw new CouponExhaustedException(couponCode);</code></li>
+          <li><code>        }</code></li>
+          <li><code></code></li>
+          <li><code>        Money discount = calculatorRegistry</code></li>
+          <li><code>                .resolveFor(coupon.getDiscountType())</code></li>
+          <li><code>                .calculateDiscount(coupon, context.orderAmount());</code></li>
+          <li><code></code></li>
+          <li><code>        CouponRedemption redemption = CouponRedemption.reserved(</code></li>
+          <li><code>                coupon.getId(), context.userId(), context.orderId(),</code></li>
+          <li><code>                discount, Instant.now().plus(Duration.ofMinutes(10)));</code></li>
+          <li><code></code></li>
+          <li><code>        redemptionRepository.save(redemption);   // ux_user_coupon_order fires here</code></li>
+          <li><code></code></li>
+          <li><code>        return CouponReservation.of(redemption.getId(), discount);</code></li>
+          <li><code>    }</code></li>
+          <li><code>}</code></li>
+        </ol>
+      </div>
+
+      <ul class="lines">
+        <li><span class="lno">11</span><span>Naam <span class="term">reserveCouponForOrder</span> hai, <span class="term">applyCoupon</span> nahi. <b>Reserve ≠ redeem.</b> Payment fail ho sakta hai — tab reservation release hogi. Naam se hi lifecycle clear hai.</span></li>
+        <li><span class="lno">17–21</span><span>Validation pehle, taaki user ko turant proper reason mile. Ye sirf UX ke liye hai — <b>correctness line 23 se aati hai</b>.</span></li>
+        <li><span class="lno">23–26</span><span>Atomic reserve. <span class="term">0</span> rows matlab exhausted. Note: validation pass hone ke <em>baad</em> bhi ye fail ho sakta hai — bilkul theek hai, kyunki beech mein 400 log aa sakte hain.</span></li>
+        <li><span class="lno">33</span><span>Reservation ka <b>10 minute TTL</b>. Payment 10 min mein complete nahi hua toh background job reservation release kar degi aur count wapas kar degi. Warna abandoned carts saara stock kha jayenge.</span></li>
+        <li><span class="lno">35</span><span><span class="term">(user_id, coupon_id, order_id)</span> pe unique index. Per-user limit ka <b>asli</b> enforcement yahan hai — chain wala check sirf friendly message ke liye tha.</span></li>
+      </ul>
+
+      <div class="note">
+        <b>Flash sale (2,000+ TPS) ke liye:</b> Sale se pehle Redis mein 1,000 tokens pre-load karo — <span class="term">LPUSH coupon:IPL25:tokens t1 … t1000</span>. Reserve = <span class="term">LPOP</span>, jo atomic hai aur sub-millisecond. Postgres ko ye hot row hi nahi dikhega. Redis gir gaya toh code Postgres path pe fall back kare — <b>slow but correct</b>, kabhi <b>fast but wrong</b> nahi.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= TOPIC 7 ================= -->
+<section class="topic" id="t7">
+  <div class="topic-head">
+    <span class="entry">Entry 07</span>
+    <h2>Booking aur payment ki consistency — Saga + Outbox</h2>
+    <span class="tier">HLD</span><span class="tier lld">LLD</span>
+  </div>
+  <p class="deck">Do alag databases, ek atomic outcome chahiye. 2PC production mein practical nahi — isliye saga.</p>
+
+  <div class="ledger">
+    <div class="col problem">
+      <span class="col-tag">Problem</span>
+      <h3>Dual write ka gap</h3>
+      <div class="codewrap">
+        <div class="code-head"><span class="code-file">PaymentService.java</span><span class="code-meta">anti-pattern</span></div>
+        <ol class="code">
+          <li><code>@Transactional</code></li>
+          <li><code>public void capturePayment(String paymentId) {</code></li>
+          <li><code>    paymentRepository.markCaptured(paymentId);   // DB commit</code></li>
+          <li><code>    kafkaTemplate.send("payment.captured", paymentId);   // ← crash yahan?</code></li>
+          <li><code>}</code></li>
+        </ol>
+      </div>
+      <p>Line 3 aur line 4 ke beech pod restart ho gaya. Ab:</p>
+      <ul>
+        <li>Payment DB: <span class="term">CAPTURED</span> ✓</li>
+        <li>Kafka: koi event nahi ✗</li>
+        <li>Booking Service: kuch nahi pata, seat hold expire ho gaya</li>
+      </ul>
+      <div class="fail">
+        <b>Result:</b> User ka paisa kat gaya, seat kisi aur ko chali gayi. Ye <b>dual-write problem</b> hai. Ulta order (Kafka pehle, DB baad mein) bhi utna hi kharab hai — phantom event jiske peeche koi payment hi nahi.
+        <br><br>2PC/XA se ho sakta hai theoretically, par Kafka + Postgres ke beech ye operationally nightmare hai: coordinator single point of failure ban jaata hai aur locks lambe hold hote hain.
+      </div>
+    </div>
+
+    <div class="gutter"></div>
+
+    <div class="col solution">
+      <span class="col-tag">Solution</span>
+      <h3>Transactional outbox</h3>
+      <p>Trick simple hai: event ko <b>usi database</b> mein, <b>usi transaction</b> mein likho. Ab dual write hai hi nahi — ek hi write hai. Ek separate relay process outbox se padh kar Kafka pe publish karta hai.</p>
+
+      <div class="codewrap">
+        <div class="code-head"><span class="code-file">PaymentCaptureService.java</span><span class="code-meta">outbox write</span></div>
+        <ol class="code">
+          <li><code>@Service</code></li>
+          <li><code>@RequiredArgsConstructor</code></li>
+          <li><code>public class PaymentCaptureService {</code></li>
+          <li><code></code></li>
+          <li><code>    private final PaymentRepository paymentRepository;</code></li>
+          <li><code>    private final OutboxEventRepository outboxRepository;</code></li>
+          <li><code>    private final PaymentStateMachine stateMachine;</code></li>
+          <li><code></code></li>
+          <li><code>    @Transactional                       // ek hi DB, ek hi commit</code></li>
+          <li><code>    public void recordCaptureConfirmation(String paymentId, PspCaptureEvent event) {</code></li>
+          <li><code></code></li>
+          <li><code>        Payment payment = paymentRepository.findByIdForUpdate(paymentId)</code></li>
+          <li><code>                .orElseThrow(() -&gt; new PaymentNotFoundException(paymentId));</code></li>
+          <li><code></code></li>
+          <li><code>        stateMachine.applyTransition(payment, PaymentStatus.CAPTURED, event.reasonCode());</code></li>
+          <li><code>        payment.setPspReferenceId(event.pspReferenceId());</code></li>
+          <li><code>        paymentRepository.save(payment);</code></li>
+          <li><code></code></li>
+          <li><code>        outboxRepository.save(OutboxEvent.create(</code></li>
+          <li><code>                "PAYMENT",                          // aggregateType</code></li>
+          <li><code>                paymentId,                          // aggregateId → Kafka partition key</code></li>
+          <li><code>                "payment.captured",                 // eventType</code></li>
+          <li><code>                toJson(PaymentCapturedPayload.from(payment))));</code></li>
+          <li><code>    }</code></li>
+          <li><code>}</code></li>
+        </ol>
+      </div>
+
+      <ul class="lines">
+        <li><span class="lno">9</span><span>Ek <span class="term">@Transactional</span>, ek database. Payment update aur outbox insert <b>saath jeete ya saath mare</b>. Beech mein crash ka gap khatam.</span></li>
+        <li><span class="lno">12</span><span><span class="term">findByIdForUpdate</span> = <span class="term">SELECT … FOR UPDATE</span>. Ek hi payment pe do webhooks parallel aa sakte hain; row lock unhein line lagata hai.</span></li>
+        <li><span class="lno">15</span><span>Direct <span class="term">setStatus</span> nahi — state machine se. Guard aur audit dono free mein mil jaate hain.</span></li>
+        <li><span class="lno">21</span><span><span class="term">aggregateId</span> Kafka ka partition key banega. Ek payment ke saare events <b>same partition</b> = ordering guaranteed. Ye line miss karoge toh CAPTURED se pehle REFUNDED consume ho sakta hai.</span></li>
+      </ul>
+
+      <div class="codewrap">
+        <div class="code-head"><span class="code-file">OutboxRelayWorker.java</span><span class="code-meta">publisher · at-least-once</span></div>
+        <ol class="code">
+          <li><code>@Component</code></li>
+          <li><code>@RequiredArgsConstructor</code></li>
+          <li><code>public class OutboxRelayWorker {</code></li>
+          <li><code></code></li>
+          <li><code>    private final OutboxEventRepository outboxRepository;</code></li>
+          <li><code>    private final KafkaTemplate&lt;String, String&gt; kafkaTemplate;</code></li>
+          <li><code></code></li>
+          <li><code>    @Scheduled(fixedDelay = 200)</code></li>
+          <li><code>    @Transactional</code></li>
+          <li><code>    public void publishPendingEvents() {</code></li>
+          <li><code></code></li>
+          <li><code>        List&lt;OutboxEvent&gt; batch =</code></li>
+          <li><code>                outboxRepository.lockNextUnpublishedBatch(100);   // SKIP LOCKED</code></li>
+          <li><code></code></li>
+          <li><code>        for (OutboxEvent event : batch) {</code></li>
+          <li><code>            kafkaTemplate.send(event.getEventType(),</code></li>
+          <li><code>                               event.getAggregateId(),</code></li>
+          <li><code>                               event.getPayload());</code></li>
+          <li><code>            event.markPublished(Instant.now());</code></li>
+          <li><code>        }</code></li>
+          <li><code>    }</code></li>
+          <li><code>}</code></li>
+        </ol>
+      </div>
+
+      <ul class="lines">
+        <li><span class="lno">13</span><span><span class="term">FOR UPDATE SKIP LOCKED</span> — 10 replicas chala sakte ho, har ek alag rows uthayega. Koi distributed lock ki zaroorat nahi.</span></li>
+        <li><span class="lno">16–19</span><span>Kafka send ke baad <span class="term">markPublished</span>. Agar yahan crash hua toh event dobara publish hoga. Ye <b>at-least-once</b> hai — isliye <b>har consumer idempotent hona chahiye</b>. Ye guarantee negotiable nahi hai.</span></li>
+      </ul>
+
+      <h3>Saga aur compensations</h3>
+      <table class="tbl">
+        <tr><th>Step</th><th>Forward action</th><th>Compensation</th></tr>
+        <tr><td>1</td><td>holdSeats()</td><td>releaseSeats()</td></tr>
+        <tr><td>2</td><td>reserveCouponForOrder()</td><td>releaseCouponReservation()</td></tr>
+        <tr><td>3</td><td>authorizePayment()</td><td>voidAuthorization()</td></tr>
+        <tr><td>4</td><td>capturePayment()</td><td>initiateRefund()</td></tr>
+        <tr><td>5</td><td>confirmBooking()</td><td>cancelBooking() + refund</td></tr>
+      </table>
+      <div class="note">
+        <b>Order dhyaan se:</b> jo step <em>undo karna sabse mushkil</em> hai (capture — kyunki refund mein 5-7 din lagte hain aur PSP fee non-refundable hoti hai) usko <b>sabse aakhir mein</b> rakho. Seat hold aur coupon reservation sasti hain, isliye pehle. Saga design ka poora skill yahi hai: <b>cheap and reversible pehle, expensive and irreversible baad mein.</b>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= TOPIC 8 ================= -->
+<section class="topic" id="t8">
+  <div class="topic-head">
+    <span class="entry">Entry 08</span>
+    <h2>Webhooks aur reconciliation</h2>
+    <span class="tier">HLD</span><span class="tier lld">LLD</span>
+  </div>
+  <p class="deck">Payment ka result client se nahi aata. Wo PSP se async aata hai — aur agar wo bhi na aaye, toh reconciliation aakhri safety net hai.</p>
+
+  <div class="ledger">
+    <div class="col problem">
+      <span class="col-tag">Problem</span>
+      <h3>Client redirect pe bharosa</h3>
+      <p>Classic flow: user PSP page pe jaata hai, pay karta hai, PSP <span class="term">/payment/success</span> pe redirect karta hai, hum booking confirm kar dete hain.</p>
+      <ul>
+        <li>User ne pay kiya aur turant app kill kar diya → redirect kabhi nahi aayi. Paisa gaya, booking pending.</li>
+        <li>UPI mandate 40 second baad approve hua → user tab tak ja chuka.</li>
+        <li>Attacker ne khud <span class="term">/payment/success?orderId=BK4471</span> hit kar diya → <b>free ticket</b>.</li>
+      </ul>
+      <div class="fail">
+        <b>Kya toota:</b> Ek startup ne success redirect pe hi booking confirm ki, koi signature verification nahi. Kisi ne URL pattern samajh liya. Do din mein 2,300 free bookings. Ye theoretical nahi hai — ye India mein kai baar ho chuka hai.
+      </div>
+      <p>Aur agar sirf webhook pe bharosa karein?</p>
+      <ul>
+        <li>Webhook endpoint 5 minute down tha → PSP ne retry kiya, phir <b>chhod diya</b>.</li>
+        <li>PSP ka apna bug — event bheja hi nahi.</li>
+        <li>Bank ne settle kiya lekin PSP ne status update late kiya.</li>
+      </ul>
+    </div>
+
+    <div class="gutter"></div>
+
+    <div class="col solution">
+      <span class="col-tag">Solution</span>
+      <h3>Teen layers: webhook → polling → reconciliation</h3>
+      <ul>
+        <li><strong>Layer 1 — Webhook (seconds):</strong> primary path. Signature verify, dedupe, process.</li>
+        <li><strong>Layer 2 — Polling (minutes):</strong> job jo <span class="term">CREATED</span>/<span class="term">AUTHORIZED</span> mein 5 min se zyada atke payments ko PSP se seedha poochta hai.</li>
+        <li><strong>Layer 3 — Reconciliation (T+1):</strong> PSP ki settlement file vs hamara ledger vs bank statement. <b>Three-way match.</b></li>
+      </ul>
+
+      <div class="codewrap">
+        <div class="code-head"><span class="code-file">PspWebhookController.java</span><span class="code-meta">ingest · verify · enqueue</span></div>
+        <ol class="code">
+          <li><code>@RestController</code></li>
+          <li><code>@RequestMapping("/webhooks/psp")</code></li>
+          <li><code>@RequiredArgsConstructor</code></li>
+          <li><code>public class PspWebhookController {</code></li>
+          <li><code></code></li>
+          <li><code>    private final WebhookSignatureVerifier signatureVerifier;</code></li>
+          <li><code>    private final WebhookEventRepository webhookEventRepository;</code></li>
+          <li><code></code></li>
+          <li><code>    @PostMapping</code></li>
+          <li><code>    public ResponseEntity&lt;Void&gt; receivePspWebhook(</code></li>
+          <li><code>            @RequestBody String rawBody,</code></li>
+          <li><code>            @RequestHeader("X-Razorpay-Signature") String signature,</code></li>
+          <li><code>            @RequestHeader("X-Razorpay-Event-Id") String eventId) {</code></li>
+          <li><code></code></li>
+          <li><code>        if (!signatureVerifier.isSignatureValid(rawBody, signature)) {</code></li>
+          <li><code>            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();</code></li>
+          <li><code>        }</code></li>
+          <li><code></code></li>
+          <li><code>        boolean stored = webhookEventRepository.insertIfAbsent(eventId, rawBody);</code></li>
+          <li><code>        if (!stored) {</code></li>
+          <li><code>            return ResponseEntity.ok().build();      // duplicate → 200, chup-chaap drop</code></li>
+          <li><code>        }</code></li>
+          <li><code></code></li>
+          <li><code>        return ResponseEntity.ok().build();          // 200 turant, kaam async</code></li>
+          <li><code>    }</code></li>
+          <li><code>}</code></li>
+        </ol>
+      </div>
+
+      <ul class="lines">
+        <li><span class="lno">11</span><span><span class="term">String rawBody</span>, DTO nahi. HMAC <b>exact bytes</b> pe compute hota hai. Jackson ne parse karke re-serialize kiya toh whitespace badlega aur signature <b>hamesha</b> fail hoga. Ye bug har team ek baar karti hai.</span></li>
+        <li><span class="lno">15–17</span><span>Signature verify <b>sabse pehle</b>. Verify se pehle koi business logic nahi, koi DB write nahi. Ye wo line hai jo 2,300 free bookings rokti.</span></li>
+        <li><span class="lno">19–22</span><span><span class="term">eventId</span> pe unique constraint. Duplicate webhook pe <b>200</b> return karo, error nahi — warna PSP retry karta rahega aur aapke logs mein error ka toofan aa jayega.</span></li>
+        <li><span class="lno">24</span><span><b>Turant 200.</b> Processing yahan mat karo. PSP ka timeout aksar 5 second hota hai; slow processing = PSP ko lagega delivery fail hui = retry storm. Store karo, ack karo, background mein process karo.</span></li>
+      </ul>
+
+      <div class="codewrap">
+        <div class="code-head"><span class="code-file">WebhookSignatureVerifier.java</span><span class="code-meta">HMAC-SHA256</span></div>
+        <ol class="code">
+          <li><code>@Component</code></li>
+          <li><code>public class WebhookSignatureVerifier {</code></li>
+          <li><code></code></li>
+          <li><code>    @Value("${psp.webhook.secret}")</code></li>
+          <li><code>    private String webhookSecret;</code></li>
+          <li><code></code></li>
+          <li><code>    public boolean isSignatureValid(String rawBody, String providedSignature) {</code></li>
+          <li><code></code></li>
+          <li><code>        String expected = new HmacUtils(HmacAlgorithms.HMAC_SHA_256, webhookSecret)</code></li>
+          <li><code>                .hmacHex(rawBody);</code></li>
+          <li><code></code></li>
+          <li><code>        return MessageDigest.isEqual(</code></li>
+          <li><code>                expected.getBytes(StandardCharsets.UTF_8),</code></li>
+          <li><code>                providedSignature.getBytes(StandardCharsets.UTF_8));</code></li>
+          <li><code>    }</code></li>
+          <li><code>}</code></li>
+        </ol>
+      </div>
+
+      <ul class="lines">
+        <li><span class="lno">12</span><span><span class="term">MessageDigest.isEqual</span> — <b>constant-time</b> comparison. <span class="term">equals()</span> pehle mismatch pe return kar deta hai, jisse timing se signature guess ki ja sakti hai. Interview mein ye detail bolna alag impression chhodta hai.</span></li>
+      </ul>
+
+      <div class="codewrap">
+        <div class="code-head"><span class="code-file">ReconciliationJob.java</span><span class="code-meta">T+1 three-way match</span></div>
+        <ol class="code">
+          <li><code>@Component</code></li>
+          <li><code>@RequiredArgsConstructor</code></li>
+          <li><code>public class ReconciliationJob {</code></li>
+          <li><code></code></li>
+          <li><code>    private final PspSettlementFileClient settlementFileClient;</code></li>
+          <li><code>    private final PaymentRepository paymentRepository;</code></li>
+          <li><code>    private final MismatchAlertPublisher alertPublisher;</code></li>
+          <li><code></code></li>
+          <li><code>    @Scheduled(cron = "0 30 3 * * *")            // roz 03:30 IST</code></li>
+          <li><code>    public void reconcileSettlementsForPreviousDay() {</code></li>
+          <li><code></code></li>
+          <li><code>        LocalDate settlementDate = LocalDate.now(IST).minusDays(1);</code></li>
+          <li><code></code></li>
+          <li><code>        List&lt;PspSettlementRow&gt; pspRows =</code></li>
+          <li><code>                settlementFileClient.downloadSettlementRows(settlementDate);</code></li>
+          <li><code></code></li>
+          <li><code>        Map&lt;String, Payment&gt; ourPayments =</code></li>
+          <li><code>                paymentRepository.findAllBySettlementDate(settlementDate).stream()</code></li>
+          <li><code>                        .collect(toMap(Payment::getPspReferenceId, identity()));</code></li>
+          <li><code></code></li>
+          <li><code>        for (PspSettlementRow pspRow : pspRows) {</code></li>
+          <li><code></code></li>
+          <li><code>            Payment ours = ourPayments.remove(pspRow.pspReferenceId());</code></li>
+          <li><code></code></li>
+          <li><code>            if (ours == null) {</code></li>
+          <li><code>                alertPublisher.raiseMismatch(MismatchType.MISSING_IN_LEDGER, pspRow);</code></li>
+          <li><code>            } else if (ours.getAmountMinor() != pspRow.amountMinor()) {</code></li>
+          <li><code>                alertPublisher.raiseMismatch(MismatchType.AMOUNT_MISMATCH, pspRow);</code></li>
+          <li><code>            } else if (ours.getStatus() != PaymentStatus.SETTLED) {</code></li>
+          <li><code>                paymentRepository.markSettled(ours.getId(), settlementDate);</code></li>
+          <li><code>            }</code></li>
+          <li><code>        }</code></li>
+          <li><code></code></li>
+          <li><code>        ourPayments.values().forEach(orphan -&gt;</code></li>
+          <li><code>                alertPublisher.raiseMismatch(MismatchType.MISSING_AT_PSP, orphan));</code></li>
+          <li><code>    }</code></li>
+          <li><code>}</code></li>
+        </ol>
+      </div>
+
+      <ul class="lines">
+        <li><span class="lno">23</span><span><span class="term">remove()</span> — sirf lookup nahi. Jo bache reh gaye wo <b>orphans</b> hain (line 33). Ek pass mein dono direction ka mismatch mil jaata hai. Chhota trick, bada fayda.</span></li>
+        <li><span class="lno">25–26</span><span><b>PSP ke paas hai, hamare paas nahi</b> — sabse khatarnak case. User ka paisa cut hua aur hamare system mein record hi nahi. Ye P1 alert hai, silent log nahi.</span></li>
+        <li><span class="lno">29–30</span><span>Yahan reconciliation apna asli kaam karta hai: jo webhook miss ho gaya tha, wo yahan pakda ja kar <span class="term">SETTLED</span> ho jaata hai. Safety net kaam kar gaya.</span></li>
+        <li><span class="lno">33–34</span><span><b>Hamare paas hai, PSP ke paas nahi</b> — ya toh humne galti se capture maan liya, ya settlement late hai. T+2 tak na aaye toh escalate.</span></li>
+      </ul>
+      <div class="note">
+        <b>Production reality:</b> Reconciliation "nice to have" nahi hai. Har payment company ke paas ye hota hai, aur mismatch rate hamesha non-zero hoti hai (typically 0.01–0.1%). Interview mein ye bolna maturity dikhata hai — <b>aap maan rahe ho ki distributed system perfect nahi hoga, aur uske liye plan hai.</b>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= TOPIC 9 ================= -->
+<section class="topic" id="t9">
+  <div class="topic-head">
+    <span class="entry">Entry 09</span>
+    <h2>Refunds, partial refunds aur coupon ka hisaab</h2>
+    <span class="tier lld">LLD</span>
+  </div>
+  <p class="deck">Sabse zyada log yahan phaste hain. "₹1,000 ka order, ₹200 coupon, 2 tickets. Ek cancel kiya. Kitna refund?"</p>
+
+  <div class="ledger">
+    <div class="col problem">
+      <span class="col-tag">Problem</span>
+      <h3>Discount kis ticket ka tha?</h3>
+      <p>Order: 2 tickets × ₹500 = ₹1,000. Coupon <span class="term">SAVE200</span> = ₹200 off. Paid = ₹800.</p>
+      <p>User ek ticket cancel karta hai. Ab teen alag jawab possible hain:</p>
+      <table class="tbl">
+        <tr><th>Logic</th><th>Refund</th><th>Kya galat hai</th></tr>
+        <tr><td>Full ticket price</td><td>₹500</td><td>Company loss — user ne ₹800 diye the, ₹500 wapas + ₹500 ka ticket = ₹200 free</td></tr>
+        <tr><td>Half of paid</td><td>₹400</td><td>Theek lagta hai, par unequal prices pe toot jaata hai</td></tr>
+        <tr><td>Proportional</td><td>₹400</td><td>Sahi — par isko <b>line item level</b> pe calculate karna padta hai</td></tr>
+      </table>
+      <div class="fail">
+        <b>Aur bhi mushkil case:</b> Tickets ₹800 + ₹200 = ₹1,000. Coupon ₹200. Agar ₹200 wala ticket cancel karein aur "half of paid" logic lagayein toh ₹400 refund — jabki us ticket ki actual value ₹160 thi (₹200 − ₹40 ka proportional discount). <b>₹240 ka direct loss, har aise order pe.</b>
+      </div>
+      <p>Aur coupon ka kya? Kya wo redemption wapas milegi? Agar full order cancel hua tab? Agar user ne coupon "use" kar liya toh kya wo dobara mil sakta hai?</p>
+    </div>
+
+    <div class="gutter"></div>
+
+    <div class="col solution">
+      <span class="col-tag">Solution</span>
+      <h3>Discount ko booking ke waqt hi allocate karo</h3>
+      <p>Refund ke waqt calculate mat karo. <b>Booking ke time</b> har line item pe proportional discount allocate karke store kar do. Refund tab sirf lookup ban jaata hai.</p>
+
+      <div class="codewrap">
+        <div class="code-head"><span class="code-file">DiscountAllocator.java</span><span class="code-meta">largest remainder method</span></div>
+        <ol class="code">
+          <li><code>@Component</code></li>
+          <li><code>public class DiscountAllocator {</code></li>
+          <li><code></code></li>
+          <li><code>    public Map&lt;Long, Money&gt; allocateProportionally(List&lt;OrderLineItem&gt; lineItems,</code></li>
+          <li><code>                                                    Money totalDiscount) {</code></li>
+          <li><code></code></li>
+          <li><code>        long orderTotalMinor = lineItems.stream()</code></li>
+          <li><code>                .mapToLong(OrderLineItem::getAmountMinor)</code></li>
+          <li><code>                .sum();</code></li>
+          <li><code></code></li>
+          <li><code>        Map&lt;Long, Money&gt; allocation = new LinkedHashMap&lt;&gt;();</code></li>
+          <li><code>        long distributedMinor = 0L;</code></li>
+          <li><code></code></li>
+          <li><code>        for (int i = 0; i &lt; lineItems.size() - 1; i++) {</code></li>
+          <li><code>            OrderLineItem item = lineItems.get(i);</code></li>
+          <li><code></code></li>
+          <li><code>            long share = totalDiscount.minorUnits()</code></li>
+          <li><code>                    * item.getAmountMinor() / orderTotalMinor;</code></li>
+          <li><code></code></li>
+          <li><code>            allocation.put(item.getId(), Money.ofMinor(share, totalDiscount.currency()));</code></li>
+          <li><code>            distributedMinor += share;</code></li>
+          <li><code>        }</code></li>
+          <li><code></code></li>
+          <li><code>        OrderLineItem lastItem = lineItems.get(lineItems.size() - 1);</code></li>
+          <li><code>        long remainderMinor = totalDiscount.minorUnits() - distributedMinor;</code></li>
+          <li><code></code></li>
+          <li><code>        allocation.put(lastItem.getId(),</code></li>
+          <li><code>                       Money.ofMinor(remainderMinor, totalDiscount.currency()));</code></li>
+          <li><code></code></li>
+          <li><code>        return allocation;</code></li>
+          <li><code>    }</code></li>
+          <li><code>}</code></li>
+        </ol>
+      </div>
+
+      <ul class="lines">
+        <li><span class="lno">14</span><span>Loop <span class="term">size() - 1</span> tak chalta hai. <b>Aakhri item jaanbujh ke chhoda hai</b> — kyun, agli line dekho.</span></li>
+        <li><span class="lno">17–18</span><span>Integer math, multiply pehle. ₹200 discount, ₹1,000 order, ₹333 item → <span class="term">20000 × 33300 / 100000 = 6660</span> = ₹66.60.</span></li>
+        <li><span class="lno">24–27</span><span><b>Ye sabse important part hai.</b> Teen items ₹333.33 each, ₹200 discount → har ek ko ₹66.66, total ₹199.98. <b>2 paise gum.</b> Isliye aakhri item ko bacha hua <em>remainder</em> milta hai, apna share nahi. Ab total hamesha <b>exactly</b> ₹200 rehta hai. Ise <b>largest remainder / penny allocation</b> kehte hain, aur har accounting system mein hota hai.</span></li>
+      </ul>
+
+      <div class="codewrap">
+        <div class="code-head"><span class="code-file">RefundService.java</span><span class="code-meta">partial refund</span></div>
+        <ol class="code">
+          <li><code>@Service</code></li>
+          <li><code>@RequiredArgsConstructor</code></li>
+          <li><code>public class RefundService {</code></li>
+          <li><code></code></li>
+          <li><code>    private final PaymentRepository paymentRepository;</code></li>
+          <li><code>    private final RefundRepository refundRepository;</code></li>
+          <li><code>    private final OrderLineItemRepository lineItemRepository;</code></li>
+          <li><code>    private final CouponRedemptionService couponRedemptionService;</code></li>
+          <li><code>    private final IdempotencyService idempotencyService;</code></li>
+          <li><code>    private final PaymentStateMachine stateMachine;</code></li>
+          <li><code></code></li>
+          <li><code>    public RefundResult initiateRefundForCancelledItems(String paymentId,</code></li>
+          <li><code>                                                       List&lt;Long&gt; cancelledLineItemIds,</code></li>
+          <li><code>                                                       String idempotencyKey) {</code></li>
+          <li><code></code></li>
+          <li><code>        return idempotencyService.executeExactlyOnce(</code></li>
+          <li><code>                idempotencyKey,</code></li>
+          <li><code>                new RefundRequestFingerprint(paymentId, cancelledLineItemIds),</code></li>
+          <li><code>                RefundResult.class,</code></li>
+          <li><code>                () -&gt; performRefund(paymentId, cancelledLineItemIds));</code></li>
+          <li><code>    }</code></li>
+          <li><code></code></li>
+          <li><code>    @Transactional</code></li>
+          <li><code>    protected RefundResult performRefund(String paymentId, List&lt;Long&gt; itemIds) {</code></li>
+          <li><code></code></li>
+          <li><code>        Payment payment = paymentRepository.findByIdForUpdate(paymentId).orElseThrow();</code></li>
+          <li><code></code></li>
+          <li><code>        List&lt;OrderLineItem&gt; items = lineItemRepository.findAllById(itemIds);</code></li>
+          <li><code></code></li>
+          <li><code>        long refundableMinor = items.stream()</code></li>
+          <li><code>                .mapToLong(item -&gt; item.getAmountMinor() - item.getAllocatedDiscountMinor())</code></li>
+          <li><code>                .sum();</code></li>
+          <li><code></code></li>
+          <li><code>        long alreadyRefunded = refundRepository.sumSucceededByPaymentId(paymentId);</code></li>
+          <li><code></code></li>
+          <li><code>        if (alreadyRefunded + refundableMinor &gt; payment.getAmountMinor()) {</code></li>
+          <li><code>            throw new RefundExceedsCapturedAmountException(paymentId);</code></li>
+          <li><code>        }</code></li>
+          <li><code></code></li>
+          <li><code>        boolean isFullOrderCancelled =</code></li>
+          <li><code>                alreadyRefunded + refundableMinor == payment.getAmountMinor();</code></li>
+          <li><code></code></li>
+          <li><code>        if (isFullOrderCancelled) {</code></li>
+          <li><code>            couponRedemptionService.releaseCouponReservation(payment.getOrderId());</code></li>
+          <li><code>        }</code></li>
+          <li><code></code></li>
+          <li><code>        stateMachine.applyTransition(payment,</code></li>
+          <li><code>                isFullOrderCancelled ? PaymentStatus.REFUNDED</code></li>
+          <li><code>                                     : PaymentStatus.PARTIALLY_REFUNDED,</code></li>
+          <li><code>                "USER_CANCELLED");</code></li>
+          <li><code></code></li>
+          <li><code>        Refund refund = refundRepository.save(</code></li>
+          <li><code>                Refund.pending(paymentId, refundableMinor, itemIds));</code></li>
+          <li><code></code></li>
+          <li><code>        return RefundResult.accepted(refund.getId(), refundableMinor);</code></li>
+          <li><code>    }</code></li>
+          <li><code>}</code></li>
+        </ol>
+      </div>
+
+      <ul class="lines">
+        <li><span class="lno">16–20</span><span>Refund <b>hamesha</b> idempotency ke andar. Support agent ne do baar click kar diya toh double refund nahi hona chahiye — ye reverse direction ka double-charge hai.</span></li>
+        <li><span class="lno">30</span><span><b>Poore refund ka core formula:</b> <span class="term">item amount − allocated discount</span>. ₹500 ticket, ₹100 allocated discount → ₹400 refund. Wahi jo user ne actually us ticket ke liye pay kiya tha.</span></li>
+        <li><span class="lno">35–37</span><span>Over-refund guard. Iske bina buggy retries ya malicious support access se captured amount se zyada refund ho sakta hai.</span></li>
+        <li><span class="lno">39–43</span><span>Coupon <b>sirf full cancel</b> pe release hoti hai. Partial pe nahi — warna user 3 mein se 1 ticket cancel karke coupon wapas le lega aur dobara use karega. Ye asli exploit hai.</span></li>
+        <li><span class="lno">45–48</span><span>State target dynamically — <span class="term">REFUNDED</span> ya <span class="term">PARTIALLY_REFUNDED</span>. FSM (Topic 03) khud verify karega ki transition legal hai.</span></li>
+        <li><span class="lno">50–51</span><span>Refund <span class="term">PENDING</span> mein save. PSP call yahan nahi — outbox event jayega, worker karega. <b>Transaction ke andar external call nahi</b>, wahi rule.</span></li>
+      </ul>
+
+      <div class="naming">
+        <h4>Naming jo intent batati hai</h4>
+        <table>
+          <tr><td>initiateRefundForCancelledItems(...)</td><td class="bad">refund(id, list)</td></tr>
+          <tr><td>allocateProportionally(items, discount)</td><td class="bad">split(a, b)</td></tr>
+          <tr><td>sumSucceededByPaymentId(id)</td><td class="bad">getTotal(id)</td></tr>
+          <tr><td>isFullOrderCancelled</td><td class="bad">flag2</td></tr>
+        </table>
+        <p style="margin-top:9px;font-size:13.4px;color:var(--ink-2)"><b>initiate</b> vs <b>perform</b> ka farq bhi dekho — initiate async intent hai, perform sync kaam. Caller ko naam se hi pata chal jaata hai ki paisa abhi nahi gaya.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= TOPIC 10 ================= -->
+<section class="topic" id="t10">
+  <div class="topic-head">
+    <span class="entry">Entry 10</span>
+    <h2>Data model, money aur security</h2>
+    <span class="tier">HLD</span><span class="tier lld">LLD</span>
+  </div>
+  <p class="deck">Aakhri layer: paisa kaise store ho, data kaise batein, aur kya cheez aapke database mein <em>kabhi</em> nahi aani chahiye.</p>
+
+  <div class="ledger">
+    <div class="col problem">
+      <span class="col-tag">Problem</span>
+      <h3>Teen classic blunders</h3>
+      <p><strong>1. Floating point se paisa</strong></p>
+      <div class="codewrap">
+        <div class="code-head"><span class="code-file">Money.java</span><span class="code-meta">anti-pattern</span></div>
+        <ol class="code">
+          <li><code>double a = 0.1, b = 0.2;</code></li>
+          <li><code>System.out.println(a + b);        // 0.30000000000000004</code></li>
+          <li><code></code></li>
+          <li><code>double price = 1199.99;</code></li>
+          <li><code>double gst   = price * 0.18;      // 215.99820000000003</code></li>
+        </ol>
+      </div>
+      <p>Ek transaction pe ye kuch nahi. 5 million/day pe ye <b>reconciliation mismatch</b> hai jo auditor pakadta hai.</p>
+
+      <p><strong>2. Card data database mein</strong> — <span class="term">card_number</span>, <span class="term">cvv</span> columns. CVV store karna <b>PCI-DSS ka direct violation</b> hai, encrypted ho tab bhi. Breach pe fine + license loss.</p>
+
+      <p><strong>3. Coupon endpoint open</strong> — <span class="term">POST /coupons/validate</span> bina rate limit. Attacker 4-char coupon space (1.6M combos) 20 minute mein brute-force kar leta hai.</p>
+      <div class="fail">
+        <b>Real pattern:</b> Scrapers coupon validation API ko harvest karke discount codes public forums pe daal dete hain. Ek din mein marketing budget khatam, aur wo coupons intended audience tak pahunchte hi nahi.
+      </div>
+    </div>
+
+    <div class="gutter"></div>
+
+    <div class="col solution">
+      <span class="col-tag">Solution</span>
+      <h3>Money as a value object</h3>
+      <div class="codewrap">
+        <div class="code-head"><span class="code-file">Money.java</span><span class="code-meta">immutable record</span></div>
+        <ol class="code">
+          <li><code>public record Money(long minorUnits, Currency currency) {</code></li>
+          <li><code></code></li>
+          <li><code>    public static Money ofMinor(long minorUnits, Currency currency) {</code></li>
+          <li><code>        return new Money(minorUnits, currency);</code></li>
+          <li><code>    }</code></li>
+          <li><code></code></li>
+          <li><code>    public Money plus(Money other) {</code></li>
+          <li><code>        requireSameCurrency(other);</code></li>
+          <li><code>        return new Money(Math.addExact(this.minorUnits, other.minorUnits), currency);</code></li>
+          <li><code>    }</code></li>
+          <li><code></code></li>
+          <li><code>    public Money minus(Money other) {</code></li>
+          <li><code>        requireSameCurrency(other);</code></li>
+          <li><code>        return new Money(Math.subtractExact(this.minorUnits, other.minorUnits), currency);</code></li>
+          <li><code>    }</code></li>
+          <li><code></code></li>
+          <li><code>    private void requireSameCurrency(Money other) {</code></li>
+          <li><code>        if (!this.currency.equals(other.currency)) {</code></li>
+          <li><code>            throw new CurrencyMismatchException(this.currency, other.currency);</code></li>
+          <li><code>        }</code></li>
+          <li><code>    }</code></li>
+          <li><code>}</code></li>
+        </ol>
+      </div>
+
+      <ul class="lines">
+        <li><span class="lno">1</span><span><span class="term">record</span> = immutable, free <span class="term">equals/hashCode</span>. Money kabhi mutate nahi hota — har operation naya object deta hai. Concurrent code mein ye bahut bachata hai.</span></li>
+        <li><span class="lno">9</span><span><span class="term">Math.addExact</span> — overflow pe exception. Plain <span class="term">+</span> chup-chaap wrap karke <b>negative amount</b> bana dega.</span></li>
+        <li><span class="lno">17–21</span><span>Currency mismatch pe crash. ₹100 + $100 = 200 kaise? Type system se ye galti rok do.</span></li>
+      </ul>
+
+      <h3>Schema — core tables</h3>
+      <table class="tbl">
+        <tr><th>Table</th><th>Shard key</th><th>Notes</th></tr>
+        <tr><td>payment</td><td>order_id (hash)</td><td>partition by created_at month</td></tr>
+        <tr><td>ledger_entry</td><td>account_id</td><td>append-only, no UPDATE ever</td></tr>
+        <tr><td>coupon</td><td>—</td><td>chhota, replicate everywhere</td></tr>
+        <tr><td>coupon_redemption</td><td>user_id</td><td>ux (user_id, coupon_id, order_id)</td></tr>
+        <tr><td>outbox_event</td><td>—</td><td>local, 48h retention</td></tr>
+        <tr><td>idempotency_record</td><td>—</td><td>ux (idempotency_key), 48h TTL</td></tr>
+      </table>
+
+      <h3>Double-entry ledger</h3>
+      <p>Har money movement ke <b>do</b> entries — debit aur credit — jo hamesha zero pe sum hoti hain. ₹800 payment:</p>
+      <table class="tbl">
+        <tr><th>Account</th><th>Debit</th><th>Credit</th></tr>
+        <tr><td>user_payable</td><td>—</td><td>80000</td></tr>
+        <tr><td>psp_receivable</td><td>80000</td><td>—</td></tr>
+      </table>
+      <p><span class="term">SUM(debit) − SUM(credit) = 0</span> — ye invariant har raat check karo. Non-zero mile toh <b>P1</b>. Ye aisa bug pakadta hai jo koi unit test nahi pakad sakta.</p>
+
+      <h3>Security checklist</h3>
+      <ul>
+        <li><strong>Card data:</strong> kabhi mat chhuo. PSP-hosted checkout ya PSP SDK tokenization. Aapke DB mein sirf <span class="term">pspToken</span>, <span class="term">last4</span>, <span class="term">network</span>. Isse PCI scope <b>SAQ-D se SAQ-A</b> aa jaata hai — audit cost 90% kam.</li>
+        <li><strong>CVV:</strong> authorization ke baad store karna <b>prohibited</b> hai. Encrypted bhi nahi. Ye negotiable nahi hai.</li>
+        <li><strong>Coupon endpoint:</strong> per-user 10/min aur per-IP 30/min rate limit. Failed attempts pe exponential backoff. Coupon codes 8+ chars with checksum digit — random guess pe checksum hi fail ho jayega, DB hit hi nahi hoga.</li>
+        <li><strong>Enumeration:</strong> "coupon exists but not eligible" aur "coupon doesn't exist" ka <b>same generic message</b> user ko dikhao, alag reason code sirf internal logs mein.</li>
+        <li><strong>Secrets:</strong> PSP keys vault mein, env vars mein nahi. Quarterly rotation.</li>
+        <li><strong>Audit log:</strong> har state transition, har manual refund, har coupon config change — kisne, kab, kyun. Append-only.</li>
+      </ul>
+      <div class="note">
+        <b>Ek line mein:</b> aap payment system nahi bana rahe — aap ek <b>ledger</b> bana rahe ho jo galti se paisa move karta hai. Sochne ka ye angle badalne se design ke saare decisions clear ho jaate hain.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= MOCK Q&A ================= -->
+<section class="qa" id="mock">
+  <h2 style="font-size:clamp(24px,5vw,34px)">Mock interview questions</h2>
+  <p class="deck" style="margin-top:10px">Pehle khud jawab socho, phir kholo. Jawab wahi format mein hain jo aap actually bolenge — pehle direct answer, phir trade-off.</p>
+
+  <div class="qa-list">
+
+    <details class="q">
+      <summary><span class="qn">Q1</span><span>1,000 coupons hain aur 50,000 log ek saath try kar rahe hain. 1,001st redemption kaise rokoge?</span></summary>
+      <div class="ans">
+        <p><strong>Short answer:</strong> Atomic conditional UPDATE — check aur increment ek hi SQL statement mein, taaki read-then-write ki window bache hi na.</p>
+        <p><span class="term">UPDATE coupon SET count = count + 1 WHERE code = ? AND count &lt; limit</span> — affected rows <span class="term">1</span> matlab mila, <span class="term">0</span> matlab khatam.</p>
+        <p><strong>Trade-off jo aage bolna hai:</strong> ye ek hot row banati hai. 50,000 concurrent pe Postgres us row pe serialize karega — throughput ~500-1,000 TPS tak seemit. Isse aage flash sale ke liye Redis mein tokens pre-load karo aur <span class="term">LPOP</span> se atomically nikaalo, phir async DB mein persist karo.</p>
+        <p><strong>Jo galat hai:</strong> in-memory counter (pods ke beech nahi chalta), aur <span class="term">SELECT</span> phir <span class="term">UPDATE</span> (classic race).</p>
+      </div>
+    </details>
+
+    <details class="q">
+      <summary><span class="qn">Q2</span><span>User ne Pay do baar dabaya. Do charges kaise rokoge?</span></summary>
+      <div class="ans">
+        <p><strong>Short answer:</strong> Idempotency key + database unique constraint. Client ek UUID generate karta hai, retry pe wahi UUID bhejta hai. Server us key ko unique index wali table mein insert karta hai — duplicate insert fail hoga aur hum stored response replay kar denge.</p>
+        <p><strong>Jo detail interviewer dhoondh raha hai:</strong> guarantee <b>DB unique index</b> se aati hai, application ke <span class="term">if</span> check se nahi. Do threads dono <span class="term">findByKey</span> pe empty pa sakte hain — sirf DB constraint hi ek ko rokega.</p>
+        <p><strong>Bonus:</strong> request ka <b>fingerprint hash</b> bhi store karo. Same key + different amount = <span class="term">422</span>. Aur <span class="term">IN_PROGRESS</span> state pe <span class="term">409</span> do, taaki concurrent duplicate wait kare.</p>
+      </div>
+    </details>
+
+    <details class="q">
+      <summary><span class="qn">Q3</span><span>Payment success ho gaya lekin booking DB down hai. Kya karoge?</span></summary>
+      <div class="ans">
+        <p><strong>Short answer:</strong> Payment ka result apne DB mein commit karo aur usi transaction mein <b>outbox event</b> likho. Booking confirmation async hoti hai — jab booking DB wapas aayegi, event consume ho jayega.</p>
+        <p><strong>Kyun outbox:</strong> "DB likho phir Kafka bhejo" dual write hai — beech mein crash = event kho gaya. Outbox se sirf ek write hai (same DB, same transaction), aur relay worker baad mein publish karta hai.</p>
+        <p><strong>Agar booking permanently fail ho jaye</strong> (seat kisi aur ko chali gayi): saga compensation chalao — auto-refund initiate karo, user ko notify karo. Isliye capture ko saga ke <b>aakhir mein</b> rakhte hain.</p>
+      </div>
+    </details>
+
+    <details class="q">
+      <summary><span class="qn">Q4</span><span>PSP webhook teen baar bhejta hai. Handle kaise karoge?</span></summary>
+      <div class="ans">
+        <p><strong>Short answer:</strong> Teen layers — (1) PSP ka <span class="term">eventId</span> unique index wali table mein insert, duplicate pe <span class="term">200</span> return karke drop; (2) state machine mein same-state transition ko no-op banao; (3) business handler khud idempotent ho.</p>
+        <p><strong>Important:</strong> duplicate pe error nahi, <span class="term">200 OK</span> do. Error doge toh PSP aur retry karega — retry storm.</p>
+        <p><strong>Aur:</strong> signature verify karne se pehle <b>kuch bhi</b> mat karo. Raw body string pe HMAC compute karo, parsed DTO pe nahi — re-serialization se signature toot jaayegi.</p>
+      </div>
+    </details>
+
+    <details class="q">
+      <summary><span class="qn">Q5</span><span>₹1,000 ka order, ₹200 coupon, 2 tickets. Ek cancel hua. Refund kitna?</span></summary>
+      <div class="ans">
+        <p><strong>Short answer:</strong> ₹400. Formula: <span class="term">item amount − us item ko allocated discount</span> = ₹500 − ₹100 = ₹400.</p>
+        <p><strong>Asli insight:</strong> discount ko refund ke waqt calculate mat karo. <b>Booking ke waqt</b> proportionally allocate karke har line item pe store kar do. Refund tab sirf lookup hai, calculation nahi.</p>
+        <p><strong>Rounding:</strong> ₹200 ko teen items mein baato → ₹66.66 × 3 = ₹199.98. Do paise gum. Isliye aakhri item ko <b>remainder</b> do, apna share nahi — total hamesha exact match karega.</p>
+        <p><strong>Coupon wapas?</strong> Sirf <b>full</b> cancel pe. Partial pe nahi — warna user 1 ticket cancel karke coupon reclaim kar lega aur dobara use karega.</p>
+      </div>
+    </details>
+
+    <details class="q">
+      <summary><span class="qn">Q6</span><span>Payment amount ke liye kaunsa data type? Kyun?</span></summary>
+      <div class="ans">
+        <p><strong>Short answer:</strong> <span class="term">long</span> in <b>minor units</b> (paise/cents). ₹100 = 10000. Java mein <span class="term">BigDecimal</span> bhi chalega, par <span class="term">long</span> tez hai aur rounding ka sawaal hi nahi uthta.</p>
+        <p><strong>Kabhi nahi:</strong> <span class="term">float</span> ya <span class="term">double</span>. <span class="term">0.1 + 0.2 = 0.30000000000000004</span>. Millions of transactions pe ye reconciliation mismatch hai.</p>
+        <p><strong>DB mein:</strong> <span class="term">BIGINT</span>, ya <span class="term">NUMERIC(19,4)</span> agar exchange rates jaisi sub-paisa precision chahiye. Kabhi <span class="term">FLOAT</span>/<span class="term">DOUBLE PRECISION</span> nahi.</p>
+        <p><strong>Aur:</strong> currency hamesha amount ke saath rakho — ek <span class="term">Money</span> value object mein. Naked <span class="term">long</span> ghoomega toh ek din INR aur USD add ho jayenge.</p>
+      </div>
+    </details>
+
+    <details class="q">
+      <summary><span class="qn">Q7</span><span>2PC kyun nahi use karte booking aur payment ke beech?</span></summary>
+      <div class="ans">
+        <p><strong>Short answer:</strong> 2PC ko coordinator chahiye jo <b>single point of failure</b> hai, aur prepare–commit ke beech resources <b>locked</b> rehte hain. Payment mein wo phase seconds ka ho sakta hai (PSP call), toh 600 TPS pe locks pile up ho jaate hain.</p>
+        <p><strong>Practical reason:</strong> aapka PSP 2PC support hi nahi karta. Razorpay "prepare" phase mein join nahi karega. External system pe rollback hai hi nahi — sirf <b>compensation</b> hai (refund).</p>
+        <p><strong>Isliye:</strong> Saga. Har step ka apna compensating action. Trade-off — beech mein system temporarily inconsistent dikhega (payment done, booking pending). Isko UI mein honestly dikhao: "Confirming your booking…"</p>
+      </div>
+    </details>
+
+    <details class="q">
+      <summary><span class="qn">Q8</span><span>Coupon validate API pe 2,400 TPS aa raha hai. Postgres bacha kaise?</span></summary>
+      <div class="ans">
+        <p><strong>Short answer:</strong> Read aur write path alag karo. <b>Validation</b> (read-heavy) Redis se — coupon config cache karo 60s TTL ke saath. <b>Reservation</b> (write) hi Postgres tak jaaye.</p>
+        <p><strong>Ratio:</strong> 2,400 validate vs 600 reserve. Matlab 75% traffic DB tak pahunchna hi nahi chahiye.</p>
+        <p><strong>Stale cache ka kya?</strong> Chalega — validation sirf UX hai. Asli correctness atomic reserve se aati hai. Cache "available" bole aur reserve <span class="term">0 rows</span> de, toh user ko "coupon just ran out" dikhao. Ye acceptable hai; over-redemption acceptable nahi.</p>
+        <p><strong>Aur:</strong> coupon codes pe checksum digit rakho — invalid code cache aur DB dono ko touch kiye bina reject ho jayega.</p>
+      </div>
+    </details>
+
+    <details class="q">
+      <summary><span class="qn">Q9</span><span>Ek user ne coupon reserve kiya aur payment page pe hi chhod diya. Coupon?</span></summary>
+      <div class="ans">
+        <p><strong>Short answer:</strong> Reservation ka <b>TTL</b> hota hai (typically 10 min, seat hold se thoda zyada). Ek background job expired reservations ko release karke count wapas kar deta hai.</p>
+        <p><strong>Isliye</strong> hum <span class="term">reserveCouponForOrder</span> bolte hain, <span class="term">redeemCoupon</span> nahi. Reserve → payment success → <b>confirm</b>. Reserve → timeout → <b>release</b>. Do alag lifecycle events.</p>
+        <p><strong>Edge case:</strong> job release kar de aur usi waqt payment success ho jaye. Isliye release bhi conditional hona chahiye — <span class="term">WHERE status = 'RESERVED'</span>. Confirm ho chuka hai toh release 0 rows karega, aur wahi sahi hai.</p>
+      </div>
+    </details>
+
+    <details class="q">
+      <summary><span class="qn">Q10</span><span>Card details kahan store karoge?</span></summary>
+      <div class="ans">
+        <p><strong>Short answer:</strong> Kahin nahi. PSP-hosted checkout ya PSP SDK tokenization use karo. Aapke DB mein sirf <span class="term">pspToken</span>, <span class="term">last4</span>, <span class="term">cardNetwork</span>, <span class="term">expiryMonth/Year</span>.</p>
+        <p><strong>CVV:</strong> authorization ke baad store karna PCI-DSS mein <b>explicitly prohibited</b> hai — encrypted ho tab bhi.</p>
+        <p><strong>Business reason jo bolna chahiye:</strong> agar card data aapke system se guzarta hai toh aap <b>SAQ-D</b> scope mein aate ho — annual audit, network segmentation, quarterly scans. PSP tokenization se <b>SAQ-A</b> mein rehte ho. Ye lakhon ka farq hai, sirf security ka nahi.</p>
+      </div>
+    </details>
+
+    <details class="q">
+      <summary><span class="qn">Q11</span><span>Reconciliation kya hai aur kyun chahiye jab webhooks hain hi?</span></summary>
+      <div class="ans">
+        <p><strong>Short answer:</strong> Reconciliation T+1 pe PSP ki settlement file ko hamare ledger aur bank statement se match karta hai. Webhooks best-effort hain — endpoint down tha, PSP ne retries chhod diye, ya PSP ka apna bug tha.</p>
+        <p><strong>Char outcomes:</strong> matched ✓; <b>PSP mein hai hamare mein nahi</b> (P1 — user ka paisa gaya, record nahi); <b>hamare mein hai PSP mein nahi</b> (humne galti se capture maana, ya settlement late); <b>amount mismatch</b> (fee/FX/partial capture).</p>
+        <p><strong>Yahi maturity signal hai:</strong> aap maan rahe ho ki distributed system galtiyan karega, aur unhe pakadne ka mechanism hai. Har payment company mein ye hota hai, aur mismatch rate kabhi zero nahi hoti.</p>
+      </div>
+    </details>
+
+    <details class="q">
+      <summary><span class="qn">Q12</span><span>Coupon "25% off" hai. Cap kaise lagaoge aur negative amount kaise rokoge?</span></summary>
+      <div class="ans">
+        <p><strong>Short answer:</strong> Do guards, dono zaroori:</p>
+        <ul>
+          <li><span class="term">Math.min(rawDiscount, coupon.maxDiscountMinor)</span> — business cap</li>
+          <li><span class="term">Math.min(capped, orderAmount)</span> — safety cap, taaki payable kabhi negative na ho</li>
+        </ul>
+        <p><strong>Schema level pe:</strong> <span class="term">max_discount_minor</span> ko <b>NOT NULL</b> banao. Nullable rakhoge toh ek din koi coupon bina cap ke create ho jayega.</p>
+        <p><strong>Kyun dono:</strong> pehla business rule hai, doosra invariant. ₹100 order pe ₹500 flat coupon — cap toh pass ho jayega, par payable −₹400 ban jayega. Kuch systems us par refund issue kar dete hain. Ye actual exploit hai.</p>
+      </div>
+    </details>
+
+    <details class="q">
+      <summary><span class="qn">Q13</span><span>Payment status ke liye enum kyun, boolean kyun nahi?</span></summary>
+      <div class="ans">
+        <p><strong>Short answer:</strong> Payment ke kam se kam 8 distinct states hain: CREATED, AUTHORIZED, CAPTURED, SETTLED, FAILED, PARTIALLY_REFUNDED, REFUNDED, EXPIRED. Boolean inme se 6 express hi nahi kar sakta.</p>
+        <p><strong>Asli fayda:</strong> enum ke saath <b>allowed transitions</b> define kar sakte ho. <span class="term">CAPTURED</span> se <span class="term">AUTHORIZED</span> wapas jaana illegal hai — guard method exception throw karega. Boolean ke saath koi bhi kuch bhi set kar sakta hai.</p>
+        <p><strong>Auth vs capture ka farq:</strong> authorize = paisa hold, capture = paisa actually liya. Hotels/rentals authorize karke baad mein capture karte hain. Ek boolean mein ye do-step flow fit hi nahi hota.</p>
+      </div>
+    </details>
+
+    <details class="q">
+      <summary><span class="qn">Q14</span><span>Ek user script chala kar 500 coupons redeem kar raha hai. Kaise rokoge?</span></summary>
+      <div class="ans">
+        <p><strong>Layer 1 — DB constraint:</strong> unique index on <span class="term">(user_id, coupon_id)</span>. Ye asli enforcement hai, application check nahi.</p>
+        <p><strong>Layer 2 — per-user limit:</strong> coupon config mein <span class="term">perUserRedemptionLimit</span>, validation chain mein check.</p>
+        <p><strong>Layer 3 — rate limit:</strong> per-user 10/min, per-IP 30/min. Failed attempts pe exponential backoff.</p>
+        <p><strong>Layer 4 — velocity rules:</strong> naya account + high-value coupon + naya device = manual review. Multiple accounts, ek hi device fingerprint ya payment instrument = block.</p>
+        <p><strong>Ye bolna important hai:</strong> ye ek fraud problem hai, sirf engineering problem nahi. Aap loss ko zero nahi kar sakte — <b>acceptable level tak la sakte ho</b>. Detection ke liye async fraud service rakho jo payment path ko slow na kare.</p>
+      </div>
+    </details>
+
+  </div>
+</section>
+
+</main>
+
+<!-- ================= FINALE: BOOKING RESPONSE ANIMATION ================= -->
+<section class="finale" id="finale">
+  <div class="wrap" style="width:100%">
+    <h2>Booking response, live</h2>
+    <p class="deck">Upar wala poora design ek user ke liye kaisa dikhta hai. Teeno path chala ke dekho — jo cheez code mein abstract lagti hai, yahan concrete ho jaati hai.</p>
+
+    <div class="controls">
+      <button class="btn primary" data-run="success">Run booking</button>
+      <button class="btn" data-run="failed">Simulate payment failure</button>
+      <button class="btn" data-run="refund">Simulate cancel &amp; refund</button>
+    </div>
+
+    <div class="stage">
+      <div class="flowbox">
+        <div class="flow-title">saga steps · orchestrator log</div>
+
+        <div class="stepper" id="stepper">
+          <div class="step" data-i="0">
+            <div class="step-rail"><div class="dot">✓</div><div class="line"><i></i></div></div>
+            <div class="step-body">
+              <div class="step-t">Seats hold karo</div>
+              <div class="step-d" data-idle="holdSeats() — TTL 8 min">holdSeats() — TTL 8 min</div>
+            </div>
+          </div>
+          <div class="step" data-i="1">
+            <div class="step-rail"><div class="dot">✓</div><div class="line"><i></i></div></div>
+            <div class="step-body">
+              <div class="step-t">Coupon reserve karo</div>
+              <div class="step-d" data-idle="reserveCouponForOrder(&quot;IPL25&quot;)">reserveCouponForOrder("IPL25")</div>
+            </div>
+          </div>
+          <div class="step" data-i="2">
+            <div class="step-rail"><div class="dot">✓</div><div class="line"><i></i></div></div>
+            <div class="step-body">
+              <div class="step-t">Payment authorize karo</div>
+              <div class="step-d" data-idle="authorizePayment() — PSP call">authorizePayment() — PSP call</div>
+            </div>
+          </div>
+          <div class="step" data-i="3">
+            <div class="step-rail"><div class="dot">✓</div><div class="line"><i></i></div></div>
+            <div class="step-body">
+              <div class="step-t">Capture karo</div>
+              <div class="step-d" data-idle="recordCaptureConfirmation() + outbox">recordCaptureConfirmation() + outbox</div>
+            </div>
+          </div>
+          <div class="step" data-i="4">
+            <div class="step-rail"><div class="dot">✓</div></div>
+            <div class="step-body" style="padding-bottom:4px">
+              <div class="step-t">Booking confirm karo</div>
+              <div class="step-d" data-idle="confirmBooking() ← payment.captured">confirmBooking() ← payment.captured</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="flow-title" style="margin:22px 0 9px">payment status</div>
+        <div class="states" id="states">
+          <span class="state s-pending" data-s="PENDING">PENDING</span>
+          <span class="state s-success" data-s="SUCCESS">CAPTURED</span>
+          <span class="state s-failed" data-s="FAILED">FAILED</span>
+          <span class="state s-refund" data-s="REFUND">REFUNDED</span>
+        </div>
+
+        <div class="logline" id="log" aria-live="polite"></div>
+      </div>
+
+      <div class="ticket" id="ticket">
+        <div class="t-top">
+          <span class="t-status ok" id="tStatus">CONFIRMED</span>
+          <div class="t-movie" id="tTitle">CSK vs MI — IPL 2026</div>
+          <div class="t-meta">Wankhede Stadium, Mumbai · Sat 18 Apr, 7:30 PM</div>
+        </div>
+        <div class="t-notch"></div>
+        <div class="t-rows">
+          <div class="t-row"><span class="lbl">Seats</span><span class="val">North Stand · C-14, C-15</span></div>
+          <div class="t-row"><span class="lbl">Tickets (2 × ₹1,600)</span><span class="val">₹3,200.00</span></div>
+          <div class="t-row disc"><span class="lbl">Coupon IPL25 (25%, cap ₹500)</span><span class="val" id="tDisc">− ₹500.00</span></div>
+          <div class="t-row"><span class="lbl">Convenience fee + GST</span><span class="val">₹118.00</span></div>
+          <div class="t-row total"><span class="lbl" id="tTotalLbl">Paid via UPI</span><span class="val" id="tTotal">₹2,818.00</span></div>
+        </div>
+        <div class="t-foot">
+          <div class="barcode" id="barcode"></div>
+          <div class="t-pnr">PNR<b id="tPnr">BK4471QX</b></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    Ek reference page — payment + coupon system ka HLD aur LLD. Code Java 17 / Spring Boot 3 ke liye likha gaya hai; production mein apne PSP ka SDK aur apni compliance requirements ke hisaab se adapt karna.
+  </div>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ---------- 1. Java syntax highlighting ---------- */
+  var KEYWORDS = ("public|private|protected|static|final|class|interface|enum|record|void|return|new|if|else|for|while|throw|throws|extends|implements|import|package|this|boolean|int|long|double|float|char|byte|short|true|false|null|try|catch|switch|case|default|break|continue|instanceof|abstract|synchronized|volatile|transient|native|super|SELECT|UPDATE|SET|WHERE|AND|FROM|CREATE|TABLE|UNIQUE|INDEX|ON|NOT|BETWEEN|PRIMARY|KEY|DEFAULT|VARCHAR|CHAR|BIGSERIAL|TIMESTAMPTZ|JSONB").split("|").join("|");
+
+  var RX = new RegExp(
+    "(\\/\\/[^\\n]*)" +          // 1 line comment
+    "|(\"(?:\\\\.|[^\"\\\\])*\")" + // 2 string
+    "|(@[A-Za-z_]\\w*)" +        // 3 annotation
+    "|\\b(" + KEYWORDS + ")\\b" + // 4 keyword
+    "|\\b([A-Z][A-Za-z0-9_]*)\\b" + // 5 type / constant
+    "|\\b(\\d+[LlDdFf]?)\\b",    // 6 number
+    "g"
+  );
+
+  function esc(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  function highlightJava(text) {
+    return esc(text).replace(RX, function (m, c, s, a, k, t, n) {
+      if (c) return '<span class="tok-c">' + c + "</span>";
+      if (s) return '<span class="tok-s">' + s + "</span>";
+      if (a) return '<span class="tok-a">' + a + "</span>";
+      if (k) return '<span class="tok-k">' + k + "</span>";
+      if (t) return '<span class="tok-t">' + t + "</span>";
+      if (n) return '<span class="tok-n">' + n + "</span>";
+      return m;
+    });
+  }
+
+  document.querySelectorAll("ol.code li > code").forEach(function (el) {
+    el.innerHTML = highlightJava(el.textContent);
+  });
+
+  /* ---------- 2. Hero transaction rail ---------- */
+  var railSteps = document.querySelectorAll("#txn .rail-step");
+  var txnState = document.getElementById("txnState");
+  var txnOld = document.getElementById("txnOld");
+  var txnNew = document.getElementById("txnNew");
+  var labels = ["CREATED", "COUPON_APPLIED", "AUTHORIZED", "CAPTURED", "SETTLED"];
+
+  function runHeroRail() {
+    railSteps.forEach(function (s) { s.classList.remove("on"); });
+    txnOld.style.visibility = "hidden";
+    txnNew.textContent = "₹1,200";
+    txnState.textContent = labels[0];
+
+    var i = 0;
+    (function tick() {
+      if (i >= railSteps.length) {
+        setTimeout(runHeroRail, 3600);
+        return;
+      }
+      railSteps[i].classList.add("on");
+      txnState.textContent = labels[i];
+      if (i === 1) {
+        txnOld.style.visibility = "visible";
+        txnNew.textContent = "₹900";
+      }
+      i++;
+      setTimeout(tick, 950);
+    })();
+  }
+  if (!reduced) { runHeroRail(); }
+  else { railSteps.forEach(function (s) { s.classList.add("on"); }); txnNew.textContent = "₹900"; }
+
+  /* ---------- 3. Barcode ---------- */
+  var barcode = document.getElementById("barcode");
+  for (var b = 0; b < 44; b++) {
+    var bar = document.createElement("i");
+    bar.style.width = (Math.random() > 0.62 ? 3 : 1.5) + "px";
+    barcode.appendChild(bar);
+  }
+
+  /* ---------- 4. Booking response demo ---------- */
+  var steps = Array.prototype.slice.call(document.querySelectorAll("#stepper .step"));
+  var states = Array.prototype.slice.call(document.querySelectorAll("#states .state"));
+  var logBox = document.getElementById("log");
+  var ticket = document.getElementById("ticket");
+  var tStatus = document.getElementById("tStatus");
+  var tTotal = document.getElementById("tTotal");
+  var tTotalLbl = document.getElementById("tTotalLbl");
+  var tDisc = document.getElementById("tDisc");
+  var tPnr = document.getElementById("tPnr");
+  var timers = [];
+
+  function clearTimers() {
+    timers.forEach(clearTimeout);
+    timers = [];
+  }
+
+  function at(ms, fn) { timers.push(setTimeout(fn, reduced ? Math.min(ms, 120) : ms)); }
+
+  function resetStage() {
+    clearTimers();
+    steps.forEach(function (s) {
+      s.className = "step";
+      var d = s.querySelector(".step-d");
+      d.textContent = d.getAttribute("data-idle");
+    });
+    states.forEach(function (s) { s.classList.remove("on"); });
+    logBox.innerHTML = "";
+    ticket.classList.remove("show", "void");
+  }
+
+  function setState(name) {
+    states.forEach(function (s) {
+      s.classList.toggle("on", s.getAttribute("data-s") === name);
+    });
+  }
+
+  function log(text, kind) {
+    var line = document.createElement("div");
+    if (kind) { line.className = kind; }
+    line.textContent = text;
+    logBox.appendChild(line);
+    logBox.scrollTop = logBox.scrollHeight;
+  }
+
+  function markStep(index, status, detail) {
+    var step = steps[index];
+    step.className = "step " + status;
+    if (detail) { step.querySelector(".step-d").textContent = detail; }
+  }
+
+  var SCRIPTS = {
+    success: [
+      [0,    function () { setState("PENDING"); log("POST /bookings  idempotencyKey=8f2a-…-91c"); markStep(0, "active", "holdSeats() → locking C-14, C-15"); }],
+      [700,  function () { markStep(0, "done", "2 seats held · expires 08:00"); log("seats.held  orderId=BK4471  ttl=480s", "ok"); markStep(1, "active", "reserveOneRedemption(\"IPL25\")"); }],
+      [1500, function () { markStep(1, "done", "reserved · discount ₹500 (capped)"); log("coupon.reserved  rowsAffected=1  remaining=612", "ok"); markStep(2, "active", "PSP authorize… waiting"); }],
+      [2500, function () { markStep(2, "done", "authorized · auth_9QK2Lx"); log("psp.authorized  amountMinor=281800", "ok"); markStep(3, "active", "capture + outbox insert"); }],
+      [3400, function () { markStep(3, "done", "captured · outbox event written"); log("payment.captured → outbox_event id=44219", "ok"); log("relay → kafka topic=payment.captured key=BK4471"); markStep(4, "active", "consuming payment.captured"); }],
+      [4200, function () { markStep(4, "done", "booking CONFIRMED"); setState("SUCCESS"); log("booking.confirmed  pnr=BK4471QX", "ok"); log("ledger: DR psp_receivable 281800 / CR user_payable 281800"); }],
+      [4500, function () { showTicket("ok", "CONFIRMED", "Paid via UPI", "₹2,818.00", "− ₹500.00", "BK4471QX"); }]
+    ],
+    failed: [
+      [0,    function () { setState("PENDING"); log("POST /bookings  idempotencyKey=3d1b-…-77e"); markStep(0, "active", "holdSeats() → locking C-14, C-15"); }],
+      [700,  function () { markStep(0, "done", "2 seats held · expires 08:00"); log("seats.held  orderId=BK4472  ttl=480s", "ok"); markStep(1, "active", "reserveOneRedemption(\"IPL25\")"); }],
+      [1500, function () { markStep(1, "done", "reserved · discount ₹500 (capped)"); log("coupon.reserved  rowsAffected=1  remaining=611", "ok"); markStep(2, "active", "PSP authorize… waiting"); }],
+      [2600, function () { markStep(2, "err", "declined · INSUFFICIENT_FUNDS"); setState("FAILED"); log("psp.failed  reasonCode=INSUFFICIENT_FUNDS", "bad"); log("compensating saga — reverse order", "warn"); }],
+      [3300, function () { markStep(1, "err", "releaseCouponReservation() ✓"); log("coupon.released  remaining=612", "warn"); }],
+      [3900, function () { markStep(0, "err", "releaseSeats() ✓"); log("seats.released  C-14, C-15 back in pool", "warn"); }],
+      [4400, function () { markStep(3, "err", "skipped — no capture"); markStep(4, "err", "booking not created"); log("FSM: CREATED → FAILED (terminal). Retry = new payment row.", "bad"); }],
+      [4800, function () { showTicket("bad", "PAYMENT FAILED", "Nothing charged", "₹0.00", "not applied", "—"); }]
+    ],
+    refund: [
+      [0,    function () { setState("SUCCESS"); log("Booking BK4471 already CAPTURED · ₹2,818.00"); steps.forEach(function (s, i) { markStep(i, "done", s.querySelector(".step-d").getAttribute("data-idle")); }); }],
+      [500,  function () { log("POST /refunds  items=[C-15]  idempotencyKey=b71c-…-40a"); markStep(4, "active", "initiateRefundForCancelledItems()"); }],
+      [1300, function () { markStep(4, "active", "refundable = 160000 − 25000 = 135000"); log("line C-15: amount ₹1,600 − allocated discount ₹250", "warn"); log("refundable ₹1,350.00  (NOT ₹1,600 — discount stays allocated)", "warn"); }],
+      [2300, function () { markStep(3, "active", "FSM: CAPTURED → PARTIALLY_REFUNDED"); log("isFullOrderCancelled = false → coupon NOT released", "warn"); setState("REFUND"); }],
+      [3200, function () { markStep(3, "done", "refund PENDING → PSP queued"); markStep(4, "done", "1 of 2 seats cancelled"); log("refund.created  id=RF8830  amountMinor=135000", "ok"); log("ledger: DR user_payable 135000 / CR psp_receivable 135000"); }],
+      [3800, function () { log("Settlement to source account in 5–7 working days", "ok"); showTicket("ref", "PARTIALLY REFUNDED", "Refunded to UPI", "₹1,350.00", "− ₹250.00 kept", "RF8830"); }]
+    ]
+  };
+
+  function showTicket(cls, statusText, totalLabel, totalValue, discText, pnr) {
+    tStatus.className = "t-status " + cls;
+    tStatus.textContent = statusText;
+    tTotalLbl.textContent = totalLabel;
+    tTotal.textContent = totalValue;
+    tDisc.textContent = discText;
+    tPnr.textContent = pnr;
+    ticket.classList.toggle("void", cls !== "ok");
+    ticket.classList.add("show");
+  }
+
+  function play(mode) {
+    resetStage();
+    SCRIPTS[mode].forEach(function (entry) { at(entry[0], entry[1]); });
+  }
+
+  document.querySelectorAll("[data-run]").forEach(function (btn) {
+    btn.addEventListener("click", function () { play(btn.getAttribute("data-run")); });
+  });
+
+  /* auto-play the happy path once the finale scrolls into view */
+  var played = false;
+  var io = new IntersectionObserver(function (entries) {
+    entries.forEach(function (e) {
+      if (e.isIntersecting && !played) {
+        played = true;
+        play("success");
+      }
+    });
+  }, { threshold: 0.35 });
+  io.observe(document.getElementById("finale"));
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,1457 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Threads ko chalte hue dekho (Java concurrency animation)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=JetBrains+Mono:wght@500;600;700;800&family=M+PLUS+Rounded+1c:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+:root{
+  --paper:#eef1fa;
+  --sheet:#ffffff;
+  --ink:#1b2140;
+  --ink2:#4a5174;
+  --ink3:#a3a9c6;
+  --deep:#161b36;
+  --sakura:#ff7aa8;
+  --sky:#3e8bff;
+  --yuzu:#ffc83d;
+  --matcha:#2fae74;
+  --tomato:#ef4b3a;
+  --violet:#7c5cff;
+  --mint:#35c6a6;
+  --tangerine:#ff9446;
+  --st-new:#8e95b5;
+  --st-run:#2a9d69;
+  --st-blocked:#e0402f;
+  --st-wait:#2f6fe0;
+  --st-twait:#8456ec;
+  --disp:"Dela Gothic One",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --body:"M PLUS Rounded 1c",ui-rounded,"SF Pro Rounded",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+html{-webkit-text-size-adjust:100%}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 16px/1.6 var(--body)}
+b,strong{font-weight:800}
+code{font-family:var(--mono)}
+:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
+.wrap{max-width:1100px;margin:0 auto;padding:0 14px 48px}
+
+/* ---------- hero ---------- */
+.hero{padding:40px 2px 24px}
+.hero h1{margin:0 0 14px;max-width:12ch;font:800 clamp(38px,11vw,72px)/1.04 var(--disp);letter-spacing:-.01em;font-synthesis:none}
+.lede{margin:0 0 24px;max-width:58ch;font-size:17px;line-height:1.6;color:var(--ink2)}
+.cast{background:var(--sheet);border:2.5px solid var(--ink);border-radius:26px;padding:16px 10px 20px}
+.cast h2{margin:0 0 18px;padding:0 6px;font:800 16px/1.35 var(--body)}
+.cast-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px 6px}
+@media(min-width:720px){.cast-grid{grid-template-columns:repeat(6,minmax(0,1fr))}}
+.cm{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
+.cm .tok{position:relative;left:auto;top:auto;margin:0;flex:none;animation:popIn .5s cubic-bezier(.3,1.4,.5,1) both;animation-delay:calc(var(--i,0) * 90ms + 150ms)}
+.cm .tok .badge,.cm .tok .nm{display:none}
+.cm code{font-size:10.5px;font-weight:800;line-height:1.2}
+.cm span{font-size:12.5px;line-height:1.35;color:var(--ink2)}
+
+/* ---------- sticky episode tabs ---------- */
+.tabs{position:sticky;top:0;z-index:40;display:flex;gap:8px;overflow-x:auto;margin:0 -14px;padding:10px 14px;background:rgba(238,241,250,.93);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border-bottom:2px solid var(--ink);scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tabs a{flex:none;display:flex;align-items:center;gap:7px;padding:5px 12px 5px 5px;border:2px solid var(--ink);border-radius:999px;background:var(--sheet);color:var(--ink);text-decoration:none;font:700 13px/1 var(--body)}
+.tabs a i{display:grid;place-items:center;width:23px;height:23px;border-radius:50%;background:var(--ink);color:#fff;font:800 11px/1 var(--disp);font-style:normal}
+.tabs a.on{background:var(--yuzu)}
+
+/* ---------- episodes ---------- */
+.ep{margin:28px 0;padding:20px 14px;background:var(--sheet);border:2.5px solid var(--ink);border-radius:26px;scroll-margin-top:62px}
+.ep-head{display:flex;align-items:center;gap:12px;margin:0 0 12px}
+.medal{flex:none;display:grid;place-items:center;width:52px;height:52px;border-radius:50%;background:var(--acc);border:2.5px solid var(--ink);box-shadow:3px 3px 0 var(--ink);font:800 24px/1 var(--disp);font-synthesis:none}
+.ep h2{margin:0;font:800 clamp(24px,7vw,34px)/1.1 var(--disp);font-synthesis:none}
+.ep-sub{margin:5px 0 0;font:700 15px/1.3 var(--body);color:var(--ink2)}
+.intro{margin:0 0 16px;max-width:64ch}
+.intro code,.cap-txt code,.pts code,.sheet dd code{font-size:.86em;font-weight:600;background:#e7eaf7;border-radius:6px;padding:1px 5px}
+.demo{display:grid;gap:18px}
+@media(min-width:900px){
+  .demo{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);align-items:start}
+  .code-col{position:sticky;top:72px}
+}
+.seg{display:inline-flex;max-width:100%;margin:0 0 12px;border:2.5px solid var(--ink);border-radius:14px;overflow:hidden;background:var(--sheet)}
+.seg button{appearance:none;-webkit-appearance:none;margin:0;border:0;background:transparent;color:var(--ink);font:700 13.5px/1.2 var(--body);padding:0 13px;min-height:42px;cursor:pointer}
+.seg button+button{border-left:2.5px solid var(--ink)}
+.seg button code{font-size:12.5px;font-weight:700}
+.seg button.on{background:var(--ink);color:#fff}
+
+/* ---------- stage ---------- */
+.stage{position:relative;height:var(--h,300px);overflow:hidden;isolation:isolate;border:2.5px solid var(--ink);border-radius:18px;background-color:#fbfcff;background-image:radial-gradient(#d8ddef 1.2px,transparent 1.3px);background-size:14px 14px}
+.stage.has-log{border-radius:18px 18px 0 0}
+.console{position:relative;min-height:98px;margin-top:-2.5px;padding:9px 13px 10px;background:var(--deep);color:#e8ebff;border:2.5px solid var(--ink);border-radius:0 0 18px 18px;font:500 12.5px/1.6 var(--mono)}
+.console .ll{color:var(--lc,#e8ebff);animation:lnIn .3s ease both}
+.console:empty::before{content:"Console: abhi kuch print nahi hua";color:#747bb0;font:500 12.5px/1.6 var(--body)}
+
+/* caption = speech bubble under the stage */
+.cap{position:relative;min-height:98px;margin-top:17px;padding:11px 13px 12px;background:var(--sheet);border:2.5px solid var(--ink);border-radius:18px}
+.cap::before{content:"";position:absolute;top:-10px;left:30px;width:16px;height:16px;background:var(--sheet);border-left:2.5px solid var(--ink);border-top:2.5px solid var(--ink);border-radius:3px 0 0 0;transform:rotate(45deg)}
+.cap-top{display:flex;align-items:center;gap:8px;min-width:0;margin-bottom:5px}
+.cap-step{flex:none;padding:4px 9px;border:2px solid var(--ink);border-radius:999px;background:var(--yuzu);font:800 12px/1 var(--body)}
+.cap-code{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font:600 12px/1.4 var(--mono);color:var(--ink2)}
+.cap-txt{margin:0;font-size:15.5px;line-height:1.55}
+
+.ctrls{display:flex;gap:8px;margin-top:12px}
+.btn{appearance:none;-webkit-appearance:none;margin:0;display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 10px;border:2.5px solid var(--ink);border-radius:14px;background:var(--sheet);color:var(--ink);font:800 15px/1 var(--body);white-space:nowrap;box-shadow:3px 3px 0 var(--ink);cursor:pointer;touch-action:manipulation;transition:transform .08s ease,box-shadow .08s ease}
+.btn:active{transform:translate(3px,3px);box-shadow:0 0 0 var(--ink)}
+.btn.play{flex:1.2;background:var(--yuzu)}
+.btn.next{flex:1}
+.btn.sq{flex:none;width:50px;padding:0}
+.btn.reset{font-size:20px}
+.btn.spd{font:800 13px/1 var(--mono)}
+.btn.next.pulse{animation:nudge 1.1s ease-in-out infinite}
+
+/* ---------- code ---------- */
+.code-col{min-width:0}
+pre.code{margin:0;padding:12px 0;overflow-x:auto;-webkit-overflow-scrolling:touch;background:var(--deep);color:#e8ebff;border:2.5px solid var(--ink);border-radius:18px;font:500 12.5px/1.7 var(--mono);counter-reset:ln}
+pre.code code{display:inline-block;min-width:100%}
+.ln{display:block;min-height:1.7em;padding-right:16px;white-space:pre;transition:background-color .25s}
+.ln::before{counter-increment:ln;content:counter(ln);display:inline-block;width:2.7em;padding-right:1em;text-align:right;color:#59608a;-webkit-user-select:none;user-select:none}
+.ln.hot{background:rgba(255,200,61,.17);box-shadow:inset 3px 0 0 var(--yuzu)}
+.ln.hot::before{color:var(--yuzu)}
+.k{color:#ff8cc0}.t{color:#78d0ff}.s{color:#b5ef8a}.c{color:#8a90b8;font-style:italic}.n{color:#ffb86c}.f{color:#ffe08a}
+
+.pts{margin:20px 0 0;padding:0;list-style:none;display:grid;gap:10px;max-width:70ch}
+.pts li{position:relative;padding-left:24px;font-size:15px;line-height:1.55}
+.pts li::before{content:"";position:absolute;left:2px;top:.5em;width:11px;height:11px;border-radius:50%;background:var(--acc);border:2px solid var(--ink)}
+
+/* ---------- cheat sheet ---------- */
+.sheet{margin:28px 0 0;padding:20px 14px 22px;background:var(--sheet);border:2.5px solid var(--ink);border-radius:26px}
+.sheet h2{margin:0 0 16px;font:800 clamp(22px,6vw,30px)/1.15 var(--disp);font-synthesis:none}
+.sheet dl{margin:0;display:grid;gap:14px}
+.sheet .row{display:grid;gap:5px}
+.sheet dt{justify-self:start;padding:6px 10px;border-radius:9px;background:var(--ink);color:#fff;font:700 12.5px/1 var(--mono)}
+.sheet dd{margin:0;font-size:15px;line-height:1.5;color:var(--ink2)}
+@media(min-width:720px){.sheet .row{grid-template-columns:210px 1fr;align-items:center;gap:14px}}
+.foot{margin:22px 4px 0;font-size:13.5px;line-height:1.5;color:var(--ink2)}
+
+/* =========================================================
+   Characters: one per thread. Face = Java thread state.
+   ========================================================= */
+.tok{position:absolute;left:0;top:0;width:40px;height:40px;margin:-20px 0 0 -20px;border-radius:50%;background:var(--c);border:2.5px solid var(--ink);box-shadow:2px 3px 0 var(--ink);z-index:3;transition-property:left,top;transition-duration:.6s;transition-timing-function:cubic-bezier(.5,0,.25,1)}
+.tok.talk{z-index:8}
+.tok.ghost{opacity:0}
+.tok .bodyc{position:absolute;inset:0;border-radius:50%}
+.tok .bodyc i{position:absolute;display:block;box-sizing:content-box}
+.tok .eye{top:12px;width:5px;height:7px;background:var(--ink);border-radius:3px}
+.tok .eye.l{left:9px}.tok .eye.r{right:9px}
+.tok .brow{top:7px;width:8px;height:2.5px;background:var(--ink);border-radius:2px;opacity:0}
+.tok .brow.l{left:7px;transform:rotate(22deg)}.tok .brow.r{right:7px;transform:rotate(-22deg)}
+.tok .mouth{left:50%;top:20px;width:10px;height:4px;margin-left:-7.5px;border:2.5px solid var(--ink);border-top:0;border-radius:0 0 8px 8px}
+.tok .blush{top:19px;width:6px;height:3.5px;border-radius:50%;background:rgba(255,70,115,.42)}
+.tok .blush.l{left:3px}.tok .blush.r{right:3px}
+
+.tok .badge{position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);padding:3px 5px;border-radius:6px;background:var(--ink);color:#fff;font:700 8.5px/1 var(--mono);letter-spacing:.01em;white-space:nowrap}
+.tok .nm{position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);font:800 10.5px/1 var(--mono);color:var(--ink);white-space:nowrap}
+.tok .mk{position:absolute;left:calc(100% + 1px);top:0;font-size:14px;line-height:1;pointer-events:none}
+
+/* live-only motion (only after the person presses Play) */
+.live .tok .eye{animation:blink 4.2s var(--bd,0s) infinite}
+.live .tok.s-run .bodyc{animation:bob 1.1s ease-in-out infinite}
+.live .tok.s-blocked .bodyc{animation:shake .45s ease-in-out 2}
+.live .tok.s-blocked .mk{animation:throb .9s ease-in-out infinite}
+.live .tok.s-wait .mk,.live .tok.s-twait .mk{animation:zz 1.8s ease-in-out infinite}
+
+/* NEW: pale, dotted outline, flat mouth */
+.tok.s-new{background:#fff;background:color-mix(in srgb,var(--c) 40%,#fff);border-style:dashed;box-shadow:none}
+.tok.s-new .mouth{width:8px;height:0;margin-left:-6.5px;top:22px;border-radius:0}
+.tok.s-new .blush{opacity:0}
+/* BLOCKED: angry */
+.tok.s-blocked .brow{opacity:1}
+.tok.s-blocked .eye{top:13px;height:5px}
+.tok.s-blocked .mouth{top:23px;height:3px;border-top:2.5px solid var(--ink);border-bottom:0;border-radius:8px 8px 0 0}
+.tok.s-blocked .blush{opacity:0}
+/* WAITING / TIMED_WAITING: asleep */
+.tok.s-wait .eye,.tok.s-twait .eye{top:15px;width:6px;height:2.5px;border-radius:2px}
+.tok.s-wait .mouth,.tok.s-twait .mouth{width:3px;height:3px;margin-left:-4px;top:22px;border:2.5px solid var(--ink);border-radius:50%}
+/* TERMINATED: happy ^ ^ */
+.tok.s-done .eye{top:13px;width:3px;height:3px;background:transparent;border:2.5px solid var(--ink);border-bottom:0;border-radius:6px 6px 0 0}
+.tok.s-done .eye.l{left:7px}.tok.s-done .eye.r{right:7px}
+.tok.s-done .mouth{width:12px;height:5px;margin-left:-8.5px}
+.tok.s-done .mk{left:auto;right:-7px;top:auto;bottom:-5px;width:17px;height:17px;display:grid;place-items:center;border-radius:50%;background:var(--matcha);border:2px solid var(--ink);color:#fff;font:800 9px/1 var(--body)}
+/* exception: shocked */
+.tok.oops .eye{top:9px;width:5px;height:5px;background:#fff;border:2px solid var(--ink);border-radius:50%}
+.tok.oops .eye.l{left:6px}.tok.oops .eye.r{right:6px}
+.tok.oops .mouth{width:5px;height:6px;margin-left:-5px;top:21px;border:2.5px solid var(--ink);border-radius:50%}
+.tok.oops .brow,.tok.oops .blush{opacity:0}
+.tok.s-wait .eye,.tok.s-twait .eye,.tok.s-done .eye,.tok.oops .eye{animation:none}
+
+.tok.s-new .badge{background:var(--st-new)}
+.tok.s-run .badge{background:var(--st-run)}
+.tok.s-blocked .badge{background:var(--st-blocked)}
+.tok.s-wait .badge{background:var(--st-wait)}
+.tok.s-twait .badge{background:var(--st-twait)}
+
+/* "on CPU right now" */
+.tok.zoom::before{content:"";position:absolute;right:calc(100% + 4px);top:9px;width:16px;height:18px;border-radius:2px;background:repeating-linear-gradient(180deg,var(--ink) 0 2px,transparent 2px 6px);opacity:.45}
+.tok.zoom::after{content:"⚡";position:absolute;left:50%;top:-34px;margin-left:-7px;font-size:13px;line-height:1}
+
+/* speech bubble */
+.tok .bub{position:absolute;bottom:calc(100% + 27px);left:50%;padding:5px 9px;background:#fff;border:2px solid var(--ink);border-radius:12px;box-shadow:2px 2px 0 var(--ink);font:700 12px/1.3 var(--body);color:var(--ink);white-space:nowrap;pointer-events:none;opacity:0;transform:translateX(-50%) scale(.6);transform-origin:50% 100%;transition:opacity .2s,transform .25s cubic-bezier(.3,1.6,.5,1)}
+.tok .bub.on{opacity:1;transform:translateX(-50%) scale(1)}
+.tok .bub::after{content:"";position:absolute;left:50%;bottom:-6px;width:9px;height:9px;margin-left:-5.5px;background:#fff;border-right:2px solid var(--ink);border-bottom:2px solid var(--ink);transform:rotate(45deg)}
+.tok.bub-r .bub{left:auto;right:-14px;transform:scale(.6);transform-origin:100% 100%}
+.tok.bub-r .bub.on{transform:scale(1)}
+.tok.bub-r .bub::after{left:auto;right:24px;margin-left:0}
+
+/* ---------- episode 1: thread race ---------- */
+.track{position:absolute;left:20%;width:64%;height:12px;margin-top:-6px;overflow:hidden;border:2px solid var(--ink);border-radius:8px;background:#fff repeating-linear-gradient(90deg,transparent 0 8px,#e3e7f5 8px 12px);z-index:1}
+.track .fill{display:block;height:100%;width:0;background:var(--c);transition-property:width;transition-timing-function:linear}
+.flag{position:absolute;width:26px;height:26px;margin:-13px 0 0 -13px;display:grid;place-items:center;font-size:17px;line-height:1;z-index:2}
+.note{position:absolute;left:19%;right:3%;margin-top:-9px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font:700 12px/1.4 var(--body);color:var(--ink2);z-index:1}
+
+/* ---------- episode 2: synchronized ---------- */
+.zone{position:absolute;left:21%;right:21%;top:3%;bottom:21%;border:2.5px dashed var(--ink);border-radius:20px;background:rgba(255,200,61,.14);z-index:1}
+.zone span{position:absolute;left:0;right:0;bottom:7px;text-align:center;font:700 11.5px/1.2 var(--body);color:var(--ink2)}
+.heap{position:absolute;left:29%;right:29%;top:7%;height:78px;padding-top:9px;text-align:center;background:#fff;border:2.5px solid var(--ink);border-radius:14px;box-shadow:3px 3px 0 var(--ink);z-index:2}
+.heap small{display:block;font:700 11px/1.2 var(--body);color:var(--ink2);white-space:nowrap}
+.heap small.bad{color:var(--tomato)}
+.heap .cnt{margin-top:10px;font:800 19px/1 var(--mono);white-space:nowrap}
+.heap .cnt b{display:inline-block;padding:2px 6px;border-radius:7px}
+.heap .cnt b.f-ok{animation:flashOk .9s ease}
+.heap .cnt b.f-bad{animation:flashBad .9s ease}
+.tok .reg{position:absolute;top:calc(100% + 22px);left:50%;transform:translateX(-50%);padding:4px 7px;border-radius:7px;background:var(--deep);color:#fff;font:700 10.5px/1 var(--mono);white-space:nowrap;opacity:0;transition:opacity .2s}
+.tok .reg.on{opacity:1}
+.tok .reg.flash{animation:regFlash .7s ease}
+.key{position:absolute;width:30px;height:30px;margin:-15px 0 0 -15px;display:grid;place-items:center;border-radius:50%;background:var(--yuzu);border:2.5px solid var(--ink);box-shadow:2px 2px 0 var(--ink);font-size:14px;line-height:1;z-index:7;transition-property:left,top;transition-duration:.55s;transition-timing-function:cubic-bezier(.5,0,.25,1)}
+.stamp{position:absolute;left:50%;top:89%;padding:7px 12px;border:3px solid currentColor;border-radius:10px;background:#fff;font:800 17px/1 var(--disp);font-synthesis:none;white-space:nowrap;opacity:0;z-index:9;transform:translate(-50%,-50%) rotate(-7deg)}
+.stamp.bad{color:var(--tomato)}.stamp.ok{color:var(--st-run)}
+.stamp.on{animation:stampIn .5s cubic-bezier(.2,1.5,.4,1) both}
+
+/* ---------- episode 3: ReentrantLock ---------- */
+.lockp{position:absolute;left:20%;right:20%;top:2.5%;padding:8px 11px 9px;background:#fff;border:2.5px solid var(--ink);border-radius:14px;box-shadow:3px 3px 0 var(--ink);z-index:2}
+.lp-t{margin-bottom:4px;font:800 12px/1.2 var(--mono);white-space:nowrap}
+.lp-t em{margin-left:6px;padding:2px 6px;border-radius:6px;background:var(--ink);color:#fff;font:700 10px/1 var(--body);font-style:normal;vertical-align:1px}
+.lp-r{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font:600 12px/1.45 var(--body);color:var(--ink2)}
+.lp-r span:first-child{font-family:var(--body)}
+.lp-r b{display:inline-block;font:800 14px/1.2 var(--mono);color:var(--ink)}
+.lp-r .hc{font-family:var(--mono)}
+.lp-r b.pop{animation:bump .45s ease}
+.qbox{position:absolute;left:69%;right:3%;top:26%;bottom:26%;border:2.5px dashed var(--ink3);border-radius:16px;z-index:1}
+.qlab{position:absolute;left:69%;right:3%;top:76%;text-align:center;font:700 11.5px/1.2 var(--body);color:var(--ink2);z-index:1}
+.tok .ring{position:absolute;inset:-9px;border-radius:50%;background:conic-gradient(var(--st-twait) calc(var(--p,0) * 360deg),rgba(27,33,64,.12) 0);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 5px),#000 calc(100% - 4.5px));mask:radial-gradient(farthest-side,transparent calc(100% - 5px),#000 calc(100% - 4.5px));opacity:0;transition:opacity .25s;pointer-events:none}
+.tok .ring.on{opacity:1}
+
+/* ---------- episode 4: CompletableFuture ---------- */
+.wires{position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-events:none}
+.wires .w{fill:none;stroke:var(--ink3);stroke-width:2.5;stroke-dasharray:5 5;vector-effect:non-scaling-stroke;transition:stroke .3s}
+.wires .w.on{stroke:var(--ink);animation:flow .7s linear infinite}
+.card{position:absolute;top:3.5%;width:45%;height:16%;padding:8px 8px 0 14%;background:#fff;border:2.5px solid var(--ink);border-radius:14px;box-shadow:3px 3px 0 var(--ink);z-index:2;opacity:.35;transition:opacity .35s,background-color .3s}
+.card.show{opacity:1}
+.card.cl{left:3%;--c:var(--mint)}
+.card.cr{left:52%;--c:var(--tangerine)}
+.c-l{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font:800 12px/1.3 var(--mono)}
+.c-s{margin-top:2px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font:600 11px/1.3 var(--body);color:var(--ink2)}
+.c-bar{height:9px;margin-top:6px;overflow:hidden;border:2px solid var(--ink);border-radius:6px;background:#fff}
+.c-bar i{display:block;height:100%;width:0;background:var(--c)}
+.card.ok{background:#e8f7ef}.card.ok .c-s{color:var(--st-run);font-weight:800}
+.card.err{background:#ffe9e6}.card.err .c-s{color:var(--tomato);font-weight:800}.card.err .c-bar i{background:var(--tomato)}
+.node{position:absolute;left:26%;right:5%;height:44px;margin-top:-22px;padding:5px 10px;background:#fff;border:2.5px solid var(--ink3);border-radius:12px;z-index:2;transition:background-color .3s,border-color .3s,opacity .3s,box-shadow .3s}
+.n-l{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font:800 11.5px/1.25 var(--mono)}
+.n-v{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font:600 11.5px/1.25 var(--body);color:var(--ink2)}
+.node.on{border-color:var(--ink);background:#fff4cc;box-shadow:3px 3px 0 var(--ink)}
+.node.done{border-color:var(--ink);background:#e8f7ef}
+.node.done .n-v{color:var(--st-run);font-weight:800}
+.node.skip{opacity:.5;border-style:dashed}
+.node.skip .n-l{text-decoration:line-through}
+.mstrip{position:absolute;left:19%;right:3%;top:85%;height:12.5%;padding:6px 10px;background:#fff;border:2.5px solid var(--ink);border-radius:12px;z-index:2}
+.ms-top{display:flex;align-items:baseline;gap:8px;white-space:nowrap;font:600 12px/1.3 var(--body)}
+.ms-top b{font:800 12px/1.3 var(--mono)}
+.ms-t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;color:var(--ink2)}
+.clk{font:800 12px/1.3 var(--mono)}
+.ms-bar{height:9px;margin-top:6px;overflow:hidden;border:2px solid var(--ink);border-radius:6px}
+.ms-bar i{display:block;height:100%;width:0;background:var(--violet)}
+
+/* ---------- motion ---------- */
+.pop{animation:popIn .45s cubic-bezier(.3,1.4,.5,1) both}
+@keyframes popIn{0%{transform:scale(.3);opacity:0}65%{transform:scale(1.14);opacity:1}100%{transform:scale(1);opacity:1}}
+@keyframes blink{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.12)}}
+@keyframes bob{50%{transform:translateY(-2px)}}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+@keyframes throb{50%{transform:scale(1.25)}}
+@keyframes zz{0%{transform:translate(0,2px);opacity:.3}50%{opacity:1}100%{transform:translate(5px,-9px);opacity:0}}
+@keyframes lnIn{from{opacity:0;transform:translateY(4px)}}
+@keyframes flow{to{stroke-dashoffset:-20}}
+@keyframes stampIn{0%{transform:translate(-50%,-50%) rotate(-7deg) scale(2);opacity:0}100%{transform:translate(-50%,-50%) rotate(-7deg) scale(1);opacity:1}}
+@keyframes flashOk{0%{background:#bdf0d2}100%{background:transparent}}
+@keyframes flashBad{0%{background:#ffc9c2;transform:translateX(0)}15%{transform:translateX(-4px)}30%{transform:translateX(4px)}45%{transform:translateX(-3px)}60%{transform:translateX(0)}100%{background:transparent}}
+@keyframes regFlash{0%{background:var(--yuzu);color:var(--ink)}100%{background:var(--deep);color:#fff}}
+@keyframes bump{50%{transform:scale(1.5)}}
+@keyframes nudge{50%{background:#fff0bf}}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+
+/* ---------- layout adjustments ---------- */
+.play-col{min-width:0}
+.ctrls{flex-wrap:wrap;gap:7px}
+.btn{padding:0 9px}
+.btn.sq{width:46px}
+@media (max-width:370px){.btn{font-size:14px}.btn.sq{width:42px}}
+.cap{margin-top:12px;min-height:120px}
+.cap::before{display:none}
+.cap-txt{font-size:15px}
+.console.short{min-height:64px}
+.stamp{top:58%}
+.hero h1,.ep h2,.sheet h2,.medal,.stamp,.tabs a i{font-synthesis:none}
+
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <h1>Threads ko chalte hue dekho</h1>
+  <p class="lede">Java concurrency ke 4 episodes. Har thread ek character hai, aur uska chehra batata hai ki woh abhi kis state mein hai. <b>▶ Play</b> dabao, ya <b>Agla step</b> se ek-ek karke chalao. Jo code line chal rahi hai, woh code mein highlight hogi.</p>
+  <section class="cast" aria-labelledby="cast-h">
+    <h2 id="cast-h">Cast: chehra dekho, state samjho</h2>
+    <div class="cast-grid"></div>
+  </section>
+</header>
+
+<nav class="tabs" aria-label="Episodes">
+  <a href="#ep-thread"><i>1</i>Thread</a>
+  <a href="#ep-sync"><i>2</i>synchronized</a>
+  <a href="#ep-rlock"><i>3</i>ReentrantLock</a>
+  <a href="#ep-cf"><i>4</i>CompletableFuture</a>
+</nav>
+
+<main>
+
+<!-- Episode 1 -->
+<section class="ep" id="ep-thread" style="--acc:var(--sakura)" aria-labelledby="h-thread">
+  <div class="ep-head">
+    <span class="medal" aria-hidden="true">1</span>
+    <div><h2 id="h-thread">Thread</h2><p class="ep-sub">Ek program, kai workers</p></div>
+  </div>
+  <p class="intro">Thread program ke andar ek alag worker hai. Sab threads heap (objects) share karte hain, par har thread ka apna stack hota hai. Kaun kab chalega, ye <b>scheduler</b> decide karta hai, isliye har run mein order badal sakta hai.</p>
+  <div class="demo">
+    <div class="play-col">
+      <div class="seg" role="group" aria-label="Kaunsa method call karein">
+        <button type="button" class="on" data-mode="start" aria-pressed="true"><code>t.start()</code></button>
+        <button type="button" data-mode="run" aria-pressed="false"><code>t.run()</code></button>
+      </div>
+      <div class="stage has-log" style="--h:330px" role="img" aria-label="Animation: main thread teen threads banata aur chalata hai"></div>
+      <div class="console" aria-label="Console output"></div>
+      <div class="ctrls">
+        <button type="button" class="btn play">▶ Play</button>
+        <button type="button" class="btn next">Agla step</button>
+        <button type="button" class="btn sq reset" aria-label="Reset">↺</button>
+        <button type="button" class="btn sq spd" aria-label="Speed badlo">1x</button>
+      </div>
+      <div class="cap"><div class="cap-top"><span class="cap-step">Ready</span><code class="cap-code" hidden></code></div><p class="cap-txt" aria-live="polite"></p></div>
+    </div>
+    <div class="code-col"><pre class="code" tabindex="0" aria-label="Java code"></pre></div>
+  </div>
+  <ul class="pts">
+    <li><code>start()</code> naya thread banata hai. <code>run()</code> bas ek normal method call hai, jise main thread hi chalata hai.</li>
+    <li>Ek hi thread pe <code>start()</code> do baar call kiya toh <code>IllegalThreadStateException</code> aayega.</li>
+    <li>Real project mein <code>new Thread()</code> ki jagah <code>ExecutorService</code> (thread pool) use karo.</li>
+  </ul>
+</section>
+
+<!-- Episode 2 -->
+<section class="ep" id="ep-sync" style="--acc:var(--sky)" aria-labelledby="h-sync">
+  <div class="ep-head">
+    <span class="medal" aria-hidden="true">2</span>
+    <div><h2 id="h-sync">synchronized</h2><p class="ep-sub">Ek time pe sirf ek thread</p></div>
+  </div>
+  <p class="intro"><code>count++</code> ek step nahi, teen steps hai: read, add, write. Do threads beech mein ghus gaye toh ek update gayab ho jaata hai. Isko <b>race condition</b> kehte hain. <code>synchronized</code> object ke built-in lock (<b>monitor</b>) se ek time pe ek hi thread ko andar aane deta hai.</p>
+  <div class="demo">
+    <div class="play-col">
+      <div class="seg" role="group" aria-label="Mode chuno">
+        <button type="button" class="on" data-mode="unsafe" aria-pressed="true">❌ Bina lock</button>
+        <button type="button" data-mode="sync" aria-pressed="false">🔒 <code>synchronized</code></button>
+      </div>
+      <div class="stage" style="--h:300px" role="img" aria-label="Animation: do threads ek hi counter badhate hain"></div>
+      <div class="ctrls">
+        <button type="button" class="btn play">▶ Play</button>
+        <button type="button" class="btn next">Agla step</button>
+        <button type="button" class="btn sq reset" aria-label="Reset">↺</button>
+        <button type="button" class="btn sq spd" aria-label="Speed badlo">1x</button>
+      </div>
+      <div class="cap"><div class="cap-top"><span class="cap-step">Ready</span><code class="cap-code" hidden></code></div><p class="cap-txt" aria-live="polite"></p></div>
+    </div>
+    <div class="code-col"><pre class="code" tabindex="0" aria-label="Java code"></pre></div>
+  </div>
+  <ul class="pts">
+    <li>Method khatam hote hi lock apne aap chhoot jaata hai, exception aaye tab bhi.</li>
+    <li>Lock ka wait karne wala thread <b>BLOCKED</b> state mein hota hai. Thread dump mein yahi dikhega.</li>
+    <li>Sirf ek counter badhana hai? <code>AtomicInteger.incrementAndGet()</code> bina lock ke bhi safe hai.</li>
+  </ul>
+</section>
+
+<!-- Episode 3 -->
+<section class="ep" id="ep-rlock" style="--acc:var(--violet)" aria-labelledby="h-rlock">
+  <div class="ep-head">
+    <span class="medal" aria-hidden="true">3</span>
+    <div><h2 id="h-rlock">Reentrant<wbr>Lock</h2><p class="ep-sub">Chabi aapke haath mein</p></div>
+  </div>
+  <p class="intro">Kaam <code>synchronized</code> jaisa hi hai, par control zyada milta hai: <code>tryLock()</code> se wait ki limit, fair queue, aur ek lock pe kai Conditions. Bas <code>unlock()</code> khud karna padta hai, hamesha <code>finally</code> mein.</p>
+  <div class="demo">
+    <div class="play-col">
+      <div class="stage" style="--h:360px" role="img" aria-label="Animation: teen threads ek ReentrantLock ke liye aate hain"></div>
+      <div class="ctrls">
+        <button type="button" class="btn play">▶ Play</button>
+        <button type="button" class="btn next">Agla step</button>
+        <button type="button" class="btn sq reset" aria-label="Reset">↺</button>
+        <button type="button" class="btn sq spd" aria-label="Speed badlo">1x</button>
+      </div>
+      <div class="cap"><div class="cap-top"><span class="cap-step">Ready</span><code class="cap-code" hidden></code></div><p class="cap-txt" aria-live="polite"></p></div>
+    </div>
+    <div class="code-col"><pre class="code" tabindex="0" aria-label="Java code"></pre></div>
+  </div>
+  <ul class="pts">
+    <li><b>Reentrant</b> ka matlab: jis thread ke paas lock hai, woh dobara bhi le sakta hai. Har baar holdCount +1.</li>
+    <li>Jitni baar <code>lock()</code>, utni baar <code>unlock()</code>. Ek bhi miss hua toh lock hamesha busy rahega aur baaki threads atke rahenge.</li>
+    <li><code>tryLock(timeout)</code> deadlock se bachne ka sabse aasaan tareeka hai.</li>
+    <li><code>lock()</code> pe atka thread, thread dump mein <b>WAITING (parking)</b> dikhta hai, BLOCKED nahi.</li>
+  </ul>
+</section>
+
+<!-- Episode 4 -->
+<section class="ep" id="ep-cf" style="--acc:var(--mint)" aria-labelledby="h-cf">
+  <div class="ep-head">
+    <span class="medal" aria-hidden="true">4</span>
+    <div><h2 id="h-cf">Completable<wbr>Future</h2><p class="ep-sub">Wait mat karo, aage ka plan bata do</p></div>
+  </div>
+  <p class="intro">Kaam background thread pool ko do, aur pehle se bata do ki result aane par kya karna hai (<code>thenApply</code>, <code>thenCombine</code>…). Main thread free rehta hai. Food delivery app jaisa: order karo, apna kaam karo, khana ready hote hi notification aa jaata hai.</p>
+  <div class="demo">
+    <div class="play-col">
+      <div class="seg" role="group" aria-label="Mode chuno">
+        <button type="button" class="on" data-mode="ok" aria-pressed="true">✅ Sab theek</button>
+        <button type="button" data-mode="err" aria-pressed="false">💥 Error aane do</button>
+      </div>
+      <div class="stage has-log" style="--h:420px" role="img" aria-label="Animation: do async kaam parallel chalte hain aur result aage ki chain mein jaata hai"></div>
+      <div class="console short" aria-label="Console output"></div>
+      <div class="ctrls">
+        <button type="button" class="btn play">▶ Play</button>
+        <button type="button" class="btn next">Agla step</button>
+        <button type="button" class="btn sq reset" aria-label="Reset">↺</button>
+        <button type="button" class="btn sq spd" aria-label="Speed badlo">1x</button>
+      </div>
+      <div class="cap"><div class="cap-top"><span class="cap-step">Ready</span><code class="cap-code" hidden></code></div><p class="cap-txt" aria-live="polite"></p></div>
+    </div>
+    <div class="code-col"><pre class="code" tabindex="0" aria-label="Java code"></pre></div>
+  </div>
+  <ul class="pts">
+    <li><code>thenApply</code> result badalta hai, <code>thenCombine</code> do results jodta hai, aur <code>thenCompose</code> ek async kaam ke baad doosra async kaam chalata hai.</li>
+    <li><code>join()</code> aur <code>get()</code> blocking hain. Inhe sirf end mein use karo.</li>
+    <li>Default pool <code>ForkJoinPool.commonPool()</code> hai. DB ya API calls ke liye apna Executor do: <code>supplyAsync(task, executor)</code>.</li>
+    <li><code>exceptionally</code> na ho toh <code>join()</code> <code>CompletionException</code> throw karega.</li>
+  </ul>
+</section>
+
+<section class="sheet" aria-labelledby="h-sheet">
+  <h2 id="h-sheet">Kab kya use karein?</h2>
+  <dl>
+    <div class="row"><dt>synchronized</dt><dd>Shared data ko simple tareeke se safe karna ho</dd></div>
+    <div class="row"><dt>ReentrantLock</dt><dd>Timeout, fairness ya multiple Conditions chahiye</dd></div>
+    <div class="row"><dt>AtomicInteger</dt><dd>Sirf ek counter ya flag update karna ho</dd></div>
+    <div class="row"><dt>CompletableFuture</dt><dd>Kaam background mein chalao, aur result aane par aage ka kaam</dd></div>
+    <div class="row"><dt>ExecutorService</dt><dd>Bahut saare tasks ke liye thread pool</dd></div>
+  </dl>
+</section>
+<p class="foot">Animation samjhane ke liye simple rakha gaya hai. Asli timing aur order JVM, OS aur CPU pe depend karta hai.</p>
+
+</main>
+</div>
+<script>
+(() => {
+  'use strict';
+
+  /* ================= helpers ================= */
+  const CANCEL = Symbol('cancel');
+  const SPEEDS = [1, 0.5, 2];
+  let SPEED = 1;
+
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const noop = () => {};
+  const shuffle = a => {
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  };
+
+  function mk(tag, cls, html) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (html != null) e.innerHTML = html;
+    return e;
+  }
+  function place(e, x, y) { e.style.left = x + '%'; e.style.top = y + '%'; }
+  function move(e, x, y, ms = 600) {
+    e.style.transitionDuration = Math.round(ms / SPEED) + 'ms';
+    place(e, x, y);
+  }
+  function restart(e, cls) { e.classList.remove(cls); void e.offsetWidth; e.classList.add(cls); }
+
+  /* ================= characters ================= */
+  const LABEL = { new: 'NEW', run: 'RUNNABLE', blocked: 'BLOCKED', wait: 'WAITING', twait: 'TIMED_WAITING', done: 'TERMINATED' };
+  const MARK = { blocked: '💢', wait: '💤', twait: '⏳', done: '✓' };
+  const FACE = '<div class="bodyc"><i class="brow l"></i><i class="brow r"></i><i class="eye l"></i><i class="eye r"></i>' +
+    '<i class="mouth"></i><i class="blush l"></i><i class="blush r"></i></div>';
+
+  function tok(name, color, extra) {
+    const t = mk('div', 'tok' + (extra ? ' ' + extra : ''));
+    t.style.setProperty('--c', color);
+    t.style.setProperty('--bd', (-Math.random() * 4).toFixed(2) + 's');
+    t.innerHTML = FACE + '<span class="badge"></span><b class="nm"></b><span class="mk" aria-hidden="true"></span><span class="bub"></span>';
+    t.querySelector('.nm').textContent = name;
+    return t;
+  }
+  function setState(t, s) {
+    for (const k in LABEL) t.classList.remove('s-' + k);
+    t.classList.add('s-' + s);
+    t.querySelector('.badge').textContent = LABEL[s];
+    t.querySelector('.mk').textContent = MARK[s] || '';
+  }
+  function bubble(t, text) {
+    const b = t.querySelector('.bub');
+    if (!text) { b.classList.remove('on'); t.classList.remove('talk'); return; }
+    b.textContent = text;
+    t.classList.add('talk');
+    restart(b, 'on');
+  }
+
+  /* ================= tiny Java highlighter ================= */
+  const KW = new Set(('abstract boolean break case catch class continue default do double else enum extends final finally ' +
+    'float for if implements import instanceof int interface long new null private protected public return static super ' +
+    'synchronized this throw throws true false try var void volatile while').split(' '));
+  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  function hlJava(line) {
+    const re = /(\/\/.*$|\/\*.*?\*\/)|("(?:[^"\\]|\\.)*")|(\b\d+(?:\.\d+)?\b)|([A-Za-z_$][\w$]*)|([\s\S])/g;
+    let out = '';
+    let m;
+    while ((m = re.exec(line))) {
+      if (m[1]) out += '<span class="c">' + esc(m[1]) + '</span>';
+      else if (m[2]) out += '<span class="s">' + esc(m[2]) + '</span>';
+      else if (m[3]) out += '<span class="n">' + m[3] + '</span>';
+      else if (m[4]) {
+        const id = m[4];
+        if (KW.has(id)) out += '<span class="k">' + id + '</span>';
+        else if (/^[A-Z]/.test(id)) out += '<span class="t">' + id + '</span>';
+        else if (/^\s*\(/.test(line.slice(re.lastIndex))) out += '<span class="f">' + id + '</span>';
+        else out += id;
+      } else out += esc(m[5]);
+    }
+    return out;
+  }
+
+  /* ================= scene engine =================
+     Each episode = setup() (initial frame) + async script().
+     beat() = a step boundary: auto mode waits, step mode waits for "Agla step". */
+  class Scene {
+    constructor(sec, def) {
+      this.sec = sec;
+      this.def = def;
+      this.stage = $('.stage', sec);
+      this.log = $('.console', sec);
+      this.capStep = $('.cap-step', sec);
+      this.capCode = $('.cap-code', sec);
+      this.capTxt = $('.cap-txt', sec);
+      this.pre = $('pre.code', sec);
+      this.bPlay = $('.play', sec);
+      this.bNext = $('.next', sec);
+      this.modeBtns = $$('.seg button', sec);
+      const on = this.modeBtns.find(b => b.classList.contains('on'));
+      this.mode = on ? on.dataset.mode : null;
+      this.run = 0;
+      this.playing = false;
+      this.auto = true;
+      this.pending = null;
+      this.finished = false;
+      this.n = 0;
+      this.bPlay.addEventListener('click', () => this.onPlay());
+      this.bNext.addEventListener('click', () => this.onNext());
+      $('.reset', sec).addEventListener('click', () => this.reset());
+      this.modeBtns.forEach(b => b.addEventListener('click', () => this.setMode(b.dataset.mode)));
+      this.renderCode();
+      this.reset();
+    }
+    setMode(m) {
+      if (m === this.mode) return;
+      this.mode = m;
+      this.modeBtns.forEach(b => {
+        const on = b.dataset.mode === m;
+        b.classList.toggle('on', on);
+        b.setAttribute('aria-pressed', String(on));
+      });
+      this.renderCode();
+      this.reset();
+    }
+    renderCode() {
+      this.lines = this.def.code(this.mode);
+      this.pre.innerHTML = '<code>' + this.lines.map(l => '<span class="ln">' + hlJava(l) + '</span>').join('') + '</code>';
+      this.lnEls = $$('.ln', this.pre);
+    }
+    hl(...nums) {
+      this.lnEls.forEach((el, i) => el.classList.toggle('hot', nums.includes(i + 1)));
+      const txt = nums.map(n => (this.lines[n - 1] || '').replace(/\s*\/\/.*$/, '').trim()).filter(Boolean).join(' ');
+      this.capCode.textContent = txt;
+      this.capCode.hidden = !txt;
+    }
+    say(html) {
+      this.n += 1;
+      this.capStep.textContent = 'Step ' + this.n;
+      this.capTxt.innerHTML = html;
+    }
+    print(text, color) {
+      if (!this.log) return;
+      const l = mk('div', 'll');
+      l.textContent = text;
+      if (color) l.style.setProperty('--lc', color);
+      this.log.appendChild(l);
+      while (this.log.children.length > 4) this.log.firstElementChild.remove();
+    }
+    wait(ms) {
+      const id = this.run;
+      return new Promise((res, rej) => setTimeout(() => (id === this.run ? res() : rej(CANCEL)), ms / SPEED));
+    }
+    beat(ms = 1500) {
+      if (this.auto) return this.wait(ms);
+      return new Promise((res, rej) => { this.pending = { res, rej }; this.ui(); });
+    }
+    tween(ms, fn) {
+      const id = this.run;
+      return new Promise((res, rej) => {
+        let t0 = null;
+        const f = now => {
+          if (id !== this.run) { rej(CANCEL); return; }
+          if (t0 === null) t0 = now;
+          const p = Math.min(1, (now - t0) / (ms / SPEED));
+          fn(p);
+          if (p < 1) requestAnimationFrame(f); else res();
+        };
+        requestAnimationFrame(f);
+      });
+    }
+    cancel() {
+      this.run += 1;
+      if (this.pending) { const p = this.pending; this.pending = null; p.rej(CANCEL); }
+      this.playing = false;
+      this.stage.classList.remove('live');
+    }
+    prepare() {
+      this.def.setup.call(this);
+      if (this.log) this.log.innerHTML = '';
+      this.n = 0;
+    }
+    reset() {
+      this.cancel();
+      this.finished = false;
+      this.prepare();
+      this.capStep.textContent = 'Ready';
+      this.capTxt.innerHTML = this.def.idle(this.mode);
+      this.hl();
+      this.ui();
+    }
+    async start() {
+      this.cancel();
+      this.prepare();
+      this.finished = false;
+      const id = ++this.run;
+      this.playing = true;
+      this.stage.classList.add('live');
+      this.ui();
+      try {
+        await this.def.script.call(this);
+        if (id === this.run) this.finished = true;
+      } catch (e) {
+        if (e !== CANCEL) console.error(e);
+      }
+      if (id === this.run) {
+        this.playing = false;
+        this.pending = null;
+        this.stage.classList.remove('live');
+        this.ui();
+      }
+    }
+    release() {
+      if (this.pending) { const p = this.pending; this.pending = null; p.res(); }
+    }
+    onPlay() {
+      if (!this.playing) { this.auto = true; this.start(); return; }
+      if (this.auto) this.auto = false;
+      else { this.auto = true; this.release(); }
+      this.ui();
+    }
+    onNext() {
+      if (!this.playing) { this.auto = false; this.start(); return; }
+      this.auto = false;
+      this.release();
+      this.ui();
+    }
+    ui() {
+      this.bPlay.textContent = !this.playing
+        ? (this.finished ? '↻ Dobara' : '▶ Play')
+        : (this.auto ? '⏸ Pause' : '▶ Resume');
+      this.bNext.classList.toggle('pulse', !!this.pending);
+    }
+  }
+
+  const TC = ['var(--sakura)', 'var(--sky)', 'var(--yuzu)'];
+  const LOGC = ['#ff9cc2', '#8fbcff', '#ffd46b', '#b9a6ff'];
+
+  /* ================= Episode 1: Thread ================= */
+  const THREAD = {
+    code(mode) {
+      return [
+        'Runnable task = () -> {',
+        '  doWork();  // thoda kaam',
+        '  String n =',
+        '    Thread.currentThread().getName();',
+        '  System.out.println(n + " done");',
+        '};',
+        '',
+        'Thread t1 = new Thread(task, "T1");',
+        'Thread t2 = new Thread(task, "T2");',
+        'Thread t3 = new Thread(task, "T3");',
+        '',
+        ...(mode === 'run'
+          ? ['t1.run();  // ❌ naya thread nahi', 't2.run();', 't3.run();']
+          : ['t1.start();  // naya thread ✅', 't2.start();', 't3.start();']),
+        'System.out.println("main aage badha");'
+      ];
+    },
+    idle(mode) {
+      return mode === 'run'
+        ? 'Ab dekho <code>start()</code> ki jagah <code>run()</code> call kiya toh kya hota hai. Ye interview ka favourite trap hai.'
+        : '<b>▶ Play</b> dabao aur dekho <code>start()</code> ke baad teen threads saath-saath kaise chalte hain.';
+    },
+    setup() {
+      const st = this.stage;
+      st.innerHTML = '';
+      this.Y = [39, 61.5, 84];
+      this.note = mk('div', 'note');
+      this.note.textContent = 'Program yahin se shuru hota hai';
+      place(this.note, 19, 16);
+      st.appendChild(this.note);
+      this.tracks = this.Y.map((y, i) => {
+        const tr = mk('div', 'track', '<i class="fill"></i>');
+        tr.style.top = y + '%';
+        tr.style.setProperty('--c', TC[i]);
+        st.appendChild(tr);
+        const fl = mk('div', 'flag', '🏁');
+        place(fl, 95, y);
+        st.appendChild(fl);
+        tr.flag = fl;
+        tr.fillEl = tr.firstChild;
+        return tr;
+      });
+      this.main = tok('main', 'var(--violet)');
+      place(this.main, 8, 16);
+      setState(this.main, 'run');
+      st.appendChild(this.main);
+      this.T = ['T1', 'T2', 'T3'].map((n, i) => {
+        const t = tok(n, TC[i], 'ghost');
+        place(t, 8, this.Y[i]);
+        setState(t, 'new');
+        st.appendChild(t);
+        return t;
+      });
+    },
+    async script() {
+      const { T, Y, main, tracks } = this;
+      const fill = (i, p, ms) => {
+        const f = tracks[i].fillEl;
+        f.style.transitionDuration = Math.round(ms / SPEED) + 'ms';
+        f.style.width = p + '%';
+      };
+
+      this.hl(8, 9, 10);
+      this.say('Teen <code>Thread</code> object bane. Abhi ye sirf object hain, chal nahi rahe, isliye state <b>NEW</b> hai.');
+      for (const t of T) { t.classList.remove('ghost'); restart(t, 'pop'); await this.wait(180); }
+      await this.beat(1800);
+
+      if (this.mode !== 'run') {
+        this.say('<code>start()</code> par JVM har ek ke liye naya thread banata hai. State ab <b>RUNNABLE</b>.');
+        for (let i = 0; i < 3; i++) {
+          this.hl(12 + i);
+          setState(T[i], 'run');
+          move(T[i], 20, Y[i], 500);
+          this.note.textContent = 'start() kiya: ' + ['T1', 'T1, T2', 'T1, T2, T3'][i];
+          await this.wait(450);
+        }
+        await this.beat(1200);
+
+        this.hl(2);
+        this.say('Maan lo CPU ke 2 cores hain: ek time pe 2 hi thread sach mein chalte hain (⚡ wale). Kaun chalega, ye <b>scheduler</b> decide karta hai.');
+        const order = [];
+        const racing = (async () => {
+          const prog = [0, 0, 0];
+          while (order.length < 3) {
+            const now = shuffle([0, 1, 2].filter(i => prog[i] < 100)).slice(0, 2);
+            T.forEach((t, i) => t.classList.toggle('zoom', now.includes(i)));
+            for (const i of now) {
+              prog[i] = Math.min(100, prog[i] + rand(7, 17));
+              move(T[i], 20 + prog[i] * 0.64, Y[i], 210);
+              fill(i, prog[i], 210);
+            }
+            await this.wait(240);
+            for (const i of now) {
+              if (prog[i] >= 100 && !order.includes(i)) {
+                order.push(i);
+                T[i].classList.remove('zoom');
+                setState(T[i], 'done');
+                tracks[i].flag.textContent = ['🥇', '🥈', '🥉'][order.length - 1];
+                restart(tracks[i].flag, 'pop');
+                this.print('T' + (i + 1) + ' done', LOGC[i]);
+              }
+            }
+          }
+          T.forEach(t => t.classList.remove('zoom'));
+        })();
+        racing.catch(noop);
+        await this.beat(1900);
+
+        this.hl(15);
+        setState(main, 'done');
+        this.note.textContent = 'main ne kisi ka wait nahi kiya';
+        this.print('main aage badha', LOGC[3]);
+        this.say('Is beech <b>main</b> apni aakhri line chala ke khatam (TERMINATED). Program tab tak chalega jab tak T1, T2, T3 kaam kar rahe hain.');
+        await this.beat(1900);
+        await racing;
+        await this.wait(500);
+        this.hl();
+        this.say('Finish order: <b>' + order.map(i => 'T' + (i + 1)).join(', phir ') + '</b>. Dobara chalao, order badal sakta hai 🎲 Threads ke order pe kabhi bharosa mat karo.');
+      } else {
+        this.say('<code>run()</code> bas ek normal method call hai. Naya thread nahi banta, kaam <b>main</b> khud karega.');
+        await this.beat(1700);
+        for (let i = 0; i < 3; i++) {
+          this.hl(12 + i);
+          this.note.textContent = 't' + (i + 1) + '.run(): kaam main khud kar raha';
+          tracks[i].style.setProperty('--c', 'var(--violet)');
+          move(main, 20, Y[i], 650);
+          await this.wait(700);
+          this.hl(2);
+          main.classList.add('zoom');
+          for (let p = 10; p <= 100; p += 10) {
+            move(main, 20 + p * 0.64, Y[i], 150);
+            fill(i, p, 150);
+            await this.wait(165);
+          }
+          main.classList.remove('zoom');
+          this.hl(5);
+          this.print('main done', LOGC[3]);
+          if (i === 0) {
+            this.say('Print hua <b>"main done"</b>, "T1 done" nahi! Ye code main thread ne chalaya. T1 abhi bhi <b>NEW</b> hai.');
+            await this.beat(2100);
+          } else {
+            await this.wait(450);
+          }
+        }
+        move(main, 8, 16, 650);
+        await this.wait(700);
+        this.hl(15);
+        this.print('main aage badha', LOGC[3]);
+        this.note.textContent = 'Teeno kaam khud line se kiye';
+        setState(main, 'done');
+        T.forEach(t => { t.querySelector('.mk').textContent = '❓'; });
+        await this.wait(500);
+        this.hl();
+        this.say('Teeno kaam <b>ek ke baad ek</b>, sirf main ne kiye. T1, T2, T3 kabhi start hi nahi hue. Parallel chahiye toh <code>start()</code> ✅');
+      }
+    }
+  };
+
+  /* ================= Episode 2: synchronized ================= */
+  const SYNC = {
+    code(mode) {
+      const s = mode === 'sync';
+      return [
+        'class Counter {',
+        '  private int count = 5;',
+        '',
+        s ? '  synchronized void increment() {' : '  void increment() {  // ❌ no lock',
+        '    int tmp = count;  // 1. read',
+        '    tmp = tmp + 1;    // 2. add',
+        '    count = tmp;      // 3. write',
+        s ? '  }  // 🔓 lock apne aap free' : '  }',
+        '}',
+        '',
+        '// count++ bhi andar se yahi 3 steps hai',
+        s ? '// Block style: synchronized (this) {…}' : '// T1 aur T2: counter.increment();'
+      ];
+    },
+    idle(mode) {
+      return mode === 'sync'
+        ? 'Ab wahi kaam <code>synchronized</code> ke saath. <b>▶ Play</b> dabao aur 🔑 pe nazar rakho.'
+        : 'Pehle bina lock ka haal dekho. <b>▶ Play</b> dabao.';
+    },
+    setup() {
+      const st = this.stage;
+      const sync = this.mode === 'sync';
+      st.innerHTML = '';
+      if (sync) st.appendChild(mk('div', 'zone', '<span>🔒 Ek time pe ek</span>'));
+      const heap = mk('div', 'heap',
+        '<small class="' + (sync ? '' : 'bad') + '">' + (sync ? 'Shared heap' : '🔓 Koi lock nahi') + '</small>' +
+        '<div class="cnt">count = <b>5</b></div>');
+      st.appendChild(heap);
+      this.cnt = heap.querySelector('b');
+      this.key = null;
+      if (sync) {
+        this.key = mk('div', 'key', '🔑');
+        place(this.key, 79, 4.5);
+        st.appendChild(this.key);
+      }
+      this.home = [[13, 76], [87, 76]];
+      this.T = ['T1', 'T2'].map((n, i) => {
+        const t = tok(n, TC[i]);
+        place(t, ...this.home[i]);
+        setState(t, 'run');
+        t.appendChild(mk('span', 'reg'));
+        st.appendChild(t);
+        return t;
+      });
+      this.stampEl = mk('div', 'stamp');
+      st.appendChild(this.stampEl);
+    },
+    async script() {
+      const [A, B] = this.T;
+      const reg = (t, v) => {
+        const r = t.querySelector('.reg');
+        r.textContent = 'tmp = ' + v;
+        r.classList.add('on');
+        restart(r, 'flash');
+      };
+      const write = (v, bad) => { this.cnt.textContent = v; restart(this.cnt, bad ? 'f-bad' : 'f-ok'); };
+      const stamp = (text, kind) => {
+        this.stampEl.textContent = text;
+        this.stampEl.className = 'stamp ' + kind;
+        restart(this.stampEl, 'on');
+      };
+      const keyTo = (x, y) => move(this.key, x + 11, y - 1, 550);
+      const keyHome = () => move(this.key, 79, 4.5, 550);
+
+      this.say('T1 aur T2 dono <code>increment()</code> call karenge. 5 + 1 + 1 = <b>7</b> aana chahiye.');
+      await this.beat(1700);
+
+      if (this.mode !== 'sync') {
+        this.hl(4);
+        move(A, 35, 52, 700);
+        move(B, 65, 52, 700);
+        this.say('Koi lock nahi, isliye dono <b>ek saath</b> andar aa gaye 😬');
+        await this.wait(750);
+        await this.beat(1100);
+
+        this.hl(5);
+        reg(A, 5);
+        this.say('T1 ne padha: <b>tmp = 5</b>');
+        await this.wait(1000);
+        reg(B, 5);
+        this.say('T2 ne bhi padha: <b>tmp = 5</b>. T1 ne abhi likha hi nahi tha!');
+        await this.beat(1600);
+
+        this.hl(6);
+        reg(A, 6);
+        await this.wait(300);
+        reg(B, 6);
+        this.say('Dono ne apne-apne <code>tmp</code> mein +1 kiya: 6 aur 6');
+        await this.beat(1500);
+
+        this.hl(7);
+        write(6);
+        bubble(A, 'count = 6 likha');
+        this.say('T1 ne likha: <b>count = 6</b>');
+        await this.wait(1100);
+        bubble(A);
+        write(6, true);
+        bubble(B, 'Main bhi 6 likhunga');
+        this.say('T2 ne bhi <b>6</b> likh diya. T1 ka update overwrite ho gaya 😱');
+        await this.beat(1800);
+
+        bubble(B);
+        this.hl();
+        setState(A, 'done');
+        setState(B, 'done');
+        move(A, ...this.home[0]);
+        move(B, ...this.home[1]);
+        stamp('Update gayab!', 'bad');
+        this.say('Do increments hue, par count ek hi baar badha: <b>6</b>, 7 nahi. Yahi <b>race condition</b> hai. Ab upar <code>synchronized</code> chuno.');
+      } else {
+        this.hl(4);
+        move(A, 50, 52, 700);
+        move(B, 86, 50, 850);
+        await this.wait(720);
+        keyTo(50, 52);
+        this.say('T1 pehle pahuncha aur object ka monitor lock (🔑) le liya.');
+        await this.wait(800);
+        setState(B, 'blocked');
+        this.say('T2 ko lock nahi mila, isliye <b>BLOCKED</b> 💢 Jab tak 🔑 free nahi hoti, woh andar nahi aa sakta.');
+        await this.beat(1800);
+
+        this.hl(5); reg(A, 5); this.say('T1: read, <b>tmp = 5</b>'); await this.wait(900);
+        this.hl(6); reg(A, 6); this.say('T1: add, <b>tmp = 6</b>'); await this.wait(900);
+        this.hl(7); write(6); this.say('T1: write, <b>count = 6</b>. Beech mein koi nahi ghus paaya.');
+        await this.beat(1500);
+
+        this.hl(8);
+        keyHome();
+        setState(A, 'done');
+        move(A, ...this.home[0], 700);
+        this.say('Method khatam, lock apne aap chhoot gaya 🔓');
+        await this.wait(1000);
+
+        setState(B, 'run');
+        move(B, 50, 52, 700);
+        await this.wait(450);
+        keyTo(50, 52);
+        this.hl(4);
+        this.say('Ab T2 ki baari. Is baar woh <b>6</b> padhega, 5 nahi.');
+        await this.beat(1600);
+
+        this.hl(5); reg(B, 6); await this.wait(800);
+        this.hl(6); reg(B, 7); await this.wait(800);
+        this.hl(7); write(7);
+        this.say('T2: read 6, add, write <b>7</b>');
+        await this.beat(1400);
+
+        this.hl(8);
+        keyHome();
+        setState(B, 'done');
+        move(B, ...this.home[1], 700);
+        stamp('count = 7 ✓', 'ok');
+        await this.wait(500);
+        this.hl();
+        this.say('Sahi jawab: <b>7</b> ✅ <code>synchronized</code> ne dono ko ek-ek karke chalaya. Jo bahar ruka tha, woh BLOCKED tha.');
+      }
+    }
+  };
+
+  /* ================= Episode 3: ReentrantLock ================= */
+  const RLOCK = {
+    code() {
+      return [
+        'ReentrantLock lock =',
+        '    new ReentrantLock(true);  // fair',
+        '',
+        'void outer() {',
+        '  lock.lock();        // holdCount 1',
+        '  try {',
+        '    inner();',
+        '  } finally {',
+        '    lock.unlock();    // holdCount 0',
+        '  }',
+        '}',
+        '',
+        'void inner() {',
+        '  lock.lock();        // holdCount 2 ✅',
+        '  try { /* kaam */ }',
+        '  finally { lock.unlock(); }  // 1',
+        '}',
+        '',
+        '// T3: sirf 1 second wait karega',
+        'if (lock.tryLock(1, TimeUnit.SECONDS)) {',
+        '  try { /* kaam */ }',
+        '  finally { lock.unlock(); }',
+        '} else {',
+        '  retryLater();  // atka nahi ✅',
+        '}'
+      ];
+    },
+    idle() {
+      return '<b>▶ Play</b> dabao: ek hi scene mein <code>lock()</code>, reentrancy, wait queue aur <code>tryLock</code> ka timeout.';
+    },
+    setup() {
+      const st = this.stage;
+      st.innerHTML = '';
+      const p = mk('div', 'lockp',
+        '<div class="lp-t">ReentrantLock<em>fair</em></div>' +
+        '<div class="lp-r"><span>owner</span><b class="own">koi nahi</b></div>' +
+        '<div class="lp-r"><span>holdCount</span><b class="hc">0</b></div>');
+      st.appendChild(p);
+      this.own = p.querySelector('.own');
+      this.hc = p.querySelector('.hc');
+      st.appendChild(mk('div', 'qbox'));
+      st.appendChild(mk('div', 'qlab', 'Wait queue'));
+      this.key = mk('div', 'key', '🔑');
+      place(this.key, 80, 4.5);
+      st.appendChild(this.key);
+      this.home = [[14, 87], [36, 87], [58, 87]];
+      this.T = ['T1', 'T2', 'T3'].map((n, i) => {
+        const t = tok(n, TC[i], i === 2 ? 'bub-r' : '');
+        place(t, ...this.home[i]);
+        setState(t, 'run');
+        st.appendChild(t);
+        return t;
+      });
+      this.ring = mk('span', 'ring');
+      this.T[2].appendChild(this.ring);
+    },
+    async script() {
+      const [A, B, C] = this.T;
+      const OWN = [44, 48];
+      const Q1 = [82, 38];
+      const Q2 = [82, 62];
+      const hold = (n, who) => {
+        this.hc.textContent = n;
+        restart(this.hc, 'pop');
+        if (who) this.own.textContent = who;
+      };
+      const keyTo = ([x, y]) => move(this.key, x + 11, y - 1, 550);
+      const keyHome = () => move(this.key, 80, 4.5, 550);
+
+      this.hl(1, 2);
+      this.say('<code>ReentrantLock</code> ek chabi 🔑 wala lock hai: <code>lock()</code> se lo, <code>unlock()</code> se khud wapas do. <code>true</code> = fair, queue ka order chalega.');
+      await this.beat(1900);
+
+      this.hl(5);
+      move(A, ...OWN, 700);
+      await this.wait(650);
+      keyTo(OWN);
+      hold(1, 'T1');
+      this.say('T1 ne <code>lock()</code> kiya. Owner ab <b>T1</b>, holdCount <b>1</b>.');
+      await this.beat(1600);
+
+      this.hl(7);
+      await this.wait(650);
+      this.hl(14);
+      hold(2);
+      bubble(A, 'Mera hi lock hai 😎');
+      this.say('<code>inner()</code> ne phir <code>lock()</code> maanga. Same thread hai, toh turant mila: holdCount <b>2</b>. Yahi <b>reentrant</b> hai.');
+      await this.beat(2300);
+      bubble(A);
+
+      this.hl(5);
+      move(B, ...Q1, 800);
+      await this.wait(820);
+      setState(B, 'wait');
+      this.say('T2 ne bhi <code>lock()</code> kiya, par owner T1 hai. T2 queue mein <b>WAITING</b> 😴');
+      await this.beat(1800);
+
+      this.hl(20);
+      move(C, ...Q2, 800);
+      await this.wait(820);
+      setState(C, 'twait');
+      this.ring.classList.add('on');
+      this.say('T3 ne <code>tryLock(1, SECONDS)</code> kiya. Ye sirf <b>1 second</b> wait karega ⏳');
+      await this.tween(1700, p => { this.ring.style.setProperty('--p', p); });
+      this.ring.classList.remove('on');
+      setState(C, 'run');
+      this.hl(23, 24);
+      bubble(C, 'false mila, baad mein try');
+      this.say('Time khatam, lock nahi mila, toh <b>false</b> mila. T3 hamesha ke liye atka nahi ✅ Deadlock se bachne ka yahi tareeka hai.');
+      await this.wait(1200);
+      move(C, ...this.home[2], 800);
+      await this.wait(500);
+      bubble(C);
+      await this.beat(1400);
+
+      this.hl(16);
+      hold(1);
+      this.say('<code>inner()</code> ka <code>unlock()</code>: holdCount <b>1</b>. Lock abhi bhi T1 ke paas hai!');
+      await this.beat(1700);
+
+      this.hl(9);
+      hold(0, 'koi nahi');
+      keyHome();
+      setState(A, 'done');
+      move(A, ...this.home[0], 700);
+      this.say('<code>outer()</code> ka <code>unlock()</code>: holdCount <b>0</b>. Ab lock free 🔓');
+      await this.wait(1200);
+
+      setState(B, 'run');
+      move(B, ...OWN, 700);
+      await this.wait(650);
+      keyTo(OWN);
+      hold(1, 'T2');
+      this.hl(5);
+      this.say('Fair lock hai aur queue mein sabse pehle <b>T2</b> tha, isliye chabi usi ko mili.');
+      await this.beat(1800);
+
+      this.hl(14); hold(2); await this.wait(700);
+      this.hl(16); hold(1); await this.wait(700);
+      this.hl(9); hold(0, 'koi nahi');
+      keyHome();
+      setState(B, 'done');
+      move(B, ...this.home[1], 700);
+      await this.wait(800);
+      this.hl();
+      this.say('T2 ne bhi 2 baar lock aur 2 baar unlock kiya. Rule: <b>jitne lock(), utne unlock()</b>, hamesha <code>finally</code> mein.');
+    }
+  };
+
+  /* ================= Episode 4: CompletableFuture ================= */
+  const CF = {
+    code() {
+      return [
+        'CompletableFuture<String> user =',
+        '  CompletableFuture.supplyAsync(',
+        '      () -> getUser());    // 1.5s',
+        '',
+        'CompletableFuture<Integer> price =',
+        '  CompletableFuture.supplyAsync(',
+        '      () -> getPrice());   // 2.5s',
+        '',
+        'CompletableFuture<Void> order = user',
+        '  .thenCombine(price,',
+        '      (u, p) -> u + ": ₹" + p)',
+        '  .thenApply(b -> b + " (10% off)")',
+        '  .exceptionally(ex -> "Fallback bill")',
+        '  .thenAccept(System.out::println);',
+        '',
+        'doOtherWork();   // main free hai ✅',
+        'order.join();    // end mein wait'
+      ];
+    },
+    idle(mode) {
+      return mode === 'err'
+        ? 'Is baar <code>getPrice()</code> fail hoga. <b>▶ Play</b> dabao aur dekho chain error ko kaise sambhalti hai.'
+        : '<b>▶ Play</b> dabao: do kaam background mein parallel chalenge, aur main thread free rahega.';
+    },
+    setup() {
+      const st = this.stage;
+      st.innerHTML = '<svg class="wires" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">' +
+        '<path class="w wL" d="M25.5 19.5 L60.5 29"/><path class="w wR" d="M74.5 19.5 L60.5 29"/>' +
+        '<path class="w w1" d="M60.5 39 V43"/><path class="w w2" d="M60.5 53 V57"/><path class="w w3" d="M60.5 67 V71"/></svg>';
+      const card = (cls, name, sub) => {
+        const c = mk('div', 'card ' + cls,
+          '<div class="c-l">' + name + '</div><div class="c-s">' + sub + '</div><div class="c-bar"><i></i></div>');
+        st.appendChild(c);
+        return c;
+      };
+      this.cL = card('cl', 'getUser()', 'W1 pe chalega');
+      this.cR = card('cr', 'getPrice()', 'W2 pe chalega');
+      const node = (y, label) => {
+        const n = mk('div', 'node', '<div class="n-l">' + label + '</div><div class="n-v">Intezaar…</div>');
+        n.style.top = y + '%';
+        st.appendChild(n);
+        return n;
+      };
+      this.nC = node(34, '.thenCombine(price, …)');
+      this.nA = node(48, '.thenApply(… 10% off)');
+      this.nE = node(62, '.exceptionally(…)');
+      this.nP = node(76, '.thenAccept(println)');
+      const ms = mk('div', 'mstrip',
+        '<div class="ms-top"><b>main</b><span class="ms-t">Ready</span><span class="clk">⏱ 0.0s</span></div>' +
+        '<div class="ms-bar"><i></i></div>');
+      st.appendChild(ms);
+      this.mtext = ms.querySelector('.ms-t');
+      this.clk = ms.querySelector('.clk');
+      this.mbar = ms.querySelector('.ms-bar i');
+      this.W1 = tok('W1', 'var(--mint)', 'ghost');
+      place(this.W1, 9.5, 11.5);
+      setState(this.W1, 'run');
+      st.appendChild(this.W1);
+      this.W2 = tok('W2', 'var(--tangerine)', 'ghost');
+      place(this.W2, 58.5, 11.5);
+      setState(this.W2, 'run');
+      st.appendChild(this.W2);
+      this.main = tok('main', 'var(--violet)');
+      place(this.main, 9, 91);
+      setState(this.main, 'run');
+      st.appendChild(this.main);
+    },
+    async script() {
+      const err = this.mode === 'err';
+      const { cL, cR, nC, nA, nE, nP, W1, W2, main } = this;
+      const barL = cL.querySelector('.c-bar i');
+      const barR = cR.querySelector('.c-bar i');
+      const wire = c => this.stage.querySelector('.w.' + c).classList.add('on');
+      const val = (n, v) => { n.querySelector('.n-v').textContent = v; };
+      const K = 1300; // real ms per simulated second (1x)
+      const T_MAIN = 1.0, T_USER = 1.5, T_PRICE = 2.5, T_FAIL = 1.8;
+      const tick = t => {
+        barL.style.width = Math.min(1, t / T_USER) * 100 + '%';
+        barR.style.width = Math.min(1, t / T_PRICE) * 100 + '%';
+        this.mbar.style.width = Math.min(1, t / T_MAIN) * 100 + '%';
+        this.clk.textContent = '⏱ ' + t.toFixed(1) + 's';
+      };
+      const runTo = (a, b) => this.tween((b - a) * K, p => tick(a + (b - a) * p));
+
+      this.hl(1, 2, 3, 5, 6, 7);
+      cL.classList.add('show');
+      cR.classList.add('show');
+      for (const w of [W1, W2]) { w.classList.remove('ghost'); restart(w, 'pop'); }
+      this.say('<code>supplyAsync()</code> kaam ko background pool (<b>ForkJoinPool</b>) ke workers W1 aur W2 ko de deta hai.');
+      await this.beat(1900);
+
+      this.hl(16);
+      this.mtext.textContent = 'doOtherWork() chal raha';
+      this.say('Ab teen kaam <b>ek saath</b>: W1 pe getUser(), W2 pe getPrice(), aur main apna doOtherWork().');
+      await runTo(0, T_MAIN);
+
+      this.hl(17);
+      setState(main, 'wait');
+      this.mtext.textContent = 'join(): result ka wait';
+      this.say('main ka apna kaam khatam, ab <code>join()</code> pe <b>WAITING</b>. Isiliye <code>join()</code> hamesha end mein.');
+      await this.beat(1700);
+
+      await runTo(T_MAIN, T_USER);
+      cL.classList.add('ok');
+      cL.querySelector('.c-s').textContent = '✓ "Aman"';
+      setState(W1, 'wait');
+      this.say('<b>1.5s</b>: getUser() ready ✓ W1 wapas pool mein, agle kaam ke liye free.');
+      await this.beat(1600);
+
+      if (!err) {
+        await runTo(T_USER, T_PRICE);
+        cR.classList.add('ok');
+        cR.querySelector('.c-s').textContent = '✓ 500';
+        this.say('<b>2.5s</b>: getPrice() bhi ready ✓ Dono results aa gaye.');
+        await this.beat(1400);
+
+        this.hl(10, 11);
+        wire('wL');
+        wire('wR');
+        move(W2, 13, 34, 700);
+        await this.wait(700);
+        nC.classList.add('on');
+        val(nC, '"Aman: ₹500"');
+        this.say('<code>thenCombine</code> ne dono results jode. Ise <b>W2</b> ne chalaya: <code>then…</code> steps usi thread pe chalte hain jo aakhri result laata hai.');
+        await this.beat(2300);
+
+        nC.classList.replace('on', 'done');
+        this.hl(12);
+        wire('w1');
+        move(W2, 13, 48, 600);
+        await this.wait(600);
+        nA.classList.add('on');
+        val(nA, '"Aman: ₹500 (10% off)"');
+        this.say('<code>thenApply</code> ne result ko badal diya (transform).');
+        await this.beat(1600);
+
+        nA.classList.replace('on', 'done');
+        this.hl(13);
+        wire('w2');
+        move(W2, 13, 62, 600);
+        await this.wait(600);
+        nE.classList.add('skip');
+        val(nE, 'Koi error nahi, skip');
+        this.say('<code>exceptionally</code> sirf error aane par chalta hai. Abhi sab theek hai, isliye <b>skip</b>.');
+        await this.beat(1600);
+
+        this.hl(14);
+        wire('w3');
+        move(W2, 13, 76, 600);
+        await this.wait(600);
+        nP.classList.add('done');
+        val(nP, 'Print ho gaya ✓');
+        this.print('Aman: ₹500 (10% off)', '#8ff0c4');
+      } else {
+        await runTo(T_USER, T_FAIL);
+        cR.classList.add('err');
+        cR.querySelector('.c-s').textContent = '💥 Exception!';
+        W2.classList.add('oops');
+        W2.querySelector('.mk').textContent = '💥';
+        this.say('<b>1.8s</b>: getPrice() mein exception aa gaya 💥');
+        await this.beat(1600);
+
+        this.hl(10, 11, 12);
+        wire('wR');
+        move(W2, 13, 34, 600);
+        await this.wait(600);
+        nC.classList.add('skip');
+        val(nC, 'Error hai, skip');
+        await this.wait(550);
+        wire('w1');
+        move(W2, 13, 48, 550);
+        await this.wait(550);
+        nA.classList.add('skip');
+        val(nA, 'Error hai, skip');
+        this.say('Error chain mein aage badhta hai: <code>thenCombine</code> aur <code>thenApply</code> dono <b>skip</b>.');
+        await this.beat(1700);
+
+        this.hl(13);
+        wire('w2');
+        move(W2, 13, 62, 600);
+        await this.wait(600);
+        W2.classList.remove('oops');
+        W2.querySelector('.mk').textContent = '';
+        nE.classList.add('on');
+        val(nE, '"Fallback bill"');
+        this.say('<code>exceptionally</code> ne error pakda aur fallback value de di ✅');
+        await this.beat(1700);
+
+        nE.classList.replace('on', 'done');
+        this.hl(14);
+        wire('w3');
+        move(W2, 13, 76, 600);
+        await this.wait(600);
+        nP.classList.add('done');
+        val(nP, 'Print ho gaya ✓');
+        this.print('Fallback bill', '#ffd46b');
+      }
+      this.say('<code>thenAccept</code> ne final result print kar diya.');
+      await this.wait(1100);
+
+      this.hl(17);
+      setState(main, 'run');
+      this.mtext.textContent = '✓ join() complete, aage badho';
+      setState(W2, 'wait');
+      move(W2, 58.5, 11.5, 800);
+      await this.wait(900);
+      this.hl();
+      this.say(err
+        ? 'App crash nahi hua, fallback mila. <code>exceptionally</code> na hota toh <code>join()</code> <code>CompletionException</code> throw karta.'
+        : 'Total ⏱ <b>2.5s</b>. Sab ek-ek karke hota toh 1 + 1.5 + 2.5 = <b>5s</b> lagte. Yahi async ka fayda hai 🚀');
+    }
+  };
+
+  /* ================= cast (legend) ================= */
+  const CAST = [
+    ['new', 'NEW', 'Object bana, start nahi hua', 'var(--sakura)'],
+    ['run', 'RUNNABLE', 'Chal raha, ya CPU ki line mein', 'var(--sky)'],
+    ['blocked', 'BLOCKED', '<code>synchronized</code> lock ka wait', 'var(--yuzu)'],
+    ['wait', 'WAITING', 'Signal ya unlock ka wait', 'var(--mint)'],
+    ['twait', 'TIMED_WAITING', 'Time limit ke saath wait', 'var(--tangerine)'],
+    ['done', 'TERMINATED', 'Kaam khatam', 'var(--violet)']
+  ];
+  const grid = $('.cast-grid');
+  CAST.forEach(([s, code, text, color], i) => {
+    const item = mk('div', 'cm');
+    item.style.setProperty('--i', i);
+    const t = tok('', color);
+    setState(t, s);
+    item.append(t, mk('code', null, code), mk('span', null, text));
+    grid.appendChild(item);
+  });
+
+  /* ================= boot ================= */
+  const scenes = [
+    new Scene($('#ep-thread'), THREAD),
+    new Scene($('#ep-sync'), SYNC),
+    new Scene($('#ep-rlock'), RLOCK),
+    new Scene($('#ep-cf'), CF)
+  ];
+
+  $$('.spd').forEach(b => b.addEventListener('click', () => {
+    SPEED = SPEEDS[(SPEEDS.indexOf(SPEED) + 1) % SPEEDS.length];
+    $$('.spd').forEach(x => { x.textContent = SPEED + 'x'; });
+  }));
+
+  const tabs = $$('.tabs a');
+  tabs.forEach(a => a.addEventListener('click', e => {
+    const target = document.getElementById(a.getAttribute('href').slice(1));
+    if (!target) return;
+    e.preventDefault();
+    const smooth = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+    target.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' });
+  }));
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver(entries => {
+      entries.forEach(en => {
+        if (en.isIntersecting) tabs.forEach(a => a.classList.toggle('on', a.getAttribute('href') === '#' + en.target.id));
+      });
+    }, { rootMargin: '-40% 0px -55% 0px' });
+    $$('.ep').forEach(s => io.observe(s));
+  }
+
+  window.__demo = { scenes, setSpeed: v => { SPEED = v; } };
+})();
+
+</script>
+</body>
+</html>

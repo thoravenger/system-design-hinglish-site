@@ -1,0 +1,2024 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Java Collections &amp; Garbage Collection — Problem / Solution Workbook</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400;8..60,600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#E9EEF1;
+  --card:#FFFFFF;
+  --tint:#DCE7EB;
+  --ink:#10232B;
+  --ink-2:#42606C;
+  --rule:#C2D2D9;
+  --eden:#1B7A69;
+  --surv:#A96A11;
+  --old:#654A90;
+  --alert:#9E2E1C;
+  --code-bg:#0E1D24;
+  --code-fg:#D6E3E8;
+  --shell:1180px;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --sans:"Archivo",system-ui,-apple-system,Segoe UI,sans-serif;
+  --serif:"Source Serif 4",Georgia,serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:64px}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font-family:var(--serif);font-size:16.5px;line-height:1.62;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4,.ui{font-family:var(--sans);}
+a{color:var(--eden)}
+code,kbd{font-family:var(--mono)}
+
+/* ---------- top bar ---------- */
+.topbar{
+  position:sticky;top:0;z-index:60;background:var(--ink);color:#CFE0E5;
+  border-bottom:1px solid #0A171D;
+}
+.topbar .inner{
+  max-width:var(--shell);margin:0 auto;padding:9px 20px;
+  display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+}
+.brand{font-family:var(--sans);font-weight:700;letter-spacing:-.02em;font-size:15px;color:#fff}
+.brand span{color:#6FBFAE;font-weight:500}
+.topbar nav{display:flex;gap:14px;margin-left:auto;flex-wrap:wrap}
+.topbar nav a{
+  font-family:var(--sans);font-size:13px;color:#9FBAC2;text-decoration:none;
+  padding:3px 0;border-bottom:1px solid transparent;
+}
+.topbar nav a:hover,.topbar nav a:focus-visible{color:#fff;border-bottom-color:#6FBFAE}
+.lab-link{background:#6FBFAE;color:#08161B !important;padding:5px 11px !important;border-radius:3px;font-weight:600}
+.lab-link:hover{background:#8FD6C6}
+
+/* ---------- hero ---------- */
+.hero{background:var(--ink);color:#E6EFF2;padding:44px 20px 0;overflow:hidden}
+.hero-in{max-width:var(--shell);margin:0 auto}
+.hero h1{
+  font-size:clamp(30px,5.4vw,58px);line-height:1.02;margin:0 0 14px;
+  font-weight:700;letter-spacing:-.035em;max-width:16ch;color:#fff;
+}
+.hero p{max-width:62ch;color:#A9C3CB;margin:0 0 22px;font-size:17px}
+.hero p b{color:#E6EFF2;font-weight:600}
+.heap-strip{
+  display:grid;grid-template-columns:repeat(auto-fill,minmax(9px,1fr));
+  gap:2px;padding:12px 0 10px;border-top:1px solid #23414C;
+}
+.heap-strip i{height:16px;background:#1A3038;border-radius:1px;transition:background .38s ease}
+.heap-strip i.live{background:var(--eden)}
+.heap-strip i.aged{background:var(--surv)}
+.heap-strip i.old{background:var(--old)}
+.heap-legend{
+  display:flex;gap:18px;flex-wrap:wrap;font-family:var(--mono);font-size:11.5px;
+  color:#7F9BA4;padding-bottom:22px;
+}
+.heap-legend b{display:inline-block;width:9px;height:9px;border-radius:1px;margin-right:6px}
+
+/* ---------- shell ---------- */
+.shell{max-width:var(--shell);margin:0 auto;padding:0 20px 90px;display:grid;grid-template-columns:210px 1fr;gap:34px}
+.rail{position:sticky;top:64px;align-self:start;padding-top:30px;max-height:calc(100vh - 74px);overflow:auto}
+.rail h4{font-size:11.5px;font-weight:600;color:var(--ink-2);margin:0 0 10px;font-family:var(--mono)}
+.rail ol{list-style:none;margin:0 0 22px;padding:0;counter-reset:r}
+.rail li{counter-increment:r}
+.rail a{
+  display:block;font-family:var(--sans);font-size:13px;text-decoration:none;color:var(--ink-2);
+  padding:4px 0 4px 26px;position:relative;border-left:2px solid var(--rule);line-height:1.3;
+}
+.rail a::before{
+  content:counter(r,decimal-leading-zero);position:absolute;left:8px;top:5px;
+  font-family:var(--mono);font-size:10px;color:#9BB0B8;
+}
+.rail a:hover{color:var(--ink);border-left-color:var(--eden)}
+.rail a.on{color:var(--ink);font-weight:600;border-left-color:var(--eden)}
+
+/* ---------- topic ---------- */
+.topic{padding-top:44px;scroll-margin-top:64px}
+.topic-head{border-bottom:2px solid var(--ink);padding-bottom:9px;margin-bottom:20px;display:flex;align-items:baseline;gap:12px;flex-wrap:wrap}
+.topic-num{font-family:var(--mono);font-size:12px;color:#fff;background:var(--ink);padding:2px 7px;border-radius:2px}
+.topic-head h2{margin:0;font-size:clamp(21px,2.5vw,29px);letter-spacing:-.025em;font-weight:700}
+.topic-head .tag{font-family:var(--mono);font-size:11px;color:var(--ink-2);margin-left:auto}
+
+.split{display:grid;grid-template-columns:minmax(0,0.82fr) minmax(0,1.18fr);gap:22px;align-items:start}
+.pane-q{
+  background:var(--tint);border-left:4px solid var(--alert);padding:18px 20px;border-radius:0 3px 3px 0;
+  position:sticky;top:76px;
+}
+.pane-a{background:var(--card);border-left:4px solid var(--eden);padding:18px 22px;border-radius:0 3px 3px 0}
+.pane-q h3,.pane-a h3{margin:0 0 10px;font-size:12px;font-family:var(--mono);font-weight:500;letter-spacing:.02em}
+.pane-q h3{color:var(--alert)}
+.pane-a h3{color:var(--eden)}
+.pane-q p,.pane-a p{margin:0 0 12px}
+.pane-q p:last-child,.pane-a p:last-child{margin-bottom:0}
+.pane-q ul,.pane-a ul,.pane-a ol{margin:0 0 12px;padding-left:19px}
+.pane-q li,.pane-a li{margin-bottom:5px}
+.ask{font-weight:600;font-size:17.5px;line-height:1.4;display:block;margin-bottom:10px;font-family:var(--sans);letter-spacing:-.015em}
+.hing{color:var(--ink-2);font-style:italic}
+
+/* ---------- code ---------- */
+.codewrap{margin:14px 0 6px;background:var(--code-bg);border-radius:3px;overflow:hidden}
+.codebar{
+  display:flex;align-items:center;gap:10px;padding:6px 10px;background:#0A171D;
+  font-family:var(--mono);font-size:11px;color:#7DA0AB;
+}
+.codebar button{
+  margin-left:auto;background:#1B3038;color:#9FC4CE;border:1px solid #29454F;border-radius:2px;
+  font-family:var(--mono);font-size:10.5px;padding:3px 8px;cursor:pointer;
+}
+.codebar button:hover{background:#264049;color:#fff}
+pre.code{margin:0;padding:12px 10px 14px;overflow:auto;counter-reset:cl}
+pre.code .l{
+  display:block;font-family:var(--mono);font-size:12.6px;line-height:1.72;color:var(--code-fg);
+  white-space:pre;padding-left:44px;position:relative;
+}
+pre.code .l::before{
+  counter-increment:cl;content:counter(cl);position:absolute;left:0;width:32px;text-align:right;
+  color:#456770;font-size:11px;
+}
+pre.code .l.hl{background:#17303A}
+.t-key{color:#78C4E8}.t-str{color:#C7D97F}.t-com{color:#5C7B85;font-style:italic}
+.t-typ{color:#8FD9C6}.t-num{color:#E0A868}.t-ann{color:#C79BE0}.t-fn{color:#F0D48A}
+
+.lines{margin:10px 0 4px;border-top:1px dashed var(--rule)}
+.lines dt{
+  font-family:var(--mono);font-size:11.5px;color:#fff;background:var(--ink-2);
+  display:inline-block;padding:1px 6px;border-radius:2px;margin-top:11px;
+}
+.lines dd{margin:4px 0 0;font-size:15.3px;line-height:1.55}
+
+/* ---------- tables / chips ---------- */
+table.tt{width:100%;border-collapse:collapse;margin:14px 0;font-size:14.4px;font-family:var(--sans)}
+table.tt th,table.tt td{border-bottom:1px solid var(--rule);padding:7px 9px;text-align:left;vertical-align:top}
+table.tt th{background:var(--tint);font-weight:600;font-size:12.5px}
+table.tt td.n{font-family:var(--mono);font-size:12.5px;white-space:nowrap}
+table.tt tr:hover td{background:#F4F8F9}
+
+.verdict{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:16px 0 0}
+.v-do,.v-skip{padding:12px 14px;border-radius:3px;font-size:14.8px}
+.v-do{background:#EAF5F2;border-top:3px solid var(--eden)}
+.v-skip{background:#F7EFE9;border-top:3px solid var(--surv)}
+.v-do h4,.v-skip h4{margin:0 0 7px;font-size:12px;font-family:var(--mono);font-weight:500}
+.v-do h4{color:var(--eden)}.v-skip h4{color:var(--surv)}
+.v-do ul,.v-skip ul{margin:0;padding-left:17px}
+.v-do li,.v-skip li{margin-bottom:4px}
+
+.callout{border-left:3px solid var(--old);background:#F1EDF7;padding:11px 14px;margin:14px 0;font-size:15.2px;border-radius:0 3px 3px 0}
+.callout b{font-family:var(--sans);font-weight:600}
+.gotcha{border-left-color:var(--alert);background:#F9EBE8}
+.chipset{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px}
+.chip{font-family:var(--mono);font-size:11px;background:var(--ink);color:#BFDCE2;padding:2px 8px;border-radius:10px}
+.chip.g{background:var(--eden);color:#EAF7F4}
+.chip.r{background:var(--alert);color:#FBEDEA}
+.chip.v{background:var(--old);color:#F1EAF9}
+
+/* ---------- mock ---------- */
+.mock{background:var(--card);border-radius:3px;padding:4px 20px;border-left:4px solid var(--ink)}
+details.q{border-bottom:1px solid var(--rule);padding:11px 0}
+details.q:last-child{border-bottom:0}
+details.q summary{
+  cursor:pointer;font-family:var(--sans);font-weight:600;font-size:15.6px;list-style:none;
+  display:flex;gap:11px;align-items:flex-start;letter-spacing:-.01em;
+}
+details.q summary::-webkit-details-marker{display:none}
+details.q summary::before{content:"+";font-family:var(--mono);color:var(--eden);font-weight:700;flex:none;width:14px}
+details.q[open] summary::before{content:"–"}
+details.q .ans{padding:9px 0 3px 25px;font-size:15.4px;border-left:1px solid var(--rule);margin-left:6px;margin-top:9px}
+details.q .ans p{margin:0 0 9px}
+details.q .ans p:last-child{margin-bottom:0}
+
+footer{background:var(--ink);color:#89A6AF;padding:30px 20px;font-size:14px}
+footer .inner{max-width:var(--shell);margin:0 auto}
+footer a{color:#6FBFAE}
+
+@media (max-width:940px){
+  .shell{grid-template-columns:1fr;gap:0}
+  .rail{position:static;max-height:none;padding-top:22px;border-bottom:1px solid var(--rule);padding-bottom:10px}
+  .rail ol{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:2px 12px;margin-bottom:8px}
+  .split{grid-template-columns:1fr}
+  .pane-q{position:static}
+  .verdict{grid-template-columns:1fr}
+}
+@media (prefers-reduced-motion:reduce){
+  html{scroll-behavior:auto}
+  .heap-strip i{transition:none}
+}
+:focus-visible{outline:2px solid var(--eden);outline-offset:2px}
+</style>
+</head>
+<body>
+<div id="sdh-libbar" style="position:relative;z-index:2147483000;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0;padding:8px 16px;background:#0f172a;color:#cbd5e1;font:600 13px/1.5 Inter,'Segoe UI',system-ui,-apple-system,sans-serif;border-bottom:2px solid #4f46e5;box-sizing:border-box;width:100%;text-align:left;letter-spacing:0"><a href="../../index.html" style="color:#fff;text-decoration:none;font-weight:800">SystemDesign<span style="color:#8b8cff">.hinglish</span></a><span style="opacity:.45">/</span><a href="../index.html" style="color:#fff;text-decoration:none">📚 Library</a><span style="opacity:.45">/</span><a href="../index.html#java-modern" style="color:#cbd5e1;text-decoration:none">Java Internals · Concurrency · Versions</a><a href="../files/java-collections-gc-masterclass-original.html" download style="color:#a5b4fc;text-decoration:none;font-size:12px">⬇ Original</a><span style="margin-left:auto;font-size:11px;padding:2px 9px;border-radius:999px;border:1px solid #6366f1;color:#c7d2fe">📘 HTML ebook</span></div>
+
+<div class="topbar"><div class="inner">
+  <div class="brand">Collections &amp; GC <span>/ workbook</span></div>
+  <nav>
+    <a href="#t01">Collections</a>
+    <a href="#t11">JVM &amp; GC</a>
+    <a href="#t14">HLD</a>
+    <a href="#t15">LLD</a>
+    <a href="#t16">Tradeoffs</a>
+    <a href="#mock">Mock Q&amp;A</a>
+    <a class="lab-link" href="java-collections-gc-animation-lab.html">Animation lab</a>
+  </nav>
+</div></div>
+
+<header class="hero"><div class="hero-in">
+  <h1>Har collection ek memory decision hai.</h1>
+  <p>Ye workbook har topic ko do hisson mein todta hai — <b>left mein problem</b> (jo interviewer poochta hai), <b>right mein solution</b> (code, line-by-line explanation, aur tradeoff). Basics se shuru, HLD/LLD tak. Hinglish + English dono mein, taaki concept bhi clear ho aur terminology bhi interview-ready rahe.</p>
+  <div class="heap-strip" id="heapStrip" aria-hidden="true"></div>
+  <div class="heap-legend">
+    <span><b style="background:#1A3038"></b>free</span>
+    <span><b style="background:var(--eden)"></b>eden — naya object</span>
+    <span><b style="background:var(--surv)"></b>survivor — GC se bacha</span>
+    <span><b style="background:var(--old)"></b>old gen — promote hua</span>
+    <span id="gcCount">minor GC: 0</span>
+  </div>
+</div></header>
+
+<div class="shell">
+<aside class="rail">
+  <h4>topics</h4>
+  <ol id="toc">
+    <li><a href="#t01">Array vs ArrayList</a></li>
+    <li><a href="#t02">List family</a></li>
+    <li><a href="#t03">HashMap internals</a></li>
+    <li><a href="#t04">Map family</a></li>
+    <li><a href="#t05">Set family</a></li>
+    <li><a href="#t06">Trees &amp; sorted views</a></li>
+    <li><a href="#t07">Queue, Deque, Heap</a></li>
+    <li><a href="#t08">BlockingQueue</a></li>
+    <li><a href="#t09">Node &amp; iteration</a></li>
+    <li><a href="#t10">equals / hashCode</a></li>
+    <li><a href="#t11">JVM memory &amp; GC</a></li>
+    <li><a href="#t12">GC algorithms</a></li>
+    <li><a href="#t13">References &amp; leaks</a></li>
+    <li><a href="#t14">HLD: cache service</a></li>
+    <li><a href="#t15">LLD: LRU + workers</a></li>
+    <li><a href="#t16">Tradeoff playbook</a></li>
+  </ol>
+  <h4>practice</h4>
+  <p style="margin:0"><a href="#mock" style="border-left-color:var(--alert)">25 mock questions</a></p>
+</aside>
+
+<main id="main">
+
+<!-- ================= 01 ================= -->
+<section class="topic" id="t01">
+  <div class="topic-head"><span class="topic-num">01</span><h2>Array vs ArrayList</h2><span class="tag">basics</span></div>
+  <div class="split">
+    <div class="pane-q">
+      <h3>problem</h3>
+      <span class="ask">Ek report endpoint 10 lakh integers return karta hai. Junior ne <code>int[]</code> likha, dusre service mein <code>ArrayList&lt;Integer&gt;</code> tha. Profiler mein memory ka farak 4–5x nikla. Kyun?</span>
+      <p class="hing">Interviewer ka asli sawaal: kya tum jaante ho ki ArrayList andar se hai kya, aur boxing ka cost kya hai?</p>
+      <ul>
+        <li>Dono ka memory footprint compare karo.</li>
+        <li>ArrayList full ho jaaye to kya hota hai?</li>
+        <li>Kab array better, kab list?</li>
+      </ul>
+    </div>
+    <div class="pane-a">
+      <h3>solution</h3>
+      <div class="chipset"><span class="chip">Object[] elementData</span><span class="chip g">growth = 1.5x</span><span class="chip r">autoboxing</span></div>
+      <p><b>Array</b> ek contiguous memory block hai jiska size creation ke time fix ho jaata hai, aur ye primitives (<code>int</code>, <code>long</code>) directly store kar sakta hai — 1 million ints = ~4 MB, ek hi allocation.</p>
+      <p><b>ArrayList</b> andar se ek <code>Object[] elementData</code> hai. Ye sirf <em>references</em> rakh sakta hai, primitives nahi. Isliye har <code>int</code> ek <code>Integer</code> object ban jaata hai: 16 byte header + 4 byte value + padding ≈ 16 B, plus array slot mein 4–8 B ka reference. Result: ~4 MB ka data ~20 MB ka ho gaya, aur 1 million chhote objects GC ke liye kaam badha gaye.</p>
+      <p>Jab array bhar jaata hai, ArrayList naya bada array banata hai (<code>oldCapacity + (oldCapacity &gt;&gt; 1)</code> = 1.5x), purana data copy karta hai, aur purana array garbage ban jaata hai. Ye logic hum khud likh kar dekhte hain:</p>
+
+<script type="text/x-java" data-file="IntSeriesBuffer.java" data-hl="11,18,19,20,26">
+/** Primitive-backed growable buffer: ArrayList jaisa behaviour, bina boxing ke. */
+public final class IntSeriesBuffer {
+
+    private static final int INITIAL_CAPACITY = 10;
+
+    private int[] backingArray = new int[INITIAL_CAPACITY];
+    private int elementCount = 0;
+
+    /** Ek value append karta hai; capacity kam ho to pehle grow karta hai. */
+    public void appendValue(int value) {
+        ensureCapacityForNextWrite();
+        backingArray[elementCount] = value;
+        elementCount++;
+    }
+
+    private void ensureCapacityForNextWrite() {
+        if (elementCount == backingArray.length) {
+            int oldCapacity = backingArray.length;
+            int newCapacity = oldCapacity + (oldCapacity >> 1);   // 1.5x, ArrayList jaisa
+            backingArray = java.util.Arrays.copyOf(backingArray, newCapacity);
+        }
+    }
+
+    /** Exactly utna hi array return karta hai jitna bhara hai — extra slack nahi. */
+    public int[] toTrimmedArray() {
+        return java.util.Arrays.copyOf(backingArray, elementCount);
+    }
+
+    public int size() { return elementCount; }
+}
+</script>
+
+      <dl class="lines">
+        <dt>line 11</dt><dd>Har write se pehle capacity check — yahi <code>ArrayList.add()</code> ka pehla kaam hai (<code>ensureCapacityInternal</code>).</dd>
+        <dt>line 18–20</dt><dd><code>oldCapacity &gt;&gt; 1</code> yaani divide-by-2 (bit shift, division se sasta). 10 → 15 → 22 → 33 → 49… Ye amortized O(1) append deta hai: n appends ke liye total copy work O(n) hi rehta hai.</dd>
+        <dt>line 20</dt><dd><code>Arrays.copyOf</code> andar <code>System.arraycopy</code> use karta hai — JIT ka intrinsic, memory-block level pe copy, loop se kai guna fast.</dd>
+        <dt>line 25–26</dt><dd>Growth ke baad array mein khali slack bachti hai. <code>toTrimmedArray()</code> = <code>ArrayList.trimToSize()</code> ka equivalent; long-lived list ke liye memory wapas milti hai.</dd>
+      </dl>
+
+      <table class="tt">
+        <tr><th>Kaam</th><th>int[]</th><th>ArrayList&lt;Integer&gt;</th></tr>
+        <tr><td>1M elements ka size</td><td class="n">~4 MB</td><td class="n">~20 MB</td></tr>
+        <tr><td>get by index</td><td class="n">O(1)</td><td class="n">O(1)</td></tr>
+        <tr><td>append</td><td class="n">manual grow</td><td class="n">amortized O(1)</td></tr>
+        <tr><td>middle mein insert/remove</td><td class="n">manual shift</td><td class="n">O(n) arraycopy</td></tr>
+        <tr><td>CPU cache locality</td><td class="n">best</td><td class="n">poor (pointer chase)</td></tr>
+        <tr><td>Generics / API friendly</td><td class="n">no</td><td class="n">yes</td></tr>
+      </table>
+
+      <div class="callout gotcha"><b>Gotcha:</b> <code>list.remove(1)</code> index 1 hataata hai, <code>list.remove(Integer.valueOf(1))</code> value 1 hataata hai. Overload resolution boxing se pehle hota hai — production bug ka classic source.</div>
+
+      <div class="verdict">
+        <div class="v-do"><h4>apply karo</h4><ul>
+          <li>Hot numeric path, fixed size, ya millions of primitives → <code>int[]</code> / <code>long[]</code>.</li>
+          <li>Size pata ho to <code>new ArrayList&lt;&gt;(expectedSize)</code> — resize copies bach jaate hain.</li>
+          <li>API boundary pe hamesha <code>List&lt;T&gt;</code> expose karo, array nahi (arrays mutable + covariant hain).</li>
+        </ul></div>
+        <div class="v-skip"><h4>ignore karo</h4><ul>
+          <li>200 elements ke liye boxing ka rona — yahan readability jeetegi, difference microseconds ka hai.</li>
+          <li><code>trimToSize()</code> short-lived lists pe — ek aur copy ka kharcha, faida zero.</li>
+          <li>Manual arrays sirf "fast lagta hai" isliye — pehle measure karo, phir optimize.</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 02 ================= -->
+<section class="topic" id="t02">
+  <div class="topic-head"><span class="topic-num">02</span><h2>List family: ArrayList, LinkedList, CopyOnWrite</h2><span class="tag">basics → intermediate</span></div>
+  <div class="split">
+    <div class="pane-q">
+      <h3>problem</h3>
+      <span class="ask">Textbook kehti hai LinkedList ka insert O(1) hai aur ArrayList ka O(n). Phir bhi real production code mein LinkedList kabhi kabhaar hi dikhta hai. Kyun?</span>
+      <p class="hing">Aur second part: ek event system hai jismein 50,000 reads/sec hain lekin listener register/unregister din mein 10 baar hota hai. Kaunsi list?</p>
+      <ul><li>Big-O jhooth kab bolta hai?</li><li>CopyOnWriteArrayList kab sahi hai?</li><li>Vector aur Stack ka kya karein?</li></ul>
+    </div>
+    <div class="pane-a">
+      <h3>solution</h3>
+      <div class="chipset"><span class="chip">cache line = 64 B</span><span class="chip v">read-mostly</span><span class="chip r">legacy: Vector</span></div>
+      <p><b>Big-O sirf operations ginta hai, memory access ka cost nahi.</b> LinkedList ka O(1) insert tabhi milta hai jab tumhare paas node ka reference pehle se ho. Practically tum <code>add(index, e)</code> karte ho, jismein pehle O(n) traversal hota hai — aur har hop ek naye memory address pe jump hai, yaani CPU cache miss. ArrayList ka O(n) shift ek single contiguous <code>System.arraycopy</code> hai jo hardware ko bahut pasand hai. Isliye 10,000 elements tak ArrayList aksar LinkedList se tez nikalta hai, insert ke liye bhi.</p>
+      <p>Upar se har LinkedList node = object header + item + next + prev ≈ 40 bytes, sirf ek element rakhne ke liye. Ye GC pe seedha pressure hai.</p>
+      <p><b>Read-mostly case</b> ke liye <code>CopyOnWriteArrayList</code> banaya gaya hai: read bilkul lock-free hai (bas ek volatile array read), aur har write poore array ki copy banata hai.</p>
+
+<script type="text/x-java" data-file="EventListenerRegistry.java" data-hl="7,15,24,30">
+import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
+
+/** Read-heavy, write-rare registry — publish path bilkul lock-free rehta hai. */
+public final class EventListenerRegistry<E> {
+
+    private final List<EventListener<E>> listeners = new CopyOnWriteArrayList<>();
+
+    public interface EventListener<E> {
+        void onEvent(E event);
+    }
+
+    /** Rare write: poora array copy hota hai, isliye subscribe path slow hai. */
+    public void registerListener(EventListener<E> listener) {
+        listeners.addIfAbsent(listener);
+    }
+
+    public void unregisterListener(EventListener<E> listener) {
+        listeners.remove(listener);
+    }
+
+    /** Hot read path: iteration ek immutable snapshot pe chalti hai — koi lock nahi. */
+    public void publishEvent(E event) {
+        for (EventListener<E> listener : listeners) {
+            deliverSafely(listener, event);
+        }
+    }
+
+    /** Ek listener ka exception baaki listeners ko block na kare. */
+    private void deliverSafely(EventListener<E> listener, E event) {
+        try {
+            listener.onEvent(event);
+        } catch (RuntimeException failure) {
+            System.getLogger("events").log(System.Logger.Level.WARNING, "listener failed", failure);
+        }
+    }
+}
+</script>
+
+      <dl class="lines">
+        <dt>line 7</dt><dd>Field ka type <code>List</code> hai, implementation <code>CopyOnWriteArrayList</code> — "program to the interface". Kal ko strategy badalni ho to ek hi line badlegi.</dd>
+        <dt>line 15</dt><dd><code>addIfAbsent</code> duplicate registration rokta hai atomically. Normal <code>contains()</code> + <code>add()</code> race-prone hota.</dd>
+        <dt>line 23–26</dt><dd>Iterator poore array ka <em>snapshot</em> leta hai. Isliye publish ke beech mein koi unregister kare to <code>ConcurrentModificationException</code> nahi aayega — bas wo listener ko is round mein event mil jaayega. Ye "weakly consistent" behaviour hai.</dd>
+        <dt>line 30</dt><dd>Method ka naam behaviour batata hai (<code>deliverSafely</code>), aur ye single responsibility rakhta hai: error containment. Naming se code self-documenting banta hai.</dd>
+      </dl>
+
+      <table class="tt">
+        <tr><th>Implementation</th><th>get(i)</th><th>add(end)</th><th>add(mid)</th><th>Thread-safe</th><th>Sweet spot</th></tr>
+        <tr><td>ArrayList</td><td class="n">O(1)</td><td class="n">O(1)*</td><td class="n">O(n)</td><td class="n">no</td><td>default choice, 95% cases</td></tr>
+        <tr><td>LinkedList</td><td class="n">O(n)</td><td class="n">O(1)</td><td class="n">O(n) walk</td><td class="n">no</td><td>Deque as queue (par ArrayDeque behtar)</td></tr>
+        <tr><td>CopyOnWriteArrayList</td><td class="n">O(1)</td><td class="n">O(n)</td><td class="n">O(n)</td><td class="n">yes</td><td>listeners, config, read:write &gt; 100:1</td></tr>
+        <tr><td>Vector</td><td class="n">O(1)</td><td class="n">O(1)*</td><td class="n">O(n)</td><td class="n">yes (sync)</td><td>legacy — naya code mein mat use karo</td></tr>
+        <tr><td>List.of(...)</td><td class="n">O(1)</td><td class="n">—</td><td class="n">—</td><td class="n">yes (immutable)</td><td>constants, defensive returns</td></tr>
+      </table>
+
+      <div class="callout"><b>Vector aur Stack kyun chhodein?</b> Har method pe <code>synchronized</code> hai, lekin compound operation (<code>if (!v.contains(x)) v.add(x)</code>) phir bhi race-prone hai — yaani cost bhi bhugto aur safety bhi na milay. <code>Stack</code> to <code>Vector</code> extend karta hai, isliye <code>get(0)</code> se bottom bhi expose ho jaata hai. Aaj ka jawab: <code>ArrayDeque</code>.</div>
+
+      <div class="verdict">
+        <div class="v-do"><h4>apply karo</h4><ul>
+          <li>Default hamesha <code>ArrayList</code>. Justify tab karo jab kuch aur chuno.</li>
+          <li>Read:write ratio &gt; 100:1 aur list chhoti (&lt; few hundred) → CopyOnWriteArrayList.</li>
+          <li>FIFO/LIFO chahiye → <code>ArrayDeque</code>, LinkedList nahi.</li>
+        </ul></div>
+        <div class="v-skip"><h4>ignore karo</h4><ul>
+          <li>"LinkedList insert fast hai" wali theory — measure karo, wo sirf iterator-based bulk edits mein jeetta hai.</li>
+          <li><code>Collections.synchronizedList</code> se concurrency solve karna — compound ops phir bhi tootenge.</li>
+          <li>CopyOnWrite jab list badi ho ya writes frequent — har write ek full copy = GC storm.</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 03 ================= -->
+<section class="topic" id="t03">
+  <div class="topic-head"><span class="topic-num">03</span><h2>HashMap internals: bucket, collision, treeify, resize</h2><span class="tag">core interview</span></div>
+  <div class="split">
+    <div class="pane-q">
+      <h3>problem</h3>
+      <span class="ask">Ek attacker aise 100k keys bhejta hai jinke hashCode same hain. Tumhara <code>HashMap</code> lookup O(1) tha — ab kya hoga? Java 8 ne is attack ko kaise kam kiya?</span>
+      <p class="hing">Follow-up jo hamesha aata hai: default capacity 16 aur load factor 0.75 kyun? Resize ke waqt entries kaise move hoti hain?</p>
+      <ul><li>hash spreading ka kaam kya hai?</li><li>Bucket index kaise nikalta hai?</li><li>Treeify kab hota hai, kab nahi?</li></ul>
+    </div>
+    <div class="pane-a">
+      <h3>solution</h3>
+      <div class="chipset"><span class="chip">cap 16</span><span class="chip">load 0.75</span><span class="chip g">TREEIFY 8</span><span class="chip g">MIN_TREEIFY_CAP 64</span><span class="chip v">UNTREEIFY 6</span></div>
+      <p>HashMap ek <code>Node&lt;K,V&gt;[] table</code> hai. Har <code>Node</code> mein <code>hash, key, value, next</code> hote hain — yaani har bucket ek singly linked list ka head hai.</p>
+      <p><b>Pehla step — hash spreading.</b> Index nikalne ke liye <code>(n-1) &amp; hash</code> use hota hai, jo sirf <em>lower bits</em> dekhta hai. Agar keys ke hashCode ke sirf upper bits alag hon, sab ek hi bucket mein gir jaate. Isliye Java <code>h ^ (h &gt;&gt;&gt; 16)</code> karta hai: upper 16 bits ko lower 16 pe XOR karke mix kar deta hai — ek sasta sa "avalanche".</p>
+      <p><b>Dusra step — collision handling.</b> Same bucket mein 8 nodes ho jaayein <em>aur</em> table size ≥ 64 ho, to wo chain ek red-black tree ban jaati hai: worst case O(n) se O(log n). Agar table 64 se chhota hai to treeify ke bajaye resize hota hai (kyunki chhoti table mein collision ka asli ilaaj zyada buckets hain). Tree shrink hoke 6 nodes pe wapas list ban jaati hai — 8/6 ka gap hysteresis hai, taaki border pe baar-baar convert na ho.</p>
+
+<script type="text/x-java" data-file="HashIndexProbe.java" data-hl="8,9,12,17,22,32">
+/** HashMap ka index math replicate karta hai — debugging aur teaching ke liye. */
+public final class HashIndexProbe {
+
+    private HashIndexProbe() { }
+
+    /** HashMap.hash(): upper bits ko lower bits mein mix karta hai. */
+    public static int computeSpreadHash(Object key) {
+        if (key == null) {
+            return 0;                       // null key hamesha bucket 0 mein jaati hai
+        }
+        int rawHash = key.hashCode();
+        return rawHash ^ (rawHash >>> 16);  // avalanche: upper 16 bits ko neeche laao
+    }
+
+    /** Bucket index = (tableLength - 1) & spreadHash. Modulo se tez, par table power-of-two honi chahiye. */
+    public static int resolveBucketIndex(Object key, int tableLength) {
+        return (tableLength - 1) & computeSpreadHash(key);
+    }
+
+    /** Resize ke waqt: entry lo-half mein rahegi ya hi-half mein jaayegi. */
+    public static boolean staysInLowerHalfAfterResize(Object key, int oldTableLength) {
+        return (computeSpreadHash(key) & oldTableLength) == 0;
+    }
+
+    /** Kitni entries ke baad resize trigger hoga. */
+    public static int resizeThreshold(int tableLength, float loadFactor) {
+        return (int) (tableLength * loadFactor);
+    }
+
+    /** Expected size ke liye sahi initial capacity — resize storm se bachne ke liye. */
+    public static int recommendedInitialCapacity(int expectedEntries) {
+        return (int) Math.ceil(expectedEntries / 0.75d);
+    }
+}
+</script>
+
+      <dl class="lines">
+        <dt>line 8–9</dt><dd><code>null</code> key allowed hai (ek hi), aur uska hash 0 hota hai → hamesha bucket 0. <code>Hashtable</code> aur <code>ConcurrentHashMap</code> mein null key/value allowed nahi.</dd>
+        <dt>line 12</dt><dd><code>&gt;&gt;&gt;</code> unsigned right shift hai — sign bit copy nahi hota. XOR se upper bits ka information lower bits mein aa jaata hai.</dd>
+        <dt>line 17</dt><dd><code>(n-1) &amp; hash</code> tabhi sahi kaam karta hai jab <code>n</code> power of two ho — tabhi <code>n-1</code> ek all-ones mask banta hai (16-1 = 0b1111). Isliye HashMap tumhari di hui capacity ko upar wale power-of-two pe round karta hai.</dd>
+        <dt>line 22</dt><dd>Resize pe table double hoti hai, isliye ek entry ka naya index ya to <em>same</em> rehta hai ya <em>oldCapacity jitna aage</em> shift hota hai. Ye check ek hi bit dekh ke bata deta hai — poora rehash nahi karna padta. Isi wajah se Java 8 ka resize O(n) aur order-preserving hai.</dd>
+        <dt>line 31–32</dt><dd>10,000 entries expect kar rahe ho? <code>new HashMap&lt;&gt;(13334)</code> do. Warna 16 se shuru hoke ~10 resize honge, har baar poori table dobara link karni padegi.</dd>
+      </dl>
+
+      <table class="tt">
+        <tr><th>Situation</th><th>get / put</th><th>Kyun</th></tr>
+        <tr><td>Achha hash distribution</td><td class="n">O(1)</td><td>bucket mein 0–1 node</td></tr>
+        <tr><td>Bahut collisions, table &lt; 64</td><td class="n">O(n)</td><td>chain, aur resize hota rehta hai</td></tr>
+        <tr><td>Bahut collisions, table ≥ 64</td><td class="n">O(log n)</td><td>bucket red-black tree ban gaya</td></tr>
+        <tr><td>Sab keys ka hashCode same, keys Comparable nahi</td><td class="n">O(log n)~O(n)</td><td>tree class-name/identity pe fallback karta hai</td></tr>
+      </table>
+
+      <div class="callout gotcha"><b>Sabse bada gotcha:</b> key ko map mein daalne ke baad mutate mat karo. Uska hash badal jaayega, entry purane bucket mein padi rahegi, aur <code>get()</code> naye bucket mein dhoondhega — value hamesha ke liye kho gayi, aur GC bhi use free nahi karega.</div>
+
+      <div class="verdict">
+        <div class="v-do"><h4>apply karo</h4><ul>
+          <li>Bade maps ke liye initial capacity do (expected / 0.75).</li>
+          <li>Keys immutable rakho — <code>record</code>, <code>String</code>, enum, wrapper.</li>
+          <li>User-controlled keys pe collision-heavy input ka soch ke rakho (treeify + randomized order isse handle karta hai).</li>
+        </ul></div>
+        <div class="v-skip"><h4>ignore karo</h4><ul>
+          <li>Load factor tuning — 0.75 space/time ka acha compromise hai; 1.0 karoge to chains badhengi.</li>
+          <li>"Prime number bucket" wali purani salaah — Java power-of-two + spreading use karta hai.</li>
+          <li>Chhote maps (&lt; 100) ke liye capacity math — waqt ki barbaadi.</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 04 ================= -->
+<section class="topic" id="t04">
+  <div class="topic-head"><span class="topic-num">04</span><h2>Map family: LinkedHashMap, TreeMap, ConcurrentHashMap</h2><span class="tag">intermediate</span></div>
+  <div class="split">
+    <div class="pane-q">
+      <h3>problem</h3>
+      <span class="ask">Ek in-process cache chahiye: max 10,000 entries, LRU eviction, aur 200 threads isko hit karenge. Kaunsa Map lagega — aur kyun sirf ek Map kaafi nahi?</span>
+      <p class="hing">Interviewer ye bhi poochega: <code>Hashtable</code>, <code>Collections.synchronizedMap</code>, aur <code>ConcurrentHashMap</code> mein farak kya hai?</p>
+      <ul><li>LRU sabse kam code mein kaise?</li><li>Sorted / range queries kaunsa Map deta hai?</li><li>Concurrency ka asli cost kahan hai?</li></ul>
+    </div>
+    <div class="pane-a">
+      <h3>solution</h3>
+      <div class="chipset"><span class="chip">accessOrder=true</span><span class="chip g">CAS + bin lock</span><span class="chip v">NavigableMap</span></div>
+      <p><b>LinkedHashMap</b> HashMap extend karta hai aur har node mein <code>before</code>/<code>after</code> pointers add karta hai — yaani ek doubly-linked list saare entries ke upar. <code>accessOrder=true</code> pe har <code>get()</code> us node ko list ke end pe move kar deta hai. Iske saath <code>removeEldestEntry()</code> override karo aur LRU cache 10 line mein ready.</p>
+      <p><b>ConcurrentHashMap</b> (Java 8+) mein segment lock nahi hote. Khali bucket pe insert ek <code>CAS</code> se hota hai (lock-free), aur non-empty bucket pe sirf <em>us bucket ke head node</em> pe <code>synchronized</code> lagta hai. Yaani 64 buckets = practically 64 independent locks. Resize ke waqt threads mil ke kaam batt lete hain (<code>helpTransfer</code>), aur migrate ho chuke bucket pe <code>ForwardingNode</code> lag jaata hai.</p>
+      <p><b>Hathtable / synchronizedMap</b> poore map pe ek hi lock lagate hain — 200 threads matlab 199 wait kar rahe hain.</p>
+
+<script type="text/x-java" data-file="BoundedLruCache.java" data-hl="11,13,15,16,19,32">
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Collections;
+
+/** Size-bounded LRU cache — LinkedHashMap ke access-order mode par bana hua. */
+public final class BoundedLruCache<K, V> {
+
+    private final Map<K, V> entriesByKey;
+
+    public BoundedLruCache(int maximumEntries) {
+        int initialCapacity = (int) Math.ceil(maximumEntries / 0.75d) + 1;
+        LinkedHashMap<K, V> accessOrderedMap =
+            new LinkedHashMap<>(initialCapacity, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {
+                    return size() > maximumEntries;
+                }
+            };
+        this.entriesByKey = Collections.synchronizedMap(accessOrderedMap);
+    }
+
+    /** Hit hone par entry recency list ke end pe chali jaati hai. */
+    public V lookup(K key) {
+        return entriesByKey.get(key);
+    }
+
+    public void store(K key, V value) {
+        entriesByKey.put(key, value);
+    }
+
+    public V loadOrCompute(K key, java.util.function.Function<K, V> loader) {
+        return entriesByKey.computeIfAbsent(key, loader);
+    }
+
+    public int size() { return entriesByKey.size(); }
+}
+</script>
+
+      <dl class="lines">
+        <dt>line 10–11</dt><dd>Capacity aise chuni gayi hai ki map kabhi resize hi na kare — bound already pata hai, to resize sirf waste hoga.</dd>
+        <dt>line 13</dt><dd>Teesra argument <code>accessOrder = true</code> — yahi LRU ka switch hai. <code>false</code> (default) hota to insertion order milta.</dd>
+        <dt>line 15–17</dt><dd><code>removeEldestEntry</code> har <code>put</code> ke baad call hota hai. <code>true</code> return karo to sabse purani (least-recently-used) entry apne aap hat jaati hai. Tumhein eviction code likhna hi nahi padta.</dd>
+        <dt>line 19</dt><dd>Wrapping zaroori hai kyunki <code>get()</code> bhi structure modify karta hai (recency reorder), isliye read bhi thread-safe nahi hai. Lekin ye ek global lock hai — 200 threads pe ye bottleneck banega.</dd>
+        <dt>line 31–32</dt><dd><code>computeIfAbsent</code> atomic hai: miss hone pe loader chalega aur result store hoga, bina "check-then-act" race ke. LinkedHashMap ke andar loader ke andar <em>usi map</em> ko mat chhuo — <code>ConcurrentModificationException</code> ya infinite loop mil sakta hai.</dd>
+      </dl>
+
+      <div class="callout"><b>Scale ka sach:</b> 200 threads + LRU = <code>synchronizedMap</code> se kaam nahi chalega. Production mein <b>Caffeine</b> use karo — wo <code>ConcurrentHashMap</code> ke upar ring-buffer se access record karta hai aur eviction ko async kar deta hai, isliye read path lock-free rehta hai. Interview mein: "LinkedHashMap se LRU banata hoon, par high-concurrency pe Caffeine/W-TinyLFU" — ye jawab mature lagta hai.</div>
+
+      <table class="tt">
+        <tr><th>Map</th><th>Order</th><th>null key/value</th><th>Concurrency</th><th>Use case</th></tr>
+        <tr><td>HashMap</td><td>none</td><td class="n">1 null key, many null values</td><td class="n">unsafe</td><td>default</td></tr>
+        <tr><td>LinkedHashMap</td><td>insertion / access</td><td class="n">yes</td><td class="n">unsafe</td><td>LRU, predictable iteration</td></tr>
+        <tr><td>TreeMap</td><td>sorted by key</td><td class="n">no null key</td><td class="n">unsafe</td><td>range/floor/ceiling queries</td></tr>
+        <tr><td>ConcurrentHashMap</td><td>none</td><td class="n">no nulls</td><td class="n">bin-level lock + CAS</td><td>shared mutable state</td></tr>
+        <tr><td>ConcurrentSkipListMap</td><td>sorted</td><td class="n">no nulls</td><td class="n">lock-free</td><td>concurrent range queries</td></tr>
+        <tr><td>EnumMap</td><td>enum ordinal</td><td class="n">no null key</td><td class="n">unsafe</td><td>enum keys — array-backed, super fast</td></tr>
+        <tr><td>WeakHashMap</td><td>none</td><td class="n">yes</td><td class="n">unsafe</td><td>metadata jo key ke saath mar jaaye</td></tr>
+      </table>
+
+      <div class="verdict">
+        <div class="v-do"><h4>apply karo</h4><ul>
+          <li>Shared mutable map → seedha <code>ConcurrentHashMap</code>, koi bahes nahi.</li>
+          <li>Enum key hai → <code>EnumMap</code> (bit-level fast, zero hashing).</li>
+          <li>Atomic update chahiye → <code>merge</code>, <code>compute</code>, <code>putIfAbsent</code>.</li>
+        </ul></div>
+        <div class="v-skip"><h4>ignore karo</h4><ul>
+          <li><code>Hashtable</code> aur <code>synchronizedMap</code> naye code mein.</li>
+          <li>CHM ka <code>size()</code> exact maan ke logic likhna — wo approximate/weakly-consistent hai.</li>
+          <li>TreeMap sirf isliye ki "sorted acha lagta hai" — hashing ke muqable har op O(log n) aur 2–3x slow.</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 05 ================= -->
+<section class="topic" id="t05">
+  <div class="topic-head"><span class="topic-num">05</span><h2>Set family: HashSet, LinkedHashSet, TreeSet, EnumSet</h2><span class="tag">basics</span></div>
+  <div class="split">
+    <div class="pane-q">
+      <h3>problem</h3>
+      <span class="ask">"<code>HashSet</code> andar se kya hai?" — aur agar wo Map hai, to har element ke liye value kya store hoti hai? Memory waste nahi hota?</span>
+      <p class="hing">Practical part: ek Kafka consumer duplicate message IDs bhej raha hai. Last 1 hour ke IDs yaad rakhne hain, memory blow-up ke bina. Kya use karoge?</p>
+      <ul><li>Set ki 4 varieties ka farak?</li><li>EnumSet itna fast kyun hai?</li><li>Unbounded dedup set = memory leak?</li></ul>
+    </div>
+    <div class="pane-a">
+      <h3>solution</h3>
+      <div class="chipset"><span class="chip">Set = Map ka wrapper</span><span class="chip g">EnumSet = bit vector</span><span class="chip r">unbounded = leak</span></div>
+      <p><b>HashSet andar se ek HashMap hi hai.</b> Har element key ban jaata hai aur value ki jagah ek shared static dummy object (<code>PRESENT</code>) rakha jaata hai. Yaani sabhi entries ek hi object ko point karti hain — waste sirf reference slot ka hai, poore object ka nahi. Isliye HashSet ka behaviour bilkul HashMap jaisa hai: O(1) average, treeify, resize, sab kuch.</p>
+      <p><b>EnumSet</b> alag hi cheez hai — wo elements ko ek <code>long</code> bitmask mein store karta hai (64 tak enum constants ek long mein). <code>add</code>/<code>contains</code>/<code>union</code> sab bitwise operations ban jaate hain. Jab keys enum hon, iske aage koi Set nahi tik sakta.</p>
+      <p>Dedup wale case mein asli khatra <b>unbounded growth</b> hai: set kabhi shrink nahi hoga, aur GC use collect nahi kar sakta kyunki reference strong hai. Isliye set ko time ya size se bound karna padega:</p>
+
+<script type="text/x-java" data-file="DeduplicationGate.java" data-hl="9,15,18,25,29">
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Set;
+
+/** Bounded dedup: sirf recent N message IDs yaad rakhta hai, phir purane bhool jaata hai. */
+public final class DeduplicationGate {
+
+    private static final Object PRESENT = new Object();   // HashSet ka trick, khud likha hua
+
+    private final Map<String, Object> recentIds;
+
+    public DeduplicationGate(int rememberLastN) {
+        this.recentIds = Collections.synchronizedMap(
+            new LinkedHashMap<>(rememberLastN * 2, 0.75f, false) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<String, Object> eldest) {
+                    return size() > rememberLastN;
+                }
+            });
+    }
+
+    /** true = pehli baar dekha (process karo). false = duplicate hai (drop karo). */
+    public boolean isFirstTimeSeen(String messageId) {
+        return recentIds.put(messageId, PRESENT) == null;
+    }
+
+    public Set<String> snapshotOfRememberedIds() {
+        synchronized (recentIds) {
+            return Set.copyOf(recentIds.keySet());
+        }
+    }
+}
+</script>
+
+      <dl class="lines">
+        <dt>line 9</dt><dd>Ek hi <code>PRESENT</code> object saare entries share karte hain — exactly jo <code>HashSet</code> andar karta hai. Naya object per entry banate to memory 10x ho jaati.</dd>
+        <dt>line 15</dt><dd>Yahan <code>accessOrder = false</code> hai: hum <em>insertion</em> order chahte hain (FIFO window), LRU nahi. Dedup mein "kab aaya" matter karta hai, "kab dobara dekha" nahi.</dd>
+        <dt>line 17–19</dt><dd>Yahi line memory leak ko rokti hai. Bina iske ye set unbounded badhta rahega aur ek din <code>OutOfMemoryError</code> dega.</dd>
+        <dt>line 24–25</dt><dd><code>put()</code> purani value return karta hai — <code>null</code> matlab key nayi thi. Ek hi atomic call mein "check + insert" ho gaya; <code>contains()</code> phir <code>add()</code> karna race condition hoti.</dd>
+        <dt>line 29–30</dt><dd>Snapshot lene ke liye explicit <code>synchronized</code> block chahiye. <code>synchronizedMap</code> individual calls ko safe karta hai, iteration ko nahi — ye documented requirement hai.</dd>
+      </dl>
+
+      <table class="tt">
+        <tr><th>Set</th><th>Backed by</th><th>Order</th><th>contains()</th><th>Kab</th></tr>
+        <tr><td>HashSet</td><td class="n">HashMap</td><td>none</td><td class="n">O(1)</td><td>default membership check</td></tr>
+        <tr><td>LinkedHashSet</td><td class="n">LinkedHashMap</td><td>insertion</td><td class="n">O(1)</td><td>dedup + order preserve</td></tr>
+        <tr><td>TreeSet</td><td class="n">TreeMap</td><td>sorted</td><td class="n">O(log n)</td><td>ranked / range queries</td></tr>
+        <tr><td>EnumSet</td><td class="n">long bitmask</td><td>ordinal</td><td class="n">O(1) bitwise</td><td>enum flags, permissions</td></tr>
+        <tr><td>CopyOnWriteArraySet</td><td class="n">COW array</td><td>insertion</td><td class="n">O(n)</td><td>tiny, read-mostly, thread-safe</td></tr>
+        <tr><td>ConcurrentHashMap.newKeySet()</td><td class="n">CHM</td><td>none</td><td class="n">O(1)</td><td>concurrent set — yahi sahi jawab hai</td></tr>
+      </table>
+
+      <div class="callout gotcha"><b>TreeSet ka silent bug:</b> wo <code>compareTo()</code>/<code>Comparator</code> se equality decide karta hai, <code>equals()</code> se nahi. Agar comparator sirf ek field pe compare karta hai, to alag objects "duplicate" maan ke drop ho jaayenge — bina koi error diye.</div>
+
+      <div class="verdict">
+        <div class="v-do"><h4>apply karo</h4><ul>
+          <li>Concurrent set chahiye → <code>ConcurrentHashMap.newKeySet()</code>.</li>
+          <li>Enum flags → <code>EnumSet.of(...)</code>, <code>EnumSet.noneOf(...)</code>.</li>
+          <li>Har long-lived set pe eviction policy (size ya TTL) lazmi rakho.</li>
+        </ul></div>
+        <div class="v-skip"><h4>ignore karo</h4><ul>
+          <li><code>Collections.synchronizedSet(new HashSet&lt;&gt;())</code> — CHM keySet behtar hai.</li>
+          <li>TreeSet jab sorting ki zarurat sirf output pe ho — tab list bana ke ek baar sort kar lo.</li>
+          <li>HashSet ka memory overhead optimize karna jab tak wo profiler mein na dikhe.</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 06 ================= -->
+<section class="topic" id="t06">
+  <div class="topic-head"><span class="topic-num">06</span><h2>Trees: BST, Red-Black, TreeMap &amp; sorted views</h2><span class="tag">intermediate → advanced</span></div>
+  <div class="split">
+    <div class="pane-q">
+      <h3>problem</h3>
+      <span class="ask">Sorted keys 1, 2, 3, … 1,00,000 ek plain BST mein daalo — search O(log n) rehta hai ya nahi? Aur <code>TreeMap</code> isse kaise bachta hai?</span>
+      <p class="hing">Real scenario: ek pricing engine hai jahan "is timestamp se pehle wala latest rate" nikalna hai, lakhon baar per second. HashMap kaam nahi karega — kyun?</p>
+      <ul><li>Balanced tree ki guarantee kya hai?</li><li>floor / ceiling / headMap ka matlab?</li><li>Concurrent sorted map ka jawab?</li></ul>
+    </div>
+    <div class="pane-a">
+      <h3>solution</h3>
+      <div class="chipset"><span class="chip r">plain BST → O(n)</span><span class="chip g">RB tree → O(log n)</span><span class="chip v">NavigableMap</span></div>
+      <p><b>Plain BST sorted input pe linked list ban jaata hai</b> — har naya element right child ban jaata hai, height n, search O(n). Isiliye <code>TreeMap</code> ek <b>red-black tree</b> hai: har insert/delete ke baad recolouring aur rotation se height <code>≤ 2·log₂(n+1)</code> guarantee hoti hai.</p>
+      <p>Red-black rules yaad rakhne layak hain: (1) har node red ya black, (2) root black, (3) red node ke dono children black — yaani do red lagatar nahi, (4) kisi bhi node se leaf tak har path pe black nodes ki ginti barabar. Insert hamesha <b>red</b> node se hota hai (kyunki red add karne se rule 4 nahi tootta), phir violation ko rotation/recolour se upar push kiya jaata hai.</p>
+      <p>Pricing engine wala sawaal HashMap se solve nahi ho sakta kyunki hashing <em>order destroy</em> kar deti hai. "Is key se chhoti sabse badi key" wali query ke liye ordered structure chahiye — yahi <code>NavigableMap</code> ka kaam hai.</p>
+
+<script type="text/x-java" data-file="TimeSeriesRateBook.java" data-hl="11,20,26,31,33">
+import java.time.Instant;
+import java.util.Map;
+import java.util.NavigableMap;
+import java.util.TreeMap;
+import java.util.concurrent.ConcurrentSkipListMap;
+
+/** Timestamp -> rate. "As of" lookups ke liye ordered map chahiye, hashing se nahi hoga. */
+public final class TimeSeriesRateBook {
+
+    /** Single-threaded / read-mostly ke liye TreeMap; concurrent writes ho to skip list. */
+    private final NavigableMap<Instant, Double> ratesByEffectiveTime =
+        new ConcurrentSkipListMap<>();
+
+    public void recordRate(Instant effectiveFrom, double rate) {
+        ratesByEffectiveTime.put(effectiveFrom, rate);
+    }
+
+    /** Diye gaye time par lagoo rate = us time ya usse pehle wali sabse recent entry. */
+    public Double rateAsOf(Instant queryTime) {
+        Map.Entry<Instant, Double> applicable = ratesByEffectiveTime.floorEntry(queryTime);
+        return applicable == null ? null : applicable.getValue();
+    }
+
+    /** Do timestamps ke beech ka window — inclusive from, exclusive to. */
+    public NavigableMap<Instant, Double> ratesBetween(Instant fromInclusive, Instant toExclusive) {
+        return ratesByEffectiveTime.subMap(fromInclusive, true, toExclusive, false);
+    }
+
+    /** Retention: cutoff se purani entries hata do. View pe clear() backing map ko badalta hai. */
+    public int purgeOlderThan(Instant cutoff) {
+        NavigableMap<Instant, Double> stale = ratesByEffectiveTime.headMap(cutoff, false);
+        int removed = stale.size();
+        stale.clear();
+        return removed;
+    }
+}
+</script>
+
+      <dl class="lines">
+        <dt>line 11–12</dt><dd>Declared type <code>NavigableMap</code> hai — isse <code>TreeMap</code> aur <code>ConcurrentSkipListMap</code> ke beech switch karna ek line ka kaam hai. Skip list lock-free hai: multi-level linked lists jo probabilistically balance hoti hain, isliye rotations ki zarurat hi nahi padti (rotation concurrent-friendly nahi hota).</dd>
+        <dt>line 19–20</dt><dd><code>floorEntry(k)</code> = "k se chhoti ya barabar sabse badi key". Uska ulta <code>ceilingEntry</code> hai. Ye O(log n) hai — HashMap mein yahi kaam O(n) scan maangta.</dd>
+        <dt>line 26</dt><dd><code>subMap</code> ek <b>view</b> return karta hai, copy nahi — memory allocate nahi hoti aur backing map ke changes yahan dikhte hain.</dd>
+        <dt>line 31–33</dt><dd>View mutable hai: <code>headMap(...).clear()</code> asli map se wo entries delete kar deta hai. Retention/TTL cleanup ka sabse saaf idiom yahi hai.</dd>
+      </dl>
+
+      <table class="tt">
+        <tr><th>Structure</th><th>get</th><th>range query</th><th>Concurrency</th><th>Note</th></tr>
+        <tr><td>HashMap</td><td class="n">O(1)</td><td class="n">O(n)</td><td class="n">unsafe</td><td>order nahi hai</td></tr>
+        <tr><td>TreeMap (red-black)</td><td class="n">O(log n)</td><td class="n">O(log n + k)</td><td class="n">unsafe</td><td>guaranteed balance</td></tr>
+        <tr><td>ConcurrentSkipListMap</td><td class="n">O(log n)</td><td class="n">O(log n + k)</td><td class="n">lock-free</td><td>rotation-free design</td></tr>
+        <tr><td>HashMap ka treeified bin</td><td class="n">O(log n)</td><td class="n">—</td><td class="n">unsafe</td><td>sirf collision defence</td></tr>
+      </table>
+
+      <div class="callout"><b>Interview line jo yaad rakho:</b> "HashMap ka treeify aur TreeMap dono red-black tree use karte hain, lekin maqsad alag hai — TreeMap <em>ordering</em> ke liye tree hai, HashMap ka bin <em>collision attack</em> se bachne ke liye tree banta hai."</div>
+
+      <div class="verdict">
+        <div class="v-do"><h4>apply karo</h4><ul>
+          <li>floor/ceiling/higher/lower ya range chahiye → TreeMap / skip list.</li>
+          <li>Concurrent + sorted → <code>ConcurrentSkipListMap</code>.</li>
+          <li>TTL cleanup ke liye <code>headMap(cutoff).clear()</code> pattern.</li>
+        </ul></div>
+        <div class="v-skip"><h4>ignore karo</h4><ul>
+          <li>Khud ka AVL/RB tree likhna production mein — JDK ka battle-tested hai.</li>
+          <li>TreeMap jab sirf point lookups ho rahe hain.</li>
+          <li>Rotation ki exact case-by-case algorithm ratna — concept aur guarantee samjho, code likhwana durlabh hai.</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 07 ================= -->
+<section class="topic" id="t07">
+  <div class="topic-head"><span class="topic-num">07</span><h2>Queue, Deque aur PriorityQueue (binary heap)</h2><span class="tag">intermediate</span></div>
+  <div class="split">
+    <div class="pane-q">
+      <h3>problem</h3>
+      <span class="ask">"Top 10 trending items" nikalne hain 5 crore events se. Sab sort karoge to O(n log n) aur poora data memory mein. Better tareeka?</span>
+      <p class="hing">Saath mein: <code>PriorityQueue</code> ko <code>for</code> loop se print karo to sorted kyun nahi aata? Aur <code>Stack</code> ki jagah aaj kya use hota hai?</p>
+      <ul><li>Heap array mein kaise store hota hai?</li><li>ArrayDeque circular buffer kya hai?</li><li>peek O(1) par iteration random kyun?</li></ul>
+    </div>
+    <div class="pane-a">
+      <h3>solution</h3>
+      <div class="chipset"><span class="chip">heap = array</span><span class="chip g">offer/poll O(log n)</span><span class="chip r">iteration unordered</span></div>
+      <p><b>PriorityQueue ek binary min-heap hai jo array mein rehta hai.</b> Index <code>i</code> ke children <code>2i+1</code> aur <code>2i+2</code> pe hote hain, parent <code>(i-1)/2</code> pe. Koi node objects nahi, koi pointers nahi — sirf ek <code>Object[]</code>. Insert (<code>offer</code>) element ko end pe rakh ke <em>siftUp</em> karta hai; <code>poll</code> root nikaal ke last element ko root pe rakhta hai aur <em>siftDown</em> karta hai. Dono O(log n), aur <code>peek</code> O(1) kyunki minimum hamesha index 0 pe hai.</p>
+      <p><b>Iteration random kyun?</b> Heap sirf <em>parent ≤ children</em> ka invariant maintain karta hai, siblings ke beech koi order nahi. Array ko seedha padhoge to woh partial order dikhega. Sorted chahiye to baar-baar <code>poll()</code> karo.</p>
+      <p>Top-K ke liye trick: <b>size K ka min-heap</b> rakho aur K se bada hone pe root nikaal do. Memory O(K), time O(n log K) — 5 crore events bhi stream mein handle ho jaate hain.</p>
+
+<script type="text/x-java" data-file="TopKTracker.java" data-hl="14,22,26,34">
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.PriorityQueue;
+
+/** Streaming top-K: memory O(K) rehti hai chahe input kitna bhi bada ho. */
+public final class TopKTracker<T> {
+
+    private final int capacity;
+    private final PriorityQueue<T> smallestOnTop;
+
+    public TopKTracker(int capacity, Comparator<? super T> rankingOrder) {
+        this.capacity = capacity;
+        this.smallestOnTop = new PriorityQueue<>(capacity, rankingOrder);  // min-heap by rank
+    }
+
+    /**
+     * Ek candidate offer karo. Heap bhara ho to sirf tab hi andar aayega
+     * jab ye current sabse kamzor element se behtar ho.
+     */
+    public void offerCandidate(T candidate) {
+        if (smallestOnTop.size() < capacity) {
+            smallestOnTop.offer(candidate);
+            return;
+        }
+        T weakestKept = smallestOnTop.peek();
+        if (smallestOnTop.comparator().compare(candidate, weakestKept) > 0) {
+            smallestOnTop.poll();
+            smallestOnTop.offer(candidate);
+        }
+    }
+
+    /** Best-first sorted list — heap ko drain karke banti hai. */
+    public List<T> drainRankedDescending() {
+        List<T> ranked = new ArrayList<>(smallestOnTop.size());
+        while (!smallestOnTop.isEmpty()) {
+            ranked.add(smallestOnTop.poll());
+        }
+        java.util.Collections.reverse(ranked);
+        return ranked;
+    }
+}
+</script>
+
+      <dl class="lines">
+        <dt>line 14</dt><dd>Heap "min" hai <em>ranking order</em> ke hisaab se, isliye root hamesha "sabse kamzor jise humne rakha hai" hota hai — top-K ka natural eviction candidate.</dd>
+        <dt>line 22–24</dt><dd>Jab tak capacity nahi bhari, sab andar. Ye warm-up phase O(K log K) hai.</dd>
+        <dt>line 26–29</dt><dd>Yahi asli optimization hai: <code>peek()</code> O(1) hai, isliye 99% events ek comparison ke baad hi reject ho jaate hain — na allocation, na sift.</dd>
+        <dt>line 34–40</dt><dd>Heap khud sorted nahi hai, isliye ordered output ke liye poll karke reverse karna padta hai. Ye O(K log K) hai — K chhota hai to negligible.</dd>
+      </dl>
+
+      <table class="tt">
+        <tr><th>Structure</th><th>offer/push</th><th>poll/pop</th><th>peek</th><th>Note</th></tr>
+        <tr><td>ArrayDeque</td><td class="n">O(1)</td><td class="n">O(1)</td><td class="n">O(1)</td><td>circular array, power-of-two size, null banned</td></tr>
+        <tr><td>LinkedList (as Deque)</td><td class="n">O(1)</td><td class="n">O(1)</td><td class="n">O(1)</td><td>kaam karta hai par 40 B/node overhead</td></tr>
+        <tr><td>PriorityQueue</td><td class="n">O(log n)</td><td class="n">O(log n)</td><td class="n">O(1)</td><td>unbounded, unordered iteration</td></tr>
+        <tr><td>Stack (legacy)</td><td class="n">O(1)</td><td class="n">O(1)</td><td class="n">O(1)</td><td>Vector-based, synchronized — avoid</td></tr>
+      </table>
+
+      <div class="callout"><b>ArrayDeque ka design:</b> ek array + <code>head</code>/<code>tail</code> index. Front pe add karna matlab <code>head</code> ko peeche ghumana (wrap-around), koi shifting nahi. Capacity hamesha power-of-two rakhi jaati hai taaki index wrap <code>(i + 1) &amp; (len - 1)</code> se ho jaaye — modulo se tez. <code>null</code> isliye allowed nahi kyunki <code>null</code> "empty slot" ka marker hai.</div>
+      <div class="callout gotcha"><b>Gotcha:</b> <code>PriorityQueue.remove(Object)</code> O(n) hai (linear search), aur agar element ka priority baad mein badal gaya to heap invariant chup-chaap toot jaata hai. Priority badalni ho to remove karke dobara offer karo.</div>
+
+      <div class="verdict">
+        <div class="v-do"><h4>apply karo</h4><ul>
+          <li>Stack/Queue dono ke liye <code>ArrayDeque</code>.</li>
+          <li>Top-K, scheduling, Dijkstra, merge-K-lists → PriorityQueue.</li>
+          <li>Bounded top-K rakho, poora dataset sort mat karo.</li>
+        </ul></div>
+        <div class="v-skip"><h4>ignore karo</h4><ul>
+          <li><code>Stack</code> aur <code>Vector</code> — legacy.</li>
+          <li>PriorityQueue ko sorted collection samajhna — ye sirf "next best" deta hai.</li>
+          <li>Fibonacci heap type exotica — JDK mein hai hi nahi, interview mein binary heap kaafi.</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 08 ================= -->
+<section class="topic" id="t08">
+  <div class="topic-head"><span class="topic-num">08</span><h2>BlockingQueue: producer-consumer aur backpressure</h2><span class="tag">advanced</span></div>
+  <div class="split">
+    <div class="pane-q">
+      <h3>problem</h3>
+      <span class="ask">Producer 10,000 msg/sec bana raha hai, consumer sirf 2,000 handle kar paata hai. Queue <code>LinkedBlockingQueue</code> hai (default unbounded). 30 minute baad kya hoga?</span>
+      <p class="hing">Aur: <code>ThreadPoolExecutor</code> ko unbounded queue doge to <code>maximumPoolSize</code> ka kya hota hai?</p>
+      <ul><li>Bounded vs unbounded ka asli farak?</li><li>put / offer / add mein kya antar?</li><li>SynchronousQueue ka use kya hai?</li></ul>
+    </div>
+    <div class="pane-a">
+      <h3>solution</h3>
+      <div class="chipset"><span class="chip r">unbounded = OOM</span><span class="chip g">bounded = backpressure</span><span class="chip v">2-lock design</span></div>
+      <p>30 minute baad <b><code>OutOfMemoryError</code></b>. Unbounded queue ka matlab hai ki tum apni system ki speed mismatch ko heap mein jama kar rahe ho. Queue ek shock absorber hai, storage nahi. <b>Bounded queue</b> lagate hi <code>put()</code> block hone lagta hai aur ye slowness producer tak wapas pahunchti hai — isi ko <b>backpressure</b> kehte hain.</p>
+      <p><code>ThreadPoolExecutor</code> ka rule: naye threads sirf tab bante hain jab <em>queue full</em> ho. Unbounded queue kabhi full nahi hoti, isliye pool kabhi <code>corePoolSize</code> se aage nahi badhta aur <code>maximumPoolSize</code> dead config ban jaata hai. Ye <code>Executors.newFixedThreadPool</code> ka chhupa hua khatra hai.</p>
+      <p><b>ArrayBlockingQueue</b> ek circular array + ek <code>ReentrantLock</code> + do <code>Condition</code> (<code>notEmpty</code>, <code>notFull</code>) use karta hai. <b>LinkedBlockingQueue</b> do alag locks rakhta hai (putLock aur takeLock), isliye producer aur consumer ek doosre ko block nahi karte — high throughput pe ye behtar hai.</p>
+
+<script type="text/x-java" data-file="IngestionPipeline.java" data-hl="15,20,25,37,45">
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+
+/** Bounded producer-consumer: backpressure on, poison pill se clean shutdown. */
+public final class IngestionPipeline {
+
+    private static final String SHUTDOWN_SIGNAL = "__STOP__";
+
+    private final BlockingQueue<String> pendingRecords;
+    private final AtomicLong droppedRecordCount = new AtomicLong();
+
+    public IngestionPipeline(int queueCapacity) {
+        this.pendingRecords = new ArrayBlockingQueue<>(queueCapacity, true);  // fair = FIFO waiters
+    }
+
+    /** Slow-but-safe: jagah na ho to producer wait karega. Yahi backpressure hai. */
+    public void submitBlocking(String record) throws InterruptedException {
+        pendingRecords.put(record);
+    }
+
+    /** Latency-sensitive path: timeout ke baad drop karo, lekin count zaroor rakho. */
+    public boolean submitWithDeadline(String record, long timeoutMillis) throws InterruptedException {
+        boolean accepted = pendingRecords.offer(record, timeoutMillis, TimeUnit.MILLISECONDS);
+        if (!accepted) {
+            droppedRecordCount.incrementAndGet();
+        }
+        return accepted;
+    }
+
+    /** Worker loop — poison pill milte hi rukta hai. */
+    public void runConsumerLoop(java.util.function.Consumer<String> handler) throws InterruptedException {
+        while (true) {
+            String record = pendingRecords.take();
+            if (SHUTDOWN_SIGNAL.equals(record)) {
+                pendingRecords.put(SHUTDOWN_SIGNAL);   // agla worker bhi dekh le
+                return;
+            }
+            handler.accept(record);
+        }
+    }
+
+    public void requestShutdown() throws InterruptedException {
+        pendingRecords.put(SHUTDOWN_SIGNAL);
+    }
+
+    public long droppedRecords() { return droppedRecordCount.get(); }
+}
+</script>
+
+      <dl class="lines">
+        <dt>line 14–15</dt><dd>Capacity constructor mein mandatory hai — <code>ArrayBlockingQueue</code> ko unbounded banaya hi nahi ja sakta. <code>fair = true</code> lagane se waiting threads ko FIFO order milta hai (thoda slow, par starvation nahi).</dd>
+        <dt>line 20</dt><dd><code>put()</code> jagah banne tak block karta hai. <code>add()</code> exception phenkta, <code>offer()</code> turant <code>false</code> deta. Teeno ka semantics alag hai — interview ka favourite.</dd>
+        <dt>line 24–28</dt><dd>Timed <code>offer</code> = bounded wait. Drop karna acceptable ho sakta hai, <em>chup-chaap</em> drop karna nahi — isliye counter aur metric.</dd>
+        <dt>line 35–38</dt><dd>Poison pill ko wapas queue mein daalna zaroori hai warna sirf ek worker rukega, baaki <code>take()</code> pe hamesha ke liye block rahenge.</dd>
+        <dt>line 44–45</dt><dd>Shutdown bhi <code>put</code> se hota hai, isliye ye queue-order respect karta hai: pending records pehle process honge, tab pill milega.</dd>
+      </dl>
+
+      <table class="tt">
+        <tr><th>Queue</th><th>Bounded?</th><th>Locking</th><th>Use case</th></tr>
+        <tr><td>ArrayBlockingQueue</td><td class="n">always</td><td class="n">1 lock, 2 conditions</td><td>predictable memory, fairness option</td></tr>
+        <tr><td>LinkedBlockingQueue</td><td class="n">optional (default MAX_VALUE)</td><td class="n">2 locks</td><td>high throughput — par bound zaroor do</td></tr>
+        <tr><td>SynchronousQueue</td><td class="n">capacity 0</td><td class="n">direct handoff</td><td>cached thread pool, zero buffering</td></tr>
+        <tr><td>PriorityBlockingQueue</td><td class="n">unbounded</td><td class="n">1 lock</td><td>priority jobs — memory risk</td></tr>
+        <tr><td>DelayQueue</td><td class="n">unbounded</td><td class="n">1 lock</td><td>scheduled retries, TTL expiry</td></tr>
+        <tr><td>LinkedTransferQueue</td><td class="n">unbounded</td><td class="n">lock-free</td><td><code>transfer()</code> = consumer ka wait</td></tr>
+      </table>
+
+      <div class="callout gotcha"><b>Silent killer:</b> <code>Executors.newFixedThreadPool(n)</code> andar <code>new LinkedBlockingQueue&lt;&gt;()</code> unbounded use karta hai. Load spike aane pe threads nahi badhenge, queue heap kha jaayegi. Isliye seedha <code>new ThreadPoolExecutor(...)</code> banao — bounded queue aur explicit <code>RejectedExecutionHandler</code> ke saath (<code>CallerRunsPolicy</code> natural backpressure deta hai).</div>
+
+      <div class="verdict">
+        <div class="v-do"><h4>apply karo</h4><ul>
+          <li>Har production queue bounded ho — capacity ek conscious decision hai.</li>
+          <li>Rejection ko metric banao: drop count, queue depth, wait time.</li>
+          <li>Bursty par short work → SynchronousQueue + elastic pool.</li>
+        </ul></div>
+        <div class="v-skip"><h4>ignore karo</h4><ul>
+          <li>Default <code>Executors</code> factories production mein.</li>
+          <li><code>wait()</code>/<code>notify()</code> se apna queue likhna — BlockingQueue already sahi hai.</li>
+          <li>Fairness flag by default — 5–15% throughput ka cost hai, sirf starvation dikhne pe lagao.</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 09 ================= -->
+<section class="topic" id="t09">
+  <div class="topic-head"><span class="topic-num">09</span><h2>Node, iteration, fail-fast vs fail-safe</h2><span class="tag">core interview</span></div>
+  <div class="split">
+    <div class="pane-q">
+      <h3>problem</h3>
+      <span class="ask">Ye code kabhi-kabhi <code>ConcurrentModificationException</code> deta hai, kabhi silently galat result. Kyun, aur teen alag tareeke se fix karo:</span>
+      <p><code>for (Order o : orders) { if (o.isExpired()) orders.remove(o); }</code></p>
+      <p class="hing">Bonus: CME ka naam "Concurrent" hai lekin ye single thread mein bhi aata hai — kyun?</p>
+      <ul><li>modCount kya hai?</li><li>Fail-safe iterator kaise kaam karta hai?</li><li>Kaunsa fix best hai?</li></ul>
+    </div>
+    <div class="pane-a">
+      <h3>solution</h3>
+      <div class="chipset"><span class="chip">modCount</span><span class="chip r">fail-fast</span><span class="chip g">weakly consistent</span></div>
+      <p>Har <code>ArrayList</code>/<code>HashMap</code> ke andar ek <code>modCount</code> counter hai jo har <em>structural</em> change (add/remove/resize) pe badhta hai. Iterator banate waqt wo <code>expectedModCount = modCount</code> save karta hai, aur har <code>next()</code> pe compare karta hai. Mismatch mile to <code>ConcurrentModificationException</code>. Ye best-effort safety hai — "tumhara code galat hai, ab crash kar do taaki corrupt data aage na jaaye".</p>
+      <p><b>"Kabhi silently galat" kyun?</b> Kyunki <code>ArrayList.remove</code> ke baad agar cursor bilkul last-but-one pe pahunch jaaye, to <code>hasNext()</code> <code>false</code> return kar deta hai aur check hi nahi chalta — loop chup-chaap ek element skip karke khatam ho jaata hai. Isliye ye bug intermittent lagta hai.</p>
+      <p><b>Fail-safe (technically "weakly consistent")</b> iterators — <code>CopyOnWriteArrayList</code>, <code>ConcurrentHashMap</code> — snapshot ya live-but-tolerant traversal dete hain: exception nahi, par tum jo dekh rahe ho wo thoda purana ho sakta hai.</p>
+
+<script type="text/x-java" data-file="ExpiredOrderCleaner.java" data-hl="11,18,21,31">
+import java.util.Collection;
+import java.util.Iterator;
+import java.util.List;
+
+/** Ek hi kaam ke teen sahi tareeke — trade-off ke saath. */
+public final class ExpiredOrderCleaner {
+
+    /** 1) Sabse saaf: internally iterator use hota hai, intent bilkul clear hai. */
+    public int removeExpiredDeclaratively(Collection<Order> orders) {
+        int before = orders.size();
+        orders.removeIf(Order::isExpired);
+        return before - orders.size();
+    }
+
+    /** 2) Explicit iterator: jab hataate waqt kuch aur bhi karna ho. */
+    public int removeExpiredWithIterator(Collection<Order> orders, AuditLog auditLog) {
+        int removed = 0;
+        for (Iterator<Order> cursor = orders.iterator(); cursor.hasNext(); ) {
+            Order order = cursor.next();
+            if (order.isExpired()) {
+                cursor.remove();          // iterator apna expectedModCount sync kar leta hai
+                auditLog.recordExpiry(order);
+                removed++;
+            }
+        }
+        return removed;
+    }
+
+    /** 3) Copy-and-replace: original untouched, functional style, thoda extra memory. */
+    public List<Order> withoutExpiredOrders(List<Order> orders) {
+        return orders.stream()
+                     .filter(order -> !order.isExpired())
+                     .toList();
+    }
+
+    public interface Order { boolean isExpired(); }
+    public interface AuditLog { void recordExpiry(Order order); }
+}
+</script>
+
+      <dl class="lines">
+        <dt>line 11</dt><dd><code>removeIf</code> Java 8+ ka default method hai. <code>ArrayList</code> ne isko override kiya hai: ek bitset banata hai aur ek hi pass mein compact karta hai — isliye ye <code>O(n)</code> hai, jabki bar-bar <code>remove(o)</code> karna <code>O(n²)</code> ho jaata.</dd>
+        <dt>line 18</dt><dd>Note karo <code>for</code> loop ka teesra part khali hai — increment iterator khud <code>next()</code> ke through karta hai.</dd>
+        <dt>line 21</dt><dd><code>cursor.remove()</code> hi wo ek raasta hai jo <code>modCount</code> aur <code>expectedModCount</code> dono ko update karta hai. <code>collection.remove()</code> sirf pehla wala badalta hai — isi mismatch se CME aata hai.</dd>
+        <dt>line 30–33</dt><dd>Stream wala tareeka naya list banata hai; original safe rehta hai. Cost: ek extra allocation. Faida: koi mutation bug nahi, aur <code>toList()</code> immutable deta hai.</dd>
+      </dl>
+
+      <table class="tt">
+        <tr><th>Collection</th><th>Iterator type</th><th>Mutation ke waqt</th></tr>
+        <tr><td>ArrayList, HashMap, HashSet</td><td class="n">fail-fast</td><td>CME (best-effort)</td></tr>
+        <tr><td>CopyOnWriteArrayList/Set</td><td class="n">snapshot</td><td>purana snapshot dikhega, exception nahi</td></tr>
+        <tr><td>ConcurrentHashMap</td><td class="n">weakly consistent</td><td>kuch naye updates dikh sakte hain, kuch nahi</td></tr>
+        <tr><td>ConcurrentSkipListMap</td><td class="n">weakly consistent</td><td>same — kabhi CME nahi</td></tr>
+      </table>
+
+      <div class="callout"><b>Node ka shakl har jagah alag hai:</b> <code>HashMap.Node{hash,key,value,next}</code> → treeify hone pe <code>TreeNode{parent,left,right,prev,red}</code>; <code>LinkedHashMap.Entry</code> mein <code>before/after</code> extra; <code>LinkedList.Node{item,next,prev}</code>; <code>ConcurrentHashMap</code> mein <code>Node</code> ke <code>val</code> aur <code>next</code> <code>volatile</code> hain, plus special <code>ForwardingNode</code> (resize) aur <code>ReservationNode</code> (computeIfAbsent) hote hain.</div>
+
+      <div class="verdict">
+        <div class="v-do"><h4>apply karo</h4><ul>
+          <li>Bulk conditional delete → <code>removeIf</code>.</li>
+          <li>Loop ke andar remove → sirf <code>Iterator.remove()</code>.</li>
+          <li>Shared collection → concurrent implementation, na ki try/catch CME.</li>
+        </ul></div>
+        <div class="v-skip"><h4>ignore karo</h4><ul>
+          <li>CME ko catch karke ignore karna — ye symptom hai, bug wahin hai.</li>
+          <li>"Fail-safe = fully consistent" wali galat-fehmi.</li>
+          <li>Har jagah defensive copy — GC pressure badhta hai; sirf boundaries pe karo.</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 10 ================= -->
+<section class="topic" id="t10">
+  <div class="topic-head"><span class="topic-num">10</span><h2>equals, hashCode, Comparable vs Comparator</h2><span class="tag">core interview</span></div>
+  <div class="split">
+    <div class="pane-q">
+      <h3>problem</h3>
+      <span class="ask">Ek <code>HashSet&lt;Employee&gt;</code> mein 1000 employees daale. Do employees ka <code>id</code> same hai par set ka size 1000 hai. Aur alag object se <code>contains()</code> false de raha hai. Kya galat hai?</span>
+      <p class="hing">Follow-up: agar sirf <code>equals()</code> override karein aur <code>hashCode()</code> na karein to kya hota hai? Aur ulta?</p>
+      <ul><li>Contract kya kehta hai?</li><li>Comparable vs Comparator kab?</li><li>Sorting mein consistency kyun zaroori hai?</li></ul>
+    </div>
+    <div class="pane-a">
+      <h3>solution</h3>
+      <div class="chipset"><span class="chip">equal ⇒ same hash</span><span class="chip r">same hash ⇏ equal</span><span class="chip v">record = free impl</span></div>
+      <p>Bug clear hai: <code>equals()</code> override hua hoga par <code>hashCode()</code> nahi (ya ulta). Contract ye hai — <b>agar do objects equal hain to unka hashCode zaroor same hona chahiye</b>. Ulta zaroori nahi (collision allowed hai). HashSet pehle hash se bucket dhoondhta hai; hash alag hoga to wo dusre bucket mein jaayega aur <code>equals()</code> call hi nahi hoga — isliye duplicate bhi ghus jaate hain aur <code>contains()</code> jhoot bolta hai.</p>
+      <p>Sirf <code>hashCode()</code> override karna aur <code>equals()</code> na karna bhi tootta hai: same bucket milega, phir identity comparison fail ho jaayega.</p>
+      <p><b>Comparable</b> class ka apna "natural order" hai (<code>compareTo</code>, ek hi ho sakta hai). <b>Comparator</b> bahar se diya gaya order hai (kitne bhi ho sakte hain) — isi liye sorting logic ko domain class mein thoosne ki zarurat nahi.</p>
+
+<script type="text/x-java" data-file="EmployeeOrdering.java" data-hl="5,9,21,27,34">
+import java.util.Comparator;
+import java.util.Objects;
+
+/** Record equals/hashCode/toString khud generate karta hai — boilerplate aur bug dono khatam. */
+public record Employee(long id, String name, String department, int salary)
+        implements Comparable<Employee> {
+
+    public Employee {
+        Objects.requireNonNull(name, "name required");
+        if (id <= 0) {
+            throw new IllegalArgumentException("id must be positive");
+        }
+    }
+
+    /**
+     * Natural order = id. Ye equals() ke saath consistent hai
+     * (id same => equal => compareTo 0), isliye TreeSet mein koi entry chup-chaap nahi giregi.
+     */
+    @Override
+    public int compareTo(Employee other) {
+        return Long.compare(this.id, other.id);
+    }
+
+    /** Reporting order: department A→Z, phir salary high→low, phir name se tie-break. */
+    public static Comparator<Employee> byDepartmentThenSalaryDesc() {
+        return Comparator.comparing(Employee::department)
+                         .thenComparing(Employee::salary, Comparator.reverseOrder())
+                         .thenComparing(Employee::name);
+    }
+
+    /** Null-safe variant — missing department wale records list ke end mein. */
+    public static Comparator<Employee> byDepartmentNullsLast() {
+        return Comparator.comparing(Employee::department,
+                                    Comparator.nullsLast(Comparator.naturalOrder()));
+    }
+}
+</script>
+
+      <dl class="lines">
+        <dt>line 5–6</dt><dd><code>record</code> saare components pe <code>equals</code>, <code>hashCode</code>, <code>toString</code> auto-generate karta hai aur fields <code>final</code> hote hain — yaani immutable key, jo HashMap ke liye ideal hai.</dd>
+        <dt>line 8–13</dt><dd>Compact constructor validation ke liye hai. Invalid object banega hi nahi, to defensive checks har jagah nahi likhne padenge.</dd>
+        <dt>line 20–21</dt><dd><code>Long.compare</code> use karo, <code>(int)(a - b)</code> kabhi nahi — subtraction bade numbers pe overflow karke ulta result de deta hai. Ye classic production bug hai.</dd>
+        <dt>line 25–28</dt><dd><code>thenComparing</code> chaining readable multi-key sort deta hai. Aakhri tie-breaker rakhna zaroori hai warna order non-deterministic ho jaata hai (paging mein duplicate/missing rows).</dd>
+        <dt>line 33–34</dt><dd><code>nullsLast</code> ke bina null field pe <code>NullPointerException</code> aata hai — aur wo bhi sort ke beech mein, aadha kaam hone ke baad.</dd>
+      </dl>
+
+      <table class="tt">
+        <tr><th>Kya kiya</th><th>HashMap/HashSet</th><th>TreeMap/TreeSet</th><th>List.contains</th></tr>
+        <tr><td>kuch override nahi</td><td class="n">identity — duplicates ghusenge</td><td class="n">ClassCastException</td><td class="n">identity</td></tr>
+        <tr><td>sirf equals</td><td class="n">toota — lookup fail</td><td class="n">compareTo par chalega</td><td class="n">theek</td></tr>
+        <tr><td>sirf hashCode</td><td class="n">toota — duplicates</td><td class="n">unaffected</td><td class="n">galat</td></tr>
+        <tr><td>dono + consistent compareTo</td><td class="n">sahi</td><td class="n">sahi</td><td class="n">sahi</td></tr>
+      </table>
+
+      <div class="callout gotcha"><b>Mutable key = permanent leak:</b> object ko map mein daalne ke baad koi bhi field badla jo hashCode mein use hota hai, to entry "kho" jaati hai — na milegi, na <code>remove()</code> hogi, aur reference strong hone ki wajah se GC bhi use free nahi karega. Keys hamesha immutable rakho.</div>
+
+      <div class="verdict">
+        <div class="v-do"><h4>apply karo</h4><ul>
+          <li>Value objects ke liye <code>record</code> — free aur sahi implementation.</li>
+          <li><code>Objects.hash(...)</code> / <code>Objects.equals(...)</code> null-safe hain.</li>
+          <li>Sorting ke liye <code>Comparator</code> factory methods, class ke bahar.</li>
+        </ul></div>
+        <div class="v-skip"><h4>ignore karo</h4><ul>
+          <li>Manual 31-prime hashCode likhna jab record/IDE kar sakta hai.</li>
+          <li>Mutable fields ko hashCode mein daalna.</li>
+          <li>Entity ka <code>equals</code> DB-generated id pe base karna (persist se pehle wo null hoti hai).</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 11 ================= -->
+<section class="topic" id="t11">
+  <div class="topic-head"><span class="topic-num">11</span><h2>JVM memory &amp; garbage collection: basics</h2><span class="tag">GC · foundation</span></div>
+  <div class="split">
+    <div class="pane-q">
+      <h3>problem</h3>
+      <span class="ask">Ek loop mein 1 crore chhote objects banaye jo turant unreachable ho jaate hain. Kya ye "GC pressure" hai? Aur agar wahi objects 10 second tak zinda rahein to kya badal jaata hai?</span>
+      <p class="hing">Interviewer ka asli target: kya tum <em>generational hypothesis</em> samajhte ho, aur "GC roots" ka matlab jaante ho?</p>
+      <ul><li>Heap ke hisse kaunse hain?</li><li>Object "garbage" kab banta hai?</li><li>Minor GC mein hota kya hai?</li></ul>
+    </div>
+    <div class="pane-a">
+      <h3>solution</h3>
+      <div class="chipset"><span class="chip g">Eden</span><span class="chip">S0 / S1</span><span class="chip v">Old gen</span><span class="chip">Metaspace = off-heap</span></div>
+      <p><b>Jawab: chhote short-lived objects lagbhag muft hain.</b> Iska aadhaar hai <em>weak generational hypothesis</em> — zyadatar objects jawaani mein hi mar jaate hain. Isliye heap ko Young (Eden + Survivor S0/S1) aur Old (Tenured) mein baanta gaya hai.</p>
+      <p>Allocation Eden mein hoti hai, aur wo bhi har thread ke apne <b>TLAB</b> (Thread Local Allocation Buffer) mein — isliye new object banana bas ek pointer bump hai, koi lock nahi, lagbhag stack allocation jitna sasta. Jab Eden bhar jaata hai to <b>Minor GC</b> chalti hai: collector <em>sirf zinda objects</em> dhoondh ke Survivor space mein copy karta hai aur poora Eden ek jhatke mein khaali maan leta hai. Yaani <b>cost dead objects ka nahi, zinda objects ka hai</b>. 1 crore turant marne wale objects ≈ near-zero GC cost; 1 crore 10 second zinda rehne wale objects = wo Survivor se hote hue Old gen mein promote honge, aur Old gen ki collection kaafi mehngi hoti hai.</p>
+      <p><b>Garbage kaise decide hota hai?</b> Reference counting se nahi (cycles ki wajah se). JVM <b>reachability</b> use karta hai: GC roots se shuru karke graph traverse hota hai; jo touch nahi hua wo garbage hai. GC roots = live threads ke stack locals, static fields, JNI references, active monitors, aur classloader structures.</p>
+
+<script type="text/x-java" data-file="AllocationProfileDemo.java" data-hl="14,17,27,33">
+import java.util.ArrayList;
+import java.util.List;
+
+/** Do allocation patterns — GC ke liye inka cost zameen-aasman ka farak hai. */
+public final class AllocationProfileDemo {
+
+    /**
+     * Pattern A — churn. Har object next iteration mein hi unreachable ho jaata hai.
+     * Ye Eden mein pointer-bump se banta hai aur Minor GC mein bina copy kiye mit jaata hai.
+     */
+    public long sumOfTransientObjects(int iterations) {
+        long total = 0;
+        for (int i = 0; i < iterations; i++) {
+            byte[] scratchBuffer = new byte[64];   // reference loop ke bahar nahi jaata
+            total += scratchBuffer.length;
+        }
+        return total;                              // GC cost ~ 0: kuch bhi survive nahi kiya
+    }
+
+    /**
+     * Pattern B — retention. Har object zinda rehta hai, isliye har Minor GC
+     * use Survivor mein copy karti hai, aur aakhir mein Old gen mein promote karti hai.
+     */
+    public List<byte[]> retainAllObjects(int iterations) {
+        List<byte[]> retained = new ArrayList<>(iterations);
+        for (int i = 0; i < iterations; i++) {
+            retained.add(new byte[64]);            // strong reference — GC haath nahi laga sakti
+        }
+        return retained;                           // GC cost high: har GC inhe copy karegi
+    }
+
+    /** Cheez ko jaldi marne do: scope chhota rakho, reference chhodo. */
+    public long streamWithoutRetaining(List<byte[]> source) {
+        long checksum = 0;
+        for (byte[] chunk : source) {
+            checksum += chunk[0];
+        }
+        return checksum;
+    }
+}
+</script>
+
+      <dl class="lines">
+        <dt>line 14</dt><dd>Ye allocation TLAB mein hoti hai. Agar JIT ka <b>escape analysis</b> prove kar de ki reference method ke bahar nahi jaata, to ye object heap pe banega hi nahi — fields register/stack pe rakh diye jaate hain (<em>scalar replacement</em>). Yaani sabse sasta object wo hai jo bana hi nahi.</dd>
+        <dt>line 17</dt><dd>Loop khatam — koi survivor nahi. Minor GC ka kaam sirf "live set copy karo" hai, aur live set khaali hai. Isliye "object creation is expensive" wali baat aaj purani ho chuki hai.</dd>
+        <dt>line 24–28</dt><dd>Yahan har object list se reachable hai. Ye objects Eden → S0 → S1 → … hote hue age badhate hain aur <code>MaxTenuringThreshold</code> (default 15) pe Old gen mein chale jaate hain. Copying baar-baar hoti hai — yahi "GC pressure" hai.</dd>
+        <dt>line 32–38</dt><dd>Pattern: data ko <em>stream</em> karo, jama mat karo. Batch processing mein 1 lakh rows ek saath list mein rakhne ke bajaye chunk-wise process karna Old gen ko bachaata hai.</dd>
+      </dl>
+
+      <table class="tt">
+        <tr><th>Region</th><th>Kya rehta hai</th><th>Collection</th><th>Typical pause</th></tr>
+        <tr><td>Eden</td><td>naye objects (TLAB se)</td><td class="n">Minor GC (copying)</td><td class="n">1–10 ms</td></tr>
+        <tr><td>Survivor S0 / S1</td><td>1+ GC survive kiye objects</td><td class="n">Minor GC ke saath</td><td class="n">included</td></tr>
+        <tr><td>Old / Tenured</td><td>promoted, long-lived, caches</td><td class="n">Major / Mixed / Full GC</td><td class="n">50 ms – seconds</td></tr>
+        <tr><td>Metaspace</td><td>class metadata (native memory)</td><td class="n">class unloading pe</td><td class="n">rare</td></tr>
+        <tr><td>Code cache</td><td>JIT-compiled machine code</td><td class="n">separate sweeper</td><td class="n">—</td></tr>
+      </table>
+
+      <div class="callout"><b>Stop-the-world aur safepoint:</b> GC ko object graph ka consistent view chahiye, isliye threads ko rokna padta hai — par sirf <em>safepoint</em> par (method return, loop back-edge jaise defined places). Ek lamba <code>int</code>-counted loop safepoint poll skip kar sakta hai, jisse baaki threads GC ke liye "time to safepoint" mein atak jaate hain — logs mein ye lambi pause jaisa dikhta hai jabki asli GC kaam chhota tha.</div>
+      <div class="callout gotcha"><b>Myth-buster:</b> <code>System.gc()</code> sirf ek <em>suggestion</em> hai, guarantee nahi — aur zyadatar Full GC trigger karke latency spike deta hai. <code>finalize()</code> deprecated hai (unpredictable, object resurrection ka risk); cleanup ke liye <code>try-with-resources</code> ya <code>java.lang.ref.Cleaner</code> use karo.</div>
+
+      <div class="verdict">
+        <div class="v-do"><h4>apply karo</h4><ul>
+          <li>Objects ka scope chhota rakho — jaldi marna sasta hai.</li>
+          <li>Bade batch ko chunk/stream karo, poora memory mein mat lo.</li>
+          <li>GC logs on rakho: <code>-Xlog:gc*:file=gc.log:time,uptime</code>.</li>
+        </ul></div>
+        <div class="v-skip"><h4>ignore karo</h4><ul>
+          <li>Object pooling chhote objects ke liye — TLAB already tez hai, pool sirf Old gen bharega.</li>
+          <li><code>System.gc()</code> code mein.</li>
+          <li>Micro-optimizing allocations bina profiler ke.</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 12 ================= -->
+<section class="topic" id="t12">
+  <div class="topic-head"><span class="topic-num">12</span><h2>GC algorithms: Serial, Parallel, G1, ZGC, Shenandoah</h2><span class="tag">GC · advanced</span></div>
+  <div class="split">
+    <div class="pane-q">
+      <h3>problem</h3>
+      <span class="ask">Ek API ka p99 latency 40 ms hona chahiye, heap 32 GB hai. Doosri taraf ek nightly batch job hai jo 4 ghante chalti hai aur pause ki koi parwaah nahi. Dono ke liye kaunsa collector, aur kyun?</span>
+      <p class="hing">Follow-up jo log fasa dete hain: G1 ko "Garbage First" kyun kehte hain? Aur ZGC 10 ms se kam pause kaise deta hai jab wo objects move kar raha hai?</p>
+      <ul><li>Throughput vs latency ka tradeoff?</li><li>Region-based collection kya hai?</li><li>Concurrent compaction kaise mumkin hai?</li></ul>
+    </div>
+    <div class="pane-a">
+      <h3>solution</h3>
+      <div class="chipset"><span class="chip g">G1 = default</span><span class="chip">Parallel = throughput</span><span class="chip v">ZGC = &lt;1 ms</span><span class="chip r">CMS = removed</span></div>
+      <p><b>API ke liye ZGC (ya Shenandoah), batch ke liye Parallel GC.</b> Ye ek hi tradeoff ke do sire hain: Parallel GC saara kaam stop-the-world mein karta hai isliye CPU efficiency sabse acchi (throughput jeeta), lekin 32 GB pe uski Full GC kai second ki ho sakti hai. ZGC apna zyadatar kaam application ke saath-saath concurrently karta hai — pause sub-millisecond, lekin ~10–15% throughput ka kiraya deta hai.</p>
+      <p><b>G1 = Garbage First.</b> Ye heap ko 1–32 MB ke barabar <em>regions</em> mein baant deta hai; har region kabhi Eden, kabhi Survivor, kabhi Old ho sakta hai (fixed contiguous generations nahi). Concurrent marking ke baad G1 ko pata hota hai ki kis region mein kitna kachra hai, aur wo <em>sabse zyada garbage wale regions pehle</em> collect karta hai — maximum jagah, minimum kaam. Isliye naam "garbage first". Tum use pause budget dete ho (<code>-XX:MaxGCPauseMillis=200</code>) aur wo utne hi regions ka collection set banata hai jitna us budget mein aa jaaye.</p>
+      <p><b>ZGC concurrently compact kaise karta hai?</b> <em>Coloured pointers</em> + <em>load barriers</em>. Pointer ke unused bits mein metadata (marked, remapped) chhupa hota hai. Jab application koi reference load karti hai, ek chhota barrier chalta hai: agar object move ho chuka hai to reference wahin-ka-wahin naye address pe fix ho jaata hai. Isliye objects ko relocate karte waqt duniya rokni nahi padti. Shenandoah wahi kaam Brooks forwarding pointer / load-reference barrier se karta hai.</p>
+
+<script type="text/x-java" data-file="gc-flags.sh" data-lang="shell" data-hl="2,4,16,17,22">
+# ---- Latency-first: 32 GB heap, p99 target 40 ms (JDK 21) ----
+java -XX:+UseZGC -XX:+ZGenerational \
+     -Xms32g -Xmx32g \
+     -XX:+AlwaysPreTouch \
+     -Xlog:gc*,safepoint:file=gc.log:time,uptime,level:filecount=5,filesize=20m \
+     -jar api-service.jar
+
+# ---- Throughput-first: nightly batch, pause matter nahi karta ----
+java -XX:+UseParallelGC \
+     -Xms8g -Xmx8g \
+     -XX:ActiveProcessorCount=16 \
+     -jar nightly-batch.jar
+
+# ---- Balanced default: web app, 4-16 GB heap ----
+java -XX:+UseG1GC \
+     -XX:MaxGCPauseMillis=150 \
+     -XX:InitiatingHeapOccupancyPercent=40 \
+     -Xms8g -Xmx8g \
+     -jar web-app.jar
+
+# ---- Container mein heap set karna ----
+java -XX:MaxRAMPercentage=70 \
+     -XX:+ExitOnOutOfMemoryError \
+     -XX:+HeapDumpOnOutOfMemoryError -XX:HeapDumpPath=/dumps \
+     -jar service.jar
+</script>
+
+      <dl class="lines">
+        <dt>line 3 / 10</dt><dd><code>-Xms</code> aur <code>-Xmx</code> barabar rakhna server pe standard practice hai — heap resize khud ek pause aur OS-level churn hai.</dd>
+        <dt>line 4</dt><dd><code>AlwaysPreTouch</code> startup pe hi saari heap pages OS se touch kara leta hai. Startup slow hoga, par pehle request pe page-fault spike nahi aayega.</dd>
+        <dt>line 2</dt><dd>Generational ZGC (JDK 21+) young objects ko alag handle karta hai — non-generational ZGC se kaafi kam CPU leta hai.</dd>
+        <dt>line 16</dt><dd><code>MaxGCPauseMillis</code> ek <em>target</em> hai, guarantee nahi. Bahut chhota rakhoge (jaise 10) to G1 chhote collection sets lega, GC bahut frequent hogi, aur throughput gir jaayegi.</dd>
+        <dt>line 17</dt><dd><code>IHOP</code> batata hai ki Old gen kitna bharne pe concurrent marking shuru ho. Agar "to-space exhausted" ya Full GC dikh rahi hai, isko kam karo — marking ko jaldi shuru karao.</dd>
+        <dt>line 22–24</dt><dd>Container mein <code>-Xmx</code> hardcode karne se behtar <code>MaxRAMPercentage</code> hai. OOM pe heap dump lena aur process ko marna (restart) chup-chaap degrade hone se behtar hai.</dd>
+      </dl>
+
+      <table class="tt">
+        <tr><th>Collector</th><th>Pause</th><th>Throughput</th><th>Heap range</th><th>Kab chuno</th></tr>
+        <tr><td>Serial</td><td class="n">high</td><td class="n">ok</td><td class="n">&lt; 512 MB</td><td>CLI tools, tiny containers, 1 CPU</td></tr>
+        <tr><td>Parallel</td><td class="n">high (STW)</td><td class="n">best</td><td class="n">&lt; 8 GB</td><td>batch, ETL, pause irrelevant</td></tr>
+        <tr><td>G1 (default since JDK 9)</td><td class="n">~50–200 ms</td><td class="n">good</td><td class="n">4 GB – 64 GB</td><td>default web/service workload</td></tr>
+        <tr><td>ZGC (generational)</td><td class="n">&lt; 1 ms</td><td class="n">−10~15%</td><td class="n">8 GB – TBs</td><td>strict latency SLO</td></tr>
+        <tr><td>Shenandoah</td><td class="n">&lt; 10 ms</td><td class="n">−10%</td><td class="n">any</td><td>low pause, chhote heaps pe bhi</td></tr>
+        <tr><td>Epsilon</td><td class="n">none (no GC)</td><td class="n">—</td><td class="n">—</td><td>sirf benchmarking / short jobs</td></tr>
+        <tr><td>CMS</td><td class="n">—</td><td class="n">—</td><td class="n">—</td><td>JDK 14 mein hata diya gaya</td></tr>
+      </table>
+
+      <div class="callout"><b>Cross-generational references ka problem:</b> Minor GC ko sirf Young gen scan karni hai, par Old gen ka koi object Young ke object ko point kar sakta hai. Poori Old gen scan karna to poori GC jaisa hi mehnga hoga. Isliye JVM <b>card table</b> rakhta hai: har ~512 byte ka "card" ek byte se mark hota hai jab bhi us area mein reference likha jaata hai (<em>write barrier</em>). Minor GC sirf dirty cards scan karti hai. G1 isi idea ka region-wise version (<em>remembered set</em>) use karta hai.</div>
+      <div class="callout gotcha"><b>Tuning ka pehla niyam:</b> collector badalne se pehle GC log padho. 90% "GC problem" asal mein <em>allocation problem</em> ya <em>memory leak</em> hoti hai — jo flag se theek nahi hoti. Dekho: allocation rate, promotion rate, aur Full GC ke baad kitna heap bacha (agar wo lagatar badh raha hai = leak).</div>
+
+      <div class="verdict">
+        <div class="v-do"><h4>apply karo</h4><ul>
+          <li>Default G1 se shuru karo, SLO miss hone par hi badlo.</li>
+          <li>Heap dump + GC log hamesha enabled (production pe sasta hai).</li>
+          <li>Latency SLO strict hai aur heap bada → generational ZGC.</li>
+        </ul></div>
+        <div class="v-skip"><h4>ignore karo</h4><ul>
+          <li>Internet se copy kiye 20 GC flags — har ek ko justify na kar sako to hata do.</li>
+          <li>Survivor ratio / tenuring threshold manual tuning — G1/ZGC ye adaptive karte hain.</li>
+          <li>Collector switching jab tak GC log mein problem prove na ho jaaye.</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 13 ================= -->
+<section class="topic" id="t13">
+  <div class="topic-head"><span class="topic-num">13</span><h2>References (Soft/Weak/Phantom) aur collection memory leaks</h2><span class="tag">GC · advanced</span></div>
+  <div class="split">
+    <div class="pane-q">
+      <h3>problem</h3>
+      <span class="ask">Service 6 din chalti hai, phir <code>OutOfMemoryError: Java heap space</code>. Heap dump mein 4 GB ka ek <code>HashMap</code> dikh raha hai. Java mein GC hai, phir bhi memory leak kaise?</span>
+      <p class="hing">Aur ye: thread pool wale app mein <code>ThreadLocal</code> use kiya tha — wo leak kyun ban gaya?</p>
+      <ul><li>Java mein "leak" ka matlab kya?</li><li>Weak vs Soft reference?</li><li>WeakHashMap kab kaam ka hai?</li></ul>
+    </div>
+    <div class="pane-a">
+      <h3>solution</h3>
+      <div class="chipset"><span class="chip">Strong</span><span class="chip v">Soft = memory-sensitive cache</span><span class="chip g">Weak = canonical map</span><span class="chip">Phantom = cleanup hook</span></div>
+      <p><b>Java mein leak ka matlab hai "unwanted reachability".</b> GC bilkul theek kaam kar rahi hai — problem ye hai ki tumhare object tak abhi bhi ek strong reference pahunch rahi hai, isliye GC unhe chhoo hi nahi sakti. Sabse common culprits: static/singleton map jismein sirf <code>put</code> hota hai, listener jo kabhi unregister nahi hua, aur thread pool mein <code>ThreadLocal</code>.</p>
+      <p><b>ThreadLocal wala case:</b> <code>Thread</code> ke andar <code>ThreadLocalMap</code> hota hai jiski <em>keys weak</em> hain par <em>values strong</em>. Thread pool ka thread hafton zinda rehta hai, isliye ThreadLocal variable garbage hone ke baad bhi value entry us thread ke andar padi rehti hai. Ilaaj: <code>try/finally</code> mein <code>remove()</code>.</p>
+      <p><b>Reference strengths</b> ek ladder hai — GC kis aggression se collect karegi: <em>Strong</em> (kabhi nahi, jab tak reachable), <em>Soft</em> (memory kam padne par, OOM se pehle), <em>Weak</em> (agli GC mein), <em>Phantom</em> (object finalize ho chuka, sirf cleanup notification ke liye).</p>
+
+<script type="text/x-java" data-file="RequestScopedContext.java" data-hl="12,25,35,43">
+import java.util.Map;
+import java.util.WeakHashMap;
+import java.util.Collections;
+
+/** ThreadLocal ka safe use + weak metadata map — dono common leak patterns ka ilaaj. */
+public final class RequestScopedContext {
+
+    private static final ThreadLocal<String> CORRELATION_ID = new ThreadLocal<>();
+
+    /** Metadata jo object ke saath hi mar jaana chahiye — strong map yahan leak banta. */
+    private static final Map<Object, String> ownerByResource =
+        Collections.synchronizedMap(new WeakHashMap<>());
+
+    private RequestScopedContext() { }
+
+    /**
+     * Har request ko is wrapper se chalao. finally block hi wo cheez hai
+     * jo pooled thread ko purane request ka data le jaane se rokti hai.
+     */
+    public static void runWithCorrelationId(String correlationId, Runnable work) {
+        CORRELATION_ID.set(correlationId);
+        try {
+            work.run();
+        } finally {
+            CORRELATION_ID.remove();     // sirf set(null) kaafi nahi — entry phir bhi rehti hai
+        }
+    }
+
+    public static String currentCorrelationId() {
+        return CORRELATION_ID.get();
+    }
+
+    /** Key par koi aur strong reference na bache to entry apne aap gayab ho jaayegi. */
+    public static void tagResourceOwner(Object resource, String ownerName) {
+        ownerByResource.put(resource, ownerName);
+    }
+
+    public static String ownerOf(Object resource) {
+        return ownerByResource.get(resource);
+    }
+
+    public static int trackedResourceCount() {
+        return ownerByResource.size();   // GC ke baad ye apne aap ghat sakta hai
+    }
+}
+</script>
+
+      <dl class="lines">
+        <dt>line 11–12</dt><dd><code>WeakHashMap</code> apni <em>keys</em> ko weakly hold karta hai. Key par aakhri strong reference khatam hote hi GC key clear karta hai aur map agli operation pe us entry ko hata deta hai — automatic cleanup.</dd>
+        <dt>line 20–26</dt><dd>Yahi wo pattern hai jo ThreadLocal leak rokta hai. <code>finally</code> zaroori hai kyunki exception aane par bhi thread pool mein wapas jaayega — aur agla request purana correlation id dekh lega (leak + data bleed dono).</dd>
+        <dt>line 25</dt><dd><code>remove()</code> entry delete karta hai; <code>set(null)</code> sirf value null karta hai par entry map mein bani rehti hai — leak bacha rehta hai.</dd>
+        <dt>line 34–35</dt><dd>Khatra: agar <em>value</em> apni hi key ko strongly reference kare (jaise value ek object jo key ko hold karta ho), to entry kabhi collect nahi hogi. Ye WeakHashMap ka classic self-referential trap hai.</dd>
+        <dt>line 42–43</dt><dd><code>size()</code> yahan deterministic nahi hai — GC ke timing par depend karta hai. Isliye WeakHashMap ko cache "capacity" ke liye mat use karo.</dd>
+      </dl>
+
+      <table class="tt">
+        <tr><th>Reference</th><th>Kab collect hoti hai</th><th>JDK mein kahan</th><th>Use case</th></tr>
+        <tr><td>Strong</td><td class="n">jab tak unreachable na ho</td><td class="n">normal field</td><td>default</td></tr>
+        <tr><td>SoftReference</td><td class="n">memory pressure par</td><td class="n">image/blob cache</td><td>"nice to keep" cache</td></tr>
+        <tr><td>WeakReference</td><td class="n">agli GC cycle</td><td class="n">WeakHashMap, ThreadLocal keys</td><td>canonical map, metadata</td></tr>
+        <tr><td>PhantomReference</td><td class="n">finalize ke baad</td><td class="n">Cleaner, DirectByteBuffer</td><td>native resource cleanup</td></tr>
+      </table>
+
+      <div class="callout gotcha"><b>Soft reference se cache mat banao (aksar).</b> Sunne mein perfect lagta hai, par practically: GC unhe unpredictably clear karti hai (aksar sabhi ek saath), clear karne se pehle GC lambi chalti hai, aur tumhe hit-rate ka control nahi milta. Bounded size + TTL wala cache (Caffeine) hamesha predictable hota hai.</div>
+
+      <table class="tt">
+        <tr><th>Leak pattern</th><th>Symptom</th><th>Fix</th></tr>
+        <tr><td>static Map jisme sirf put hota hai</td><td>Old gen dheere-dheere badhta hai</td><td>bounded cache + TTL</td></tr>
+        <tr><td>listener/callback unregister nahi hua</td><td>purane objects zinda rehte hain</td><td>explicit unregister, weak listener</td></tr>
+        <tr><td>ThreadLocal + thread pool</td><td>per-thread retained memory</td><td><code>remove()</code> in finally</td></tr>
+        <tr><td>mutable key HashMap mein</td><td>entries badhti hain, lookup fail</td><td>immutable keys / record</td></tr>
+        <tr><td>unbounded queue ya dedup set</td><td>burst ke baad OOM</td><td>bound + backpressure</td></tr>
+        <tr><td>ClassLoader leak (redeploy)</td><td>Metaspace badhta hai</td><td>static refs cleanup on shutdown</td></tr>
+      </table>
+
+      <div class="verdict">
+        <div class="v-do"><h4>apply karo</h4><ul>
+          <li>Har cache pe max size aur TTL — bina bound ka cache = leak.</li>
+          <li>ThreadLocal hamesha try/finally + <code>remove()</code>.</li>
+          <li>Debug: <code>jcmd &lt;pid&gt; GC.heap_info</code>, heap dump + Eclipse MAT ka "dominator tree".</li>
+        </ul></div>
+        <div class="v-skip"><h4>ignore karo</h4><ul>
+          <li><code>finalize()</code> — deprecated, use <code>Cleaner</code>.</li>
+          <li>SoftReference cache jab tak koi khaas justification na ho.</li>
+          <li>Chhoti steady growth ko leak samajh lena — pehle Full GC ke baad ka live-set trend dekho.</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+.ascii{font-family:var(--mono);font-size:11.6px;line-height:1.45;background:#0E1D24;color:#A8CBD4;
+  padding:14px 12px;border-radius:3px;overflow:auto;margin:14px 0}
+.ascii b{color:#8FD9C6;font-weight:400}
+.budget{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin:14px 0}
+.budget div{background:var(--tint);padding:10px 12px;border-radius:3px;border-bottom:3px solid var(--eden)}
+.budget span{display:block;font-family:var(--mono);font-size:19px;font-weight:700;color:var(--ink);letter-spacing:-.02em}
+.budget small{font-size:12px;color:var(--ink-2);font-family:var(--sans)}
+.flow{border-left:2px solid var(--rule);padding-left:16px;margin:14px 0}
+.flow p{margin:0 0 9px;font-size:15.2px}
+.flow p b{font-family:var(--mono);font-size:12.5px;background:var(--ink);color:#CFE6EA;padding:1px 6px;border-radius:2px;margin-right:7px}
+</style>
+
+<!-- ================= 14 ================= -->
+<section class="topic" id="t14">
+  <div class="topic-head"><span class="topic-num">14</span><h2>HLD: read-heavy config &amp; profile service, 50k RPS</h2><span class="tag">system design</span></div>
+  <div class="split">
+    <div class="pane-q">
+      <h3>problem</h3>
+      <span class="ask">Design karo: ek service jo 50,000 read/sec par user-profile aur feature-flags serve kare. p99 &lt; 20 ms. Data 20 GB, updates 200/sec. Har layer par kaunsi collection, aur GC ka budget kya hoga?</span>
+      <p class="hing">Ye wahi sawaal hai jahan candidate boxes bana deta hai par "kaunsa Map, kitni memory, kitni GC" nahi bata paata. Wahi differentiator hai.</p>
+      <ul><li>Estimate pehle, architecture baad mein.</li><li>Har layer ka data structure justify karo.</li><li>Failure aur hot-key ka kya?</li></ul>
+    </div>
+    <div class="pane-a">
+      <h3>solution</h3>
+      <div class="chipset"><span class="chip">read:write = 250:1</span><span class="chip g">L1 in-process</span><span class="chip v">L2 Redis</span><span class="chip">CDC invalidation</span></div>
+
+      <p><b>Step 1 — numbers nikalo (ye skip mat karo).</b> 50k RPS, agar 8 nodes hain to ~6,250 RPS/node. Har request 20 ms budget mein: network + deserialization + lookup. 20 GB total data, ek node par poora nahi rakh sakte, isliye L1 mein sirf hot subset (say 5%) rakhenge.</p>
+
+      <div class="budget">
+        <div><span>6.2k</span><small>RPS per node (8 nodes)</small></div>
+        <div><span>~1 GB</span><small>L1 hot set per node (5%)</small></div>
+        <div><span>250:1</span><small>read : write ratio</small></div>
+        <div><span>&lt; 5 ms</span><small>GC pause budget @ p99</small></div>
+      </div>
+
+      <p><b>Step 2 — layered architecture.</b> 50k reads ko database tak jaane dena bewakoofi hai. Teen layers:</p>
+
+<pre class="ascii">
+  client
+    │  50k rps
+    ▼
+ ┌───────────────────────────────────────────────────────────┐
+ │  API node  (x8)                                            │
+ │                                                            │
+ │   <b>L1: Caffeine cache</b>            hit ~85%,  ~0.2 µs        │
+ │   ConcurrentHashMap + W-TinyLFU + maximumSize + expireAfter│
+ │        │ miss                                              │
+ │        ▼                                                   │
+ │   <b>L2 client: Redis</b>              hit ~13%,  ~1 ms          │
+ │        │ miss                                              │
+ │        ▼                                                   │
+ │   <b>L3: Postgres (read replica)</b>   ~2%,      ~8 ms          │
+ └───────────────────────────────────────────────────────────┘
+              ▲
+              │  invalidation events (Kafka / CDC)
+       ┌──────┴───────┐
+       │ write path   │  200/sec  →  DB  →  outbox  →  Kafka topic
+       └──────────────┘
+</pre>
+
+      <p><b>Step 3 — har layer par collection ka faisla:</b></p>
+      <table class="tt">
+        <tr><th>Layer</th><th>Structure</th><th>Kyun yahi</th></tr>
+        <tr><td>L1 hot cache</td><td class="n">Caffeine (CHM + ring buffers)</td><td>lock-free reads, async eviction, size + TTL bound</td></tr>
+        <tr><td>Feature flags (chhota, static-ish)</td><td class="n">immutable <code>Map.copyOf</code>, volatile swap</td><td>read path pe bilkul zero synchronization</td></tr>
+        <tr><td>Flag key = enum</td><td class="n">EnumMap</td><td>array indexing, hashing hi nahi</td></tr>
+        <tr><td>Invalidation dedup</td><td class="n">bounded LinkedHashMap</td><td>Kafka retry se duplicate events aayenge</td></tr>
+        <tr><td>Per-user rate limit</td><td class="n">CHM&lt;String, AtomicLong&gt; + TTL</td><td>sharded counters, lock-free increment</td></tr>
+        <tr><td>Async work queue</td><td class="n">bounded ArrayBlockingQueue</td><td>backpressure, predictable memory</td></tr>
+        <tr><td>Time-range audit query</td><td class="n">ConcurrentSkipListMap</td><td>concurrent + <code>subMap</code> range</td></tr>
+      </table>
+
+      <p><b>Step 4 — snapshot swap pattern</b> (config/flags jaise data ke liye sabse under-rated trick): read path ko kabhi lock na do, poora map atomically replace kar do.</p>
+
+<script type="text/x-java" data-file="FeatureFlagRegistry.java" data-hl="11,15,23,28">
+import java.util.Map;
+import java.util.EnumMap;
+import java.util.concurrent.atomic.AtomicReference;
+
+/** Read path lock-free: ek immutable snapshot, jise refresh atomically badalta hai. */
+public final class FeatureFlagRegistry {
+
+    public enum Flag { NEW_CHECKOUT, DARK_MODE, BETA_SEARCH, RATE_LIMIT_V2 }
+
+    private final AtomicReference<Map<Flag, Boolean>> currentSnapshot =
+        new AtomicReference<>(new EnumMap<>(Flag.class));
+
+    /** 50k rps yahin aata hai: ek volatile read + ek array index. Bas. */
+    public boolean isEnabled(Flag flag) {
+        Boolean value = currentSnapshot.get().get(flag);
+        return value != null && value;
+    }
+
+    /** Refresh (har 30 sec ya Kafka event pe): naya map banao, phir ek hi pointer badlo. */
+    public void applySnapshot(Map<Flag, Boolean> freshValues) {
+        EnumMap<Flag, Boolean> rebuilt = new EnumMap<>(Flag.class);
+        rebuilt.putAll(freshValues);
+        currentSnapshot.set(java.util.Collections.unmodifiableMap(rebuilt));
+    }
+
+    /** Reader ko kabhi aadha-updated map nahi dikhega — ya purana poora, ya naya poora. */
+    public Map<Flag, Boolean> snapshotForDiagnostics() {
+        return currentSnapshot.get();
+    }
+}
+</script>
+
+      <dl class="lines">
+        <dt>line 10–11</dt><dd><code>AtomicReference</code> ka matlab yahan "atomic swap" hai, aur uska volatile semantics ye guarantee deta hai ki naya map poora bana hua hi dikhe (safe publication).</dd>
+        <dt>line 14–17</dt><dd>Read path pe koi lock, koi CAS, koi allocation nahi. <code>EnumMap</code> andar ek array hai, key ka <code>ordinal()</code> hi index hai — hashing bhi nahi hoti.</dd>
+        <dt>line 20–23</dt><dd>Naya map alag banta hai aur tab set hota hai. Purana map GC ke liye chhod diya jaata hai — Young gen mein ek chhota object, sasta.</dd>
+        <dt>line 23</dt><dd><code>unmodifiableMap</code> galti se mutate hone se rokta hai. Immutability hi wo cheez hai jo is pattern ko thread-safe banati hai.</dd>
+      </dl>
+
+      <p><b>Step 5 — GC budget.</b> p99 20 ms hai aur GC pause budget ~5 ms. 8 GB heap pe generational ZGC lagao (sub-ms pause), ya G1 with <code>MaxGCPauseMillis=10</code>. Bada L1 cache Old gen mein baithta hai, isliye <em>live set</em> bada hoga — heap ko live set ka 2.5–3x rakho warna GC lagatar chalti rahegi.</p>
+
+      <div class="callout"><b>Hot key problem:</b> ek celebrity user ka profile 30% traffic le sakta hai. Redis pe wo ek hi shard jala dega. Ilaaj: us key ko L1 mein longer TTL do, ya key ko <code>user:123#r1..r5</code> jaise replicas mein split karo aur random replica padho.</div>
+      <div class="callout gotcha"><b>Cache stampede:</b> hot key expire hote hi 6,000 threads ek saath DB pe jaayenge. <code>computeIfAbsent</code> (per-key single load) + jittered TTL + stale-while-revalidate lagao.</div>
+
+      <div class="verdict">
+        <div class="v-do"><h4>apply karo</h4><ul>
+          <li>Numbers pehle bolo — RPS/node, memory/entry, pause budget.</li>
+          <li>Read-mostly config → immutable snapshot + atomic swap.</li>
+          <li>Invalidation ko event-driven rakho, polling se nahi.</li>
+        </ul></div>
+        <div class="v-skip"><h4>ignore karo</h4><ul>
+          <li>Strong consistency L1 cache mein — 30 sec staleness aksar acceptable hoti hai, pehle poocho.</li>
+          <li>Distributed lock har read pe — poora faida khatam.</li>
+          <li>Custom cache likhna jab Caffeine 3 line mein ho jaata hai.</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 15 ================= -->
+<section class="topic" id="t15">
+  <div class="topic-head"><span class="topic-num">15</span><h2>LLD: O(1) LRU cache — HashMap + doubly linked list</h2><span class="tag">coding round</span></div>
+  <div class="split">
+    <div class="pane-q">
+      <h3>problem</h3>
+      <span class="ask">LRU cache likho jahan <code>get</code> aur <code>put</code> dono <b>O(1)</b> hon. <code>LinkedHashMap</code> use nahi kar sakte — interviewer ne mana kar diya. Capacity fix hai, full hone par least-recently-used entry nikal do.</span>
+      <p class="hing">Ye sabse zyada poocha jaane wala LLD sawaal hai. Asli test: kya tum <em>do</em> data structures ko ek saath sochna jaante ho?</p>
+      <ul><li>Kaun si structure kya deta hai?</li><li>Edge cases kaunse hain?</li><li>Thread-safe kaise banaoge?</li></ul>
+    </div>
+    <div class="pane-a">
+      <h3>solution</h3>
+      <div class="chipset"><span class="chip g">HashMap → O(1) lookup</span><span class="chip v">DLL → O(1) reorder</span><span class="chip">sentinel nodes</span></div>
+
+      <p><b>Insight:</b> ek akela structure kaafi nahi. HashMap O(1) lookup deta hai par order nahi rakhta. Linked list order rakhti hai par lookup O(n) hai. Dono ko jodo — map key se <em>node</em> tak pahunchaata hai, aur node doubly-linked hai isliye use O(1) mein unlink karke aage laaya ja sakta hai. Singly-linked list se kaam nahi chalega kyunki unlink ke liye <em>previous</em> node chahiye.</p>
+
+<pre class="ascii">
+  keyToNode : { A→n1, B→n2, C→n3 }
+
+  <b>head</b> ⇄ [ C ] ⇄ [ B ] ⇄ [ A ] ⇄ <b>tail</b>
+          most                least
+        recently            recently
+          used                 used
+
+  get(A)  →  A ko unlink karo, head ke baad daalo
+  put(D)  →  full? tail.prev (= LRU) evict karo, phir D ko front pe
+</pre>
+
+<script type="text/x-java" data-file="LruCache.java" data-hl="9,21,22,31,54,73,88">
+import java.util.HashMap;
+import java.util.Map;
+
+/** O(1) get/put LRU cache: HashMap lookup ke liye + doubly linked list recency ke liye. */
+public final class LruCache<K, V> {
+
+    /** Ek entry — map ki value bhi yahi hai aur list ka node bhi yahi. */
+    private static final class CacheNode<K, V> {
+        K key;                 // eviction ke waqt map se hataane ke liye key chahiye
+        V value;
+        CacheNode<K, V> previous;
+        CacheNode<K, V> next;
+
+        CacheNode(K key, V value) { this.key = key; this.value = value; }
+    }
+
+    private final int capacity;
+    private final Map<K, CacheNode<K, V>> nodeByKey;
+
+    /** Sentinels: inki wajah se null checks ki zarurat hi nahi padti. */
+    private final CacheNode<K, V> head = new CacheNode<>(null, null);
+    private final CacheNode<K, V> tail = new CacheNode<>(null, null);
+
+    private int evictionCount = 0;
+
+    public LruCache(int capacity) {
+        if (capacity <= 0) {
+            throw new IllegalArgumentException("capacity must be > 0");
+        }
+        this.capacity = capacity;
+        this.nodeByKey = new HashMap<>((int) Math.ceil(capacity / 0.75d) + 1);
+        head.next = tail;
+        tail.previous = head;
+    }
+
+    /** Hit hone par entry ko most-recently-used bana deta hai. */
+    public V get(K key) {
+        CacheNode<K, V> node = nodeByKey.get(key);
+        if (node == null) {
+            return null;
+        }
+        moveToFront(node);
+        return node.value;
+    }
+
+    /** Naya key insert, ya existing key update — dono O(1). */
+    public void put(K key, V value) {
+        CacheNode<K, V> existing = nodeByKey.get(key);
+        if (existing != null) {
+            existing.value = value;
+            moveToFront(existing);
+            return;
+        }
+        if (nodeByKey.size() == capacity) {
+            evictLeastRecentlyUsed();
+        }
+        CacheNode<K, V> fresh = new CacheNode<>(key, value);
+        nodeByKey.put(key, fresh);
+        linkAfterHead(fresh);
+    }
+
+    public V remove(K key) {
+        CacheNode<K, V> node = nodeByKey.remove(key);
+        if (node == null) {
+            return null;
+        }
+        unlink(node);
+        return node.value;
+    }
+
+    // ---------- list ke chhote, single-purpose helpers ----------
+
+    private void moveToFront(CacheNode<K, V> node) {
+        unlink(node);
+        linkAfterHead(node);
+    }
+
+    private void linkAfterHead(CacheNode<K, V> node) {
+        node.previous = head;
+        node.next = head.next;
+        head.next.previous = node;
+        head.next = node;
+    }
+
+    private void unlink(CacheNode<K, V> node) {
+        node.previous.next = node.next;
+        node.next.previous = node.previous;
+        node.previous = null;      // dangling reference chhodna GC ke liye theek nahi
+        node.next = null;
+    }
+
+    private void evictLeastRecentlyUsed() {
+        CacheNode<K, V> leastUsed = tail.previous;
+        nodeByKey.remove(leastUsed.key);
+        unlink(leastUsed);
+        evictionCount++;
+    }
+
+    public int size() { return nodeByKey.size(); }
+    public int evictionCount() { return evictionCount; }
+}
+</script>
+
+      <dl class="lines">
+        <dt>line 9</dt><dd>Node mein <code>key</code> rakhna zaroori hai. Eviction ke waqt hamare paas sirf node hota hai (tail se), aur map se entry hataane ke liye key chahiye. Ye woh detail hai jispe zyadatar candidates atakte hain.</dd>
+        <dt>line 21–22</dt><dd>Dummy <b>sentinel</b> head aur tail. Inke bina har link/unlink mein "kya ye pehla node hai?", "kya ye aakhri hai?" wale null checks likhne padte — code lamba aur bug-prone. Sentinel se list kabhi khaali nahi hoti, structurally.</dd>
+        <dt>line 31</dt><dd>Map ki capacity aise di gayi hai ki wo kabhi resize hi na kare, kyunki max size pehle se pata hai.</dd>
+        <dt>line 36–43</dt><dd><code>get</code> ka side-effect hai — wo recency badalta hai. Isliye ye read hone ke bawajood thread-safe nahi hai. Interview mein ye khud bolna strong signal hai.</dd>
+        <dt>line 54–59</dt><dd>Order maayne rakhta hai: <b>pehle</b> evict karo, <b>phir</b> insert. Ulta karoge to ek pal ke liye capacity+1 ho jaayegi aur naya insert kiya hua element hi evict ho sakta hai.</dd>
+        <dt>line 73–76</dt><dd><code>moveToFront</code> ka poora kaam do chhote methods se banta hai. Har method ek hi cheez karta hai — isi se code test karne layak aur padhne layak banta hai.</dd>
+        <dt>line 88–89</dt><dd>Unlink ke baad pointers null karna: evicted node ab bhi live nodes ko point kar raha ho to GC ko unnecessary reachability milti hai. Yahi <code>LinkedList.unlink()</code> bhi karta hai.</dd>
+      </dl>
+
+      <table class="tt">
+        <tr><th>Operation</th><th>Time</th><th>Kaise</th></tr>
+        <tr><td>get (hit)</td><td class="n">O(1)</td><td>map lookup + 6 pointer writes</td></tr>
+        <tr><td>put (new)</td><td class="n">O(1)</td><td>map put + link at head</td></tr>
+        <tr><td>put (full)</td><td class="n">O(1)</td><td>tail.previous se evict</td></tr>
+        <tr><td>remove</td><td class="n">O(1)</td><td>map remove + unlink</td></tr>
+        <tr><td>memory</td><td class="n">O(capacity)</td><td>node ≈ 40 B + map entry ≈ 40 B</td></tr>
+      </table>
+
+      <div class="callout"><b>Thread-safe kaise banaoge? (follow-up hamesha aata hai)</b>
+        <div class="flow" style="margin-top:9px">
+          <p><b>step 1</b> Sabse simple: har public method pe <code>synchronized</code>. Sahi hai, par ek global lock — 200 threads pe serial ho jaayega.</p>
+          <p><b>step 2</b> <code>ReentrantReadWriteLock</code> se faayda nahi hoga, kyunki <code>get</code> bhi list mutate karta hai — yaani sab write lock hi hain.</p>
+          <p><b>step 3</b> <b>Sharding:</b> 16 chhote LruCache banao aur <code>key.hashCode()</code> se shard chuno. Lock contention 16x kam. Trade-off: LRU ab global nahi, per-shard hai (practically theek hai).</p>
+          <p><b>step 4</b> <b>Production:</b> Caffeine — CHM ke upar recency ko ring buffer mein <em>record</em> karta hai aur eviction ko batch/async karta hai, isliye read path pe lock hi nahi lagta.</p>
+        </div>
+      </div>
+
+      <div class="verdict">
+        <div class="v-do"><h4>apply karo</h4><ul>
+          <li>Sentinel nodes — half of the bugs khatam.</li>
+          <li>Chhote, ek-kaam-wale private methods aur saaf naam.</li>
+          <li>Edge cases khud bolo: capacity 1, duplicate put, missing key, null value.</li>
+        </ul></div>
+        <div class="v-skip"><h4>ignore karo</h4><ul>
+          <li>Interview mein generics ki extreme gymnastics — logic dikhao.</li>
+          <li>Real project mein khud LRU likhna — Caffeine already better hai.</li>
+          <li>LFU/ARC tab tak, jab tak interviewer khud na maange.</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 16 ================= -->
+<section class="topic" id="t16">
+  <div class="topic-head"><span class="topic-num">16</span><h2>Tradeoff playbook: kab, kyun, kaunsa — aur kise ignore karna hai</h2><span class="tag">judgement</span></div>
+  <div class="split">
+    <div class="pane-q">
+      <h3>problem</h3>
+      <span class="ask">Har blog kehta hai "it depends". Lekin interview mein 30 second mein decide karna hai. Ek repeatable framework kya hoga?</span>
+      <p class="hing">Aur usse zyada important: kaunsi "best practice" ko <em>ignore</em> karna theek hai, aur kab?</p>
+      <ul><li>Kaunse 4 sawaal poochne hain?</li><li>Default kya hone chahiye?</li><li>Optimization kab premature hai?</li></ul>
+    </div>
+    <div class="pane-a">
+      <h3>solution</h3>
+      <p><b>Chaar sawaal, isi order mein.</b> Har collection decision inhi se nikal aata hai:</p>
+      <div class="flow">
+        <p><b>1 · access</b> Kaise padhoge — index se, key se, order se, ya "sabse best" nikaal ke? → List / Map / Sorted / Heap.</p>
+        <p><b>2 · order</b> Order chahiye? Insertion, sorted, ya koi nahi? → LinkedHash* / Tree* / plain Hash*.</p>
+        <p><b>3 · concurrency</b> Ek thread ya kai? Read-heavy ya write-heavy? → plain / Concurrent* / CopyOnWrite*.</p>
+        <p><b>4 · bound</b> Ye kitna bada ho sakta hai <em>worst case</em> mein? Agar jawab "pata nahi" hai to bound lagao — warna wo ek din OOM hai.</p>
+      </div>
+
+      <table class="tt">
+        <tr><th>Requirement</th><th>Default pick</th><th>Kab badlo</th></tr>
+        <tr><td>ordered list, index access</td><td class="n">ArrayList</td><td>read-mostly + shared → CopyOnWriteArrayList</td></tr>
+        <tr><td>key → value</td><td class="n">HashMap</td><td>shared → ConcurrentHashMap; sorted → TreeMap</td></tr>
+        <tr><td>uniqueness</td><td class="n">HashSet</td><td>shared → <code>CHM.newKeySet()</code>; enum → EnumSet</td></tr>
+        <tr><td>FIFO / LIFO</td><td class="n">ArrayDeque</td><td>cross-thread → ArrayBlockingQueue</td></tr>
+        <tr><td>"next best" nikaalna</td><td class="n">PriorityQueue</td><td>cross-thread → PriorityBlockingQueue</td></tr>
+        <tr><td>range / nearest query</td><td class="n">TreeMap</td><td>shared → ConcurrentSkipListMap</td></tr>
+        <tr><td>bounded cache</td><td class="n">Caffeine</td><td>interview / no deps → LinkedHashMap LRU</td></tr>
+        <tr><td>constant lookup table</td><td class="n">Map.of / EnumMap</td><td>bada static data → immutable map at startup</td></tr>
+      </table>
+
+      <p><b>Ab ulta sawaal — kise ignore karna hai.</b> Ye judgement hi senior aur mid-level ka farak hai:</p>
+
+      <table class="tt">
+        <tr><th>"Best practice"</th><th>Ignore karo jab…</th><th>Kyun</th></tr>
+        <tr><td>Initial capacity hamesha set karo</td><td>collection chhoti hai (&lt; 100) ya size unknown</td><td>ek-do resize ka cost noise hai; galat guess memory waste karta hai</td></tr>
+        <tr><td>Primitive collections (fastutil) use karo</td><td>dataset chhota hai ya hot path nahi hai</td><td>ek aur dependency + team ka cognitive load</td></tr>
+        <tr><td>Sab kuch immutable</td><td>tight loop mein per-iteration copy ban rahi ho</td><td>allocation churn GC pressure ban jaata hai</td></tr>
+        <tr><td>Har jagah interface type</td><td>private local variable</td><td><code>var</code> zyada readable hai</td></tr>
+        <tr><td>Concurrent collections default rakho</td><td>object confined hai (method-local, single thread)</td><td>synchronization ka cost bina faayde ke</td></tr>
+        <tr><td>GC tuning flags</td><td>GC log mein problem dikhi hi nahi</td><td>defaults 90% cases mein behtar hain</td></tr>
+        <tr><td>LinkedList O(1) insert</td><td>hamesha, jab tak measure na kiya ho</td><td>cache locality Big-O ko haraa deti hai</td></tr>
+        <tr><td>SoftReference cache</td><td>lagbhag hamesha</td><td>unpredictable; bounded cache behtar</td></tr>
+      </table>
+
+      <div class="callout"><b>Optimization kab "premature" nahi hai?</b> Teen soorton mein pehle din se sochna chahiye: (1) <b>algorithmic complexity</b> — O(n²) ko baad mein "tune" nahi kiya jaa sakta, (2) <b>unbounded growth</b> — bound baad mein lagana architecture change hota hai, (3) <b>API/data model shape</b> — public signature badalna mehnga hai. Baaki sab cheezein profiler ke baad.</div>
+
+      <div class="callout gotcha"><b>Interview mein tradeoff bolne ka formula:</b> "<em>X</em> chunuga kyunki <em>[access pattern]</em>. Iska cost <em>[kya kho rahe hain]</em> hai. Agar <em>[condition]</em> badal jaaye to <em>Y</em> pe jaana padega, aur main <em>[metric]</em> se pata karunga." — teen line, aur tumne requirement, cost, aur monitoring teeno cover kar liye.</div>
+
+      <div class="verdict">
+        <div class="v-do"><h4>hamesha</h4><ul>
+          <li>Har mutable shared collection ke owner aur bound ko naam do.</li>
+          <li>Default choices boring rakho; deviation likh ke justify karo.</li>
+          <li>Decision ke saath monitoring bhi socho (queue depth, hit rate, GC pause).</li>
+        </ul></div>
+        <div class="v-skip"><h4>kabhi nahi</h4><ul>
+          <li>Unbounded cache, queue, ya dedup set production mein.</li>
+          <li>Mutable object ko Map ki key banana.</li>
+          <li>Bina measure kiye collector ya data structure badalna.</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= MOCK ================= -->
+<section class="topic" id="mock">
+  <div class="topic-head"><span class="topic-num">Q</span><h2>25 mock questions with answers</h2><span class="tag">pehle khud socho, phir kholo</span></div>
+  <div class="mock">
+
+    <details class="q"><summary>1. HashMap ka default capacity 16 aur load factor 0.75 kyun?</summary><div class="ans">
+      <p>16 power-of-two hai, isliye bucket index <code>(n-1) &amp; hash</code> se nikal aata hai — modulo ki zarurat nahi. 0.75 space aur time ka balance hai: kam rakhoge to memory waste aur resize jaldi-jaldi, zyada rakhoge to chains lambi aur lookups slow. Threshold = 16 × 0.75 = 12, yaani 13vi entry par table 32 ho jaati hai.</p></div></details>
+
+    <details class="q"><summary>2. Java 8 ne HashMap mein kya badla?</summary><div class="ans">
+      <p>Teen cheezein. (a) Ek bucket mein 8+ nodes aur table ≥ 64 ho to chain red-black tree ban jaati hai — worst case O(n) se O(log n). (b) Nayi entry chain ke <em>tail</em> pe judti hai (pehle head pe), jisse resize ke waqt banne wala infinite-loop race khatam ho gaya. (c) Resize mein rehash nahi hota — <code>(hash &amp; oldCapacity) == 0</code> se entry lo-list ya hi-list mein chali jaati hai, relative order preserve karte hue.</p></div></details>
+
+    <details class="q"><summary>3. ConcurrentHashMap Hashtable se tez kyun hai?</summary><div class="ans">
+      <p>Hashtable poore map par ek lock lagata hai — ek waqt mein ek hi thread. CHM (Java 8+) mein khaali bucket par insert <code>CAS</code> se hota hai (bilkul lock-free) aur bhare bucket par sirf <em>us bucket ke head node</em> par <code>synchronized</code> lagta hai. Yaani effectively bucket-count jitne independent locks. Reads to poori tarah lock-free hain kyunki <code>Node.val</code> aur <code>next</code> volatile hain.</p></div></details>
+
+    <details class="q"><summary>4. ConcurrentHashMap mein null key/value allowed kyun nahi?</summary><div class="ans">
+      <p>Ambiguity ki wajah se. Single-threaded map mein <code>get(k) == null</code> ka matlab tum <code>containsKey</code> se resolve kar sakte ho. Concurrent map mein <code>get</code> aur <code>containsKey</code> ke beech map badal sakta hai, isliye "key nahi hai" aur "value null hai" mein farak karna asambhav ho jaata. Doug Lea ne isko design se hi hata diya.</p></div></details>
+
+    <details class="q"><summary>5. fail-fast aur fail-safe iterator mein farak?</summary><div class="ans">
+      <p>Fail-fast (ArrayList, HashMap) <code>modCount</code> track karta hai aur structural change dikhte hi <code>ConcurrentModificationException</code> phenkta hai — ye best-effort hai, guarantee nahi. Fail-safe (asal naam "weakly consistent" — CopyOnWriteArrayList, ConcurrentHashMap) ya to snapshot par chalta hai ya live structure par tolerantly; exception nahi aata, par data thoda stale ho sakta hai.</p></div></details>
+
+    <details class="q"><summary>6. Single thread mein ConcurrentModificationException kaise aa sakta hai?</summary><div class="ans">
+      <p>Naam bhramit karta hai. Ye "concurrent access" nahi, "concurrent modification with respect to the iterator" detect karta hai. For-each loop ke andar <code>list.remove(x)</code> karoge to <code>modCount</code> badhta hai par iterator ka <code>expectedModCount</code> purana rehta hai — agle <code>next()</code> par CME. Fix: <code>Iterator.remove()</code> ya <code>removeIf</code>.</p></div></details>
+
+    <details class="q"><summary>7. HashSet andar se kya hai, aur uska memory overhead?</summary><div class="ans">
+      <p>Ek <code>HashMap</code> jahan har element key hai aur value ek shared <code>static final Object PRESENT</code> hai. Isliye overhead per element = HashMap Node (~32–48 bytes) + array slot, na ki ek extra value object — <code>PRESENT</code> sabhi entries ke liye ek hi hai.</p></div></details>
+
+    <details class="q"><summary>8. LinkedHashMap se LRU cache kaise banate hain?</summary><div class="ans">
+      <p>Constructor mein <code>accessOrder = true</code> pass karo (teesra parameter), phir <code>removeEldestEntry(eldest)</code> override karke <code>size() &gt; maxEntries</code> return karo. <code>get()</code> automatically entry ko order-list ke end pe le jaata hai aur har <code>put()</code> ke baad JDK khud eldest entry hata deta hai.</p></div></details>
+
+    <details class="q"><summary>9. ArrayList grow kaise hoti hai, aur amortized O(1) ka matlab?</summary><div class="ans">
+      <p>Full hone par <code>newCapacity = oldCapacity + (oldCapacity &gt;&gt; 1)</code>, yaani 1.5x, aur <code>Arrays.copyOf</code> se data copy. Ek individual <code>add</code> O(n) ho sakta hai, lekin n appends ka <em>total</em> copy work O(n) rehta hai (geometric series), isliye per-append average O(1) — yahi amortized O(1) hai.</p></div></details>
+
+    <details class="q"><summary>10. equals override kiya, hashCode nahi — kya tootega?</summary><div class="ans">
+      <p>Hash-based collections. Do "equal" objects ke hashCode alag honge, isliye wo alag buckets mein jaayenge: <code>HashSet</code> mein duplicates ghus jaayenge aur <code>map.get(equalKey)</code> <code>null</code> dega. <code>List.contains</code> aur <code>TreeMap</code> phir bhi kaam karte rahenge — isliye bug aksar der se pakda jaata hai.</p></div></details>
+
+    <details class="q"><summary>11. Comparable aur Comparator mein kab kya?</summary><div class="ans">
+      <p><code>Comparable</code> class ke andar hai aur ek hi natural order deta hai (<code>compareTo</code>) — jaise <code>String</code> ka alphabetical. <code>Comparator</code> bahar se aata hai, ek hi class ke liye kitne bhi ho sakte hain, aur third-party class pe bhi lag jaata hai. Rule: agar order "obvious aur ek hi" hai to Comparable, warna Comparator.</p></div></details>
+
+    <details class="q"><summary>12. TreeSet mein element "gayab" kaise ho sakta hai?</summary><div class="ans">
+      <p>TreeSet duplicate ka faisla <code>compareTo</code>/<code>Comparator</code> se karta hai, <code>equals</code> se nahi. Agar comparator sirf ek field compare karta hai (jaise sirf salary), to alag-alag objects "equal" maane jaayenge aur chup-chaap add hi nahi honge. Isliye comparator ko <em>equals-consistent</em> rakho ya aakhir mein unique tie-breaker lagao.</p></div></details>
+
+    <details class="q"><summary>13. ArrayDeque LinkedList se behtar kyun hai queue ke liye?</summary><div class="ans">
+      <p>ArrayDeque circular array hai: contiguous memory, cache-friendly, per-element koi node object nahi. LinkedList har element pe ~40 byte ka node banata hai — memory bhi zyada aur GC pressure bhi. Javadoc khud kehti hai ki ArrayDeque stack aur queue dono ke liye faster hai.</p></div></details>
+
+    <details class="q"><summary>14. PriorityQueue ko iterate karo to sorted kyun nahi aata?</summary><div class="ans">
+      <p>Wo binary heap hai, sorted array nahi. Heap sirf itna guarantee karta hai ki parent apne children se chhota (ya bada) hai — siblings ke beech koi order nahi. Sorted output chahiye to baar-baar <code>poll()</code> karo, ya list bana ke <code>sort()</code> kar lo.</p></div></details>
+
+    <details class="q"><summary>15. Unbounded BlockingQueue kyun khatarnaak hai?</summary><div class="ans">
+      <p>Wo speed mismatch ko heap mein jama karti hai. Producer consumer se tez hai to queue tab tak badhegi jab tak <code>OutOfMemoryError</code> na aa jaaye. Aur <code>ThreadPoolExecutor</code> mein unbounded queue kabhi full nahi hoti, isliye pool <code>corePoolSize</code> se aage badhta hi nahi — <code>maximumPoolSize</code> bekaar ho jaata hai. Hamesha bounded queue + rejection policy.</p></div></details>
+
+    <details class="q"><summary>16. put, offer aur add mein farak?</summary><div class="ans">
+      <p><code>add</code> = space na ho to <code>IllegalStateException</code>. <code>offer</code> = turant <code>false</code> return. <code>offer(e, timeout, unit)</code> = utni der wait karke phir <code>false</code>. <code>put</code> = jagah banne tak block. Similarly consumer side: <code>remove</code> throws, <code>poll</code> returns null, <code>take</code> blocks.</p></div></details>
+
+    <details class="q"><summary>17. Java mein memory leak possible hai? Kaise?</summary><div class="ans">
+      <p>Haan — "unwanted reachability" ke roop mein. GC sirf unreachable objects hataati hai; agar tumhara static map, listener list, ya thread pool ka ThreadLocal us object ko strongly hold kiye hue hai to wo kabhi collect nahi hoga. Top patterns: unbounded static cache, unregistered listeners, ThreadLocal without <code>remove()</code>, mutable keys, aur redeploy pe ClassLoader leak.</p></div></details>
+
+    <details class="q"><summary>18. Weak, soft aur phantom reference mein kya farak?</summary><div class="ans">
+      <p><b>Weak</b>: agli GC cycle mein clear (canonical maps, <code>WeakHashMap</code>, ThreadLocal keys). <b>Soft</b>: sirf memory pressure par clear, OOM se pehle (memory-sensitive cache). <b>Phantom</b>: object finalize hone ke baad enqueue hota hai, <code>get()</code> hamesha null deta hai — sirf cleanup notification ke liye (<code>Cleaner</code>, DirectByteBuffer).</p></div></details>
+
+    <details class="q"><summary>19. Minor GC aur Major/Full GC mein farak?</summary><div class="ans">
+      <p>Minor GC sirf Young generation (Eden + Survivors) collect karti hai — copying algorithm, live objects hi copy hote hain, isliye tez. Major GC Old generation ko collect karti hai (mark-sweep-compact ya G1 ka mixed collection) — bada region, zyada live data, isliye kaafi lambi. Full GC pooora heap + Metaspace, aur ye aksar failure ka signal hai (promotion failure, humongous allocation, ya <code>System.gc()</code>).</p></div></details>
+
+    <details class="q"><summary>20. "Garbage First" naam ka matlab kya hai?</summary><div class="ans">
+      <p>G1 heap ko barabar size ke regions mein baant deta hai aur concurrent marking se har region ka garbage percentage jaan leta hai. Collection ke waqt wo <em>sabse zyada garbage wale regions pehle</em> uthata hai — kam kaam mein sabse zyada jagah. Tumhara pause target (<code>-XX:MaxGCPauseMillis</code>) decide karta hai ki ek baar mein kitne regions ka collection set banega.</p></div></details>
+
+    <details class="q"><summary>21. ZGC sub-millisecond pause kaise deta hai jabki objects move ho rahe hote hain?</summary><div class="ans">
+      <p>Coloured pointers aur load barriers. Reference ke unused bits mein GC state (marked / remapped) store hota hai. Jab application koi reference load karti hai, ek chhota barrier chalta hai jo check karta hai ki object relocate hua ya nahi, aur zaroorat par reference ko naye address pe theek kar deta hai (self-healing). Isliye marking aur relocation dono application ke saath concurrently ho sakte hain; stop-the-world sirf chhote root-scanning ke liye hota hai.</p></div></details>
+
+    <details class="q"><summary>22. Card table aur write barrier kya hai?</summary><div class="ans">
+      <p>Minor GC ko sirf Young gen scan karni hai, par Old gen ka object Young ke object ko point kar sakta hai. Poori Old gen scan karna mehnga hoga, isliye JVM heap ko ~512-byte "cards" mein baant kar ek byte-array (card table) rakhta hai. Har reference write par ek chhota <em>write barrier</em> chalta hai jo us card ko "dirty" mark kar deta hai. Minor GC sirf dirty cards scan karti hai. G1 mein iska region-wise version <em>remembered set</em> kehlata hai.</p></div></details>
+
+    <details class="q"><summary>23. 8 GB heap wali service ka p99 500 ms hai. Debug kaise karoge?</summary><div class="ans">
+      <p>Pehle GC log on karo (<code>-Xlog:gc*,safepoint</code>) aur confirm karo ki latency GC se hi aa rahi hai. Phir dekho: (a) pause GC ka hai ya <em>time-to-safepoint</em> ka, (b) Minor GC frequent hai (allocation rate high) ya Major (promotion rate high), (c) har Full GC ke baad live set badh raha hai kya — to ye leak hai, flag se theek nahi hoga. Fix ka order: allocation kam karo → heap/region size theek karo → tabhi collector badlo (jaise G1 se generational ZGC).</p></div></details>
+
+    <details class="q"><summary>24. Immutable collection ke fayde GC ke hisaab se kya hain?</summary><div class="ans">
+      <p>Immutable object kabhi apne se <em>naye</em> objects ko point nahi karta, isliye wo Old gen mein hote hue bhi Young gen ko reference nahi kar sakta — card table dirty nahi hota aur Minor GC ka scan kaam kam hota hai. Saath hi safe publication free milti hai (final fields), defensive copies ki zarurat khatam, aur cache mein rakhna nirdhokh ho jaata hai. Cost: har "change" ek nayi copy = allocation churn, isliye tight loops mein avoid karo.</p></div></details>
+
+    <details class="q"><summary>25. Ek collection choose karne ke liye 30-second framework batao.</summary><div class="ans">
+      <p>Chaar sawaal: (1) <b>Access</b> — index, key, order, ya "best element"? (2) <b>Order</b> — insertion, sorted, ya koi nahi? (3) <b>Concurrency</b> — kitne threads, read-heavy ya write-heavy? (4) <b>Bound</b> — worst case kitna bada? Answer na pata ho to bound lagao. Inke jawab se pick lagbhag automatic ho jaata hai, aur phir ek line mein cost bolo: "iska cost X hai, aur Y condition badle to Z pe jaana padega."</p></div></details>
+
+  </div>
+</section>
+
+</main>
+</div>
+
+<footer><div class="inner">
+  <p style="margin:0 0 8px"><b style="color:#CFE0E5;font-family:var(--sans)">Padhne ke baad dekhna zaroori hai.</b> Internal architecture — bucket, node, rotation, heap generation, GC phases — sab animated form mein: <a href="java-collections-gc-animation-lab.html">Animation lab kholo</a>.</p>
+  <p style="margin:0;font-size:13px">Behaviour JDK 17/21 ke hisaab se likha gaya hai. Constants (0.75, 8, 64, 1.5x) HotSpot implementation detail hain — spec guarantee nahi.</p>
+</div></footer>
+
+<script>
+/* ===== hero heap ticker ===== */
+(function buildHeroHeapTicker(){
+  const strip=document.getElementById('heapStrip'), count=document.getElementById('gcCount');
+  if(!strip) return;
+  const N=132, cells=[];
+  for(let i=0;i<N;i++){const c=document.createElement('i');strip.appendChild(c);cells.push(c);}
+  const reduced=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(reduced){cells.forEach((c,i)=>{if(i%3===0)c.className='live';else if(i%7===0)c.className='aged';else if(i%11===0)c.className='old';});return;}
+  let gc=0, tick=0;
+  function allocateObjects(){ for(let k=0;k<5;k++){const i=Math.floor(Math.random()*N);if(!cells[i].className)cells[i].className='live';} }
+  function runMinorGc(){
+    gc++; count.textContent='minor GC: '+gc;
+    cells.forEach(c=>{
+      if(c.className==='live') c.className = Math.random()<0.22 ? 'aged' : '';
+      else if(c.className==='aged') c.className = Math.random()<0.35 ? 'old' : '';
+    });
+  }
+  setInterval(()=>{ tick++; allocateObjects(); if(tick%14===0) runMinorGc(); },220);
+})();
+
+/* ===== code renderer: <script type="text/x-java"> -> numbered, highlighted ===== */
+(function renderAllCodeBlocks(){
+  const KW=/^(abstract|assert|boolean|break|byte|case|catch|char|class|const|continue|default|do|double|else|enum|extends|final|finally|float|for|goto|if|implements|import|instanceof|int|interface|long|native|new|null|package|private|protected|public|return|short|static|strictfp|super|switch|synchronized|this|throw|throws|transient|try|void|volatile|while|true|false|var|record|sealed|yield)$/;
+  const reFor=lang=>lang==='shell'
+    ? /(#[^\n]*)|("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')|(@\w+)|(\b\d[\d_]*\.?\d*[LlDdFf]?\b)|([A-Za-z_$][A-Za-z0-9_$]*)/g
+    : /(\/\/[^\n]*|\/\*[\s\S]*?\*\/)|("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*')|(@\w+)|(\b\d[\d_]*\.?\d*[LlDdFf]?\b)|([A-Za-z_$][A-Za-z0-9_$]*)/g;
+  const esc=s=>s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  function paint(src,lang){
+    const RE=reFor(lang);
+    let out='',last=0,m;
+    while((m=RE.exec(src))!==null){
+      out+=esc(src.slice(last,m.index)); last=RE.lastIndex;
+      if(m[1]) out+='<span class="t-com">'+esc(m[1])+'</span>';
+      else if(m[2]) out+='<span class="t-str">'+esc(m[2])+'</span>';
+      else if(m[3]) out+='<span class="t-ann">'+esc(m[3])+'</span>';
+      else if(m[4]) out+='<span class="t-num">'+esc(m[4])+'</span>';
+      else{
+        const w=m[5], after=src[RE.lastIndex];
+        if(KW.test(w)) out+='<span class="t-key">'+w+'</span>';
+        else if(/^[A-Z]/.test(w)) out+='<span class="t-typ">'+w+'</span>';
+        else if(after==='(') out+='<span class="t-fn">'+w+'</span>';
+        else out+=w;
+      }
+    }
+    out+=esc(src.slice(last));
+    return out;
+  }
+  document.querySelectorAll('script[type="text/x-java"]').forEach(node=>{
+    const label=node.dataset.file||'Snippet.java'; const lang=node.dataset.lang||'java';
+    const hl=(node.dataset.hl||'').split(',').filter(Boolean).map(Number);
+    const raw=node.textContent.replace(/^\n/,'').replace(/\s+$/,'');
+    const wrap=document.createElement('div'); wrap.className='codewrap';
+    const bar=document.createElement('div'); bar.className='codebar';
+    bar.innerHTML='<span>'+label+'</span><button type="button">copy</button>';
+    const pre=document.createElement('pre'); pre.className='code';
+    pre.innerHTML=raw.split('\n').map((ln,i)=>'<span class="l'+(hl.includes(i+1)?' hl':'')+'">'+(paint(ln,lang)||' ')+'</span>').join('');
+    bar.querySelector('button').addEventListener('click',e=>{
+      navigator.clipboard.writeText(raw); e.target.textContent='copied'; setTimeout(()=>e.target.textContent='copy',1400);
+    });
+    wrap.appendChild(bar); wrap.appendChild(pre);
+    node.parentNode.replaceChild(wrap,node);
+  });
+})();
+
+/* ===== rail active state ===== */
+(function trackActiveTopic(){
+  const links=[...document.querySelectorAll('.rail a')];
+  const map=new Map(links.map(a=>[a.getAttribute('href').slice(1),a]));
+  const io=new IntersectionObserver(es=>{
+    es.forEach(e=>{ if(e.isIntersecting){ links.forEach(a=>a.classList.remove('on')); const a=map.get(e.target.id); if(a)a.classList.add('on'); }});
+  },{rootMargin:'-64px 0px -70% 0px'});
+  document.querySelectorAll('.topic').forEach(s=>io.observe(s));
+})();
+</script>
+</body>
+</html>

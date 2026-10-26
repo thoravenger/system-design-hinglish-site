@@ -1,0 +1,1583 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kafka — Commit Log ka Design Manual</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ground:#1B2027;
+  --ground2:#232A33;
+  --ground3:#2C343E;
+  --paper:#F3F2ED;
+  --paper2:#E4E4DC;
+  --ink:#141A20;
+  --ink-soft:#4A545E;
+  --brick:#B3402A;
+  --brick-wash:#F6E7E2;
+  --teal:#17706B;
+  --teal-wash:#E0EBEA;
+  --amber:#D9A441;
+  --line:#C6C7BF;
+  --line-dark:#39424D;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,Segoe UI,sans-serif;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:88px}
+body{
+  margin:0;background:var(--ground);color:var(--paper);
+  font-family:var(--sans);font-size:16px;line-height:1.62;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4{font-family:var(--mono);font-weight:600;line-height:1.2;margin:0}
+p{margin:0 0 .8em}
+p:last-child{margin-bottom:0}
+a{color:var(--amber)}
+code{font-family:var(--mono);font-size:.9em}
+.wrap{max-width:1140px;margin:0 auto;padding:0 20px}
+
+/* ---------- top bar ---------- */
+.topbar{
+  position:sticky;top:0;z-index:60;background:rgba(27,32,39,.94);
+  backdrop-filter:blur(8px);border-bottom:1px solid var(--line-dark);
+}
+.topbar .wrap{display:flex;align-items:center;gap:16px;height:60px}
+.brand{font-family:var(--mono);font-weight:600;font-size:14px;letter-spacing:.02em;white-space:nowrap;color:var(--paper)}
+.brand b{color:var(--amber);font-weight:600}
+.idx{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;flex:1}
+.idx::-webkit-scrollbar{display:none}
+.idx a{
+  font-family:var(--mono);font-size:12px;color:#93A0AD;text-decoration:none;
+  padding:5px 8px;border:1px solid transparent;border-radius:2px;white-space:nowrap;
+}
+.idx a:hover,.idx a:focus-visible{color:var(--ground);background:var(--amber);outline:none}
+
+/* ---------- hero ---------- */
+.hero{padding:64px 0 52px;border-bottom:1px solid var(--line-dark)}
+.hero h1{font-size:clamp(30px,6.2vw,54px);letter-spacing:-.02em;max-width:16ch}
+.hero .sub{margin-top:18px;max-width:62ch;color:#B9C2CB;font-size:17px}
+.hero .sub em{color:var(--amber);font-style:normal}
+.tapewrap{margin-top:34px;border:1px solid var(--line-dark);background:var(--ground2);border-radius:2px;overflow:hidden}
+.tapehead{
+  display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;
+  color:#7E8B98;padding:8px 12px;border-bottom:1px solid var(--line-dark);
+}
+.tape{display:flex;gap:8px;padding:16px 12px;overflow:hidden;min-height:74px;align-items:center}
+.rec{
+  flex:0 0 auto;min-width:118px;border:1px solid var(--line-dark);border-left:3px solid var(--amber);
+  background:var(--ground3);border-radius:2px;padding:7px 10px;font-family:var(--mono);font-size:11px;color:#CDD5DD;
+  animation:slidein .5s ease-out both;
+}
+.rec .off{color:var(--amber);display:block}
+@keyframes slidein{from{opacity:0;transform:translateX(26px)}to{opacity:1;transform:none}}
+.heroStats{display:flex;flex-wrap:wrap;gap:10px;margin-top:22px}
+.chip{
+  font-family:var(--mono);font-size:12px;color:#C3CBD3;border:1px solid var(--line-dark);
+  padding:5px 10px;border-radius:2px;background:var(--ground2);
+}
+
+/* ---------- section shell ---------- */
+.rec-section{border-bottom:1px solid var(--line-dark);padding:46px 0 44px}
+.rechead{display:flex;gap:16px;align-items:baseline;margin-bottom:6px}
+.offset{
+  font-family:var(--mono);font-size:13px;color:var(--ground);background:var(--amber);
+  padding:2px 8px;border-radius:2px;flex:0 0 auto;font-weight:600;
+}
+.rechead h2{font-size:clamp(20px,3.4vw,27px);letter-spacing:-.01em}
+.deck{color:#AFB9C3;max-width:74ch;margin:0 0 24px;font-size:15.5px}
+
+/* ---------- problem / solution split ---------- */
+.split{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--line);border-radius:2px;overflow:hidden}
+.pane{background:var(--paper);color:var(--ink);padding:22px 22px 24px}
+.pane.prob{background:var(--brick-wash);border-right:1px solid var(--line)}
+.pane.sol{background:var(--teal-wash)}
+.paneTag{
+  font-family:var(--mono);font-size:11.5px;font-weight:600;display:inline-flex;align-items:center;gap:7px;
+  margin-bottom:12px;
+}
+.pane.prob .paneTag{color:var(--brick)}
+.pane.sol .paneTag{color:var(--teal)}
+.paneTag i{width:9px;height:9px;border-radius:50%;display:inline-block;background:currentColor;font-style:normal}
+.pane h3{font-size:16.5px;margin-bottom:10px;color:var(--ink)}
+.pane p,.pane li{font-size:14.6px;line-height:1.6;color:#28313A}
+.pane ul{margin:.5em 0 0;padding-left:18px}
+.pane li{margin-bottom:5px}
+.pane li::marker{color:var(--ink-soft)}
+.hin{
+  margin-top:12px;padding:9px 11px;border-left:3px solid rgba(20,26,32,.28);
+  background:rgba(255,255,255,.55);font-size:14px;border-radius:0 2px 2px 0;
+}
+.hin b{font-family:var(--mono);font-size:11.5px;font-weight:600;display:block;margin-bottom:2px;color:var(--ink-soft)}
+
+/* ---------- tradeoff strip ---------- */
+.tradeoff{display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin-top:14px;border:1px solid var(--line-dark);border-radius:2px;overflow:hidden}
+.tcell{padding:14px 16px;background:var(--ground2);border-right:1px solid var(--line-dark)}
+.tcell:last-child{border-right:none}
+.tcell h4{font-size:11.5px;color:var(--amber);margin-bottom:6px;font-weight:500}
+.tcell p{font-size:13.6px;color:#BCC5CE;line-height:1.55}
+.tcell.ignore h4{color:#E4816B}
+.tcell.cost h4{color:#7FC3BE}
+
+.note{
+  margin-top:14px;border:1px dashed var(--line-dark);border-radius:2px;padding:12px 15px;
+  background:rgba(217,164,65,.07);font-size:14px;color:#CFD6DD;
+}
+.note b{font-family:var(--mono);font-size:11.5px;color:var(--amber);display:block;margin-bottom:3px;font-weight:600}
+
+/* ---------- code ---------- */
+.codeblock{border:1px solid var(--line-dark);border-radius:2px;overflow:hidden;margin:18px 0 0;background:#161B21}
+.codehead{
+  display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:9px 13px;background:var(--ground2);border-bottom:1px solid var(--line-dark);
+  font-family:var(--mono);font-size:12px;color:#9EAAB6;
+}
+.codehead b{color:var(--paper);font-weight:600}
+pre{margin:0;overflow-x:auto;padding:14px 0}
+pre code{display:block;font-size:12.9px;line-height:1.72;color:#D6DDE4}
+.ln{display:block;padding:0 16px 0 62px;position:relative;white-space:pre}
+.ln::before{
+  content:attr(data-n);position:absolute;left:0;width:46px;text-align:right;
+  color:#5A6774;font-size:11.5px;user-select:none;
+}
+.ln:empty::after{content:"\00a0"}
+.ln.hl{background:rgba(217,164,65,.12);box-shadow:inset 3px 0 0 var(--amber)}
+.kw{color:#E1A6D8}.ty{color:#7FC3BE}.st{color:#C7D98A}.cm{color:#6D7A87;font-style:italic}
+.fn{color:#F0C271}.nm{color:#8FB8E8}
+.annot{border-top:1px solid var(--line-dark)}
+.annot .row{display:grid;grid-template-columns:78px 1fr;gap:12px;padding:10px 14px;border-bottom:1px solid rgba(57,66,77,.6);font-size:13.8px;color:#BCC5CE}
+.annot .row:last-child{border-bottom:none}
+.annot .row span{font-family:var(--mono);font-size:11.5px;color:var(--amber);padding-top:2px}
+.annot .row em{font-style:normal;color:#8FB8E8;font-family:var(--mono);font-size:12.4px}
+
+/* ---------- matrix table ---------- */
+.tablewrap{overflow-x:auto;border:1px solid var(--line-dark);border-radius:2px;margin-top:18px}
+table{border-collapse:collapse;width:100%;min-width:760px;font-size:13.7px}
+th,td{text-align:left;padding:11px 13px;border-bottom:1px solid var(--line-dark);vertical-align:top}
+th{font-family:var(--mono);font-size:11.5px;font-weight:600;color:var(--amber);background:var(--ground2);position:sticky;top:0}
+td{color:#BFC8D1}
+td:first-child{font-family:var(--mono);font-size:12.5px;color:#8FB8E8;white-space:nowrap}
+tbody tr:last-child td{border-bottom:none}
+
+/* ---------- Q&A ---------- */
+.filters{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 18px}
+.filters button{
+  font-family:var(--mono);font-size:12px;padding:6px 12px;border-radius:2px;cursor:pointer;
+  background:var(--ground2);color:#AFB9C3;border:1px solid var(--line-dark);
+}
+.filters button[aria-pressed="true"]{background:var(--amber);color:var(--ground);border-color:var(--amber);font-weight:600}
+.qa{border:1px solid var(--line-dark);border-radius:2px;overflow:hidden}
+details{border-bottom:1px solid var(--line-dark);background:var(--ground2)}
+details:last-child{border-bottom:none}
+details[open]{background:var(--ground3)}
+summary{
+  cursor:pointer;padding:13px 16px;font-size:15px;color:var(--paper);list-style:none;
+  display:flex;gap:11px;align-items:flex-start;
+}
+summary::-webkit-details-marker{display:none}
+summary::before{content:"+";font-family:var(--mono);color:var(--amber);flex:0 0 auto;line-height:1.5}
+details[open] summary::before{content:"\2212"}
+summary:focus-visible{outline:2px solid var(--amber);outline-offset:-2px}
+.lvl{font-family:var(--mono);font-size:10.5px;padding:2px 6px;border-radius:2px;margin-left:auto;flex:0 0 auto;border:1px solid var(--line-dark);color:#93A0AD}
+.lvl.b{color:#9BD1A0;border-color:#3A5A42}
+.lvl.m{color:#E8C270;border-color:#5E5030}
+.lvl.a{color:#E48F78;border-color:#63392E}
+.ans{padding:0 16px 16px 43px;font-size:14.6px;color:#C4CDD6}
+.ans ul{padding-left:18px;margin:.5em 0}
+.ans li{margin-bottom:4px}
+.ans .hin2{margin-top:9px;border-left:3px solid var(--amber);padding:7px 11px;background:rgba(217,164,65,.08);font-size:14px}
+
+/* ---------- animation stage ---------- */
+.stagebox{border:1px solid var(--line-dark);border-radius:2px;background:var(--ground2);box-shadow:8px 8px 0 rgba(0,0,0,.22)}
+.scenetabs{display:flex;overflow-x:auto;border-bottom:1px solid var(--line-dark);scrollbar-width:none}
+.scenetabs::-webkit-scrollbar{display:none}
+.scenetabs button{
+  font-family:var(--mono);font-size:12px;padding:11px 14px;background:transparent;color:#93A0AD;
+  border:none;border-right:1px solid var(--line-dark);cursor:pointer;white-space:nowrap;
+}
+.scenetabs button[aria-selected="true"]{background:var(--amber);color:var(--ground);font-weight:600}
+.stagescroll{overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch}
+.stagescroll::-webkit-scrollbar{height:6px}
+.stagescroll::-webkit-scrollbar-thumb{background:#3B4652;border-radius:3px}
+.stage{position:relative;width:100%;aspect-ratio:1000/560;background:#161B21;overflow:hidden}
+.swipehint{display:none}
+@media(max-width:700px){
+  .stage{width:680px;height:392px;aspect-ratio:auto}
+  .swipehint{display:block;font-family:var(--mono);font-size:10.5px;color:#6E7C89;padding:6px 13px 0;background:var(--ground2)}
+}
+.stage svg.wires{position:absolute;inset:0;width:100%;height:100%;pointer-events:none}
+.wire{stroke:#2F3843;stroke-width:1.5;fill:none}
+.wire.on{stroke:var(--amber);stroke-width:2.4}
+.node{
+  position:absolute;transform:translate(-50%,-50%);border:1px solid var(--line-dark);
+  background:var(--ground3);border-radius:2px;padding:7px 9px;min-width:84px;
+  font-family:var(--mono);font-size:10.5px;color:#B7C1CB;text-align:center;transition:.28s;
+}
+.node b{display:block;font-size:11.5px;color:var(--paper);font-weight:600;margin-bottom:1px}
+.node small{display:block;font-size:9.5px;color:#7E8B98;line-height:1.35}
+.node.act{border-color:var(--amber);background:#3A3324;color:#F1E3C6;box-shadow:0 0 0 3px rgba(217,164,65,.14)}
+.node.ok{border-color:var(--teal);background:#1D3634;box-shadow:0 0 0 3px rgba(23,112,107,.16)}
+.node.bad{border-color:var(--brick);background:#3A241F;box-shadow:0 0 0 3px rgba(179,64,42,.16)}
+.node.dim{opacity:.34}
+.pkt{
+  position:absolute;transform:translate(-50%,-50%);border-radius:2px;padding:3px 7px;
+  font-family:var(--mono);font-size:9.5px;background:var(--amber);color:#241C08;font-weight:600;
+  transition:left .85s cubic-bezier(.4,0,.2,1),top .85s cubic-bezier(.4,0,.2,1),opacity .3s;
+  white-space:nowrap;z-index:5;
+}
+.pkt.ackp{background:var(--teal);color:#EAF6F5}
+.pkt.err{background:var(--brick);color:#FBEAE6}
+.pkt.gone{opacity:0}
+.slabel{position:absolute;font-family:var(--mono);font-size:10px;color:#6E7C89;transform:translate(-50%,-50%)}
+.controls{display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:11px 13px;border-top:1px solid var(--line-dark);background:var(--ground2)}
+.controls button{
+  font-family:var(--mono);font-size:12px;padding:7px 13px;border-radius:2px;cursor:pointer;
+  background:var(--ground3);color:var(--paper);border:1px solid var(--line-dark);
+}
+.controls button.primary{background:var(--amber);color:var(--ground);border-color:var(--amber);font-weight:600}
+.controls button:disabled{opacity:.4;cursor:not-allowed}
+.stepcount{font-family:var(--mono);font-size:11.5px;color:#8B98A5;margin-left:auto}
+.narrate{padding:14px 15px;border-top:1px solid var(--line-dark);background:#12171D;min-height:96px}
+.narrate .en{font-size:14.8px;color:#DDE4EA;margin-bottom:7px}
+.narrate .hi{font-size:14px;color:var(--amber);border-left:3px solid var(--amber);padding-left:10px}
+
+/* ---------- footer ---------- */
+footer{padding:42px 0 60px;color:#8B98A5;font-size:13.5px}
+footer b{font-family:var(--mono);color:var(--paper);font-weight:600;display:block;margin-bottom:6px;font-size:14px}
+
+/* ---------- responsive ---------- */
+@media(max-width:820px){
+  .split{grid-template-columns:1fr}
+  .pane.prob{border-right:none;border-bottom:1px solid var(--line)}
+  .tradeoff{grid-template-columns:1fr}
+  .tcell{border-right:none;border-bottom:1px solid var(--line-dark)}
+  .tcell:last-child{border-bottom:none}
+  .ln{padding-left:52px}
+  .ln::before{width:38px}
+  .annot .row{grid-template-columns:1fr;gap:2px}
+}
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.001s!important;transition-duration:.001s!important}
+  html{scroll-behavior:auto}
+}
+</style>
+</head>
+<body>
+<div id="sdh-libbar" style="position:relative;z-index:2147483000;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0;padding:8px 16px;background:#0f172a;color:#cbd5e1;font:600 13px/1.5 Inter,'Segoe UI',system-ui,-apple-system,sans-serif;border-bottom:2px solid #4f46e5;box-sizing:border-box;width:100%;text-align:left;letter-spacing:0"><a href="../../index.html" style="color:#fff;text-decoration:none;font-weight:800">SystemDesign<span style="color:#8b8cff">.hinglish</span></a><span style="opacity:.45">/</span><a href="../index.html" style="color:#fff;text-decoration:none">📚 Library</a><span style="opacity:.45">/</span><a href="../index.html#data-messaging" style="color:#cbd5e1;text-decoration:none">Kafka · Redis · Cassandra &amp; Databases</a><a href="../files/kafka-design-manual-original.html" download style="color:#a5b4fc;text-decoration:none;font-size:12px">⬇ Original</a><span style="margin-left:auto;font-size:11px;padding:2px 9px;border-radius:999px;border:1px solid #6366f1;color:#c7d2fe">📘 HTML ebook</span></div>
+<header class="topbar">
+  <div class="wrap">
+    <div class="brand">kafka<b>.log</b></div>
+    <nav class="idx" aria-label="Topics">
+      <a href="#r00">00 why</a><a href="#r01">01 log</a><a href="#r02">02 hashing</a>
+      <a href="#r03">03 producer</a><a href="#r04">04 idempotent</a><a href="#r05">05 replication</a>
+      <a href="#r06">06 storage</a><a href="#r07">07 groups</a><a href="#r08">08 offsets</a>
+      <a href="#r09">09 lag+DLQ</a><a href="#r10">10 sizing</a><a href="#r11">11 vs others</a>
+      <a href="#lld">code</a><a href="#matrix">tradeoffs</a><a href="#mock">mock Q</a><a href="#anim">animation</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <h1>Kafka is not a queue. It's a log you can rewind.</h1>
+    <p class="sub">Ek hi page me HLD, LLD, internals aur tradeoffs — beginner se architect tak. Har topic do halves me: <em>left me problem</em>, <em>right me Kafka ka solution</em>. Code Java + Spring Boot me hai, line-by-line samjhaya gaya hai. End me ek animated stage jahan producer se disk tak ka poora flow chalta hai.</p>
+
+    <div class="tapewrap">
+      <div class="tapehead"><span>topic: orders &nbsp;|&nbsp; partition: 0</span><span>append-only &middot; immutable</span></div>
+      <div class="tape" id="heroTape" aria-hidden="true"></div>
+    </div>
+
+    <div class="heroStats">
+      <span class="chip">12 topics</span>
+      <span class="chip">5 code walkthroughs</span>
+      <span class="chip">24 mock questions</span>
+      <span class="chip">5 animated scenes</span>
+      <span class="chip">Hinglish + English</span>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 00 ============ -->
+<section class="rec-section" id="r00">
+  <div class="wrap">
+    <div class="rechead"><span class="offset">00</span><h2>Kafka kyu chahiye? Sync coupling ka dard</h2></div>
+    <p class="deck">Har system design interview yahi se shuru hota hai: "aapko Kafka kyu laga?" Agar aapka jawab "scalable hai" hai, to interview wahi ruk jaata hai. Real answer coupling aur backpressure ke baare me hai.</p>
+
+    <div class="split">
+      <div class="pane prob">
+        <div class="paneTag"><i></i>Problem</div>
+        <h3>Order service directly 6 downstream services ko call karti hai</h3>
+        <p>Checkout ke ek HTTP request me: inventory reserve, payment capture, email, SMS, analytics, fraud-check. Sab synchronous.</p>
+        <ul>
+          <li>Email service 3s slow hui → checkout latency 3s badh gayi.</li>
+          <li>Analytics down → order fail ho gaya, jabki analytics business-critical hi nahi tha.</li>
+          <li>Naya consumer add karna hai → order service ka code change + redeploy.</li>
+          <li>Traffic spike me har downstream service ko same peak QPS jhelna pada.</li>
+          <li>Retry logic 6 jagah duplicate, har jagah alag bug.</li>
+        </ul>
+        <div class="hin"><b>Simple mein</b>Ek aadmi ke fail hone se poori line ruk jaati hai. Failure isolate nahi hai, aur speed sabse slow service decide karti hai.</div>
+      </div>
+      <div class="pane sol">
+        <div class="paneTag"><i></i>Solution</div>
+        <h3>Order service sirf ek event likhti hai: <code>OrderCreated</code></h3>
+        <p>Producer broker ko event deta hai aur turant return karta hai. Consumers apni speed se padhte hain, apne offsets khud track karte hain.</p>
+        <ul>
+          <li><b>Decoupling:</b> producer ko pata hi nahi kitne consumers hain.</li>
+          <li><b>Buffering:</b> spike disk pe absorb hota hai, downstream pe nahi.</li>
+          <li><b>Replay:</b> naya service purane offset se poora history padh sakta hai.</li>
+          <li><b>Fan-out:</b> ek write, N independent consumer groups.</li>
+          <li><b>Durability:</b> event disk pe replicated hai, memory queue ki tarah gayab nahi hota.</li>
+        </ul>
+        <div class="hin"><b>Simple mein</b>Order service bolti hai "yeh hua", aur aage badh jaati hai. Kisko-kya-karna-hai wo consumer ka problem hai, producer ka nahi.</div>
+      </div>
+    </div>
+
+    <div class="tradeoff">
+      <div class="tcell"><h4>Apply when</h4><p>Multiple independent consumers, replay ki zarurat, spiky traffic, event history hi ek asset hai (audit, ML training, CDC).</p></div>
+      <div class="tcell ignore"><h4>Ignore when</h4><p>Caller ko turant answer chahiye (auth check, price quote). Request-response ko event bana dena latency + complexity dono badhata hai. 2 services, 50 msg/sec → SQS ya ek DB table kaafi hai.</p></div>
+      <div class="tcell cost"><h4>Cost you pay</h4><p>Eventual consistency, duplicate handling, ordering sirf partition ke andar, aur ek naya distributed system jise on-call support karna padega.</p></div>
+    </div>
+
+    <div class="note"><b>Interview line</b>"Kafka mainly do problem solve karta hai: producer ko consumers se decouple karna, aur consumption ko durable buffer ke peeche rakhna taaki slow consumer producer ko block na kare. Agar in dono ki zarurat nahi hai, Kafka overkill hai."</div>
+  </div>
+</section>
+
+<!-- ============ 01 ============ -->
+<section class="rec-section" id="r01">
+  <div class="wrap">
+    <div class="rechead"><span class="offset">01</span><h2>Topic, partition, offset — poora Kafka isi teen se bana hai</h2></div>
+    <p class="deck">Kafka ka core data structure ek append-only file hai. Baaki sab (replication, consumer groups, compaction) isi file ke upar layers hain.</p>
+
+    <div class="split">
+      <div class="pane prob">
+        <div class="paneTag"><i></i>Problem</div>
+        <h3>Traditional queue: message padha, message gaya</h3>
+        <p>RabbitMQ/ActiveMQ style broker me broker har consumer ke liye per-message state rakhta hai — delivered, acked, in-flight.</p>
+        <ul>
+          <li>Broker ko har message ka status track karna padta hai → memory + random I/O.</li>
+          <li>Message consume hote hi delete → replay impossible.</li>
+          <li>Do alag teams ko same message chahiye? Broker-side fan-out queues banao.</li>
+          <li>Throughput broker ke bookkeeping se bandha hua hai.</li>
+        </ul>
+        <div class="hin"><b>Simple mein</b>Queue ek "postbox" hai — letter uthaya to khatam. Aap kal wapas aakar wahi letter dobara nahi padh sakte.</div>
+      </div>
+      <div class="pane sol">
+        <div class="paneTag"><i></i>Solution</div>
+        <h3>Log + client-side cursor</h3>
+        <p>Topic ko N partitions me toda jaata hai. Har partition ek ordered, immutable, append-only sequence hai. Har record ka ek <code>offset</code> hota hai — bas ek badhta hua number.</p>
+        <ul>
+          <li>Broker per-message state nahi rakhta — sirf file me append karta hai (sequential write, bahut fast).</li>
+          <li>"Kahan tak padha" ye consumer ka offset hai, broker ka nahi.</li>
+          <li>Read = file me ek position se sequential scan. Delete = time/size based, consumption based nahi.</li>
+          <li>Partitions = parallelism ki unit. 12 partitions → max 12 consumers ek group me.</li>
+        </ul>
+        <div class="hin"><b>Simple mein</b>Kafka ek notebook hai jisme sirf aage likha jaata hai. Har reader apna bookmark khud rakhta hai. Isliye 10 log same page alag-alag time pe padh sakte hain.</div>
+      </div>
+    </div>
+
+    <div class="tradeoff">
+      <div class="tcell"><h4>Apply when</h4><p>Partition count = expected peak throughput &divide; per-partition throughput, phir 2&ndash;3x headroom. Ordering key-wise chahiye to key hashing pe bharosa karo, global order pe nahi.</p></div>
+      <div class="tcell ignore"><h4>Ignore when</h4><p>"Safety ke liye 1000 partitions bana dete hain" — mat karo. Har partition = open file handles, memory, replication traffic, aur rebalance time. Partitions badhana easy hai, ghatana nahi.</p></div>
+      <div class="tcell cost"><h4>Cost you pay</h4><p>Global ordering chali gayi. Sirf ek partition ke andar order guarantee hai. Agar poore topic ka strict order chahiye to 1 partition = 1 consumer = koi parallelism nahi.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 02 ============ -->
+<section class="rec-section" id="r02">
+  <div class="wrap">
+    <div class="rechead"><span class="offset">02</span><h2>Key hashing — kaunsa record kis partition me jaayega</h2></div>
+    <p class="deck">Ordering ka poora control isi ek line pe hai: <code>partition = murmur2(key) % numPartitions</code>. Interview me yahi sabse zyada pucha jaata hai.</p>
+
+    <div class="split">
+      <div class="pane prob">
+        <div class="paneTag"><i></i>Problem</div>
+        <h3>Same order ke events alag-alag partitions me chale gaye</h3>
+        <p>Team ne key null chhod di. Kafka ne round-robin (sticky) partitioning kar di.</p>
+        <ul>
+          <li><code>OrderCreated</code> P0 me, <code>OrderCancelled</code> P3 me.</li>
+          <li>Consumer-A ne P3 pehle process kar liya → cancel pehle, create baad me.</li>
+          <li>Result: cancelled order dobara active ho gaya. Classic race condition.</li>
+          <li>Doosri taraf: kisi ne key = <code>country</code> rakhi. India ne 70% traffic diya → ek partition garam, baaki idle. <b>Hot partition.</b></li>
+        </ul>
+        <div class="hin"><b>Simple mein</b>Bina key ke Kafka aapke events ko random lanes me daal dega. Aur galat key rakhoge to sab traffic ek hi lane me ghus jaayega.</div>
+      </div>
+      <div class="pane sol">
+        <div class="paneTag"><i></i>Solution</div>
+        <h3>Key ko entity-id banao, aur cardinality check karo</h3>
+        <p>Kafka same key ko hamesha same partition me bhejta hai (jab tak partition count na badle). Isliye key = wo entity jiske andar order matter karta hai.</p>
+        <ul>
+          <li><code>key = orderId</code> → ek order ke saare events ek hi partition, perfect order.</li>
+          <li>Cardinality high honi chahiye (lakhs of orders), taaki distribution even rahe.</li>
+          <li>Hot key hai (ek celebrity seller)? Composite key: <code>sellerId + "#" + (hash(userId) % 8)</code> — 8 sub-lanes.</li>
+          <li>Partition count badalne se mapping toot jaati hai — isliye topic ka partition count din ek se soch ke rakho.</li>
+        </ul>
+        <div class="hin"><b>Simple mein</b>Key wo cheez hai jiske andar sequence bigadna nahi chahiye. Order ke events? orderId. User ka wallet? userId. Aur dhyaan rakho ki wo key thodi si nahi, lakhon values leti ho.</div>
+      </div>
+    </div>
+
+    <div class="tradeoff">
+      <div class="tcell"><h4>Apply when</h4><p>Per-entity ordering business ke liye zaroori ho — payments, wallet ledger, order lifecycle, CDC per row.</p></div>
+      <div class="tcell ignore"><h4>Ignore when</h4><p>Pure telemetry/logs/metrics — wahan ordering matter nahi karta. Key null rakho, sticky partitioner batching better karega aur throughput zyada milega.</p></div>
+      <div class="tcell cost"><h4>Cost you pay</h4><p>Keyed traffic skew la sakta hai. Ek slow key poore partition ko block karti hai (head-of-line blocking) — us partition ka consumer atka to peeche sab atke.</p></div>
+    </div>
+
+    <div class="note"><b>Gotcha</b>Java client <code>murmur2</code> hash use karta hai, Python/Go clients thodi alag default de sakte hain. Multi-language producers ek hi topic me likh rahe hain to explicit partitioner likho, warna same key alag partition me jaa sakti hai.</div>
+  </div>
+</section>
+
+<!-- ============ 03 ============ -->
+<section class="rec-section" id="r03">
+  <div class="wrap">
+    <div class="rechead"><span class="offset">03</span><h2>Producer internals — "save karo, ruko mat"</h2></div>
+    <p class="deck">Producer ka <code>send()</code> network call nahi hai. Wo ek in-memory buffer me record daalta hai aur <code>Future</code> return kar deta hai. Poori throughput story yahi buffer hai.</p>
+
+    <div class="split">
+      <div class="pane prob">
+        <div class="paneTag"><i></i>Problem</div>
+        <h3>Har event pe <code>send().get()</code> — blocking write</h3>
+        <p>Developer ne "safe" rehne ke liye har send ke baad <code>.get()</code> laga diya.</p>
+        <ul>
+          <li>Har message = ek alag network round trip. 1 record per request.</li>
+          <li>Throughput ~2k msg/s pe atak gaya, jabki hardware 200k+ handle kar sakta tha.</li>
+          <li>Checkout API ki p99 latency broker ke p99 se bandh gayi.</li>
+          <li>Broker slow hua to poora request thread pool bhar gaya → app down.</li>
+        </ul>
+        <div class="hin"><b>Simple mein</b>Har chitthi ke liye alag courier bhejna. Courier late hua to aap bhi khade rahoge. Yahi <code>.get()</code> karta hai.</div>
+      </div>
+      <div class="pane sol">
+        <div class="paneTag"><i></i>Solution</div>
+        <h3>Async send + callback, batching broker ke bahar hoti hai</h3>
+        <p>Internally: <code>Serializer &rarr; Partitioner &rarr; RecordAccumulator (per-partition batches) &rarr; Sender thread &rarr; broker</code>.</p>
+        <ul>
+          <li><code>batch.size</code> (default 16KB): batch bhar gaya to turant jaayega.</li>
+          <li><code>linger.ms</code> (default 0): thoda ruk kar aur records jodna. 5&ndash;20ms rakho — throughput 5&ndash;10x jump karta hai.</li>
+          <li><code>compression.type=lz4/zstd</code>: batch pe compress hota hai, isliye badi batch = better ratio.</li>
+          <li><code>buffer.memory</code> (32MB) bhar gaya to <code>send()</code> khud block karega — yahi natural backpressure hai.</li>
+          <li>Result callback me handle karo, main thread free rakho.</li>
+        </ul>
+        <div class="hin"><b>Simple mein</b>Sab chitthiyan ek bori me daalo, bori bhar jaaye ya 10ms ho jaaye — tab ek hi courier bhej do. Aap tab tak agla kaam karte raho, delivery ka SMS (callback) baad me aa jaayega.</div>
+      </div>
+    </div>
+
+    <div class="tradeoff">
+      <div class="tcell"><h4>Apply when</h4><p>High-throughput pipelines: clickstream, logs, IoT, CDC. <code>linger.ms=10&ndash;50</code>, <code>batch.size=64KB&ndash;256KB</code>, <code>compression=zstd</code>.</p></div>
+      <div class="tcell ignore"><h4>Ignore when</h4><p>Low-volume, latency-critical control events (fraud block signal). Wahan <code>linger.ms=0</code> rakho — batching ka faayda hi nahi milega, sirf delay lagega.</p></div>
+      <div class="tcell cost"><h4>Cost you pay</h4><p>Async ka matlab hai in-flight data. Process crash hua to buffer ke records gaye. Isliye critical events pe <code>acks=all</code> + callback me DB outbox fallback, aur shutdown pe <code>flush()</code>.</p></div>
+    </div>
+
+    <div class="note"><b>acks ka matlab</b><code>acks=0</code> fire-and-forget (metrics). <code>acks=1</code> sirf leader ne likha (leader crash = data loss window). <code>acks=all</code> + <code>min.insync.replicas=2</code> = production default for anything you cannot lose.</div>
+  </div>
+</section>
+<!-- ============ 04 ============ -->
+<section class="rec-section" id="r04">
+  <div class="wrap">
+    <div class="rechead"><span class="offset">04</span><h2>Idempotent producer &amp; exactly-once — duplicate kaise rukta hai</h2></div>
+    <p class="deck">Retry hamesha duplicate banata hai. Kafka isko broker-side sequence numbers se solve karta hai, na ki "trust the client" se.</p>
+
+    <div class="split">
+      <div class="pane prob">
+        <div class="paneTag"><i></i>Problem</div>
+        <h3>Ack raaste me kho gaya, producer ne retry kiya</h3>
+        <p>Broker ne record likh liya, phir ack bhejte waqt network blip ho gaya. Producer ko lagta hai fail hua, wo dobara bhejta hai.</p>
+        <ul>
+          <li>Same payment event 2 baar log me → user ka 2 baar paisa kata.</li>
+          <li><code>retries&gt;0</code> + <code>max.in.flight=5</code> ke saath order bhi bigad sakta hai: batch-1 fail, batch-2 pass, batch-1 retry — sequence ulta.</li>
+          <li>App-level dedupe har consumer me alag se likhna pada.</li>
+        </ul>
+        <div class="hin"><b>Simple mein</b>Aapne paisa bhej diya, receipt nahi mili, aapne dobara bhej diya. Bank ke paas do entries hain. Kafka bina idempotency ke exactly aisa hi karta hai.</div>
+      </div>
+      <div class="pane sol">
+        <div class="paneTag"><i></i>Solution</div>
+        <h3>PID + per-partition sequence number</h3>
+        <p><code>enable.idempotence=true</code> (Kafka 3.x me default) karte hi:</p>
+        <ul>
+          <li>Producer ko broker se ek <b>Producer ID (PID)</b> milta hai.</li>
+          <li>Har (PID, partition) ke liye ek monotonic <b>sequence number</b> chalta hai.</li>
+          <li>Broker last 5 sequence yaad rakhta hai. Duplicate seq aaya → chup-chaap drop, ack wapas. <b>Dedupe broker pe hota hai.</b></li>
+          <li>Out-of-order seq aaya → error, isliye retries ke baad bhi order safe hai.</li>
+          <li>Isse <code>acks=all</code>, <code>retries=MAX</code>, <code>max.in.flight&le;5</code> automatically set hote hain.</li>
+        </ul>
+        <div class="hin"><b>Simple mein</b>Har producer ko ek ID milti hai aur har message pe ek ginti. Broker bolta hai "yeh ginti to already aa chuki hai, dobara nahi likhunga" — aur phir bhi OK bol deta hai taaki producer khush rahe.</div>
+      </div>
+    </div>
+
+    <div class="tradeoff">
+      <div class="tcell"><h4>Apply when</h4><p>Hamesha on rakho — cost near-zero hai. Poora exactly-once (transactions) tab jab Kafka-to-Kafka processing ho: read &rarr; transform &rarr; write, ek atomic unit me.</p></div>
+      <div class="tcell ignore"><h4>Ignore when</h4><p>Transactions ko external side-effects ke liye mat use karo. Kafka transaction aapke HTTP call ya third-party payment API ko rollback nahi kar sakta. Wahan consumer-side idempotency hi asli jawab hai.</p></div>
+      <div class="tcell cost"><h4>Cost you pay</h4><p>Transactions ~3&ndash;20% throughput leti hain, consumer ko <code>read_committed</code> chahiye, aur LSO (last stable offset) ki wajah se latency badhti hai. Idempotency alone almost free hai.</p></div>
+    </div>
+
+    <div class="note"><b>Sabse important nuance</b>Idempotent producer sirf <b>ek producer session ke retries</b> ka duplicate rokta hai. Agar aapki app crash hokar restart hui aur wahi event dobara bheja, to woh naya PID hai — Kafka ko pata nahi chalega. Isliye end-to-end safety ke liye consumer side pe business-key dedupe (<code>eventId</code> unique index) rakhna hi padta hai.</div>
+  </div>
+</section>
+
+<!-- ============ 05 ============ -->
+<section class="rec-section" id="r05">
+  <div class="wrap">
+    <div class="rechead"><span class="offset">05</span><h2>Replication, ISR aur leader election</h2></div>
+    <p class="deck">Durability ka poora khel do numbers pe hai: <code>replication.factor</code> aur <code>min.insync.replicas</code>. Interview me inka combination pucha jaata hai, individual value nahi.</p>
+
+    <div class="split">
+      <div class="pane prob">
+        <div class="paneTag"><i></i>Problem</div>
+        <h3>RF=3 tha, phir bhi data chala gaya</h3>
+        <p>Team ne <code>replication.factor=3</code> set kiya aur maan liya ki safe hain.</p>
+        <ul>
+          <li><code>acks=1</code> tha → leader ne likha, followers ne copy nahi kiya, leader mar gaya. Data gone.</li>
+          <li><code>min.insync.replicas=1</code> tha → 2 followers lag gaye, ISR shrink hokar 1 ho gaya, phir bhi writes accept hote rahe. Single point of failure.</li>
+          <li><code>unclean.leader.election.enable=true</code> tha → out-of-sync follower leader ban gaya, uske paas jo records nahi the wo permanently gaye.</li>
+        </ul>
+        <div class="hin"><b>Simple mein</b>Teen copies hone ka matlab yeh nahi ki teeno me likha gaya. Kitni copies me likhna <i>zaroori</i> hai — wo alag setting hai.</div>
+      </div>
+      <div class="pane sol">
+        <div class="paneTag"><i></i>Solution</div>
+        <h3>RF=3 + min.insync.replicas=2 + acks=all + unclean=false</h3>
+        <p>Har partition ka ek <b>leader</b> hota hai; followers usse fetch karte hain (pull model). Jo followers leader ke kaafi paas hain wo <b>ISR</b> (In-Sync Replicas) me hain.</p>
+        <ul>
+          <li>Write tabhi commit hoti hai jab saare ISR members ne likha ho.</li>
+          <li>ISR &lt; <code>min.insync.replicas</code> → producer ko <code>NotEnoughReplicas</code> error. <b>Write fail hoti hai, data loss nahi hota.</b></li>
+          <li>Consumer sirf <b>high watermark</b> tak padh sakta hai — yani jo replicate ho chuka. Isliye uncommitted data kabhi dikhta nahi.</li>
+          <li>Leader mara → controller ISR me se hi naya leader chunta hai, koi data peeche nahi chhutta.</li>
+          <li>RF=3 me 1 broker ka loss tolerate hota hai bina availability khoye.</li>
+        </ul>
+        <div class="hin"><b>Simple mein</b>RF = kitni copies rakhni hain. min.insync = kitni copies me likhna zaroori hai. acks=all = "jab tak zaroori copies na ho jaayein, mujhe OK mat bolna." Teeno chahiye, ek akela kaafi nahi.</div>
+      </div>
+    </div>
+
+    <div class="tradeoff">
+      <div class="tcell"><h4>Apply when</h4><p>Financial / order / audit data: RF=3, min.insync=2, acks=all, unclean=false. Multi-AZ me rack awareness on karo taaki 3 copies 3 AZ me jaayein.</p></div>
+      <div class="tcell ignore"><h4>Ignore when</h4><p>Ephemeral metrics ya reprocessable logs: RF=2, acks=1 chalega. 3x storage aur 2x cross-AZ network cost bachega — aur us data ko dobara generate kiya jaa sakta hai.</p></div>
+      <div class="tcell cost"><h4>Cost you pay</h4><p>acks=all = higher p99 latency (slowest ISR member ka intezaar). min.insync=2 ka matlab: 2 brokers down = writes band. Aapne availability ko durability ke liye trade kiya hai — yeh conscious choice honi chahiye.</p></div>
+    </div>
+
+    <div class="note"><b>KRaft note</b>Naye clusters me ZooKeeper nahi hai. Metadata khud ek Kafka log (<code>__cluster_metadata</code>) me rehta hai aur controller quorum Raft se chalta hai. Faayda: faster leader election, 1M+ partitions scale, ek hi process type manage karna.</div>
+  </div>
+</section>
+
+<!-- ============ 06 ============ -->
+<section class="rec-section" id="r06">
+  <div class="wrap">
+    <div class="rechead"><span class="offset">06</span><h2>Disk pe kya hota hai — segments, page cache, retention, compaction</h2></div>
+    <p class="deck">"Kafka fast hai kyunki memory me hai" — galat. Kafka disk pe likhta hai, aur phir bhi fast hai. Wajah: sequential I/O, OS page cache aur zero-copy.</p>
+
+    <div class="split">
+      <div class="pane prob">
+        <div class="paneTag"><i></i>Problem</div>
+        <h3>Ek partition = ek giant file? Aur wo bharti hi jaayegi?</h3>
+        <ul>
+          <li>Purana data delete karne ke liye poori file rewrite karni padegi.</li>
+          <li>Offset 5,00,000 dhoondhne ke liye poori file scan karni padegi.</li>
+          <li>Broker JVM heap me messages cache kare to GC pauses aur OOM.</li>
+          <li>Disk se read karke user-space me laao, phir socket me copy karo — 4 copies + 4 context switches per message.</li>
+          <li>Compacted state (jaise "har user ka latest profile") rakhna ho to log infinite badhta rahega.</li>
+        </ul>
+        <div class="hin"><b>Simple mein</b>Ek hi rejister me poori zindagi likhoge to na purana kaat paoge, na kuch dhoondh paoge.</div>
+      </div>
+      <div class="pane sol">
+        <div class="paneTag"><i></i>Solution</div>
+        <h3>Log segments + sparse index + page cache + zero-copy</h3>
+        <ul>
+          <li>Partition = kai <b>segments</b>. Ek active segment jisme append hota hai, baaki sealed. Files: <code>.log</code>, <code>.index</code> (offset&rarr;byte position), <code>.timeindex</code>.</li>
+          <li>Retention = poora sealed segment delete kar do (<code>retention.ms</code>, <code>retention.bytes</code>). Rewrite nahi, sirf <code>unlink</code>.</li>
+          <li>Index <b>sparse</b> hai (har 4KB pe entry) → memory-mapped, chhota, fast binary search.</li>
+          <li>Cache OS page cache me hai, JVM heap me nahi → GC pressure zero, aur broker restart pe cache warm rehta hai.</li>
+          <li><b>Zero-copy</b> (<code>sendfile</code>): disk page cache se seedha NIC pe. User-space copy hi nahi.</li>
+          <li><b>Log compaction</b> (<code>cleanup.policy=compact</code>): har key ka sirf latest value rakho. Isse topic ek "table" ban jaata hai — perfect for CDC, config, profiles, Kafka Streams state.</li>
+        </ul>
+        <div class="hin"><b>Simple mein</b>Rejister ko chhoti-chhoti copies me toda gaya. Purani copy poori ki poori phenk do. Har copy ke shuru me ek chhota index. Aur OS jo pages already RAM me rakhe hue hai, unhe seedha network pe bhej do — beech me kuch copy mat karo.</div>
+      </div>
+    </div>
+
+    <div class="tradeoff">
+      <div class="tcell"><h4>Apply when</h4><p><b>delete</b> policy: events/streams (7 din default). <b>compact</b> policy: latest-state topics — user profile, inventory count, Streams changelog, Debezium CDC snapshot.</p></div>
+      <div class="tcell ignore"><h4>Ignore when</h4><p>Compaction ko "delete ka replacement" mat samjho. Compaction sirf duplicate keys hataata hai, size guarantee nahi deta. Agar har key unique hai to compaction kuch nahi hataayega.</p></div>
+      <div class="tcell cost"><h4>Cost you pay</h4><p>Compaction background CPU + disk I/O leti hai, aur tombstone (null value) delete ke baad <code>delete.retention.ms</code> tak dikhta hai. Chhote segments = zyada open file handles aur zyada frequent cleaning.</p></div>
+    </div>
+
+    <div class="note"><b>Zero-copy toot jaata hai jab</b>broker ko data ko chhoona pade — SSL/TLS encryption on ho, ya broker-side format conversion ho (purana client, naya message format). Isliye TLS on karne ke baad throughput drop dikhta hai. Ye interview me strong answer hai.</div>
+  </div>
+</section>
+
+<!-- ============ 07 ============ -->
+<section class="rec-section" id="r07">
+  <div class="wrap">
+    <div class="rechead"><span class="offset">07</span><h2>Consumer group, rebalance aur heartbeat — pods kaise coordinate karte hain</h2></div>
+    <p class="deck">Kubernetes pe 6 pods chal rahe hain, topic me 12 partitions hain. Kaun kya padhega? Kaun decide karta hai? Aur ek pod mar jaaye to kya hota hai?</p>
+
+    <div class="split">
+      <div class="pane prob">
+        <div class="paneTag"><i></i>Problem</div>
+        <h3>Rebalance storm — consumers baar-baar restart ho rahe hain</h3>
+        <p>Pods deploy hue, aur lag 4 million pe chala gaya. Logs me bas <code>Attempt to heartbeat failed</code> aur "revoking partitions".</p>
+        <ul>
+          <li><b>Stop-the-world:</b> purane eager protocol me rebalance pe <i>saare</i> consumers apne partitions chhod dete hain. Poora group ruk jaata hai.</li>
+          <li><code>max.poll.interval.ms</code> (default 5 min) cross ho gaya kyunki ek record process karne me 6 min lage → group ne consumer ko dead maan liya → rebalance → wahi record dobara → infinite loop.</li>
+          <li>Rolling deploy me har pod restart = ek rebalance. 6 pods = 6 rebalances.</li>
+          <li>12 partitions, 20 pods → 8 pods bilkul idle baithe hain, paisa jal raha hai.</li>
+        </ul>
+        <div class="hin"><b>Simple mein</b>Group me koi bhi aaye ya jaaye, sab kaam rok kar dobara baat-baat karte hain "kaun kya karega". Agar ek pod slow hai to group use mara hua samajh leta hai — aur yahi cycle chalti rehti hai.</div>
+      </div>
+      <div class="pane sol">
+        <div class="paneTag"><i></i>Solution</div>
+        <h3>Cooperative sticky + static membership + sahi timeouts</h3>
+        <p>Group coordinator (ek broker) group manage karta hai. Ek member <b>group leader</b> banta hai jo assignment compute karta hai.</p>
+        <ul>
+          <li><b>Do alag threads:</b> heartbeat thread background me chalta hai (<code>heartbeat.interval.ms=3s</code>, <code>session.timeout.ms=45s</code>) — ye batata hai "main zinda hu". <code>max.poll.interval.ms</code> batata hai "main progress kar raha hu".</li>
+          <li><code>partition.assignment.strategy=CooperativeStickyAssignor</code> → sirf zaroori partitions move hote hain, baaki consumers chalte rehte hain. <b>No stop-the-world.</b></li>
+          <li><code>group.instance.id</code> (static membership) → pod restart pe uska <code>session.timeout</code> tak wait hota hai, rebalance hota hi nahi. Rolling deploys smooth.</li>
+          <li>Slow processing hai? <code>max.poll.records</code> ghatao (500 &rarr; 50) ya heavy kaam ko worker pool pe daalo aur <code>pause()/resume()</code> use karo.</li>
+          <li>Consumers &le; partitions rakho. Extra consumers standby hain, throughput nahi badhate.</li>
+        </ul>
+        <div class="hin"><b>Simple mein</b>Heartbeat = "main saans le raha hu". max.poll.interval = "main kaam bhi kar raha hu". Dono alag hain. Aur cooperative assignor ka matlab: jab naya banda team me aaye, sab log apna kaam chhod kar meeting me nahi jaate — sirf utna kaam transfer hota hai jitna zaroori hai.</div>
+      </div>
+    </div>
+
+    <div class="tradeoff">
+      <div class="tcell"><h4>Apply when</h4><p>Har production consumer pe: cooperative sticky + static membership. Partitions = peak parallelism ka 2&ndash;3x taaki baad me pods scale kar sako bina repartition kiye.</p></div>
+      <div class="tcell ignore"><h4>Ignore when</h4><p><code>session.timeout.ms</code> ko bahut bada mat karo (jaise 5 min) sirf rebalance rokne ke liye — tab genuinely-dead pod ko detect hone me 5 min lagenge aur uske partitions tab tak ruke rahenge.</p></div>
+      <div class="tcell cost"><h4>Cost you pay</h4><p>Static membership me crashed pod ka partition <code>session.timeout</code> tak blocked rehta hai. Cooperative rebalance 2 rounds leta hai (thoda slow, par non-blocking). Dono me availability vs stability ka trade hai.</p></div>
+    </div>
+
+    <div class="note"><b>Interview trap</b>"Consumers badha do, throughput badh jaayega" — sirf tab tak jab tak consumers &le; partitions. Uske baad extra consumers idle rahenge. Throughput badhane ke liye partitions badhao (ya processing per record fast karo).</div>
+  </div>
+</section>
+<!-- ============ 08 ============ -->
+<section class="rec-section" id="r08">
+  <div class="wrap">
+    <div class="rechead"><span class="offset">08</span><h2>Offset commit — "updating" ka asli matlab</h2></div>
+    <p class="deck">Kafka me kuch bhi update nahi hota. Log immutable hai. Jo "update" hota hai wo sirf ek pointer hai: consumer ka committed offset, jo <code>__consumer_offsets</code> naam ke compacted topic me likha jaata hai.</p>
+
+    <div class="split">
+      <div class="pane prob">
+        <div class="paneTag"><i></i>Problem</div>
+        <h3>Auto-commit on tha, aur messages gayab ho gaye</h3>
+        <p><code>enable.auto.commit=true</code>, <code>auto.commit.interval.ms=5000</code>. Poll ne 500 records diye, auto-commit ne 5 second baad offset commit kar diya, phir record #200 pe pod crash ho gaya.</p>
+        <ul>
+          <li>Restart pe consumer offset 500 se shuru hua → records 200&ndash;500 kabhi process hi nahi hue. <b>Silent data loss (at-most-once).</b></li>
+          <li>Doosri team ne ulta kiya: process karke commit kiya, par commit se pehle crash → sab records dobara process hue → duplicate emails gaye.</li>
+          <li>Kisi ne <code>commitSync()</code> har record pe laga diya → throughput 50 msg/s.</li>
+        </ul>
+        <div class="hin"><b>Simple mein</b>Bookmark ko kaam khatam hone se pehle aage badha diya. Crash hone pe wo page dobara khula hi nahi.</div>
+      </div>
+      <div class="pane sol">
+        <div class="paneTag"><i></i>Solution</div>
+        <h3>Manual commit <i>after</i> processing + consumer-side dedupe</h3>
+        <ul>
+          <li><code>enable.auto.commit=false</code>. Pehle process, phir commit. Ye <b>at-least-once</b> deta hai.</li>
+          <li>Batch ke end pe <code>commitSync()</code>, ya throughput ke liye <code>commitAsync()</code> + shutdown pe ek final <code>commitSync()</code>.</li>
+          <li>Duplicates ab guaranteed hain — isliye processing <b>idempotent</b> banao: <code>INSERT ... ON CONFLICT DO NOTHING</code> on <code>event_id</code>, ya <code>UPDATE ... WHERE version &lt; :incoming</code>.</li>
+          <li>Committed offset = <b>agla</b> offset jo padhna hai (last processed + 1). Ye interview me pucha jaata hai.</li>
+          <li><code>__consumer_offsets</code> compacted hai — har (group, topic, partition) ka sirf latest offset rehta hai. Yahi "update" ka mechanism hai.</li>
+        </ul>
+        <div class="hin"><b>Simple mein</b>Bookmark tabhi badhao jab page sach me padh liya ho. Aur maan ke chalo ki kabhi-kabhi ek page dobara padhna padega — isliye dobara padhne se kuch bigadna nahi chahiye.</div>
+      </div>
+    </div>
+
+    <div class="tradeoff">
+      <div class="tcell"><h4>Apply when</h4><p>Default choice: <b>at-least-once + idempotent consumer</b>. Ye 95% real systems ka answer hai, aur exactly-once se simple aur sasta hai.</p></div>
+      <div class="tcell ignore"><h4>Ignore when</h4><p>At-most-once (auto-commit) sirf tab jab data loss acceptable ho — debug logs, sampled metrics. Kabhi bhi payments/orders pe nahi.</p></div>
+      <div class="tcell cost"><h4>Cost you pay</h4><p>Exactly-once (transactional read-process-write) throughput kam karta hai aur sirf Kafka-to-Kafka ke andar kaam karta hai. External DB/API ke saath aapko phir bhi dedupe key chahiye.</p></div>
+    </div>
+
+    <div class="note"><b>Offset reset</b>Naye group ya expired offset pe <code>auto.offset.reset</code> decide karta hai: <code>latest</code> (sirf naye events — dashboards) ya <code>earliest</code> (poora history — backfill, replay). Production incident me galat value se ya to poora history dobara process ho jaata hai ya beech ka data skip.</div>
+  </div>
+</section>
+
+<!-- ============ 09 ============ -->
+<section class="rec-section" id="r09">
+  <div class="wrap">
+    <div class="rechead"><span class="offset">09</span><h2>Consumer lag, poison pills, retries aur DLQ</h2></div>
+    <p class="deck">Production me Kafka ka 80% operational pain sirf do cheezon se aata hai: lag badh raha hai, aur ek record process nahi ho raha.</p>
+
+    <div class="split">
+      <div class="pane prob">
+        <div class="paneTag"><i></i>Problem</div>
+        <h3>Ek corrupt record ne poora partition rok diya</h3>
+        <p>Ek message ka JSON malformed tha. Consumer ne exception phenka, offset commit nahi hua, wahi record dobara aaya. Infinite retry loop.</p>
+        <ul>
+          <li>Us partition ka lag 8 million ho gaya, baaki partitions theek chal rahe the.</li>
+          <li>Team ne "fix" kiya: catch karke exception nigal liya → ab genuine failures bhi silently gum ho rahe hain.</li>
+          <li>Blocking retry (<code>Thread.sleep</code> loop) lagaya → <code>max.poll.interval.ms</code> cross → rebalance storm.</li>
+          <li>Downstream DB down tha, aur consumer ne 2 lakh failed records DLQ me daal diye — DLQ hi asli backlog ban gaya.</li>
+        </ul>
+        <div class="hin"><b>Simple mein</b>Ek kharab page pe atak gaye, aur poori kitaab wahi ruk gayi. Fir usko chhod diya to pata hi nahi chala kya-kya chhoot gaya.</div>
+      </div>
+      <div class="pane sol">
+        <div class="paneTag"><i></i>Solution</div>
+        <h3>Error ko classify karo: retryable vs non-retryable</h3>
+        <ul>
+          <li><b>Non-retryable</b> (bad schema, validation fail, unknown enum) → seedha DLQ, offset commit, aage badho. Retry se kabhi theek nahi hoga.</li>
+          <li><b>Retryable</b> (DB timeout, 503, lock conflict) → exponential backoff ke saath retry. Blocking retry sirf chhote intervals ke liye.</li>
+          <li>Lambe wait ke liye <b>non-blocking retry topics</b>: <code>orders.retry.5s &rarr; orders.retry.1m &rarr; orders.retry.10m &rarr; orders.DLT</code>. Main partition kabhi block nahi hota.</li>
+          <li>DLQ record me original topic, partition, offset, exception aur stack trace headers me daalo — warna DLQ ek black hole hai.</li>
+          <li>Downstream down hai to DLQ mat bharo — <b>pause the consumer</b> (circuit breaker) aur recover hone pe resume karo.</li>
+          <li>Monitor: <code>records-lag-max</code> per partition (sirf total nahi), rebalance rate, DLQ ingress rate.</li>
+        </ul>
+        <div class="hin"><b>Simple mein</b>Do tarah ki galtiyan hoti hain: "yeh kabhi theek nahi hoga" (side me rakho) aur "abhi nahi ho raha, thodi der me hoga" (dobara try karo). Dono ka ilaaj alag hai. Aur agar poora downstream hi down hai, to consumer ko rok do — DLQ me mat pheko.</div>
+      </div>
+    </div>
+
+    <div class="tradeoff">
+      <div class="tcell"><h4>Apply when</h4><p>Retry topics tab jab per-record failure independent ho (ek order fail, baaki theek). DLQ + alert + replay tooling day one se banao.</p></div>
+      <div class="tcell ignore"><h4>Ignore when</h4><p>Strict per-key ordering chahiye to retry topic <b>mat</b> use karo — record ko side me daalne se us key ka order toot jaayega. Wahan partition block karna hi sahi hai.</p></div>
+      <div class="tcell cost"><h4>Cost you pay</h4><p>Retry topics = zyada topics, zyada consumers, ordering loss, aur DLQ ka apna lifecycle (kaun replay karega, kab tak rakhenge). Operational surface badhta hai.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 10 ============ -->
+<section class="rec-section" id="r10">
+  <div class="wrap">
+    <div class="rechead"><span class="offset">10</span><h2>HLD sizing — interview me numbers bolna aana chahiye</h2></div>
+    <p class="deck">"Design a notification system with Kafka" pucha jaaye to interviewer numbers sunna chahta hai. Yahan ek reusable calculation hai.</p>
+
+    <div class="split">
+      <div class="pane prob">
+        <div class="paneTag"><i></i>Problem</div>
+        <h3>"Kitne partitions aur kitne brokers?" — "umm, kaafi saare"</h3>
+        <ul>
+          <li>Bina number ke design ek diagram hai, architecture nahi.</li>
+          <li>Team ne 6 partitions banaye, 6 mahine baad traffic 5x hua — repartition karna pada, keys ka mapping toot gaya.</li>
+          <li>Retention 30 din rakh diya bina disk calculate kiye → brokers full, cluster read-only ho gaya.</li>
+        </ul>
+        <div class="hin"><b>Simple mein</b>Pehle likho: kitne events per second, har event kitna bada, kitne din rakhna hai. Baaki sab isi se nikal aata hai.</div>
+      </div>
+      <div class="pane sol">
+        <div class="paneTag"><i></i>Solution</div>
+        <h3>Ek back-of-envelope model</h3>
+        <p>Maan lo: <b>50,000 events/sec peak</b>, avg event <b>1 KB</b>, retention <b>7 din</b>, RF <b>3</b>.</p>
+        <ul>
+          <li><b>Ingress:</b> 50k &times; 1KB = 50 MB/s. Din ka ~4.3 TB raw.</li>
+          <li><b>Storage:</b> 4.3 TB &times; 7 din &times; 3 (RF) = ~90 TB. Compression (zstd, ~4x) ke baad ~23 TB. +30% headroom &rarr; ~30 TB.</li>
+          <li><b>Partitions:</b> ek partition realistically 10&ndash;20 MB/s. Consumer side pe agar ek consumer 5k msg/s handle karta hai, to 50k/5k = 10 consumers &rarr; minimum 10 partitions. 2&ndash;3x headroom &rarr; <b>24&ndash;30 partitions</b>.</li>
+          <li><b>Brokers:</b> ek broker comfortably ~10&ndash;15 TB aur ~100&ndash;150 MB/s. 30 TB / 10 TB &asymp; 3, par HA + rolling restart + hot spare ke liye <b>6 brokers, 3 AZ me 2-2</b>.</li>
+          <li><b>Network out:</b> 3 consumer groups &rarr; 50 MB/s &times; 3 = 150 MB/s egress + replication 100 MB/s. NIC 10 Gbps pe aaram se.</li>
+        </ul>
+        <div class="hin"><b>Simple mein</b>Formula: events/sec &times; size = MB/s. MB/s &times; seconds &times; RF = storage. Partitions consumer ki speed se decide hote hain. Brokers disk aur network se.</div>
+      </div>
+    </div>
+
+    <div class="tradeoff">
+      <div class="tcell"><h4>Apply when</h4><p>Har design interview me. Assumption bol kar likho — interviewer number ki accuracy nahi, method dekhta hai.</p></div>
+      <div class="tcell ignore"><h4>Ignore when</h4><p>Over-provisioning: 100 partitions "future ke liye" mat banao. Rebalance time, metadata size aur end-to-end latency sab badh jaate hain.</p></div>
+      <div class="tcell cost"><h4>Cost you pay</h4><p>Zyada retention = zyada disk = zyada paisa. Long-term history chahiye to tiered storage (S3) ya lake me offload karo, brokers pe 7 din hi rakho.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 11 ============ -->
+<section class="rec-section" id="r11">
+  <div class="wrap">
+    <div class="rechead"><span class="offset">11</span><h2>Kafka vs baaki — aur kab Kafka <i>nahi</i> lena chahiye</h2></div>
+    <p class="deck">Sabse strong senior signal yeh hai ki aap Kafka ko "na" bol sako jab wo fit nahi hai.</p>
+
+    <div class="split">
+      <div class="pane prob">
+        <div class="paneTag"><i></i>Problem</div>
+        <h3>Kafka ko hammer bana diya</h3>
+        <ul>
+          <li><b>Per-message TTL / delayed jobs</b> chahiye the ("30 min baad reminder bhejo") — Kafka me per-message delay hai hi nahi.</li>
+          <li><b>Per-message ack aur selective redelivery</b> chahiye tha — Kafka offset-based hai, individual message nack nahi hota.</li>
+          <li><b>Complex routing</b> (topic exchange, header-based) chahiye tha — wo RabbitMQ ka kaam hai.</li>
+          <li><b>Request-response RPC</b> Kafka pe banaya — correlation IDs, timeouts, reply topics... poora RPC framework dobara likhna pad gaya.</li>
+          <li>3 services, 20 msg/sec ke liye 6-broker cluster + on-call rotation.</li>
+        </ul>
+        <div class="hin"><b>Simple mein</b>Kafka log hai, task queue nahi. Agar aapko "yeh kaam is bande ko do, 30 min baad, aur fail ho to doosre ko do" chahiye — wo Kafka ka model hi nahi hai.</div>
+      </div>
+      <div class="pane sol">
+        <div class="paneTag"><i></i>Solution</div>
+        <h3>Sahi tool chuno</h3>
+        <ul>
+          <li><b>Kafka:</b> high throughput event streaming, replay, multiple independent consumers, stream processing, CDC, event sourcing.</li>
+          <li><b>RabbitMQ:</b> per-message ack/nack, priority, TTL, dead-letter exchange, complex routing, task queues, lower volume.</li>
+          <li><b>SQS/SNS:</b> zero ops, simple decoupling, AWS-native. SQS FIFO chhoti scale pe ordering deta hai.</li>
+          <li><b>Pulsar:</b> Kafka jaisa log + queue semantics + multi-tenancy + tiered storage built-in.</li>
+          <li><b>Redis Streams:</b> low latency, chhota footprint, durability requirements halke ho tab.</li>
+          <li><b>Temporal / Celery / Sidekiq:</b> scheduled jobs, workflows, retries with state — wo Kafka ka kaam nahi hai.</li>
+        </ul>
+        <div class="hin"><b>Simple mein</b>Data ka "stream" chahiye to Kafka. "Kaam ki list" chahiye to task queue. Dono ko mila mat do.</div>
+      </div>
+    </div>
+
+    <div class="tradeoff">
+      <div class="tcell"><h4>Apply when</h4><p>&gt;10k msg/s, ya replay, ya 3+ independent consumers, ya stream processing/joins/aggregations — Kafka clearly jeetta hai.</p></div>
+      <div class="tcell ignore"><h4>Ignore when</h4><p>&lt;1k msg/s, ek consumer, no replay, chhoti team, no platform team. Managed SQS/RabbitMQ me jaao. Kafka ka asli cost licensing nahi, <b>operations</b> hai.</p></div>
+      <div class="tcell cost"><h4>Cost you pay</h4><p>Kafka ke saath aata hai: schema registry, monitoring stack, partition planning, upgrade cycles, aur 3am pe ISR shrink debug karna. MSK/Confluent isko kam karta hai, khatam nahi.</p></div>
+    </div>
+  </div>
+</section>
+<!-- ============ LLD ============ -->
+<section class="rec-section" id="lld">
+  <div class="wrap">
+    <div class="rechead"><span class="offset">LLD</span><h2>Code — Java + Spring Boot, line by line</h2></div>
+    <p class="deck">Har class ka ek kaam hai, aur har method ka naam bata deta hai wo kya karta hai. Highlighted lines wahi hain jo interview me discuss hoti hain — unka explanation neeche table me hai.</p>
+
+    <!-- 1. Producer config -->
+    <div class="codeblock">
+      <div class="codehead"><b>KafkaProducerConfiguration.java</b><span>durability + batching knobs</span></div>
+      <pre><code><span class="ln" data-n="1"><span class="nm">@Configuration</span></span><span class="ln" data-n="2"><span class="kw">public class</span> <span class="ty">KafkaProducerConfiguration</span> {</span><span class="ln" data-n="3"></span><span class="ln" data-n="4">  <span class="nm">@Bean</span></span><span class="ln" data-n="5">  <span class="kw">public</span> <span class="ty">ProducerFactory</span>&lt;<span class="ty">String</span>, <span class="ty">OrderEvent</span>&gt; <span class="fn">durableOrderProducerFactory</span>(</span><span class="ln" data-n="6">      <span class="nm">@Value</span>(<span class="st">"${kafka.bootstrap-servers}"</span>) <span class="ty">String</span> bootstrapServers) {</span><span class="ln" data-n="7"></span><span class="ln" data-n="8">    <span class="ty">Map</span>&lt;<span class="ty">String</span>, <span class="ty">Object</span>&gt; config = <span class="kw">new</span> <span class="ty">HashMap</span>&lt;&gt;();</span><span class="ln" data-n="9">    config.<span class="fn">put</span>(BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);</span><span class="ln" data-n="10">    config.<span class="fn">put</span>(KEY_SERIALIZER_CLASS_CONFIG,   <span class="ty">StringSerializer</span>.<span class="kw">class</span>);</span><span class="ln" data-n="11">    config.<span class="fn">put</span>(VALUE_SERIALIZER_CLASS_CONFIG, <span class="ty">JsonSerializer</span>.<span class="kw">class</span>);</span><span class="ln" data-n="12"></span><span class="ln" data-n="13">    <span class="cm">// ---- durability ----</span></span><span class="ln hl" data-n="14">    config.<span class="fn">put</span>(ACKS_CONFIG, <span class="st">"all"</span>);</span><span class="ln hl" data-n="15">    config.<span class="fn">put</span>(ENABLE_IDEMPOTENCE_CONFIG, <span class="kw">true</span>);</span><span class="ln" data-n="16">    config.<span class="fn">put</span>(RETRIES_CONFIG, <span class="ty">Integer</span>.MAX_VALUE);</span><span class="ln hl" data-n="17">    config.<span class="fn">put</span>(MAX_IN_FLIGHT_REQUESTS_PER_CONNECTION, <span class="ty">5</span>);</span><span class="ln" data-n="18">    config.<span class="fn">put</span>(DELIVERY_TIMEOUT_MS_CONFIG, <span class="ty">120_000</span>);</span><span class="ln" data-n="19"></span><span class="ln" data-n="20">    <span class="cm">// ---- throughput ----</span></span><span class="ln hl" data-n="21">    config.<span class="fn">put</span>(LINGER_MS_CONFIG, <span class="ty">20</span>);</span><span class="ln hl" data-n="22">    config.<span class="fn">put</span>(BATCH_SIZE_CONFIG, <span class="ty">65_536</span>);</span><span class="ln" data-n="23">    config.<span class="fn">put</span>(COMPRESSION_TYPE_CONFIG, <span class="st">"zstd"</span>);</span><span class="ln hl" data-n="24">    config.<span class="fn">put</span>(BUFFER_MEMORY_CONFIG, <span class="ty">67_108_864</span>L);</span><span class="ln" data-n="25"></span><span class="ln" data-n="26">    <span class="kw">return new</span> <span class="ty">DefaultKafkaProducerFactory</span>&lt;&gt;(config);</span><span class="ln" data-n="27">  }</span><span class="ln" data-n="28"></span><span class="ln" data-n="29">  <span class="nm">@Bean</span></span><span class="ln" data-n="30">  <span class="kw">public</span> <span class="ty">KafkaTemplate</span>&lt;<span class="ty">String</span>, <span class="ty">OrderEvent</span>&gt; <span class="fn">orderEventKafkaTemplate</span>(</span><span class="ln" data-n="31">      <span class="ty">ProducerFactory</span>&lt;<span class="ty">String</span>, <span class="ty">OrderEvent</span>&gt; factory) {</span><span class="ln" data-n="32">    <span class="kw">return new</span> <span class="ty">KafkaTemplate</span>&lt;&gt;(factory);</span><span class="ln" data-n="33">  }</span><span class="ln" data-n="34">}</span></code></pre>
+      <div class="annot">
+        <div class="row"><span>L14</span><div><em>acks=all</em> — leader tabhi OK bolega jab saare in-sync replicas ne likh liya. Ye <code>min.insync.replicas=2</code> ke saath milkar durability deta hai. Akela <code>acks=all</code> agar ISR 1 ho to bekaar hai.</div></div>
+        <div class="row"><span>L15</span><div><em>enable.idempotence=true</em> — broker se PID milti hai aur har partition pe sequence number chalta hai. Retry pe duplicate broker khud drop karta hai. Kafka 3.x me default true, par explicitly likhna documentation ka kaam karta hai.</div></div>
+        <div class="row"><span>L17</span><div><em>max.in.flight=5</em> — idempotence ON hone par 5 tak safe hai, kyunki broker sequence gaps reject karta hai. Idempotence OFF hoti to ordering ke liye ye <b>1</b> rakhna padta (aur throughput gir jaata).</div></div>
+        <div class="row"><span>L21</span><div><em>linger.ms=20</em> — sender thread 20ms tak aur records batch me jodne ki koshish karega. Yahi single sabse bada throughput knob hai. Latency-critical topics pe 0 rakho.</div></div>
+        <div class="row"><span>L22</span><div><em>batch.size=64KB</em> — per-partition batch. Bada batch = better compression ratio aur kam requests. Memory <code>partitions &times; batch.size</code> lagti hai, isliye andhadhund mat badhao.</div></div>
+        <div class="row"><span>L24</span><div><em>buffer.memory=64MB</em> — buffer bhar gaya to <code>send()</code> khud block karega (<code>max.block.ms</code> tak). Ye bug nahi, <b>backpressure</b> hai — app ko batata hai ki broker peeche reh gaya hai.</div></div>
+      </div>
+    </div>
+
+    <!-- 2. Publisher -->
+    <div class="codeblock">
+      <div class="codehead"><b>OrderEventPublisher.java</b><span>save karo, ruko mat — async send + callback</span></div>
+      <pre><code><span class="ln" data-n="1"><span class="nm">@Service</span></span><span class="ln" data-n="2"><span class="kw">public class</span> <span class="ty">OrderEventPublisher</span> {</span><span class="ln" data-n="3"></span><span class="ln" data-n="4">  <span class="kw">private static final</span> <span class="ty">String</span> ORDER_TOPIC = <span class="st">"orders.v1"</span>;</span><span class="ln" data-n="5">  <span class="kw">private final</span> <span class="ty">KafkaTemplate</span>&lt;<span class="ty">String</span>, <span class="ty">OrderEvent</span>&gt; kafkaTemplate;</span><span class="ln" data-n="6">  <span class="kw">private final</span> <span class="ty">FailedEventOutboxRepository</span> outboxRepository;</span><span class="ln" data-n="7"></span><span class="ln" data-n="8">  <span class="cm">/** Non-blocking. Returns as soon as the record is in the accumulator. */</span></span><span class="ln hl" data-n="9">  <span class="kw">public void</span> <span class="fn">publishOrderCreatedWithoutBlocking</span>(<span class="ty">OrderEvent</span> event) {</span><span class="ln" data-n="10"></span><span class="ln hl" data-n="11">    <span class="ty">String</span> partitionKey = <span class="fn">resolveOrderingKey</span>(event);</span><span class="ln" data-n="12"></span><span class="ln" data-n="13">    <span class="ty">ProducerRecord</span>&lt;<span class="ty">String</span>, <span class="ty">OrderEvent</span>&gt; record =</span><span class="ln" data-n="14">        <span class="kw">new</span> <span class="ty">ProducerRecord</span>&lt;&gt;(ORDER_TOPIC, partitionKey, event);</span><span class="ln hl" data-n="15">    record.<span class="fn">headers</span>().<span class="fn">add</span>(<span class="st">"event-id"</span>, event.<span class="fn">getEventId</span>().<span class="fn">getBytes</span>(UTF_8));</span><span class="ln" data-n="16">    record.<span class="fn">headers</span>().<span class="fn">add</span>(<span class="st">"schema-version"</span>, <span class="st">"1"</span>.<span class="fn">getBytes</span>(UTF_8));</span><span class="ln" data-n="17"></span><span class="ln hl" data-n="18">    kafkaTemplate.<span class="fn">send</span>(record).<span class="fn">whenComplete</span>((result, failure) -&gt; {</span><span class="ln" data-n="19">      <span class="kw">if</span> (failure != <span class="kw">null</span>) {</span><span class="ln" data-n="20">        <span class="fn">handlePublishFailure</span>(event, failure);</span><span class="ln" data-n="21">      } <span class="kw">else</span> {</span><span class="ln" data-n="22">        <span class="fn">recordPublishSuccessMetrics</span>(result.<span class="fn">getRecordMetadata</span>());</span><span class="ln" data-n="23">      }</span><span class="ln" data-n="24">    });</span><span class="ln" data-n="25">  }</span><span class="ln" data-n="26"></span><span class="ln hl" data-n="27">  <span class="kw">private</span> <span class="ty">String</span> <span class="fn">resolveOrderingKey</span>(<span class="ty">OrderEvent</span> event) {</span><span class="ln" data-n="28">    <span class="cm">// orderId = high cardinality + per-order ordering guarantee</span></span><span class="ln" data-n="29">    <span class="kw">return</span> event.<span class="fn">getOrderId</span>();</span><span class="ln" data-n="30">  }</span><span class="ln" data-n="31"></span><span class="ln hl" data-n="32">  <span class="kw">private void</span> <span class="fn">handlePublishFailure</span>(<span class="ty">OrderEvent</span> event, <span class="ty">Throwable</span> failure) {</span><span class="ln" data-n="33">    log.<span class="fn">error</span>(<span class="st">"Publish failed for orderId={}"</span>, event.<span class="fn">getOrderId</span>(), failure);</span><span class="ln" data-n="34">    outboxRepository.<span class="fn">saveForLaterRetry</span>(event);   <span class="cm">// never lose it</span></span><span class="ln" data-n="35">  }</span><span class="ln" data-n="36"></span><span class="ln hl" data-n="37">  <span class="nm">@PreDestroy</span></span><span class="ln" data-n="38">  <span class="kw">public void</span> <span class="fn">flushPendingRecordsBeforeShutdown</span>() {</span><span class="ln" data-n="39">    kafkaTemplate.<span class="fn">flush</span>();</span><span class="ln" data-n="40">  }</span><span class="ln" data-n="41">}</span></code></pre>
+      <div class="annot">
+        <div class="row"><span>L9</span><div>Method ka naam hi contract hai — <em>WithoutBlocking</em>. Koi <code>.get()</code> nahi. Caller thread turant free ho jaata hai, ye "save karo, ruko mat" ka concrete form hai.</div></div>
+        <div class="row"><span>L11</span><div>Key ko hardcode karne ki jagah ek named method. Kal ko composite key chahiye (hot seller split) to change sirf ek jagah hoga, 40 call-sites pe nahi.</div></div>
+        <div class="row"><span>L15</span><div><em>event-id header</em> — consumer isi se dedupe karega. Headers isliye, kyunki payload deserialize karne se pehle bhi read ho sakte hain (DLQ routing, tracing).</div></div>
+        <div class="row"><span>L18</span><div><em>whenComplete</em> — Spring 3.x me <code>send()</code> ek <code>CompletableFuture</code> deta hai. Callback sender thread pe chalta hai, isliye yahan bhaari kaam ya blocking DB call mat karo — sirf log/metric/enqueue.</div></div>
+        <div class="row"><span>L27</span><div>Ordering key ka decision ek jagah document ho gaya. Comment bata raha hai <b>kyu</b> orderId chuni — cardinality + per-order order.</div></div>
+        <div class="row"><span>L32</span><div>Failure ka matlab hai delivery timeout ke baad bhi fail — yani serious. Isliye outbox table me daal do aur ek scheduler se replay karo. Sirf log karna = silent data loss.</div></div>
+        <div class="row"><span>L37</span><div><em>@PreDestroy + flush()</em> — pod terminate hone se pehle accumulator khali karo. Iske bina graceful shutdown me in-memory batch chala jaata hai. Ye production bug bahut common hai.</div></div>
+      </div>
+    </div>
+
+    <!-- 3. Consumer -->
+    <div class="codeblock">
+      <div class="codehead"><b>OrderEventConsumer.java</b><span>manual ack + idempotent processing</span></div>
+      <pre><code><span class="ln" data-n="1"><span class="nm">@Component</span></span><span class="ln" data-n="2"><span class="kw">public class</span> <span class="ty">OrderEventConsumer</span> {</span><span class="ln" data-n="3"></span><span class="ln" data-n="4">  <span class="kw">private final</span> <span class="ty">ProcessedEventRegistry</span> processedEventRegistry;</span><span class="ln" data-n="5">  <span class="kw">private final</span> <span class="ty">InventoryService</span> inventoryService;</span><span class="ln" data-n="6"></span><span class="ln hl" data-n="7">  <span class="nm">@KafkaListener</span>(</span><span class="ln" data-n="8">      topics = <span class="st">"orders.v1"</span>,</span><span class="ln" data-n="9">      groupId = <span class="st">"inventory-service"</span>,</span><span class="ln" data-n="10">      containerFactory = <span class="st">"manualAckListenerFactory"</span>)</span><span class="ln hl" data-n="11">  <span class="kw">public void</span> <span class="fn">consumeOrderEventWithManualAcknowledgement</span>(</span><span class="ln" data-n="12">      <span class="ty">ConsumerRecord</span>&lt;<span class="ty">String</span>, <span class="ty">OrderEvent</span>&gt; record,</span><span class="ln" data-n="13">      <span class="ty">Acknowledgment</span> acknowledgment) {</span><span class="ln" data-n="14"></span><span class="ln" data-n="15">    <span class="ty">String</span> eventId = <span class="fn">readEventIdHeader</span>(record);</span><span class="ln" data-n="16"></span><span class="ln hl" data-n="17">    <span class="kw">if</span> (processedEventRegistry.<span class="fn">hasEventAlreadyBeenProcessed</span>(eventId)) {</span><span class="ln" data-n="18">      acknowledgment.<span class="fn">acknowledge</span>();          <span class="cm">// duplicate -&gt; skip, still commit</span></span><span class="ln" data-n="19">      <span class="kw">return</span>;</span><span class="ln" data-n="20">    }</span><span class="ln" data-n="21"></span><span class="ln hl" data-n="22">    <span class="fn">applyBusinessChangeAndMarkProcessed</span>(record.<span class="fn">value</span>(), eventId);</span><span class="ln" data-n="23"></span><span class="ln hl" data-n="24">    acknowledgment.<span class="fn">acknowledge</span>();              <span class="cm">// commit AFTER success</span></span><span class="ln" data-n="25">  }</span><span class="ln" data-n="26"></span><span class="ln hl" data-n="27">  <span class="nm">@Transactional</span></span><span class="ln" data-n="28">  <span class="kw">protected void</span> <span class="fn">applyBusinessChangeAndMarkProcessed</span>(<span class="ty">OrderEvent</span> e, <span class="ty">String</span> id) {</span><span class="ln" data-n="29">    inventoryService.<span class="fn">reserveStock</span>(e.<span class="fn">getSkuId</span>(), e.<span class="fn">getQuantity</span>());</span><span class="ln hl" data-n="30">    processedEventRegistry.<span class="fn">markEventAsProcessed</span>(id);</span><span class="ln" data-n="31">  }</span><span class="ln" data-n="32"></span><span class="ln" data-n="33">  <span class="kw">private</span> <span class="ty">String</span> <span class="fn">readEventIdHeader</span>(<span class="ty">ConsumerRecord</span>&lt;?, ?&gt; record) {</span><span class="ln" data-n="34">    <span class="ty">Header</span> header = record.<span class="fn">headers</span>().<span class="fn">lastHeader</span>(<span class="st">"event-id"</span>);</span><span class="ln" data-n="35">    <span class="kw">if</span> (header == <span class="kw">null</span>) <span class="kw">throw new</span> <span class="ty">NonRetryableEventException</span>(<span class="st">"missing event-id"</span>);</span><span class="ln" data-n="36">    <span class="kw">return new</span> <span class="ty">String</span>(header.<span class="fn">value</span>(), UTF_8);</span><span class="ln" data-n="37">  }</span><span class="ln" data-n="38">}</span></code></pre>
+      <div class="annot">
+        <div class="row"><span>L7&ndash;10</span><div>Alag <em>containerFactory</em> isliye taaki auto-commit off ho aur <code>AckMode.MANUAL_IMMEDIATE</code> mile. Group id = consuming service ka naam — ek group ek business capability.</div></div>
+        <div class="row"><span>L11</span><div>Naam batata hai ki ack manual hai. Reviewer ko method signature dekh kar hi pata chal jaata hai ki commit developer ke haath me hai.</div></div>
+        <div class="row"><span>L17</span><div><em>hasEventAlreadyBeenProcessed</em> — at-least-once ka insurance. Ye ek unique index lookup hai <code>processed_events(event_id)</code> pe. Yahi wo cheez hai jo "exactly-once effect" deti hai bina Kafka transactions ke.</div></div>
+        <div class="row"><span>L18</span><div>Duplicate mile to bhi <b>ack karo</b>. Warna wahi record baar-baar aayega aur partition atak jaayega.</div></div>
+        <div class="row"><span>L22, L27&ndash;30</span><div>Business change aur "processed" marker <b>ek hi DB transaction</b> me. Agar ye do transactions hote, to beech me crash hone pe stock reserve ho jaata par marker nahi banta &rarr; retry pe double reservation.</div></div>
+        <div class="row"><span>L24</span><div>Commit sabse aakhir me. Crash yahan hua to record dobara aayega, par L17 usko pakad lega. Ye poora loop hi at-least-once + idempotent = safe hai.</div></div>
+      </div>
+    </div>
+
+    <!-- 4. Container factory -->
+    <div class="codeblock">
+      <div class="codehead"><b>KafkaConsumerConfiguration.java</b><span>cooperative rebalance + static membership</span></div>
+      <pre><code><span class="ln" data-n="1"><span class="nm">@Bean</span></span><span class="ln" data-n="2"><span class="kw">public</span> <span class="ty">ConcurrentKafkaListenerContainerFactory</span>&lt;<span class="ty">String</span>, <span class="ty">OrderEvent</span>&gt;</span><span class="ln" data-n="3">    <span class="fn">manualAckListenerFactory</span>(<span class="ty">DefaultErrorHandler</span> errorHandler) {</span><span class="ln" data-n="4"></span><span class="ln" data-n="5">  <span class="ty">Map</span>&lt;<span class="ty">String</span>, <span class="ty">Object</span>&gt; config = <span class="kw">new</span> <span class="ty">HashMap</span>&lt;&gt;();</span><span class="ln hl" data-n="6">  config.<span class="fn">put</span>(ENABLE_AUTO_COMMIT_CONFIG, <span class="kw">false</span>);</span><span class="ln hl" data-n="7">  config.<span class="fn">put</span>(PARTITION_ASSIGNMENT_STRATEGY_CONFIG,</span><span class="ln" data-n="8">             <span class="ty">CooperativeStickyAssignor</span>.<span class="kw">class</span>.<span class="fn">getName</span>());</span><span class="ln hl" data-n="9">  config.<span class="fn">put</span>(GROUP_INSTANCE_ID_CONFIG, <span class="ty">System</span>.<span class="fn">getenv</span>(<span class="st">"POD_NAME"</span>));</span><span class="ln hl" data-n="10">  config.<span class="fn">put</span>(SESSION_TIMEOUT_MS_CONFIG, <span class="ty">45_000</span>);</span><span class="ln" data-n="11">  config.<span class="fn">put</span>(HEARTBEAT_INTERVAL_MS_CONFIG, <span class="ty">3_000</span>);</span><span class="ln hl" data-n="12">  config.<span class="fn">put</span>(MAX_POLL_INTERVAL_MS_CONFIG, <span class="ty">300_000</span>);</span><span class="ln hl" data-n="13">  config.<span class="fn">put</span>(MAX_POLL_RECORDS_CONFIG, <span class="ty">100</span>);</span><span class="ln" data-n="14">  config.<span class="fn">put</span>(AUTO_OFFSET_RESET_CONFIG, <span class="st">"earliest"</span>);</span><span class="ln" data-n="15"></span><span class="ln" data-n="16">  <span class="kw">var</span> factory = <span class="kw">new</span> <span class="ty">ConcurrentKafkaListenerContainerFactory</span>&lt;<span class="ty">String</span>, <span class="ty">OrderEvent</span>&gt;();</span><span class="ln" data-n="17">  factory.<span class="fn">setConsumerFactory</span>(<span class="kw">new</span> <span class="ty">DefaultKafkaConsumerFactory</span>&lt;&gt;(config));</span><span class="ln hl" data-n="18">  factory.<span class="fn">setConcurrency</span>(<span class="ty">3</span>);            <span class="cm">// 3 threads = 3 partitions per pod</span></span><span class="ln hl" data-n="19">  factory.<span class="fn">getContainerProperties</span>().<span class="fn">setAckMode</span>(AckMode.MANUAL_IMMEDIATE);</span><span class="ln" data-n="20">  factory.<span class="fn">setCommonErrorHandler</span>(errorHandler);</span><span class="ln" data-n="21">  <span class="kw">return</span> factory;</span><span class="ln" data-n="22">}</span></code></pre>
+      <div class="annot">
+        <div class="row"><span>L6</span><div>Auto-commit off — yahi at-most-once data loss ka sabse bada source hai. Isko off kiye bina manual ack ka koi matlab nahi.</div></div>
+        <div class="row"><span>L7&ndash;8</span><div><em>CooperativeStickyAssignor</em> — rebalance me sirf move hone wale partitions revoke hote hain. Baaki consumers bina ruke chalte rehte hain. Eager assignor ka stop-the-world khatam.</div></div>
+        <div class="row"><span>L9</span><div><em>group.instance.id</em> = static membership. Pod ka stable naam (StatefulSet ya downward API se) do. Rolling restart pe rebalance trigger hi nahi hoga.</div></div>
+        <div class="row"><span>L10&ndash;12</span><div>Do alag failure detectors: <b>session.timeout</b> (45s) heartbeat thread ke liye — "zinda hai kya"; <b>max.poll.interval</b> (5 min) processing ke liye — "kaam kar raha hai kya". Interview me inka fark puchha jaata hai.</div></div>
+        <div class="row"><span>L13</span><div><em>max.poll.records=100</em> — agar ek record 2s leta hai to 500 records = 1000s &gt; 5 min &rarr; group aapko dead maan lega. Batch chhota rakho ya interval badhao.</div></div>
+        <div class="row"><span>L18</span><div><em>concurrency=3</em> — ek pod me 3 consumer threads, har thread apne partitions. 4 pods &times; 3 = 12 threads &rarr; 12 partitions ke liye perfect fit.</div></div>
+        <div class="row"><span>L19</span><div><em>MANUAL_IMMEDIATE</em> — <code>acknowledge()</code> turant commit bhejta hai. <code>MANUAL</code> hota to poll loop ke end tak wait karta.</div></div>
+      </div>
+    </div>
+
+    <!-- 5. Error handling -->
+    <div class="codeblock">
+      <div class="codehead"><b>KafkaErrorHandlingConfiguration.java</b><span>retryable vs non-retryable + DLT</span></div>
+      <pre><code><span class="ln" data-n="1"><span class="nm">@Bean</span></span><span class="ln hl" data-n="2"><span class="kw">public</span> <span class="ty">DefaultErrorHandler</span> <span class="fn">buildRetryThenDeadLetterErrorHandler</span>(</span><span class="ln" data-n="3">    <span class="ty">KafkaTemplate</span>&lt;<span class="ty">String</span>, <span class="ty">Object</span>&gt; deadLetterTemplate) {</span><span class="ln" data-n="4"></span><span class="ln hl" data-n="5">  <span class="ty">DeadLetterPublishingRecoverer</span> recoverer = <span class="kw">new</span> <span class="ty">DeadLetterPublishingRecoverer</span>(</span><span class="ln" data-n="6">      deadLetterTemplate,</span><span class="ln" data-n="7">      (record, exception) -&gt; <span class="kw">new</span> <span class="ty">TopicPartition</span>(</span><span class="ln" data-n="8">          record.<span class="fn">topic</span>() + <span class="st">".DLT"</span>, record.<span class="fn">partition</span>()));</span><span class="ln" data-n="9"></span><span class="ln hl" data-n="10">  <span class="ty">ExponentialBackOff</span> backOff = <span class="kw">new</span> <span class="ty">ExponentialBackOff</span>(<span class="ty">500</span>L, <span class="ty">2.0</span>);</span><span class="ln" data-n="11">  backOff.<span class="fn">setMaxElapsedTime</span>(<span class="ty">30_000</span>L);   <span class="cm">// stay under max.poll.interval</span></span><span class="ln" data-n="12"></span><span class="ln" data-n="13">  <span class="ty">DefaultErrorHandler</span> handler = <span class="kw">new</span> <span class="ty">DefaultErrorHandler</span>(recoverer, backOff);</span><span class="ln" data-n="14"></span><span class="ln hl" data-n="15">  handler.<span class="fn">addNotRetryableExceptions</span>(</span><span class="ln" data-n="16">      <span class="ty">DeserializationException</span>.<span class="kw">class</span>,</span><span class="ln" data-n="17">      <span class="ty">NonRetryableEventException</span>.<span class="kw">class</span>,</span><span class="ln" data-n="18">      <span class="ty">ValidationException</span>.<span class="kw">class</span>);</span><span class="ln" data-n="19"></span><span class="ln hl" data-n="20">  handler.<span class="fn">addRetryableExceptions</span>(</span><span class="ln" data-n="21">      <span class="ty">TransientDataAccessException</span>.<span class="kw">class</span>,</span><span class="ln" data-n="22">      <span class="ty">SocketTimeoutException</span>.<span class="kw">class</span>);</span><span class="ln" data-n="23"></span><span class="ln hl" data-n="24">  handler.<span class="fn">setRetryListeners</span>((record, ex, attempt) -&gt;</span><span class="ln" data-n="25">      meterRegistry.<span class="fn">counter</span>(<span class="st">"kafka.retry"</span>, <span class="st">"topic"</span>, record.<span class="fn">topic</span>()).<span class="fn">increment</span>());</span><span class="ln" data-n="26"></span><span class="ln" data-n="27">  <span class="kw">return</span> handler;</span><span class="ln" data-n="28">}</span></code></pre>
+      <div class="annot">
+        <div class="row"><span>L2</span><div>Naam se poori strategy clear hai: pehle retry, phir dead letter. Reviewer ko implementation padhne ki zarurat nahi.</div></div>
+        <div class="row"><span>L5&ndash;8</span><div>DLT ka partition <b>same rakha gaya</b> hai (<code>record.partition()</code>). Isse DLT me bhi per-key grouping bani rehti hai aur replay karna asaan hota hai. Spring exception, stack trace, original topic/offset headers me daal deta hai.</div></div>
+        <div class="row"><span>L10&ndash;11</span><div>Backoff ka total time <code>max.poll.interval.ms</code> se kam hona <b>zaroori</b> hai. Warna retry karte-karte group aapko dead maan lega aur rebalance storm shuru ho jaayega. Ye sabse common production galti hai.</div></div>
+        <div class="row"><span>L15&ndash;18</span><div>Non-retryable = "yeh kabhi paas nahi hoga". Bad JSON ko 10 baar retry karna sirf time waste hai. Seedha DLT.</div></div>
+        <div class="row"><span>L20&ndash;22</span><div>Retryable = "abhi nahi, thodi der me". DB timeout, socket timeout. Inko DLT me daalna data loss jaisa hai.</div></div>
+        <div class="row"><span>L24</span><div>Retry counter metric — agar ye spike kare to downstream problem hai. Alert isi pe lagta hai, DLT pe nahi (DLT to already too late hai).</div></div>
+      </div>
+    </div>
+
+    <div class="note"><b>Naming convention jo interview me achhi lagti hai</b><code>publishOrderCreatedWithoutBlocking</code>, <code>consumeOrderEventWithManualAcknowledgement</code>, <code>hasEventAlreadyBeenProcessed</code>, <code>buildRetryThenDeadLetterErrorHandler</code>, <code>flushPendingRecordsBeforeShutdown</code> — har naam <b>behaviour + guarantee</b> batata hai, sirf action nahi. <code>sendEvent()</code> se koi nahi bata sakta ki blocking hai ya nahi.</div>
+  </div>
+</section>
+
+<!-- ============ MATRIX ============ -->
+<section class="rec-section" id="matrix">
+  <div class="wrap">
+    <div class="rechead"><span class="offset">TRD</span><h2>Tradeoff matrix — kaunsa knob kab, aur kab chhod dena hai</h2></div>
+    <p class="deck">Interview me "it depends" bolna weak hai. "It depends on X, and here's my default" bolna strong hai. Ye table wahi defaults hai.</p>
+
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>Knob</th><th>Apply karo jab</th><th>Ignore karo jab</th><th>Kya kho rahe ho</th></tr></thead>
+        <tbody>
+          <tr><td>acks=all</td><td>Order, payment, ledger, audit — data loss unacceptable</td><td>Metrics, logs, clickstream jo regenerate ho sakta hai</td><td>p99 latency badhti hai (slowest ISR ka wait)</td></tr>
+          <tr><td>min.insync.replicas=2</td><td>RF=3 ke saath, always, production me</td><td>Dev/test cluster, single-broker setup</td><td>2 brokers down = writes band (availability trade)</td></tr>
+          <tr><td>enable.idempotence</td><td>Hamesha on. Cost near zero.</td><td>Kabhi nahi — koi valid reason nahi bachta</td><td>Kuch nahi, bas max.in.flight &le; 5 pe cap</td></tr>
+          <tr><td>Transactions (EOS)</td><td>Kafka&rarr;Kafka processing, Streams, atomic multi-topic write</td><td>External DB/API side effects — rollback hota hi nahi</td><td>3&ndash;20% throughput, read_committed latency</td></tr>
+          <tr><td>linger.ms &gt; 0</td><td>High volume pipelines, batching se 5&ndash;10x gain</td><td>Latency-critical control signals</td><td>Har record pe linger.ms tak ka added delay</td></tr>
+          <tr><td>compression=zstd</td><td>Network/storage bound, bade payloads</td><td>Already-compressed data (images, gzip blobs)</td><td>Producer/consumer CPU</td></tr>
+          <tr><td>Keyed partitioning</td><td>Per-entity ordering business requirement ho</td><td>Pure telemetry — null key better batching deta hai</td><td>Skew ka risk, head-of-line blocking</td></tr>
+          <tr><td>Zyada partitions</td><td>Consumer parallelism chahiye, future growth</td><td>Chhota topic — 100 partitions "just in case" mat banao</td><td>Rebalance time, file handles, end-to-end latency</td></tr>
+          <tr><td>cleanup.policy=compact</td><td>Latest-state topics: profiles, CDC, config, changelog</td><td>Event history chahiye — compaction beech ke events kha jaayega</td><td>Background CPU/IO, tombstone lifecycle manage karna</td></tr>
+          <tr><td>Manual offset commit</td><td>Default. Har business consumer pe.</td><td>Best-effort telemetry consumers</td><td>Duplicates guaranteed &rarr; idempotency likhni padegi</td></tr>
+          <tr><td>Static membership</td><td>K8s pods, frequent rolling deploys</td><td>Autoscaling groups jahan identity stable nahi</td><td>Crashed pod ka partition session.timeout tak idle</td></tr>
+          <tr><td>Retry topics + DLT</td><td>Per-record independent failures</td><td>Strict per-key ordering wale topics</td><td>Ordering, extra topics, DLT operations</td></tr>
+          <tr><td>Schema Registry</td><td>2+ teams same topic pe, long-lived events</td><td>Internal single-team topic, short-lived</td><td>Ek aur service, aur deployment coupling</td></tr>
+          <tr><td>Tiered storage / S3</td><td>Lambi retention chahiye (90+ din), cost matter karta hai</td><td>Sirf 7 din chahiye — complexity worth nahi</td><td>Purane data pe read latency</td></tr>
+          <tr><td>Kafka itself</td><td>&gt;10k msg/s, replay, 3+ consumers, stream processing</td><td>&lt;1k msg/s, ek consumer, chhoti team</td><td>Operational burden — asli cost yahi hai</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note"><b>Framework: kaise decide karein</b>1) Data lose ho sakta hai? &rarr; durability knobs. 2) Order matter karta hai? &rarr; key + partition strategy. 3) Duplicate se nuksaan hai? &rarr; consumer-side idempotency. 4) Volume kitna hai? &rarr; batching + partition count. 5) Team kitni badi hai? &rarr; managed vs self-hosted. Isi order me sochoge to koi bhi Kafka design question crack ho jaayega.</div>
+  </div>
+</section>
+<!-- ============ MOCK ============ -->
+<section class="rec-section" id="mock">
+  <div class="wrap">
+    <div class="rechead"><span class="offset">Q&amp;A</span><h2>Mock interview — 24 questions with answers</h2></div>
+    <p class="deck">Level select karo aur khud se pehle jawab socho, phir kholo. Answers wahi length me likhe hain jitni ek real interview me boli jaati hai — 30 se 90 second.</p>
+
+    <div class="filters" role="group" aria-label="Filter questions by level">
+      <button data-f="all" aria-pressed="true">All 24</button>
+      <button data-f="b" aria-pressed="false">Beginner</button>
+      <button data-f="m" aria-pressed="false">Mid / SDE-2</button>
+      <button data-f="a" aria-pressed="false">Architect</button>
+    </div>
+
+    <div class="qa" id="qaList">
+
+      <details data-l="b"><summary>Kafka queue hai ya pub-sub? <span class="lvl b">beginner</span></summary>
+        <div class="ans"><p>Dono, kyunki ye asal me na queue hai na pub-sub — ye ek <b>distributed commit log</b> hai. Ek consumer group ke andar partitions members me bant jaate hain, to wo queue jaisa behave karta hai (har record ek member ko). Alag-alag consumer groups same data independently padhte hain, to wo pub-sub jaisa behave karta hai.</p><div class="hin2">Ek hi log, do reading patterns. Group ke andar &rarr; queue. Groups ke beech &rarr; pub-sub.</div></div></details>
+
+      <details data-l="b"><summary>Partition kya hai aur offset kya hai? <span class="lvl b">beginner</span></summary>
+        <div class="ans"><p>Partition ek topic ka ordered, immutable, append-only sub-log hai — parallelism ki unit. Offset us partition ke andar record ki position hai, ek monotonically increasing integer. Offset partition ke andar unique hai, poore topic me nahi.</p><div class="hin2">Topic = kitaab, partition = us kitaab ka ek chapter, offset = us chapter ka page number.</div></div></details>
+
+      <details data-l="b"><summary>Consumer group kya karta hai? <span class="lvl b">beginner</span></summary>
+        <div class="ans"><p>Ek group ke andar har partition <b>exactly ek</b> consumer ko assign hota hai. Isse work bant jaata hai bina duplicate processing ke. Group coordinator (broker) membership manage karta hai; group leader (ek consumer) assignment compute karta hai.</p><p>Consumers &gt; partitions ho to extra consumers idle rehte hain.</p><div class="hin2">Group = ek team jo mil kar topic padhti hai. Har chapter ek hi bande ko milta hai.</div></div></details>
+
+      <details data-l="b"><summary>Kafka messages consume hone ke baad delete kar deta hai? <span class="lvl b">beginner</span></summary>
+        <div class="ans"><p>Nahi. Retention time-based ya size-based hai (<code>retention.ms</code>, <code>retention.bytes</code>) — consumption se koi lena dena nahi. Isliye replay possible hai: offset ko peeche set karo aur dobara padho.</p><div class="hin2">Padhne se page fatta nahi hai. Purani copy time hone pe hi phenki jaati hai.</div></div></details>
+
+      <details data-l="b"><summary>acks=0, 1 aur all me kya fark hai? <span class="lvl b">beginner</span></summary>
+        <div class="ans"><ul><li><b>0</b> — producer wait hi nahi karta. Fastest, sabse zyada loss risk.</li><li><b>1</b> — leader ne local log me likh liya. Leader crash before replication = loss.</li><li><b>all</b> — saare in-sync replicas ne likh liya. Sabse safe, sabse slow.</li></ul><p>Par <code>acks=all</code> akela kaafi nahi — <code>min.insync.replicas=2</code> ke saath hi asli guarantee milti hai.</p></div></details>
+
+      <details data-l="b"><summary>Producer key deni chahiye ya nahi? <span class="lvl b">beginner</span></summary>
+        <div class="ans"><p>Key tab do jab us entity ke events ka order matter karta ho — same key hamesha same partition me jaati hai. Key null ho to sticky partitioner batch-friendly round-robin karta hai, jo throughput ke liye better hai.</p><div class="hin2">Order chahiye &rarr; key do. Sirf speed chahiye &rarr; key mat do.</div></div></details>
+
+      <details data-l="m"><summary>Kafka disk pe likhta hai phir bhi itna fast kaise hai? <span class="lvl m">mid</span></summary>
+        <div class="ans"><ul><li><b>Sequential I/O</b> — append-only writes, random seeks nahi. Sequential disk write random memory access se bhi tez ho sakta hai.</li><li><b>OS page cache</b> — JVM heap me cache nahi, isliye GC pressure nahi aur restart pe cache warm rehta hai.</li><li><b>Zero-copy (sendfile)</b> — page cache se seedha NIC, user-space copy skip.</li><li><b>Batching + compression</b> — per-message overhead amortize ho jaata hai.</li></ul><div class="hin2">Fast isliye nahi ki memory me hai, fast isliye ki wo disk ko theek se use karta hai.</div></div></details>
+
+      <details data-l="m"><summary>ISR kya hai aur shrink kab hota hai? <span class="lvl m">mid</span></summary>
+        <div class="ans"><p>ISR = In-Sync Replicas — wo replicas jo leader ke saath sync me hain. Agar koi follower <code>replica.lag.time.max.ms</code> (default 30s) tak fetch nahi karta ya peeche reh jaata hai, use ISR se nikal diya jaata hai.</p><p>Commit tabhi hota hai jab saare ISR ne likh liya ho. ISR <code>min.insync.replicas</code> se neeche gaya to producer ko <code>NotEnoughReplicasException</code> milta hai — write fail, par data loss nahi.</p><div class="hin2">ISR shrink hone ka matlab: ya broker slow hai, ya network, ya disk. Ye alert-worthy metric hai.</div></div></details>
+
+      <details data-l="m"><summary>Exactly-once Kafka me kaise achieve karte ho? <span class="lvl m">mid</span></summary>
+        <div class="ans"><p>Teen alag layers hain, aur inhe alag rakhna zaroori hai:</p><ul><li><b>Idempotent producer</b> — retry ke duplicates broker pe dedupe (PID + sequence).</li><li><b>Transactions</b> — multiple partitions pe atomic write + offset commit, consumer <code>read_committed</code>. Sirf Kafka-to-Kafka ke andar.</li><li><b>Consumer-side idempotency</b> — business key pe unique constraint. External DB/API ke liye <b>yahi</b> asli answer hai.</li></ul><div class="hin2">Kafka transaction aapke third-party payment API ko rollback nahi kar sakta. Isliye practical systems me at-least-once + idempotent consumer likha jaata hai.</div></div></details>
+
+      <details data-l="m"><summary>Rebalance storm ko kaise rokoge? <span class="lvl m">mid</span></summary>
+        <div class="ans"><ul><li><code>CooperativeStickyAssignor</code> — stop-the-world khatam, sirf zaroori partitions move hote hain.</li><li><code>group.instance.id</code> (static membership) — rolling restarts pe rebalance trigger hi nahi hota.</li><li><code>max.poll.records</code> ghatao ya processing ko async worker pool pe daalo taaki <code>max.poll.interval.ms</code> cross na ho.</li><li>Retry backoff ka total time <code>max.poll.interval.ms</code> se kam rakho.</li></ul></div></details>
+
+      <details data-l="m"><summary>session.timeout.ms aur max.poll.interval.ms me fark? <span class="lvl m">mid</span></summary>
+        <div class="ans"><p><code>session.timeout.ms</code> heartbeat thread ke liye hai — "consumer process zinda hai kya". Background thread har <code>heartbeat.interval.ms</code> pe ping bhejta hai.</p><p><code>max.poll.interval.ms</code> application thread ke liye hai — "consumer progress kar raha hai kya". Do <code>poll()</code> calls ke beech ka max gap.</p><div class="hin2">Ek batata hai saans chal rahi hai, doosra batata hai kaam ho raha hai. Slow processing pehla nahi, doosra trigger karti hai.</div></div></details>
+
+      <details data-l="m"><summary>Poison pill message ko kaise handle karoge? <span class="lvl m">mid</span></summary>
+        <div class="ans"><p>Sabse pehle error classify karo. Non-retryable (bad schema, validation) &rarr; seedha DLT bhejo aur offset commit karo. Retryable (DB timeout) &rarr; bounded exponential backoff, phir DLT.</p><p><code>ErrorHandlingDeserializer</code> use karo taaki deserialization failure poore container ko na maare. DLT record me original topic/partition/offset aur exception headers me daalo, warna replay impossible hai.</p><div class="hin2">Retry karne se bad JSON theek nahi hoga. Usse side me rakho aur aage badho.</div></div></details>
+
+      <details data-l="m"><summary>Consumer lag badh raha hai — debug kaise karoge? <span class="lvl m">mid</span></summary>
+        <div class="ans"><ol><li>Lag <b>per partition</b> dekho, total nahi — akele ek partition ka lag hot key ya stuck consumer batata hai.</li><li>Consumers &lt; partitions? Pods scale karo (partitions tak hi faayda hoga).</li><li>Rebalance rate high? Static membership + cooperative assignor.</li><li>Processing slow? Downstream DB/API ka p99 dekho — 90% baar problem Kafka me nahi hoti.</li><li>GC pauses, <code>fetch.min.bytes</code>, aur <code>max.poll.records</code> tune karo.</li><li>Producer spike hai? Tab lag temporary hai, drain hone do.</li></ol></div></details>
+
+      <details data-l="m"><summary>Ordering guarantee kya hai Kafka me? <span class="lvl m">mid</span></summary>
+        <div class="ans"><p>Ordering sirf <b>ek partition ke andar</b> guaranteed hai. Topic-wide ordering nahi hai. Same key &rarr; same partition &rarr; us key ke events ordered.</p><p>Ye guarantee toot sakti hai agar: idempotence off ho aur <code>max.in.flight&gt;1</code> ke saath retries ho, ya partition count change ho jaaye, ya aap retry topic me record ko side me daal do.</p></div></details>
+
+      <details data-l="m"><summary>Log compaction kab use karoge, delete kab? <span class="lvl m">mid</span></summary>
+        <div class="ans"><p><b>delete</b> — event streams jahan history matter karti hai aur data time ke baad useless ho jaata hai (clicks, orders, logs).</p><p><b>compact</b> — jahan aapko sirf har key ka latest state chahiye: user profile, inventory count, feature flags, Kafka Streams changelog, Debezium CDC. Compacted topic ek "table" hai jise kabhi bhi replay karke state rebuild kiya jaa sakta hai.</p><p>Delete karne ke liye <b>tombstone</b> (null value) bhejo.</p></div></details>
+
+      <details data-l="m"><summary>Topic me partitions badha sakte ho? Ghata sakte ho? <span class="lvl m">mid</span></summary>
+        <div class="ans"><p>Badha sakte ho, ghata nahi sakte. Aur badhane ka side effect serious hai: <code>hash(key) % N</code> me N badal gaya, to same key ab alag partition me jaayegi — <b>per-key ordering toot jaayegi</b> aur purane events purane partition me hi padhe rahenge.</p><p>Safe approach: naya topic (<code>orders.v2</code>) zyada partitions ke saath, dual-write ya migrate, phir cutover.</p></div></details>
+
+      <details data-l="a"><summary>50k events/sec, 1KB avg, 7 din retention — cluster size batao <span class="lvl a">architect</span></summary>
+        <div class="ans"><ul><li>Ingress: 50k &times; 1KB = <b>50 MB/s</b>, ~4.3 TB/din raw.</li><li>Storage: 4.3 &times; 7 &times; 3 (RF) = ~90 TB; zstd ~4x &rarr; ~23 TB; +30% headroom &rarr; <b>~30 TB</b>.</li><li>Partitions: consumer 5k msg/s handle karta hai &rarr; 10 consumers minimum; 2&ndash;3x headroom &rarr; <b>24&ndash;30 partitions</b>.</li><li>Brokers: ~10 TB/broker &rarr; 3 minimum; HA + rolling restart ke liye <b>6 brokers, 3 AZ</b>.</li><li>Network: 3 consumer groups &rarr; 150 MB/s egress + ~100 MB/s replication. 10 Gbps NIC pe comfortable.</li></ul><div class="hin2">Interviewer number nahi, <b>method</b> dekhta hai. Assumptions bol kar likho.</div></div></details>
+
+      <details data-l="a"><summary>Hot partition ka problem kaise solve karoge? <span class="lvl a">architect</span></summary>
+        <div class="ans"><p>Pehle confirm karo ki skew key cardinality se hai ya traffic distribution se. Options:</p><ul><li><b>Composite key:</b> <code>sellerId + "#" + (hash(userId) % 8)</code> — ek hot seller 8 partitions me spread. Per-seller total order chala jaayega, per-user bacha rahega.</li><li><b>Custom partitioner</b> jo known hot keys ko dedicated partitions de.</li><li>Hot entity ko alag topic pe route karo, dedicated consumers ke saath.</li><li>Agar ordering zaroori nahi &rarr; key hata do.</li></ul><div class="hin2">Har solution me ordering ka kuchh na kuchh trade hai. Pehle poocho: kis level pe order chahiye — seller, user, ya bilkul nahi?</div></div></details>
+
+      <details data-l="a"><summary>Multi-region Kafka kaise design karoge? <span class="lvl a">architect</span></summary>
+        <div class="ans"><p><b>Stretch cluster</b> (ek cluster, 3 AZ ek region me) — RF=3 rack-aware. Simple, par cross-region latency inter-broker traffic ko maar deti hai.</p><p><b>MirrorMaker 2 / Cluster Linking</b> — har region ka apna cluster, async replication. Offsets translate hote hain, par lag aur duplicate possible hain. DR ke liye standard.</p><p>Key decision: <b>active-active</b> (conflict resolution chahiye, topic prefixing se loop rokna) vs <b>active-passive</b> (simple, failover pe RPO &gt; 0).</p><div class="hin2">Cross-region synchronous replication almost hamesha galat choice hai — latency budget khatam ho jaata hai.</div></div></details>
+
+      <details data-l="a"><summary>Schema evolution kaise handle karoge? <span class="lvl a">architect</span></summary>
+        <div class="ans"><p>Schema Registry + Avro/Protobuf, aur compatibility mode explicitly set karo:</p><ul><li><b>BACKWARD</b> — naya schema purana data padh sakta hai. Consumers pehle upgrade karo.</li><li><b>FORWARD</b> — purana schema naya data padh sakta hai. Producers pehle upgrade karo.</li><li><b>FULL</b> — dono. Sirf optional fields with defaults add karo.</li></ul><p>Rules: field kabhi remove mat karo (deprecate karo), required field mat add karo (default do), enum me naya value add karna forward-compatible nahi hota.</p><p>Breaking change chahiye? Naya topic version: <code>orders.v2</code>.</p></div></details>
+
+      <details data-l="a"><summary>Kafka + database ke beech consistency kaise? (dual write problem) <span class="lvl a">architect</span></summary>
+        <div class="ans"><p>DB me likhna aur Kafka me publish karna — do alag systems, koi distributed transaction nahi. Beech me crash = inconsistency.</p><p><b>Transactional Outbox:</b> business row aur <code>outbox</code> row ek hi DB transaction me likho. Ek relay process (ya Debezium CDC) outbox se padh kar Kafka me publish karta hai.</p><p><b>CDC-first:</b> app sirf DB me likhti hai, Debezium binlog se events banata hai. Zero dual-write, par events DB schema ke shape me aate hain.</p><div class="hin2">Golden rule: ek transaction, ek system. Doosre system tak baat ek asynchronous relay se pahunchni chahiye.</div></div></details>
+
+      <details data-l="a"><summary>Kafka kab NOT use karoge? <span class="lvl a">architect</span></summary>
+        <div class="ans"><ul><li><b>Request-response RPC</b> — correlation IDs aur reply topics ka matlab hai aap ek bura RPC framework dobara likh rahe ho.</li><li><b>Per-message delay / scheduling</b> — Kafka me per-message TTL ya delay hai hi nahi. Temporal, SQS delay queues, ya scheduler use karo.</li><li><b>Per-message ack / selective redelivery</b> — RabbitMQ ka model.</li><li><b>Complex routing</b> (header/topic exchanges) — RabbitMQ.</li><li><b>Chhoti scale</b> — 3 services, 50 msg/s ke liye 6 brokers + on-call rotation justified nahi.</li></ul><div class="hin2">Kafka ka asli cost license nahi, <b>operations</b> hai. Wo cost tabhi worth hai jab volume, replay ya multiple consumers ho.</div></div></details>
+
+      <details data-l="a"><summary>KRaft ne ZooKeeper ko kyu replace kiya? <span class="lvl a">architect</span></summary>
+        <div class="ans"><p>ZooKeeper ke saath metadata ek alag system me tha — do cluster manage karo, do failure modes, aur controller ko startup pe poora metadata ZK se load karna padta tha (bade clusters me minutes).</p><p>KRaft me metadata khud ek Kafka log hai (<code>__cluster_metadata</code>) aur controllers Raft quorum chalate hain. Faayde: leader election seconds nahi milliseconds me, millions of partitions tak scale, ek hi binary/process model, aur simpler security surface.</p></div></details>
+
+      <details data-l="a"><summary>Aapke Kafka consumer ka p99 latency 8s hai. Kahan dekhoge? <span class="lvl a">architect</span></summary>
+        <div class="ans"><p>End-to-end latency ko todo, guess mat karo:</p><ol><li><b>Producer side:</b> <code>linger.ms</code> kitna hai? Batch full hone ka wait? <code>buffer.memory</code> pressure?</li><li><b>Broker side:</b> <code>acks=all</code> ke saath slowest ISR ka wait; ISR shrink events; disk write latency; TLS ki wajah se zero-copy off.</li><li><b>Fetch side:</b> <code>fetch.min.bytes</code> + <code>fetch.max.wait.ms</code> — low traffic pe consumer khud wait karta hai.</li><li><b>Processing:</b> <code>max.poll.records</code> bada hai to batch ka last record poori batch ka time jhelta hai.</li><li><b>Rebalances:</b> har rebalance me processing rukti hai — p99 wahi se aata hai.</li></ol><div class="hin2">Latency budget likho: produce &rarr; commit &rarr; fetch &rarr; process. Har step ka apna metric hona chahiye, warna aap andhere me tune kar rahe ho.</div></div></details>
+
+    </div>
+  </div>
+</section>
+<!-- ============ ANIMATION ============ -->
+<section class="rec-section" id="anim">
+  <div class="wrap">
+    <div class="rechead"><span class="offset">RUN</span><h2>Animated internals — replay from offset 0</h2></div>
+    <p class="deck">Paanch scenes: data save hone se lekar offset update hone tak. Har step ka narration English aur Hinglish dono me hai. Play dabao ya step-by-step aage badho.</p>
+
+    <div class="stagebox">
+      <div class="scenetabs" id="sceneTabs" role="tablist" aria-label="Animation scenes"></div>
+      <div class="swipehint">diagram wide hai &mdash; side me swipe karo</div>
+      <div class="stagescroll">
+        <div class="stage" id="stage">
+          <svg class="wires" id="wires" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"></svg>
+        </div>
+      </div>
+      <div class="controls">
+        <button id="playBtn" class="primary">Play</button>
+        <button id="prevBtn">Back</button>
+        <button id="nextBtn">Next</button>
+        <button id="resetBtn">Restart</button>
+        <span class="stepcount" id="stepCount">step 1 / 1</span>
+      </div>
+      <div class="narrate">
+        <div class="en" id="narEn">Scene load ho raha hai&hellip;</div>
+        <div class="hi" id="narHi">&nbsp;</div>
+      </div>
+    </div>
+
+    <div class="note"><b>Kya dekhna hai</b>Scene 1 me dhyaan do ki <code>send()</code> kab return karta hai (step 3) — broker se bahut pehle. Scene 3 me dekho ki "update" sirf <code>__consumer_offsets</code> me ek naya record hai, kisi row ka edit nahi. Yahi Kafka ka poora mental model hai: <b>likho, mat badlo; pointer aage badhao.</b></div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <b>Ek line me poora Kafka</b>
+    <p>Append-only partitioned log, jisme producer batch bana kar likhta hai, replicas ISR me sync rehte hain, consumers apna offset khud commit karte hain, aur delete consumption se nahi — time se hota hai. Baaki sab (idempotence, compaction, rebalancing, transactions) isi ek model ke upar layers hain.</p>
+  </div>
+</footer>
+
+<style>.pkt.noanim{transition:none!important}
+@media(max-width:640px){.node{min-width:66px;padding:5px 6px;font-size:9px}.node b{font-size:9.5px}.node small{font-size:8px}.pkt{font-size:8.5px;padding:2px 5px}}</style>
+
+<script>
+(function(){
+"use strict";
+
+/* ---------- hero tape ---------- */
+(function buildHeroTape(){
+  var tape = document.getElementById('heroTape');
+  if(!tape) return;
+  var rows = [
+    ['4207','OrderCreated'],['4208','PaymentAuth'],['4209','StockReserved'],
+    ['4210','OrderCreated'],['4211','InvoiceRaised'],['4212','OrderShipped'],
+    ['4213','PaymentAuth'],['4214','StockReserved']
+  ];
+  rows.forEach(function(r,i){
+    var d = document.createElement('div');
+    d.className = 'rec';
+    d.style.animationDelay = (i*0.09)+'s';
+    d.innerHTML = '<span class="off">offset '+r[0]+'</span>'+r[1];
+    tape.appendChild(d);
+  });
+})();
+
+/* ---------- Q&A filter ---------- */
+(function wireQuestionFilter(){
+  var bar = document.querySelector('.filters');
+  var list = document.getElementById('qaList');
+  if(!bar || !list) return;
+  bar.addEventListener('click', function(e){
+    var btn = e.target.closest('button');
+    if(!btn) return;
+    var f = btn.dataset.f;
+    bar.querySelectorAll('button').forEach(function(b){
+      b.setAttribute('aria-pressed', String(b === btn));
+    });
+    list.querySelectorAll('details').forEach(function(d){
+      var show = (f === 'all') || (d.dataset.l === f);
+      d.style.display = show ? '' : 'none';
+      if(!show) d.open = false;
+    });
+  });
+})();
+
+/* ===================================================================
+   ANIMATION ENGINE
+   =================================================================== */
+
+var SCENES = [
+{
+  id:'write', tab:'1 · Write path',
+  nodes:{
+    app   :{x:13,y:16,t:'App thread',s:'publishOrderCreated…'},
+    cb    :{x:36,y:14,t:'Callback',s:'not fired yet'},
+    part  :{x:13,y:42,t:'Partitioner',s:'murmur2(key) % 12'},
+    accum :{x:13,y:70,t:'RecordAccumulator',s:'batch P3: empty'},
+    sender:{x:36,y:70,t:'Sender thread',s:'linger.ms = 20'},
+    leader:{x:62,y:34,t:'Broker 1 · leader P3',s:'idle'},
+    cache :{x:62,y:60,t:'OS page cache',s:'—'},
+    seg   :{x:62,y:86,t:'segment .log',s:'last offset 4209'},
+    f1    :{x:87,y:20,t:'Broker 2 · follower',s:'LEO 4209'},
+    f2    :{x:87,y:52,t:'Broker 3 · follower',s:'LEO 4209'}
+  },
+  wires:[['app','part'],['part','accum'],['accum','sender'],['sender','leader'],
+         ['leader','cache'],['cache','seg'],['leader','f1'],['leader','f2'],['leader','cb']],
+  steps:[
+    {en:'App calls publishOrderCreatedWithoutBlocking(orderEvent). No network call has happened yet.',
+     hi:'App ne method call kiya. Abhi tak koi network call hua hi nahi — sirf ek object bana hai.',
+     st:{app:'act'}, pk:{r1:{at:'app',l:'order-42'}}, w:[]},
+
+    {en:'Serializer turns the object into bytes, then the partitioner computes murmur2("order-42") % 12 = 3.',
+     hi:'Object bytes me badla, phir key ka hash le kar partition nikala — P3. Same key hamesha P3 me jaayegi.',
+     st:{part:'act'}, tx:{part:'→ partition 3'}, pk:{r1:{at:'part'}}, w:[0]},
+
+    {en:'The record lands in the in-memory accumulator and send() returns immediately. The app thread is free.',
+     hi:'Record buffer me chala gaya aur send() turant return ho gaya. Yahi hai "save karo, ruko mat" — app thread block nahi hua.',
+     st:{accum:'act',app:'ok'}, tx:{accum:'batch P3: 1 rec',app:'returned in 0.2 ms'}, pk:{r1:{at:'accum'}}, w:[1]},
+
+    {en:'For the next 20 ms (linger.ms) more records for P3 join the same batch. Bigger batch = fewer requests, better compression.',
+     hi:'Agle 20ms me P3 ke aur records isi batch me jud gaye. Badi batch = kam requests aur behtar compression ratio.',
+     st:{accum:'act'}, tx:{accum:'batch P3: 42 recs · 58 KB'}, pk:{r1:{at:'accum',l:'batch ×42'}}, w:[]},
+
+    {en:'The sender thread picks up the full batch, compresses it with zstd and prepares one produce request.',
+     hi:'Sender thread ne poori batch uthai, zstd se compress ki aur ek hi produce request banayi.',
+     st:{sender:'act'}, tx:{sender:'zstd · 58 KB → 15 KB'}, pk:{r1:{at:'sender',l:'batch 15 KB'}}, w:[2]},
+
+    {en:'One network round trip carries 42 records to the leader of partition 3.',
+     hi:'Ek hi network call me 42 records leader tak. Agar har record alag jaata to 42 round trips lagte.',
+     st:{leader:'act'}, tx:{leader:'append to log'}, pk:{r1:{at:'leader'}}, w:[3]},
+
+    {en:'The leader appends to the page cache — a sequential write in memory. No fsync per record.',
+     hi:'Leader ne OS page cache me sequential write kiya. Har record pe disk flush nahi hota, isliye itna fast hai.',
+     st:{cache:'act'}, tx:{cache:'dirty pages'}, pk:{r1:{at:'cache'}}, w:[4]},
+
+    {en:'Offsets 4210–4251 are assigned in the active segment file. The log is append-only — nothing is ever edited.',
+     hi:'Active segment file me offsets assign ho gaye: 4210 se 4251. Log append-only hai — kuch bhi overwrite nahi hota.',
+     st:{seg:'ok'}, tx:{seg:'offsets 4210–4251'}, pk:{r1:{at:'seg',l:'offset 4210+'}}, w:[5]},
+
+    {en:'Followers pull the new records (Kafka replication is pull-based, not push).',
+     hi:'Followers khud leader se fetch karte hain — Kafka me replication pull model hai, push nahi.',
+     st:{f1:'act',f2:'act'}, pk:{q1:{at:'f1',l:'fetch'},q2:{at:'f2',l:'fetch'}}, w:[6,7]},
+
+    {en:'Both followers are in the ISR and have written. min.insync.replicas=2 is satisfied, so the write is committed and the high watermark advances.',
+     hi:'Dono followers ne likh liya aur ISR me hain. min.insync.replicas=2 pura hua, isliye write commit hui aur high watermark aage badha.',
+     st:{f1:'ok',f2:'ok',leader:'ok'}, tx:{f1:'LEO 4251',f2:'LEO 4251',leader:'HW 4251 · committed'},
+     pk:{q1:{at:'f1',l:'ok'},q2:{at:'f2',l:'ok'}}, w:[6,7]},
+
+    {en:'Only now does the ack travel back and the callback fire with partition=3, offset=4210.',
+     hi:'Ab jaakar ack wapas aaya aur callback chala. Dhyaan do — app thread step 3 me hi free ho chuka tha.',
+     st:{cb:'ok'}, tx:{cb:'partition=3 offset=4210'}, pk:{a1:{at:'cb',l:'ack',c:'ackp'},q1:{hide:1},q2:{hide:1},r1:{hide:1}}, w:[8]},
+
+    {en:'Recap: app thread blocked for 0.2 ms, the durable commit took ~9 ms, and 42 records cost one network request.',
+     hi:'Summary: app 0.2ms rukI, durable commit ~9ms me hua, aur 42 records ek hi request me gaye. Batching + async = throughput.',
+     st:{app:'ok',accum:'ok',sender:'ok',leader:'ok',seg:'ok',f1:'ok',f2:'ok',cb:'ok'}, pk:{}, w:[]}
+  ]
+},
+{
+  id:'replicate', tab:'2 · Replication & ISR',
+  nodes:{
+    prod  :{x:16,y:12,t:'Producer',s:'acks = all'},
+    leader:{x:20,y:44,t:'Broker 1 — LEADER P0',s:'LEO 900 · HW 900'},
+    f1    :{x:56,y:26,t:'Broker 2 — follower',s:'LEO 900'},
+    f2    :{x:56,y:64,t:'Broker 3 — follower',s:'LEO 900'},
+    isr   :{x:86,y:44,t:'ISR set',s:'{1, 2, 3}'},
+    ctrl  :{x:56,y:9,t:'Controller (KRaft quorum)',s:'watching'},
+    cons  :{x:20,y:82,t:'Consumer',s:'can read up to HW'}
+  },
+  wires:[['prod','leader'],['leader','f1'],['leader','f2'],['f1','isr'],['f2','isr'],['ctrl','leader'],['leader','cons']],
+  steps:[
+    {en:'Producer writes with acks=all. The leader appends locally: LEO (log end offset) becomes 901, but HW is still 900.',
+     hi:'Leader ne apne log me likha — LEO 901. Par high watermark abhi 900 hai, kyunki replicate nahi hua.',
+     st:{leader:'act',prod:'act'}, tx:{leader:'LEO 901 · HW 900'}, pk:{m:{at:'leader',l:'rec 901'}}, w:[0]},
+
+    {en:'Followers fetch from the leader. Nothing is pushed — each follower pulls at its own pace.',
+     hi:'Followers khud fetch karte hain. Leader kisi ko push nahi karta — isliye slow follower leader ko block nahi karta.',
+     st:{f1:'act',f2:'act'}, pk:{m1:{at:'f1',l:'fetch 901'},m2:{at:'f2',l:'fetch 901'}}, w:[1,2]},
+
+    {en:'Broker 2 catches up. Broker 3 is stuck on a slow disk and is still at 880.',
+     hi:'Broker 2 ne copy kar li. Broker 3 slow disk ki wajah se 880 pe atka hua hai.',
+     st:{f1:'ok',f2:'bad'}, tx:{f1:'LEO 901',f2:'LEO 880 — lagging'}, pk:{m1:{at:'f1',l:'ok'},m2:{at:'f2',l:'behind',c:'err'}}, w:[1,2]},
+
+    {en:'ISR still has 2 members, which meets min.insync.replicas=2 — so the write commits, HW moves to 901 and the producer is acked.',
+     hi:'ISR me abhi 2 members hain, jo min.insync.replicas=2 ko satisfy karta hai. Write commit ho gayi, HW 901, producer ko ack.',
+     st:{leader:'ok',isr:'act'}, tx:{leader:'LEO 901 · HW 901',isr:'{1, 2} + 3 lagging'},
+     pk:{a:{at:'prod',l:'ack',c:'ackp'},m1:{hide:1},m2:{hide:1}}, w:[0,3]},
+
+    {en:'The consumer can only read up to the high watermark. Uncommitted records are invisible — this is why you never read data that could still be lost.',
+     hi:'Consumer sirf HW tak padh sakta hai. Jo commit nahi hua wo dikhta hi nahi — isliye consumer ko kabhi wo data nahi milta jo baad me gum ho sakta hai.',
+     st:{cons:'act'}, tx:{cons:'reading ≤ offset 901'}, pk:{c:{at:'cons',l:'read ≤ HW'}}, w:[6]},
+
+    {en:'Broker 3 has not fetched for 30 s (replica.lag.time.max.ms). The leader shrinks the ISR to {1, 2}.',
+     hi:'Broker 3 ne 30 second se fetch nahi kiya. Leader ne use ISR se nikal diya — ab ISR sirf {1,2} hai.',
+     st:{f2:'bad',isr:'bad'}, tx:{isr:'{1, 2} — shrunk'}, pk:{c:{hide:1}}, w:[4]},
+
+    {en:'Danger zone: ISR size now equals min.insync.replicas. If Broker 2 also drops, producers start getting NotEnoughReplicasException — writes fail, but no data is lost.',
+     hi:'Ab ISR bilkul limit pe hai. Agar Broker 2 bhi gira to producer ko error milega aur writes ruk jaayengi — par data loss nahi hoga. Yahi availability vs durability ka trade hai.',
+     st:{isr:'bad',leader:'act'}, tx:{leader:'writes still accepted'}, w:[]},
+
+    {en:'Broker 1 crashes. The partition has no leader for a moment.',
+     hi:'Leader broker crash ho gaya. Us partition ka koi leader nahi bacha — reads aur writes dono ruk gaye.',
+     st:{leader:'bad',f1:'act',ctrl:'act'}, tx:{leader:'DOWN'}, pk:{x:{at:'leader',l:'crash',c:'err'}}, w:[5]},
+
+    {en:'The controller elects a new leader from the ISR only. Broker 2 qualifies; Broker 3 does not, because it is out of sync.',
+     hi:'Controller sirf ISR me se leader chunta hai. Broker 2 eligible hai, Broker 3 nahi — kyunki wo sync me nahi tha.',
+     st:{ctrl:'act',f1:'ok',f2:'dim'}, tx:{f1:'Broker 2 — NEW LEADER'}, pk:{x:{hide:1},e:{at:'f1',l:'elected',c:'ackp'}}, w:[5]},
+
+    {en:'No data is lost: everything below the high watermark was already on Broker 2. Failover took milliseconds under KRaft.',
+     hi:'Koi data nahi gaya — HW tak ka sab kuch Broker 2 ke paas already tha. KRaft me ye failover milliseconds me hota hai.',
+     st:{f1:'ok'}, tx:{isr:'{2} — rebuilding'}, pk:{e:{at:'f1',l:'leader'}}, w:[]},
+
+    {en:'If unclean.leader.election.enable had been true, Broker 3 could have become leader and offsets 881–901 would be gone forever. Keep it false.',
+     hi:'Agar unclean.leader.election true hoti to Broker 3 leader ban sakta tha aur 881–901 ke records hamesha ke liye gayab ho jaate. Isliye ise false rakho.',
+     st:{f2:'bad'}, tx:{f2:'Broker 3 — would lose 21 records'}, pk:{}, w:[]}
+  ]
+},
+{
+  id:'consume', tab:'3 · Consumer group',
+  nodes:{
+    p0   :{x:13,y:18,t:'orders-0',s:'end offset 4300'},
+    p1   :{x:13,y:46,t:'orders-1',s:'end offset 5100'},
+    p2   :{x:13,y:74,t:'orders-2',s:'end offset 3900'},
+    c1   :{x:45,y:22,t:'pod-1',s:'assigned: —'},
+    c2   :{x:45,y:52,t:'pod-2',s:'assigned: —'},
+    c3   :{x:45,y:84,t:'pod-3',s:'not started', cls:'dim'},
+    coord:{x:78,y:14,t:'Group coordinator',s:'group: inventory-service'},
+    off  :{x:78,y:50,t:'__consumer_offsets',s:'compacted topic'},
+    db   :{x:78,y:82,t:'Inventory DB',s:'processed_events'}
+  },
+  wires:[['c1','coord'],['c2','coord'],['c3','coord'],['p0','c1'],['p1','c1'],['p2','c2'],
+         ['c1','off'],['c2','off'],['c1','db'],['p1','c3']],
+  steps:[
+    {en:'pod-1 and pod-2 send JoinGroup to the coordinator. One of them becomes the group leader and computes the assignment.',
+     hi:'Dono pods ne coordinator ko JoinGroup bheja. Inme se ek group leader banta hai jo assignment calculate karta hai.',
+     st:{c1:'act',c2:'act',coord:'act'}, pk:{j1:{at:'coord',l:'join ×2'}}, w:[0,1]},
+
+    {en:'Assignment: 3 partitions across 2 pods. pod-1 gets orders-0 and orders-1, pod-2 gets orders-2.',
+     hi:'3 partitions, 2 pods. pod-1 ko do partitions mile, pod-2 ko ek. Har partition sirf ek hi pod ko jaata hai.',
+     st:{c1:'ok',c2:'ok'}, tx:{c1:'assigned: P0, P1',c2:'assigned: P2'}, pk:{j1:{hide:1}}, w:[3,4,5]},
+
+    {en:'A background thread sends a heartbeat every 3 s. This only says "the process is alive" — it says nothing about progress.',
+     hi:'Background thread har 3 second heartbeat bhejta hai. Ye sirf batata hai "process zinda hai" — kaam ho raha hai ya nahi, wo alag baat hai.',
+     st:{coord:'act'}, tx:{coord:'heartbeats OK · session 45 s'}, pk:{h1:{at:'coord',l:'♥ 3s'}}, w:[0,1]},
+
+    {en:'poll() returns up to max.poll.records=100 records from orders-0. The clock on max.poll.interval.ms=5 min starts now.',
+     hi:'poll() ne 100 records diye. Ab 5 minute ka counter chalu — agle poll tak itna hi time hai, warna group aapko dead maan lega.',
+     st:{c1:'act',p0:'act'}, tx:{c1:'processing 100 recs'}, pk:{h1:{hide:1},b1:{at:'c1',l:'100 recs'}}, w:[3]},
+
+    {en:'For each record: hasEventAlreadyBeenProcessed(eventId)? If yes, skip but still acknowledge, so the partition never gets stuck.',
+     hi:'Har record pe pehle dedupe check. Duplicate mila to skip karo par ack zaroor karo — warna wahi record baar-baar aayega aur partition atak jaayega.',
+     st:{db:'act'}, tx:{db:'SELECT … WHERE event_id = ?'}, pk:{b1:{at:'db',l:'dedupe check'}}, w:[8]},
+
+    {en:'The business change and the processed-marker are written in one DB transaction. Split them and a crash in between causes double processing.',
+     hi:'Stock reserve karna aur "processed" mark karna — dono ek hi DB transaction me. Alag-alag karoge to beech me crash hone pe double processing ho jaayegi.',
+     st:{db:'ok'}, tx:{db:'reserveStock + markProcessed — 1 txn'}, pk:{b1:{at:'db',l:'committed',c:'ackp'}}, w:[8]},
+
+    {en:'Only now acknowledge(). The committed offset 4301 is appended to __consumer_offsets. Nothing was mutated — a newer record simply wins after compaction.',
+     hi:'Ab jaakar acknowledge(). Offset 4301 __consumer_offsets me ek naye record ki tarah likha gaya. Kuch edit nahi hua — compaction ke baad bas latest record bachta hai. Yahi Kafka ka "update" hai.',
+     st:{off:'ok',c1:'ok'}, tx:{off:'(grp, orders-0) → 4301',c1:'committed 4301'},
+     pk:{b1:{hide:1},o1:{at:'off',l:'offset 4301',c:'ackp'}}, w:[6]},
+
+    {en:'Traffic doubles, so pod-3 starts up and joins the group.',
+     hi:'Traffic double ho gaya, isliye pod-3 start hua aur group me join kar gaya.',
+     st:{c3:'act',coord:'act'}, tx:{c3:'joining…'}, pk:{o1:{hide:1},j2:{at:'coord',l:'join'}}, w:[2]},
+
+    {en:'With CooperativeStickyAssignor only orders-1 is revoked from pod-1. pod-2 keeps working — no stop-the-world pause.',
+     hi:'Cooperative assignor ki wajah se sirf orders-1 revoke hua. pod-2 bina ruke chalta raha — poora group freeze nahi hua.',
+     st:{c1:'act',c2:'ok',c3:'act'}, tx:{c1:'assigned: P0 (P1 revoked)'}, pk:{j2:{hide:1},r:{at:'c1',l:'revoke P1',c:'err'}}, w:[4]},
+
+    {en:'orders-1 is assigned to pod-3, which resumes exactly from the last committed offset. Now 3 partitions, 3 pods.',
+     hi:'orders-1 pod-3 ko mil gaya aur wo last committed offset se hi shuru hua. Ab 3 partitions, 3 pods — perfect balance.',
+     st:{c3:'ok',p1:'act'}, tx:{c3:'assigned: P1 · from offset 5044'}, pk:{r:{hide:1},n:{at:'c3',l:'resume 5044',c:'ackp'}}, w:[9]},
+
+    {en:'pod-2 crashes. Heartbeats stop and after session.timeout.ms=45 s the coordinator removes it and reassigns orders-2.',
+     hi:'pod-2 crash ho gaya. Heartbeat band, 45 second baad coordinator ne use group se hata diya aur orders-2 kisi aur ko de diya.',
+     st:{c2:'bad',coord:'act'}, tx:{c2:'no heartbeat — evicted'}, pk:{n:{hide:1},d:{at:'c2',l:'dead',c:'err'}}, w:[1]},
+
+    {en:'A 4th pod would sit completely idle: with 3 partitions the parallelism ceiling is 3. To scale further you need more partitions, not more pods.',
+     hi:'Chautha pod add karte to wo bilkul idle baithta — 3 partitions matlab max 3 consumers. Aage scale karne ke liye partitions badhane padenge, pods nahi.',
+     st:{p0:'ok',p1:'ok',p2:'ok'}, pk:{d:{hide:1}}, w:[]}
+  ]
+},
+{
+  id:'storage', tab:'4 · Segments & compaction',
+  nodes:{
+    part:{x:16,y:12,t:'partition orders-3',s:'dir: /kafka/orders-3'},
+    s0  :{x:16,y:38,t:'segment 0',s:'0–999 · sealed · 8 days old'},
+    s1  :{x:16,y:60,t:'segment 1',s:'1000–1999 · sealed'},
+    s2  :{x:16,y:84,t:'segment 2 (active)',s:'2000– · appending'},
+    idx :{x:47,y:38,t:'.index / .timeindex',s:'sparse: 1 entry / 4 KB'},
+    ret :{x:47,y:66,t:'Retention thread',s:'retention.ms = 7 days'},
+    cln :{x:78,y:20,t:'Log cleaner',s:'cleanup.policy = compact'},
+    bef :{x:78,y:52,t:'before compaction',s:'u1=A u2=B u1=C u3=D u2=E'},
+    aft :{x:78,y:80,t:'after compaction',s:'—'}
+  },
+  wires:[['part','s0'],['part','s1'],['part','s2'],['s0','idx'],['s0','ret'],['cln','bef'],['bef','aft']],
+  steps:[
+    {en:'A partition is a directory of segments, not one giant file. Writes only ever touch the active segment.',
+     hi:'Partition ek folder hai jisme kai segment files hoti hain — ek hi badi file nahi. Likhna sirf active segment me hota hai.',
+     st:{part:'act',s2:'act'}, pk:{w:{at:'s2',l:'append'}}, w:[0,1,2]},
+
+    {en:'The active segment rolls over at segment.bytes (1 GB) or segment.ms. The old one is sealed and becomes read-only.',
+     hi:'Active segment 1GB ya time limit pe roll ho jaata hai. Purana seal ho kar read-only ban jaata hai.',
+     st:{s2:'ok'}, tx:{s2:'2000–2999 · sealed → new active'}, pk:{w:{at:'s2',l:'rolled'}}, w:[2]},
+
+    {en:'The .index maps offset → byte position, but only every 4 KB. Lookup = binary search in the sparse index, then a short scan.',
+     hi:'Index har record ka nahi, har 4KB ka entry rakhta hai. Isliye index chhota rehta hai aur memory-map ho jaata hai — lookup fast.',
+     st:{idx:'act'}, tx:{idx:'offset 1450 → byte 61 200'}, pk:{w:{hide:1},q:{at:'idx',l:'seek 1450'}}, w:[3]},
+
+    {en:'Segment 0 is older than retention.ms, so the whole file is unlinked. Nothing is rewritten and no record is scanned.',
+     hi:'Segment 0 retention se purana ho gaya — poori file delete. Rewrite nahi, koi record scan nahi. Isliye delete O(1) jaisa sasta hai.',
+     st:{ret:'act',s0:'bad'}, tx:{s0:'DELETED'}, pk:{q:{hide:1},dl:{at:'s0',l:'unlink',c:'err'}}, w:[4]},
+
+    {en:'A consumer that asks for offset 500 now gets OffsetOutOfRangeException, and auto.offset.reset decides whether it jumps to earliest or latest.',
+     hi:'Ab agar koi consumer offset 500 maange to error milega, aur auto.offset.reset decide karega ki wo earliest se shuru kare ya latest se. Yahan galat setting se poora history dobara process ho sakta hai.',
+     st:{s0:'bad'}, pk:{dl:{hide:1},oe:{at:'s0',l:'OffsetOutOfRange',c:'err'}}, w:[]},
+
+    {en:'On a compacted topic the log cleaner runs separately: for each key it keeps only the latest value.',
+     hi:'Compacted topic pe log cleaner alag se chalta hai aur har key ka sirf latest value rakhta hai. Purane values hata deta hai.',
+     st:{cln:'act',bef:'act'}, pk:{oe:{hide:1},cp:{at:'bef',l:'5 records'}}, w:[5]},
+
+    {en:'u1=A and u2=B are removed because newer values exist. The topic is now a table: one row per key.',
+     hi:'u1=A aur u2=B hat gaye kyunki inke naye values maujood hain. Topic ab ek table ban gaya — har key ka ek row.',
+     st:{aft:'ok'}, tx:{aft:'u1=C  u3=D  u2=E'}, pk:{cp:{at:'aft',l:'3 records',c:'ackp'}}, w:[6]},
+
+    {en:'To delete a key you publish a tombstone: (key, null). It stays visible for delete.retention.ms so every consumer sees the deletion.',
+     hi:'Key delete karni hai to tombstone bhejo — value null. Wo kuch time tak dikhta rehta hai taaki har consumer ko delete ka pata chal jaaye, phir hat jaata hai.',
+     st:{cln:'act',aft:'act'}, tx:{aft:'u3=null (tombstone) → u1=C  u2=E'}, pk:{cp:{at:'aft',l:'tombstone',c:'err'}}, w:[6]},
+
+    {en:'This is why compacted topics power Kafka Streams state stores and CDC: replay from offset 0 and you rebuild the full current state.',
+     hi:'Isi wajah se Streams ka state store aur CDC compacted topics use karte hain — offset 0 se replay karo aur poora current state wapas ban jaata hai.',
+     st:{aft:'ok',cln:'ok'}, pk:{cp:{hide:1}}, w:[]}
+  ]
+},
+{
+  id:'idem', tab:'5 · Idempotency',
+  nodes:{
+    app :{x:15,y:16,t:'App',s:'sends payment event'},
+    prod:{x:15,y:46,t:'Producer',s:'PID = 7734 · seq 4'},
+    net :{x:45,y:46,t:'Network',s:'healthy'},
+    brk :{x:76,y:26,t:'Broker — leader P3',s:'idle'},
+    seq :{x:76,y:56,t:'sequence map',s:'PID 7734 → last seq 4'},
+    log :{x:76,y:84,t:'partition log',s:'… seq3, seq4'},
+    cons:{x:15,y:80,t:'Consumer',s:'processed_events table'}
+  },
+  wires:[['app','prod'],['prod','net'],['net','brk'],['brk','seq'],['brk','log'],['prod','cons']],
+  steps:[
+    {en:'enable.idempotence=true, so the producer holds a Producer ID and a per-partition sequence number. This batch is seq 5.',
+     hi:'Idempotence on hone se producer ke paas ek PID hai aur har partition ka apna sequence number. Ye batch seq 5 hai.',
+     st:{prod:'act',app:'act'}, tx:{prod:'PID 7734 · sending seq 5'}, pk:{p:{at:'prod',l:'seq 5'}}, w:[0]},
+
+    {en:'The batch reaches the broker.',
+     hi:'Batch broker tak pahunch gaya.',
+     st:{brk:'act',net:'act'}, pk:{p:{at:'brk'}}, w:[1,2]},
+
+    {en:'The broker checks its sequence map: last seen is 4, this is 5 — exactly next. It appends and updates the map.',
+     hi:'Broker ne sequence map dekha: last 4 tha, ab 5 aaya — bilkul agla. Isliye append kiya aur map update kar diya.',
+     st:{seq:'ok',log:'ok'}, tx:{seq:'PID 7734 → last seq 5',log:'… seq4, seq5'}, pk:{p:{at:'log',l:'written'}}, w:[3,4]},
+
+    {en:'The ack is sent back — and the connection drops mid-flight. The record is safely on disk but the producer has no idea.',
+     hi:'Ack bheja gaya par beech raaste me connection toot gaya. Record disk pe safe hai, par producer ko pata hi nahi chala.',
+     st:{net:'bad',brk:'act'}, tx:{net:'connection reset'}, pk:{p:{hide:1},a:{at:'net',l:'ack lost',c:'err'}}, w:[2]},
+
+    {en:'After delivery.timeout the producer retries — same PID, same sequence 5. It does not invent a new sequence.',
+     hi:'Timeout ke baad producer ne retry kiya — wahi PID, wahi seq 5. Naya sequence number nahi banaya, yahi trick hai.',
+     st:{prod:'act',net:'act'}, tx:{net:'reconnected',prod:'retrying seq 5'}, pk:{a:{hide:1},p2:{at:'prod',l:'retry seq 5'}}, w:[1]},
+
+    {en:'The broker sees sequence 5 again. Its map already says last=5, so this is a duplicate. It drops the batch silently.',
+     hi:'Broker ne dekha seq 5 dobara aa gaya. Map me already last=5 hai, matlab duplicate hai — chup-chaap drop kar diya, log me dobara nahi likha.',
+     st:{brk:'act',seq:'act'}, tx:{seq:'seq 5 already seen → DROP'}, pk:{p2:{at:'seq',l:'duplicate',c:'err'}}, w:[2,3]},
+
+    {en:'It still returns success, so the producer moves on. The log has exactly one copy — no duplicate, no error.',
+     hi:'Phir bhi broker ne success ack bhej diya taaki producer aage badh jaaye. Log me sirf ek copy hai — na duplicate, na error.',
+     st:{brk:'ok',log:'ok'}, tx:{log:'… seq4, seq5 (one copy)'}, pk:{p2:{hide:1},ok:{at:'prod',l:'ack seq 5',c:'ackp'}}, w:[2]},
+
+    {en:'If sequence 7 had arrived with last=5, the broker would reject it with OutOfOrderSequenceException — which is how retries cannot reorder your data.',
+     hi:'Agar seq 7 aa jaata jabki last 5 tha, to broker reject kar deta. Isi wajah se retries ke baad bhi order kabhi nahi bigadta.',
+     st:{seq:'bad'}, tx:{seq:'gap detected → OutOfOrderSequence'}, pk:{ok:{hide:1},g:{at:'seq',l:'seq 7 rejected',c:'err'}}, w:[3]},
+
+    {en:'The limit: this only covers retries inside one producer session. If the pod crashes and restarts it gets a new PID, and the broker cannot tell.',
+     hi:'Limitation ye hai ki ye sirf ek producer session ke retries pe kaam karta hai. Pod crash hokar restart hua to naya PID milega aur broker ko duplicate ka pata hi nahi chalega.',
+     st:{prod:'bad'}, tx:{prod:'restarted → new PID 8891'}, pk:{g:{hide:1},nn:{at:'prod',l:'new PID',c:'err'}}, w:[]},
+
+    {en:'So the real end-to-end guarantee is on the consumer: a unique index on event_id. Idempotent producer plus idempotent consumer is the production answer.',
+     hi:'Isliye asli end-to-end guarantee consumer pe hai — event_id pe unique index. Idempotent producer + idempotent consumer, dono milkar hi production-safe hain.',
+     st:{cons:'ok'}, tx:{cons:'UNIQUE(event_id) → duplicate ignored'}, pk:{nn:{hide:1},f:{at:'cons',l:'dedupe',c:'ackp'}}, w:[5]}
+  ]
+}
+];
+
+/* ---------- engine ---------- */
+var stage   = document.getElementById('stage');
+var wiresEl = document.getElementById('wires');
+var tabsEl  = document.getElementById('sceneTabs');
+var narEn   = document.getElementById('narEn');
+var narHi   = document.getElementById('narHi');
+var countEl = document.getElementById('stepCount');
+var playBtn = document.getElementById('playBtn');
+var prevBtn = document.getElementById('prevBtn');
+var nextBtn = document.getElementById('nextBtn');
+var resetBtn= document.getElementById('resetBtn');
+
+var sceneIdx = 0, stepIdx = 0, timer = null, playing = false;
+var nodeEls = {}, wireEls = [], pktEls = {};
+var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+function currentScene(){ return SCENES[sceneIdx]; }
+
+/* Narrow screens: pull nodes toward the centre so nothing clips off the edges. */
+function isNarrow(){ return stage.clientWidth < 560; }
+function posX(x){ return isNarrow() ? (50 + (x - 50) * 0.70) : x; }
+
+function buildTabs(){
+  SCENES.forEach(function(sc, i){
+    var b = document.createElement('button');
+    b.textContent = sc.tab;
+    b.setAttribute('role','tab');
+    b.setAttribute('aria-selected', String(i === 0));
+    b.addEventListener('click', function(){ selectScene(i); });
+    tabsEl.appendChild(b);
+  });
+}
+
+function markTabs(){
+  Array.prototype.forEach.call(tabsEl.children, function(b, i){
+    b.setAttribute('aria-selected', String(i === sceneIdx));
+  });
+}
+
+function buildScene(){
+  Object.keys(nodeEls).forEach(function(k){ nodeEls[k].remove(); });
+  Object.keys(pktEls).forEach(function(k){ pktEls[k].remove(); });
+  nodeEls = {}; pktEls = {}; wireEls = [];
+  wiresEl.innerHTML = '';
+
+  var sc = currentScene();
+
+  sc.wires.forEach(function(pair){
+    var a = sc.nodes[pair[0]], b = sc.nodes[pair[1]];
+    var ln = document.createElementNS('http://www.w3.org/2000/svg','line');
+    ln.setAttribute('x1', posX(a.x)); ln.setAttribute('y1', a.y);
+    ln.setAttribute('x2', posX(b.x)); ln.setAttribute('y2', b.y);
+    ln.setAttribute('class','wire');
+    ln.setAttribute('vector-effect','non-scaling-stroke');
+    wiresEl.appendChild(ln);
+    wireEls.push(ln);
+  });
+
+  Object.keys(sc.nodes).forEach(function(id){
+    var n = sc.nodes[id];
+    var el = document.createElement('div');
+    el.className = 'node' + (n.cls ? ' ' + n.cls : '');
+    el.style.left = posX(n.x) + '%';
+    el.style.top  = n.y + '%';
+    el.innerHTML = '<b>' + n.t + '</b><small data-sub>' + (n.s || '') + '</small>';
+    stage.appendChild(el);
+    nodeEls[id] = el;
+  });
+}
+
+function ensurePacket(id){
+  if(pktEls[id]) return pktEls[id];
+  var el = document.createElement('div');
+  el.className = 'pkt noanim';
+  stage.appendChild(el);
+  pktEls[id] = el;
+  return el;
+}
+
+function render(){
+  var sc = currentScene();
+
+  /* reset visual state */
+  Object.keys(nodeEls).forEach(function(id){
+    nodeEls[id].className = 'node' + (sc.nodes[id].cls ? ' ' + sc.nodes[id].cls : '');
+    nodeEls[id].querySelector('[data-sub]').textContent = sc.nodes[id].s || '';
+  });
+  wireEls.forEach(function(w){ w.setAttribute('class','wire'); });
+  Object.keys(pktEls).forEach(function(id){ pktEls[id].classList.add('gone'); });
+
+  /* replay accumulated text + packet positions up to current step */
+  for(var i = 0; i <= stepIdx; i++){
+    var st = sc.steps[i];
+    if(st.tx) Object.keys(st.tx).forEach(function(id){
+      if(nodeEls[id]) nodeEls[id].querySelector('[data-sub]').textContent = st.tx[id];
+    });
+    if(st.pk) Object.keys(st.pk).forEach(function(pid){
+      var spec = st.pk[pid];
+      var el = ensurePacket(pid);
+      if(spec.hide){ el.classList.add('gone'); return; }
+      el.classList.remove('gone');
+      if(spec.l !== undefined) el.textContent = spec.l;
+      el.className = 'pkt' + (spec.c ? ' ' + spec.c : '') + (el.classList.contains('noanim') ? ' noanim' : '');
+      if(spec.at && sc.nodes[spec.at]){
+        el.style.left = posX(sc.nodes[spec.at].x) + '%';
+        el.style.top  = (sc.nodes[spec.at].y - 9) + '%';
+      }
+    });
+  }
+
+  /* current step highlights only */
+  var cur = sc.steps[stepIdx];
+  if(cur.st) Object.keys(cur.st).forEach(function(id){
+    if(nodeEls[id] && cur.st[id]) nodeEls[id].classList.add(cur.st[id]);
+  });
+  if(cur.w) cur.w.forEach(function(i){ if(wireEls[i]) wireEls[i].setAttribute('class','wire on'); });
+
+  narEn.textContent = cur.en;
+  narHi.textContent = cur.hi;
+  countEl.textContent = 'step ' + (stepIdx + 1) + ' / ' + sc.steps.length;
+  prevBtn.disabled = stepIdx === 0;
+  nextBtn.disabled = stepIdx === sc.steps.length - 1;
+
+  requestAnimationFrame(function(){
+    Object.keys(pktEls).forEach(function(id){ pktEls[id].classList.remove('noanim'); });
+  });
+}
+
+function selectScene(i){
+  stopPlayback();
+  sceneIdx = i; stepIdx = 0;
+  markTabs(); buildScene(); render();
+}
+
+function goToStep(i){
+  var max = currentScene().steps.length - 1;
+  stepIdx = Math.max(0, Math.min(max, i));
+  render();
+}
+
+function stopPlayback(){
+  playing = false;
+  if(timer){ clearInterval(timer); timer = null; }
+  playBtn.textContent = 'Play';
+}
+
+function startPlayback(){
+  playing = true;
+  playBtn.textContent = 'Pause';
+  if(stepIdx === currentScene().steps.length - 1) stepIdx = 0;
+  render();
+  timer = setInterval(function(){
+    if(stepIdx >= currentScene().steps.length - 1){ stopPlayback(); return; }
+    goToStep(stepIdx + 1);
+  }, reduce ? 4200 : 2900);
+}
+
+playBtn.addEventListener('click', function(){ playing ? stopPlayback() : startPlayback(); });
+nextBtn.addEventListener('click', function(){ stopPlayback(); goToStep(stepIdx + 1); });
+prevBtn.addEventListener('click', function(){ stopPlayback(); goToStep(stepIdx - 1); });
+resetBtn.addEventListener('click', function(){ stopPlayback(); goToStep(0); });
+
+var resizeTimer = null, lastNarrow = null;
+window.addEventListener('resize', function(){
+  if(resizeTimer) clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(function(){
+    var n = isNarrow();
+    if(n !== lastNarrow){ lastNarrow = n; buildScene(); render(); }
+  }, 180);
+});
+
+buildTabs();
+lastNarrow = isNarrow();
+selectScene(0);
+
+})();
+</script>
+</body>
+</html>

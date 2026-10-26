@@ -1,0 +1,1958 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spring Boot 2 → 4 · Architect's Deep Reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans+Condensed:wght@500;600;700&family=IBM+Plex+Serif:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+/* ========== TOKENS ========== */
+:root{
+  --paper:#F3F5F1;
+  --card:#FFFFFF;
+  --ink:#15201B;
+  --ink2:#3D4A44;
+  --ink3:#71807A;
+  --seam:#CBD4CD;
+  --seam-soft:#E2E8E2;
+
+  --fault:#A33028;
+  --fault-bg:#FBF0EE;
+  --fault-edge:#E6C8C4;
+
+  --fix:#2E6B3B;
+  --fix-bg:#EEF5ED;
+  --fix-edge:#C6DAC6;
+
+  --brass:#9F6D1E;
+  --brass-bg:#FBF4E5;
+  --brass-edge:#E7D6AF;
+
+  --slate:#141D19;
+  --slate2:#1D2823;
+  --slate3:#27332D;
+  --code:#DAE4DD;
+
+  --kw:#9BC77F;
+  --ann:#E3B455;
+  --str:#CD8E6D;
+  --com:#697C73;
+  --num:#8FB8C9;
+  --typ:#BFD9CF;
+
+  --f-disp:"IBM Plex Sans Condensed",Arial Narrow,Helvetica,sans-serif;
+  --f-body:"IBM Plex Serif",Georgia,serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+
+  --gut:clamp(16px,3vw,40px);
+  --maxw:1360px;
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:104px}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font-family:var(--f-body);font-size:17px;line-height:1.68;
+  -webkit-font-smoothing:antialiased;
+}
+img{max-width:100%}
+a{color:var(--fix);text-decoration-thickness:1px;text-underline-offset:3px}
+:focus-visible{outline:3px solid var(--brass);outline-offset:2px;border-radius:2px}
+
+.wrap{max-width:var(--maxw);margin:0 auto;padding:0 var(--gut)}
+
+h1,h2,h3,h4,.disp{font-family:var(--f-disp);font-weight:700;letter-spacing:-.012em;line-height:1.1;margin:0}
+h2{font-size:clamp(28px,4.2vw,46px)}
+h3{font-size:clamp(20px,2.4vw,26px)}
+h4{font-size:17px;letter-spacing:.01em}
+p{margin:0 0 .85em}
+ul,ol{margin:0 0 .9em;padding-left:1.15em}
+li{margin:.3em 0}
+code{font-family:var(--f-mono);font-size:.86em;background:#E7EBE6;padding:.1em .32em;border-radius:3px}
+strong{font-weight:600}
+.hi{font-style:italic;color:var(--ink2)}
+
+/* ========== HERO ========== */
+.hero{position:relative;background:var(--slate);color:#E9EFEA;overflow:hidden;border-bottom:1px solid #0C1310}
+.hero .wrap{padding-top:clamp(48px,7vw,86px);padding-bottom:clamp(36px,5vw,64px)}
+.hero-kicker{font-family:var(--f-mono);font-size:12.5px;color:#87A793;margin:0 0 20px;letter-spacing:.02em}
+.hero h1{font-size:clamp(38px,7.6vw,86px);line-height:.95;color:#F2F7F3;max-width:16ch}
+.hero-sub{max-width:62ch;margin-top:22px;color:#B6C6BB;font-size:clamp(16px,1.7vw,19.5px)}
+.hero-sub em{color:#DCE7DE;font-style:italic}
+
+/* strata */
+.strata{margin-top:clamp(34px,5vw,54px);border-top:1px solid #2C3A33;padding-top:26px}
+.stratum{
+  display:grid;grid-template-columns:minmax(96px,1fr) 3.2fr;gap:clamp(12px,2.4vw,30px);
+  align-items:start;padding:16px 0;border-bottom:1px solid #232F29;position:relative;
+}
+.stratum:last-child{border-bottom:0}
+.stratum-id{font-family:var(--f-disp);font-weight:700;font-size:clamp(26px,3.6vw,40px);line-height:1;color:#F2F7F3}
+.stratum-id span{display:block;font-family:var(--f-mono);font-weight:400;font-size:11.5px;color:#7E9788;margin-top:7px;letter-spacing:.03em}
+.stratum-bars{display:flex;flex-wrap:wrap;gap:7px}
+.bar{
+  font-family:var(--f-mono);font-size:12px;padding:5px 10px;border-radius:2px;
+  background:#212D27;border:1px solid #314038;color:#C2D2C7;white-space:nowrap;
+}
+.bar.b-hot{background:#2E1E1C;border-color:#5C3630;color:#E4A79F}
+.bar.b-new{background:#1C2C20;border-color:#37552F;color:#A9D28E}
+.stratum.dead .stratum-id{color:#7C8B83}
+.fault-line{
+  grid-column:1/-1;font-family:var(--f-mono);font-size:11.5px;color:#E0A79E;
+  border-top:1px dashed #6A403A;padding-top:9px;margin-top:4px;letter-spacing:.02em;
+}
+.reveal{opacity:0;transform:translateY(10px)}
+.hero.go .reveal{opacity:1;transform:none;transition:opacity .55s ease,transform .55s ease}
+.hero.go .stratum:nth-child(1) .reveal{transition-delay:.05s}
+.hero.go .stratum:nth-child(2) .reveal{transition-delay:.16s}
+.hero.go .stratum:nth-child(3) .reveal{transition-delay:.27s}
+.hero.go .stratum:nth-child(4) .reveal{transition-delay:.38s}
+
+/* ========== NAV ========== */
+.nav{position:sticky;top:0;z-index:60;background:rgba(243,245,241,.94);backdrop-filter:blur(9px);border-bottom:1px solid var(--seam)}
+.nav-inner{display:flex;gap:6px;overflow-x:auto;padding:9px 0;scrollbar-width:thin}
+.nav a{
+  font-family:var(--f-mono);font-size:12.5px;text-decoration:none;color:var(--ink2);
+  border:1px solid var(--seam);background:var(--card);padding:6px 11px;border-radius:2px;white-space:nowrap;
+}
+.nav a:hover{border-color:var(--fix);color:var(--fix)}
+.nav a.on{background:var(--slate);color:#DCE7DE;border-color:var(--slate)}
+
+/* ========== SECTION ========== */
+.sec{padding:clamp(52px,7vw,92px) 0 clamp(18px,3vw,34px);border-top:1px solid var(--seam-soft)}
+.sec:first-of-type{border-top:0}
+.sec-head{display:grid;grid-template-columns:auto 1fr;gap:18px;align-items:baseline;margin-bottom:10px}
+.sec-num{font-family:var(--f-mono);font-size:13px;color:var(--ink3);padding-top:8px}
+.sec-lede{max-width:74ch;color:var(--ink2);margin-top:14px;font-size:17.5px}
+
+/* ========== SPLIT (the diff) ========== */
+.split{
+  display:grid;grid-template-columns:1fr 1fr;gap:0;margin-top:30px;
+  border:1px solid var(--seam);background:var(--card);border-radius:3px;overflow:hidden;
+}
+.pane{padding:clamp(18px,2.4vw,30px);min-width:0}
+.pane-l{background:var(--fault-bg);border-right:1px solid var(--seam);box-shadow:inset 4px 0 0 var(--fault)}
+.pane-r{background:var(--card);box-shadow:inset 4px 0 0 var(--fix)}
+.pane-tag{
+  font-family:var(--f-mono);font-size:11.5px;letter-spacing:.04em;margin-bottom:12px;
+  display:inline-block;padding:3px 8px;border-radius:2px;
+}
+.pane-l .pane-tag{background:#F2DCD8;color:var(--fault)}
+.pane-r .pane-tag{background:var(--fix-bg);color:var(--fix)}
+.pane h3{margin-bottom:10px}
+.pane p,.pane li{font-size:16px}
+.pane p:last-child,.pane ul:last-child,.pane ol:last-child{margin-bottom:0}
+
+/* symptom list on problem side */
+.symptom{list-style:none;padding:0;margin:0 0 14px}
+.symptom li{
+  position:relative;padding-left:22px;font-size:15.5px;color:#5C3A36;margin:.42em 0;
+}
+.symptom li::before{
+  content:"";position:absolute;left:2px;top:.62em;width:9px;height:2px;background:var(--fault);
+}
+
+/* ========== CODE ========== */
+.code{
+  background:var(--slate);color:var(--code);font-family:var(--f-mono);font-size:13px;line-height:1.62;
+  border-radius:3px;overflow:auto;margin:14px 0;border:1px solid #0C1310;
+}
+.code-bar{
+  display:flex;justify-content:space-between;gap:12px;align-items:center;
+  background:var(--slate2);border-bottom:1px solid #0C1310;padding:7px 12px;
+  font-size:11.5px;color:#8DA697;position:sticky;left:0;
+}
+.code-bar b{font-weight:400;color:#B9CCBF}
+.code pre{margin:0;padding:14px 12px 16px;overflow:visible}
+.code .ln{display:inline-block;width:2.2em;color:#4E6057;user-select:none;text-align:right;margin-right:14px}
+.code .row{display:block;white-space:pre}
+.code .row.mark{background:#22332A;box-shadow:inset 3px 0 0 var(--kw)}
+.code .row.bad{background:#2E1E1C;box-shadow:inset 3px 0 0 #A6564C}
+.kw{color:var(--kw)}.ann{color:var(--ann)}.str{color:var(--str)}.com{color:var(--com)}
+.num{color:var(--num)}.typ{color:var(--typ)}
+
+/* line-by-line explanation */
+.lines{list-style:none;padding:0;margin:12px 0 0;counter-reset:none}
+.lines li{
+  display:grid;grid-template-columns:56px 1fr;gap:12px;align-items:start;
+  padding:8px 0;border-top:1px dotted var(--seam);font-size:15px;
+}
+.lines li:first-child{border-top:1px solid var(--seam)}
+.lines .lref{font-family:var(--f-mono);font-size:11.5px;color:var(--fix);padding-top:4px;font-weight:600}
+.pane-l .lines .lref{color:var(--fault)}
+
+/* ========== TRADEOFF ========== */
+.trade{
+  margin:0 0 6px;border:1px solid var(--brass-edge);border-left:4px solid var(--brass);
+  background:var(--brass-bg);border-radius:0 3px 3px 0;padding:clamp(16px,2vw,24px);
+}
+.trade > h4{color:var(--brass);margin-bottom:14px;font-size:15px;letter-spacing:.03em}
+.trade-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:clamp(14px,2vw,26px)}
+.trade-col h5{
+  font-family:var(--f-mono);font-size:11.5px;font-weight:600;margin:0 0 8px;color:var(--brass);
+  border-bottom:1px solid var(--brass-edge);padding-bottom:6px;letter-spacing:.03em;
+}
+.trade-col ul{padding-left:1.05em;margin:0}
+.trade-col li{font-size:14.6px;color:#4A4133;margin:.42em 0}
+
+/* ========== TABLE ========== */
+.tbl-scroll{overflow-x:auto;margin:24px 0;border:1px solid var(--seam);border-radius:3px;background:var(--card)}
+table{border-collapse:collapse;width:100%;min-width:660px;font-size:14.6px}
+th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--seam-soft);vertical-align:top}
+thead th{
+  background:var(--slate);color:#DCE7DE;font-family:var(--f-disp);font-weight:600;font-size:14px;
+  position:sticky;top:0;letter-spacing:.01em;
+}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:nth-child(even){background:#F8FAF7}
+td code{background:#E7EBE6}
+.tag{font-family:var(--f-mono);font-size:11.5px;padding:2px 7px;border-radius:2px;white-space:nowrap}
+.t-gone{background:#F2DCD8;color:var(--fault)}
+.t-new{background:var(--fix-bg);color:var(--fix)}
+.t-warn{background:var(--brass-bg);color:var(--brass)}
+
+/* ========== NOTE ========== */
+.note{
+  background:var(--card);border:1px solid var(--seam);border-left:4px solid var(--slate);
+  padding:16px 20px;margin:20px 0;font-size:15.6px;border-radius:0 3px 3px 0;
+}
+.note h4{margin-bottom:7px}
+
+/* ========== ARCH ANIMATION ========== */
+.arch{background:var(--slate);color:#D9E4DC;border-radius:3px;overflow:hidden;margin-top:26px;border:1px solid #0C1310}
+.arch-top{
+  display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;
+  padding:14px 16px;background:var(--slate2);border-bottom:1px solid #0C1310;
+}
+.arch-modes{display:flex;gap:6px}
+.btn{
+  font-family:var(--f-mono);font-size:12.5px;padding:7px 13px;border-radius:2px;cursor:pointer;
+  background:#27332D;color:#C4D4C9;border:1px solid #3A4A42;
+}
+.btn:hover{border-color:#5C7A66;color:#E7F0E9}
+.btn.on{background:#9BC77F;color:#14211A;border-color:#9BC77F;font-weight:600}
+.btn.primary{background:#2E6B3B;border-color:#2E6B3B;color:#EAF3EA}
+.btn.primary:hover{background:#378046}
+.arch-body{display:grid;grid-template-columns:1.55fr 1fr;gap:0}
+.arch-canvas{padding:10px;min-width:0;border-right:1px solid #0C1310}
+.arch-canvas svg{width:100%;height:auto;display:block}
+.nd rect{fill:#1E2A25;stroke:#37453D;stroke-width:1}
+.nd text{font-family:"IBM Plex Mono",monospace;fill:#93A89A;font-size:11px}
+.nd text.t2{font-size:9.5px;fill:#6E8377}
+.nd.live rect{fill:#26402C;stroke:#9BC77F;stroke-width:2}
+.nd.live text{fill:#DCEBD8}
+.nd.live text.t2{fill:#A9CB99}
+.nd.done rect{fill:#1F2F26;stroke:#4C6B52}
+.nd.done text{fill:#8FAE96}
+.nd.tx rect{stroke-dasharray:4 3}
+.lnk{stroke:#33423A;stroke-width:1.6;fill:none}
+.lnk.hot{stroke:#9BC77F;stroke-width:2.4}
+#pkt{fill:#E3B455;filter:drop-shadow(0 0 6px rgba(227,180,85,.65));transition:transform .5s cubic-bezier(.4,0,.2,1)}
+.arch-side{padding:16px 18px;min-width:0}
+.arch-step{font-family:var(--f-mono);font-size:11.5px;color:#7F9887;margin-bottom:8px}
+.arch-title{font-family:var(--f-disp);font-weight:700;font-size:20px;color:#EAF2EB;margin-bottom:8px;line-height:1.2}
+.arch-desc{font-size:15px;color:#B6C6BB;margin-bottom:16px;min-height:5.4em}
+.arch-desc em{color:#DCE7DE}
+.state-row{
+  display:grid;grid-template-columns:82px 1fr;gap:10px;font-family:var(--f-mono);font-size:11.5px;
+  padding:7px 0;border-top:1px solid #29352F;
+}
+.state-row span:first-child{color:#6E8377}
+.state-row span:last-child{color:#C9DACE;word-break:break-word}
+.state-row.sql span:last-child{color:var(--ann)}
+.arch-progress{height:3px;background:#27332D;border-radius:2px;overflow:hidden;margin-top:16px}
+.arch-progress i{display:block;height:100%;background:#9BC77F;width:0;transition:width .4s ease}
+
+/* ========== ACCORDION ========== */
+.qa{border:1px solid var(--seam);border-radius:3px;overflow:hidden;background:var(--card);margin-top:26px}
+details{border-bottom:1px solid var(--seam-soft)}
+details:last-child{border-bottom:0}
+summary{
+  cursor:pointer;padding:15px 18px;font-family:var(--f-disp);font-weight:600;font-size:17px;
+  display:grid;grid-template-columns:34px 1fr auto;gap:10px;align-items:baseline;list-style:none;
+}
+summary::-webkit-details-marker{display:none}
+summary:hover{background:#F5F8F4}
+.q-n{font-family:var(--f-mono);font-size:12px;color:var(--ink3);font-weight:400}
+.q-sig{font-family:var(--f-mono);font-size:10.5px;padding:2px 7px;border-radius:2px;background:#E7EBE6;color:var(--ink3);font-weight:400}
+details[open] summary{background:var(--slate);color:#EAF2EB}
+details[open] summary .q-n{color:#8DA697}
+details[open] summary .q-sig{background:#31403A;color:#A9C4B2}
+.ans{padding:18px 18px 22px 62px;font-size:16px}
+.ans .code{font-size:12.5px}
+.ans > *:last-child{margin-bottom:0}
+
+/* ========== FOOT ========== */
+.foot{background:var(--slate);color:#8DA697;padding:40px 0;margin-top:60px;font-family:var(--f-mono);font-size:12.5px}
+.foot b{color:#C4D4C9;font-weight:400}
+
+/* ========== RESPONSIVE ========== */
+@media(max-width:900px){
+  .split{grid-template-columns:1fr}
+  .pane-l{border-right:0;border-bottom:1px solid var(--seam)}
+  .trade-grid{grid-template-columns:1fr}
+  .arch-body{grid-template-columns:1fr}
+  .arch-canvas{border-right:0;border-bottom:1px solid #0C1310}
+  .stratum{grid-template-columns:1fr}
+  .ans{padding-left:18px}
+}
+@media(prefers-reduced-motion:reduce){
+  *{transition:none!important;animation:none!important;scroll-behavior:auto}
+  .reveal{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+<div id="sdh-libbar" style="position:relative;z-index:2147483000;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0;padding:8px 16px;background:#0f172a;color:#cbd5e1;font:600 13px/1.5 Inter,'Segoe UI',system-ui,-apple-system,sans-serif;border-bottom:2px solid #4f46e5;box-sizing:border-box;width:100%;text-align:left;letter-spacing:0"><a href="../../index.html" style="color:#fff;text-decoration:none;font-weight:800">SystemDesign<span style="color:#8b8cff">.hinglish</span></a><span style="opacity:.45">/</span><a href="../index.html" style="color:#fff;text-decoration:none">📚 Library</a><span style="opacity:.45">/</span><a href="../index.html#spring-boot" style="color:#cbd5e1;text-decoration:none">Spring Boot &amp; Microservices</a><a href="../files/spring-boot-2-to-4-architect-reference-original.html" download style="color:#a5b4fc;text-decoration:none;font-size:12px">⬇ Original</a><span style="margin-left:auto;font-size:11px;padding:2px 9px;border-radius:999px;border:1px solid #6366f1;color:#c7d2fe">📘 HTML ebook</span></div>
+
+<!-- ============ HERO ============ -->
+<header class="hero" id="top">
+  <div class="wrap">
+    <p class="hero-kicker">Deep reference · architect level · Hinglish + English · updated Sept 2026</p>
+    <h1>Spring Boot 2 → 4, read as a stack, not a changelog.</h1>
+    <p class="hero-sub">Har topic do halves mein hai: baayen taraf woh cheez jo <em>production mein todti hai</em>, daayen taraf uska fix — actual code, line-by-line, proper method names ke saath. Neeche har section mein trade-off strip hai: kab lagao, kab chhod do, aur kyun.</p>
+
+    <div class="strata">
+      <div class="stratum dead">
+        <div class="stratum-id reveal">2.x<span>2018 – 2023 · OSS EOL</span></div>
+        <div class="stratum-bars reveal">
+          <span class="bar">Java 8 – 17</span>
+          <span class="bar">Spring Framework 5.3</span>
+          <span class="bar b-hot">javax.*</span>
+          <span class="bar">Tomcat 9.0.x · Servlet 4.0</span>
+          <span class="bar">Security 5.x · WebSecurityConfigurerAdapter</span>
+          <span class="bar">spring.factories</span>
+        </div>
+      </div>
+      <div class="stratum dead">
+        <div class="stratum-id reveal">3.x<span>2022 – 2026 · 3.5 OSS EOL Jun 2026</span></div>
+        <div class="stratum-bars reveal">
+          <span class="bar">Java 17 baseline</span>
+          <span class="bar">Spring Framework 6.x</span>
+          <span class="bar b-hot">jakarta.*</span>
+          <span class="bar">Tomcat 10.1.x · Servlet 6.0</span>
+          <span class="bar">Security 6.x · SecurityFilterChain</span>
+          <span class="bar b-new">Virtual threads (3.2)</span>
+          <span class="bar b-new">Structured logging (3.4)</span>
+        </div>
+        <div class="fault-line reveal">FAULT LINE — javax → jakarta. Yahi woh jagah hai jahan 90% migration budget jata hai.</div>
+      </div>
+      <div class="stratum">
+        <div class="stratum-id reveal">4.x<span>Nov 2025 – now · current line</span></div>
+        <div class="stratum-bars reveal">
+          <span class="bar">Java 17 min · tested to 25/26</span>
+          <span class="bar b-new">Spring Framework 7</span>
+          <span class="bar">Jakarta EE 11</span>
+          <span class="bar b-new">Tomcat 11.0.x · Servlet 6.1</span>
+          <span class="bar b-new">Security 7.x</span>
+          <span class="bar b-new">Jackson 3 (tools.jackson)</span>
+          <span class="bar b-new">Modular starters</span>
+          <span class="bar b-new">@Retryable · @ConcurrencyLimit</span>
+          <span class="bar b-new">API versioning · HTTP Service Clients</span>
+          <span class="bar b-new">JSpecify null-safety</span>
+        </div>
+        <div class="fault-line reveal">FAULT LINE — Jackson 2 → 3 (<code style="background:#2A1F1D;color:#E0A79E">com.fasterxml</code> → <code style="background:#2A1F1D;color:#E0A79E">tools.jackson</code>) aur monolithic starter → modular starter split.</div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- ============ NAV ============ -->
+<nav class="nav" aria-label="Topics">
+  <div class="wrap nav-inner">
+    <a href="#versions">01 Versions &amp; Tomcat</a>
+    <a href="#pom">02 POM padhna</a>
+    <a href="#autoconfig">03 Auto-config</a>
+    <a href="#async">04 Async</a>
+    <a href="#tx">05 Transactions</a>
+    <a href="#aop">06 AOP</a>
+    <a href="#security">07 Security</a>
+    <a href="#logging">08 Logging</a>
+    <a href="#tomcat">09 Tomcat tuning</a>
+    <a href="#migrate">10 Migration HLD</a>
+    <a href="#matrix">11 Trade-off matrix</a>
+    <a href="#anim">12 Animation</a>
+    <a href="#mock">13 Mock Q&amp;A</a>
+  </div>
+</nav>
+
+<main>
+
+<!-- ============ 01 VERSIONS ============ -->
+<section class="sec" id="versions">
+  <div class="wrap">
+    <div class="sec-head"><div class="sec-num">01</div><h2>Versions, baselines aur embedded Tomcat</h2></div>
+    <p class="sec-lede">Architect ke liye version number ek number nahi hai — woh ek <em>contract bundle</em> hai: JDK floor, Jakarta namespace, Servlet spec, Security DSL, aur JSON engine, sab ek saath move karte hain. Isiliye "thoda thoda upgrade" possible nahi hota.</p>
+
+    <div class="tbl-scroll">
+      <table>
+        <thead>
+          <tr><th>Boot line</th><th>Spring Framework</th><th>Java</th><th>Namespace / EE</th><th>Embedded Tomcat</th><th>Servlet</th><th>Security</th><th>Status</th></tr>
+        </thead>
+        <tbody>
+          <tr><td><b>2.7.x</b></td><td>5.3.x</td><td>8 – 17</td><td><code>javax.*</code> · Java EE 8</td><td>9.0.x</td><td>4.0</td><td>5.7 / 5.8</td><td><span class="tag t-gone">OSS EOL</span></td></tr>
+          <tr><td><b>3.0 – 3.1</b></td><td>6.0 / 6.1</td><td>17+</td><td><code>jakarta.*</code> · EE 9/10</td><td>10.1.x</td><td>6.0</td><td>6.0 / 6.1</td><td><span class="tag t-gone">OSS EOL</span></td></tr>
+          <tr><td><b>3.2 – 3.4</b></td><td>6.1</td><td>17 – 23</td><td><code>jakarta.*</code> · EE 10</td><td>10.1.x</td><td>6.0</td><td>6.2 / 6.3 / 6.4</td><td><span class="tag t-gone">OSS EOL</span></td></tr>
+          <tr><td><b>3.5.x</b></td><td>6.2</td><td>17 – 25</td><td><code>jakarta.*</code> · EE 10</td><td>10.1.x</td><td>6.0</td><td>6.5</td><td><span class="tag t-gone">OSS EOL 30 Jun 2026</span></td></tr>
+          <tr><td><b>4.0.x</b></td><td>7.0</td><td>17 – 25</td><td><code>jakarta.*</code> · <b>EE 11</b></td><td><b>11.0.x</b></td><td>6.1</td><td>7.0</td><td><span class="tag t-warn">supported</span></td></tr>
+          <tr><td><b>4.1.x</b></td><td>7.0.8+</td><td>17 – 26</td><td><code>jakarta.*</code> · EE 11</td><td>11.0.x</td><td>6.1</td><td>7.1</td><td><span class="tag t-new">recommended</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note">
+      <h4>Support model — jo log "LTS" dhoondte hain, unke liye</h4>
+      <p>Spring Boot mein koi LTS designation hai hi nahi. Har minor 6 mahine mein aata hai aur ~12 mahine OSS support paata hai. Matlab: <b>upgrade ek project nahi, ek recurring operational cost hai.</b> Architecture decision yeh hai ki aap saal mein do baar chhote upgrade karenge, ya teen saal baad ek 6-month "big bang" migration jhelenge. Pehla sasta hai, dusra career-limiting.</p>
+    </div>
+
+    <div class="split">
+      <div class="pane pane-l">
+        <span class="pane-tag">PROBLEM</span>
+        <h3>Tomcat version hardcode karke pin kar diya</h3>
+        <ul class="symptom">
+          <li>Security team ne CVE-fix ke liye <code>&lt;tomcat.version&gt;</code> override kiya</li>
+          <li>Boot upgrade hua, property override wahin rehti hai</li>
+          <li>Boot 3.x (Servlet 6.0 expect) + Tomcat 11 (Servlet 6.1) = <code>NoSuchMethodError</code> deploy ke <em>baad</em>, startup pe nahi</li>
+          <li>Ya ulta: Boot 4 + pinned Tomcat 10.1 = <code>ClassNotFoundException</code> on <code>jakarta.servlet</code> 6.1 types</li>
+        </ul>
+        <p><b>Root cause:</b> starter version aur container version ke beech koi compile-time check nahi hai. Maven silently woh version le lega jo aapne likha hai.</p>
+      </div>
+      <div class="pane pane-r">
+        <span class="pane-tag">SOLUTION</span>
+        <h3>Override karo, par guard ke saath</h3>
+        <div class="code">
+          <div class="code-bar"><b>pom.xml</b><span>property override + enforcer guard</span></div>
+<pre><span class="row"><span class="ln">1</span><span class="ann">&lt;properties&gt;</span></span>
+<span class="row mark"><span class="ln">2</span>  <span class="ann">&lt;tomcat.version&gt;</span>11.0.24<span class="ann">&lt;/tomcat.version&gt;</span></span>
+<span class="row"><span class="ln">3</span>  <span class="ann">&lt;java.version&gt;</span>21<span class="ann">&lt;/java.version&gt;</span></span>
+<span class="row"><span class="ln">4</span><span class="ann">&lt;/properties&gt;</span></span>
+<span class="row"><span class="ln">5</span></span>
+<span class="row"><span class="ln">6</span><span class="ann">&lt;plugin&gt;</span></span>
+<span class="row"><span class="ln">7</span>  <span class="ann">&lt;artifactId&gt;</span>maven-enforcer-plugin<span class="ann">&lt;/artifactId&gt;</span></span>
+<span class="row"><span class="ln">8</span>  <span class="ann">&lt;executions&gt;&lt;execution&gt;</span></span>
+<span class="row"><span class="ln">9</span>    <span class="ann">&lt;id&gt;</span>assertServletBaseline<span class="ann">&lt;/id&gt;</span></span>
+<span class="row"><span class="ln">10</span>    <span class="ann">&lt;goals&gt;&lt;goal&gt;</span>enforce<span class="ann">&lt;/goal&gt;&lt;/goals&gt;</span></span>
+<span class="row mark"><span class="ln">11</span>    <span class="ann">&lt;configuration&gt;&lt;rules&gt;</span></span>
+<span class="row mark"><span class="ln">12</span>      <span class="ann">&lt;requireProperty&gt;</span></span>
+<span class="row mark"><span class="ln">13</span>        <span class="ann">&lt;property&gt;</span>tomcat.version<span class="ann">&lt;/property&gt;</span></span>
+<span class="row mark"><span class="ln">14</span>        <span class="ann">&lt;regex&gt;</span>^11\.0\..*<span class="ann">&lt;/regex&gt;</span></span>
+<span class="row"><span class="ln">15</span>      <span class="ann">&lt;/requireProperty&gt;</span></span>
+<span class="row"><span class="ln">16</span>    <span class="ann">&lt;/rules&gt;&lt;/configuration&gt;</span></span>
+<span class="row"><span class="ln">17</span>  <span class="ann">&lt;/execution&gt;&lt;/executions&gt;</span></span>
+<span class="row"><span class="ln">18</span><span class="ann">&lt;/plugin&gt;</span></span></pre>
+        </div>
+        <ul class="lines">
+          <li><span class="lref">L2</span><span>Boot parent ke andar <code>tomcat.version</code> ek <em>declared property</em> hai. Ise override karna supported hai — yeh hack nahi. Boot ka BOM iss property ko sab Tomcat artifacts pe apply karta hai (core, el, websocket), isliye teeno saath move hote hain.</span></li>
+          <li><span class="lref">L11–15</span><span>Enforcer rule build ko fail kar deta hai agar koi Boot 4 ke saath 10.1.x chhod de. Yeh woh guardrail hai jo Boot upgrade ke waqt "purani override" ko pakadta hai — CI mein, prod mein nahi.</span></li>
+          <li><span class="lref">Rule</span><span>Sirf <b>patch</b> version override karo (11.0.22 → 11.0.24). <b>Minor/major kabhi nahi</b> (10.1 → 11.0), kyunki woh Servlet spec badal deta hai aur Boot ka auto-config uske hisaab se compile hua hai.</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="trade">
+      <h4>TRADE-OFF · Tomcat / version pinning</h4>
+      <div class="trade-grid">
+        <div class="trade-col"><h5>Apply karo jab</h5><ul>
+          <li>CVE patch Boot release se pehle chahiye (typical: 2–4 hafte ka gap)</li>
+          <li>Compliance scanner specific patch demand kar raha ho</li>
+          <li>Sirf patch-level bump ho, same minor line ke andar</li>
+        </ul></div>
+        <div class="trade-col"><h5>Ignore karo jab</h5><ul>
+          <li>Gap 2 hafte se kam ho — Boot ka apna release wait kar lo</li>
+          <li>Aap minor cross kar rahe ho (Servlet spec change)</li>
+          <li>Jetty/Undertow pe switch karna "faster hoga" sochke — Undertow Boot 4 mein hai hi nahi</li>
+        </ul></div>
+        <div class="trade-col"><h5>Kyun</h5><ul>
+          <li>Boot BOM ka poora point yeh hai ki version matrix ek jagah tested ho</li>
+          <li>Har manual override us test coverage se bahar nikal jaata hai</li>
+          <li>Enforcer rule = override ki expiry date</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 02 POM ============ -->
+<section class="sec" id="pom">
+  <div class="wrap">
+    <div class="sec-head"><div class="sec-num">02</div><h2>POM ko padhna kaise hai</h2></div>
+    <p class="sec-lede">Ek pom ko upar se neeche nahi padha jata. Use <em>chaar layers</em> mein padha jata hai: kaun version decide kar raha hai, kya classpath pe aa raha hai, kya runtime pe leak ho raha hai, aur packaging kya banayegi. Neeche wahi order hai.</p>
+
+    <div class="split">
+      <div class="pane pane-l">
+        <span class="pane-tag">PROBLEM</span>
+        <h3>"Version kahan se aaya?" — nobody knows</h3>
+        <ul class="symptom">
+          <li>Do team members ke laptop pe alag transitive version resolve ho raha hai</li>
+          <li><code>spring-boot-starter-parent</code> hai, par kisi ne <code>&lt;version&gt;</code> bhi explicitly likh diya hai</li>
+          <li>Test-only library prod jar mein pahunch gayi (<code>scope</code> missing)</li>
+          <li>Boot 4 mein upgrade karte hi <code>ClassNotFoundException</code> — kyunki class ab alag module mein chali gayi</li>
+        </ul>
+        <p><b>Mental model galat hai:</b> log samajhte hain starter "library" hai. Starter ek <em>curated dependency set + auto-config trigger</em> hai. Uska apna koi code nahi hota (ya na ke barabar).</p>
+      </div>
+
+      <div class="pane pane-r">
+        <span class="pane-tag">SOLUTION</span>
+        <h3>Char-layer reading order</h3>
+        <div class="code">
+          <div class="code-bar"><b>pom.xml</b><span>Spring Boot 4.1 · Maven · annotated</span></div>
+<pre><span class="row"><span class="ln">1</span><span class="com">&lt;!-- LAYER 1 — version authority --&gt;</span></span>
+<span class="row mark"><span class="ln">2</span><span class="ann">&lt;parent&gt;</span></span>
+<span class="row mark"><span class="ln">3</span>  <span class="ann">&lt;groupId&gt;</span>org.springframework.boot<span class="ann">&lt;/groupId&gt;</span></span>
+<span class="row mark"><span class="ln">4</span>  <span class="ann">&lt;artifactId&gt;</span>spring-boot-starter-parent<span class="ann">&lt;/artifactId&gt;</span></span>
+<span class="row mark"><span class="ln">5</span>  <span class="ann">&lt;version&gt;</span>4.1.1<span class="ann">&lt;/version&gt;</span></span>
+<span class="row"><span class="ln">6</span><span class="ann">&lt;/parent&gt;</span></span>
+<span class="row"><span class="ln">7</span></span>
+<span class="row"><span class="ln">8</span><span class="com">&lt;!-- LAYER 2 — what lands on the classpath --&gt;</span></span>
+<span class="row"><span class="ln">9</span><span class="ann">&lt;dependencies&gt;</span></span>
+<span class="row mark"><span class="ln">10</span>  <span class="ann">&lt;dependency&gt;</span></span>
+<span class="row mark"><span class="ln">11</span>    <span class="ann">&lt;groupId&gt;</span>org.springframework.boot<span class="ann">&lt;/groupId&gt;</span></span>
+<span class="row mark"><span class="ln">12</span>    <span class="ann">&lt;artifactId&gt;</span>spring-boot-starter-web<span class="ann">&lt;/artifactId&gt;</span></span>
+<span class="row"><span class="ln">13</span>    <span class="com">&lt;!-- no version: parent decides --&gt;</span></span>
+<span class="row"><span class="ln">14</span>  <span class="ann">&lt;/dependency&gt;</span></span>
+<span class="row"><span class="ln">15</span></span>
+<span class="row"><span class="ln">16</span>  <span class="ann">&lt;dependency&gt;</span></span>
+<span class="row"><span class="ln">17</span>    <span class="ann">&lt;artifactId&gt;</span>spring-boot-starter-data-jpa<span class="ann">&lt;/artifactId&gt;</span></span>
+<span class="row"><span class="ln">18</span>    <span class="ann">&lt;groupId&gt;</span>org.springframework.boot<span class="ann">&lt;/groupId&gt;</span></span>
+<span class="row"><span class="ln">19</span>  <span class="ann">&lt;/dependency&gt;</span></span>
+<span class="row"><span class="ln">20</span></span>
+<span class="row mark"><span class="ln">21</span>  <span class="ann">&lt;dependency&gt;</span>          <span class="com">&lt;!-- Boot 4: opt-in resilience --&gt;</span></span>
+<span class="row mark"><span class="ln">22</span>    <span class="ann">&lt;artifactId&gt;</span>spring-boot-starter-resilience<span class="ann">&lt;/artifactId&gt;</span></span>
+<span class="row mark"><span class="ln">23</span>    <span class="ann">&lt;groupId&gt;</span>org.springframework.boot<span class="ann">&lt;/groupId&gt;</span></span>
+<span class="row"><span class="ln">24</span>  <span class="ann">&lt;/dependency&gt;</span></span>
+<span class="row"><span class="ln">25</span></span>
+<span class="row"><span class="ln">26</span>  <span class="com">&lt;!-- LAYER 3 — scope = leak control --&gt;</span></span>
+<span class="row bad"><span class="ln">27</span>  <span class="ann">&lt;dependency&gt;</span></span>
+<span class="row bad"><span class="ln">28</span>    <span class="ann">&lt;groupId&gt;</span>org.postgresql<span class="ann">&lt;/groupId&gt;</span></span>
+<span class="row bad"><span class="ln">29</span>    <span class="ann">&lt;artifactId&gt;</span>postgresql<span class="ann">&lt;/artifactId&gt;</span></span>
+<span class="row bad"><span class="ln">30</span>    <span class="ann">&lt;scope&gt;</span>runtime<span class="ann">&lt;/scope&gt;</span></span>
+<span class="row bad"><span class="ln">31</span>  <span class="ann">&lt;/dependency&gt;</span></span>
+<span class="row"><span class="ln">32</span>  <span class="ann">&lt;dependency&gt;</span></span>
+<span class="row"><span class="ln">33</span>    <span class="ann">&lt;artifactId&gt;</span>spring-boot-starter-test<span class="ann">&lt;/artifactId&gt;</span></span>
+<span class="row"><span class="ln">34</span>    <span class="ann">&lt;groupId&gt;</span>org.springframework.boot<span class="ann">&lt;/groupId&gt;</span></span>
+<span class="row"><span class="ln">35</span>    <span class="ann">&lt;scope&gt;</span>test<span class="ann">&lt;/scope&gt;</span></span>
+<span class="row"><span class="ln">36</span>  <span class="ann">&lt;/dependency&gt;</span></span>
+<span class="row"><span class="ln">37</span><span class="ann">&lt;/dependencies&gt;</span></span>
+<span class="row"><span class="ln">38</span></span>
+<span class="row"><span class="ln">39</span><span class="com">&lt;!-- LAYER 4 — packaging --&gt;</span></span>
+<span class="row"><span class="ln">40</span><span class="ann">&lt;build&gt;&lt;plugins&gt;&lt;plugin&gt;</span></span>
+<span class="row mark"><span class="ln">41</span>  <span class="ann">&lt;groupId&gt;</span>org.springframework.boot<span class="ann">&lt;/groupId&gt;</span></span>
+<span class="row mark"><span class="ln">42</span>  <span class="ann">&lt;artifactId&gt;</span>spring-boot-maven-plugin<span class="ann">&lt;/artifactId&gt;</span></span>
+<span class="row mark"><span class="ln">43</span>  <span class="ann">&lt;configuration&gt;&lt;layers&gt;&lt;enabled&gt;</span>true<span class="ann">&lt;/enabled&gt;&lt;/layers&gt;&lt;/configuration&gt;</span></span>
+<span class="row"><span class="ln">44</span><span class="ann">&lt;/plugin&gt;&lt;/plugins&gt;&lt;/build&gt;</span></span></pre>
+        </div>
+        <ul class="lines">
+          <li><span class="lref">L2–6</span><span><b>Layer 1 — kaun version decide karta hai.</b> Parent apne andar <code>spring-boot-dependencies</code> BOM inherit karta hai, jisme ~500 artifacts ke versions <code>&lt;dependencyManagement&gt;</code> mein pinned hain. Isi wajah se aapko L12/L17 pe version likhna hi nahi padta. Yeh parent plugin configuration bhi deta hai (compiler release, resource filtering, repackage goal binding) — sirf version pinning nahi.</span></li>
+          <li><span class="lref">L10–14</span><span><b>Layer 2 — classpath.</b> Starter khud khaali hai; woh <code>spring-webmvc</code>, <code>tomcat-embed-core</code>, <code>jackson</code> kheenchta hai. Starter add karna = auto-config activate karna, kyunki auto-config <code>@ConditionalOnClass</code> pe chalti hai.</span></li>
+          <li><span class="lref">L21–24</span><span><b>Boot 4 ka bada shift.</b> Pehle sab kuch <code>spring-boot-autoconfigure</code> ke ek bade jar mein tha. Ab modules split hain, toh <code>@Retryable</code> / <code>@ConcurrencyLimit</code> ke liye alag starter chahiye. Upgrade ke waqt <code>ClassNotFoundException</code> ka #1 karan yahi hai.</span></li>
+          <li><span class="lref">L27–31</span><span><b>Layer 3 — scope.</b> <code>runtime</code> ka matlab: JDBC driver classpath pe hoga par aapka code galti se <code>org.postgresql.*</code> import nahi kar payega. Yeh compile-time firewall hai jo aapke domain code ko vendor-neutral rakhta hai. (Yahan red isliye highlight kiya hai kyunki isi line ko log sabse zyada bhoolte hain, galat nahi hai.)</span></li>
+          <li><span class="lref">L40–43</span><span><b>Layer 4 — packaging.</b> <code>repackage</code> goal fat jar banata hai nested <code>BOOT-INF/lib</code> ke saath. <code>&lt;layers&gt;</code> enable karne se jar layered ho jata hai — dependencies, snapshot-dependencies, application — toh Docker mein sirf top layer badalti hai. 400 MB image pushes → 8 MB pushes.</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="note">
+      <h4>Parent vs BOM import — decision, taste nahi</h4>
+      <p><b>Parent use karo</b> jab yeh standalone service ho: aapko plugin config muft milti hai. <b>BOM import karo</b> (<code>&lt;dependencyManagement&gt;</code> + <code>&lt;type&gt;pom&lt;/type&gt;&lt;scope&gt;import&lt;/scope&gt;</code>) jab aapki company ka apna corporate parent pom ho — Maven mein single inheritance hai, toh dono parent nahi ho sakte. BOM import karne pe aapko plugin config manually likhni padegi; yeh iski keemat hai.</p>
+    </div>
+
+    <div class="code">
+      <div class="code-bar"><b>Terminal</b><span>version kahan se aayi — ise guess mat karo</span></div>
+<pre><span class="row"><span class="ln">1</span><span class="com"># Poora resolved tree, transitive included</span></span>
+<span class="row mark"><span class="ln">2</span>mvn dependency:tree -Dincludes=org.apache.tomcat*</span>
+<span class="row"><span class="ln">3</span></span>
+<span class="row"><span class="ln">4</span><span class="com"># Kis BOM ne kaunsa version pin kiya — effective view</span></span>
+<span class="row mark"><span class="ln">5</span>mvn help:effective-pom | grep -A2 tomcat.version</span>
+<span class="row"><span class="ln">6</span></span>
+<span class="row"><span class="ln">7</span><span class="com"># Kya conflict resolve hua aur kyun (omitted for conflict)</span></span>
+<span class="row mark"><span class="ln">8</span>mvn dependency:tree -Dverbose -Dincludes=com.fasterxml*</span>
+<span class="row"><span class="ln">9</span></span>
+<span class="row"><span class="ln">10</span><span class="com"># Declared-but-unused aur used-but-undeclared</span></span>
+<span class="row mark"><span class="ln">11</span>mvn dependency:analyze</span></pre>
+    </div>
+
+    <div class="trade">
+      <h4>TRADE-OFF · dependency hygiene</h4>
+      <div class="trade-grid">
+        <div class="trade-col"><h5>Apply karo jab</h5><ul>
+          <li><code>dependency:analyze</code> CI mein <b>fail-on-warning</b> ke saath — multi-module repos mein</li>
+          <li>Layered jars jab Docker/K8s pe deploy ho raha ho</li>
+          <li><code>spring-boot-starter-classic</code> as a <b>temporary</b> bridge, 4.x upgrade ke pehle sprint mein</li>
+        </ul></div>
+        <div class="trade-col"><h5>Ignore karo jab</h5><ul>
+          <li>Single-module internal tool — analyze ka noise value se zyada hai</li>
+          <li>Layered jar agar aap fat jar directly VM pe chala rahe ho</li>
+          <li><code>starter-classic</code> ko permanent rakhna — woh modularity ka poora faayda maar deta hai</li>
+        </ul></div>
+        <div class="trade-col"><h5>Kyun</h5><ul>
+          <li>Undeclared transitive dependency ek silent upgrade bomb hai</li>
+          <li>Layer caching build time nahi, <b>deploy time</b> bachati hai</li>
+          <li>Bridge modules ka kaam deadline dena hai, permanence dena nahi</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 03 AUTOCONFIG ============ -->
+<section class="sec" id="autoconfig">
+  <div class="wrap">
+    <div class="sec-head"><div class="sec-num">03</div><h2>Auto-configuration — jo "magic" nahi hai</h2></div>
+    <p class="sec-lede">Auto-config ek hi cheez karti hai: <em>conditionally registered @Bean definitions, sabse aakhir mein</em>. Agar aapne bean khud define kiya hai, Boot peechhe hat jata hai. Poora contract bas itna hai.</p>
+
+    <div class="split">
+      <div class="pane pane-l">
+        <span class="pane-tag">PROBLEM</span>
+        <h3>"Mera bean pick hi nahi ho raha"</h3>
+        <ul class="symptom">
+          <li>Custom <code>ObjectMapper</code> banaya, phir bhi Boot wala use ho raha hai</li>
+          <li>Boot 3 pe upgrade kiya aur custom auto-config chup-chaap gayab</li>
+          <li>Do <code>DataSource</code> beans → <code>NoUniqueBeanDefinitionException</code></li>
+          <li>Test mein kaam karta hai, prod profile mein nahi</li>
+        </ul>
+        <p><b>Root cause #1:</b> Boot 2.7 mein registration <code>META-INF/spring.factories</code> se hoti thi. Boot 3.0 se woh mechanism auto-config ke liye <b>hata diya gaya</b>. Agar aapki library abhi bhi <code>spring.factories</code> use kar rahi hai, woh silently load hi nahi hogi — koi error nahi, bas bean missing.</p>
+        <p><b>Root cause #2:</b> ordering. Auto-config user configuration ke <em>baad</em> chalti hai, par <code>@ConditionalOnMissingBean</code> tabhi kaam karta hai jab aapka bean tab tak <em>register</em> ho chuka ho. <code>@Bean</code> method ka return type <code>var</code>/interface hone se condition match miss ho jaati hai.</p>
+      </div>
+
+      <div class="pane pane-r">
+        <span class="pane-tag">SOLUTION</span>
+        <h3>Naya registration format + explicit conditions</h3>
+        <div class="code">
+          <div class="code-bar"><b>AuditTrailAutoConfiguration.java</b><span>Boot 3.x / 4.x style</span></div>
+<pre><span class="row"><span class="ln">1</span><span class="ann">@AutoConfiguration</span>(after = DataSourceAutoConfiguration.class)</span>
+<span class="row mark"><span class="ln">2</span><span class="ann">@ConditionalOnClass</span>(JdbcTemplate.class)</span>
+<span class="row mark"><span class="ln">3</span><span class="ann">@ConditionalOnProperty</span>(name = <span class="str">"audit.trail.enabled"</span>, havingValue = <span class="str">"true"</span>,</span>
+<span class="row mark"><span class="ln">4</span>                       matchIfMissing = <span class="kw">true</span>)</span>
+<span class="row"><span class="ln">5</span><span class="ann">@EnableConfigurationProperties</span>(AuditTrailProperties.class)</span>
+<span class="row"><span class="ln">6</span><span class="kw">public class</span> <span class="typ">AuditTrailAutoConfiguration</span> {</span>
+<span class="row"><span class="ln">7</span></span>
+<span class="row"><span class="ln">8</span>  <span class="ann">@Bean</span></span>
+<span class="row mark"><span class="ln">9</span>  <span class="ann">@ConditionalOnMissingBean</span>(AuditTrailWriter.class)</span>
+<span class="row"><span class="ln">10</span>  <span class="kw">public</span> <span class="typ">AuditTrailWriter</span> jdbcAuditTrailWriter(</span>
+<span class="row"><span class="ln">11</span>          <span class="typ">JdbcTemplate</span> jdbcTemplate, <span class="typ">AuditTrailProperties</span> properties) {</span>
+<span class="row"><span class="ln">12</span>    <span class="kw">return new</span> <span class="typ">JdbcAuditTrailWriter</span>(jdbcTemplate, properties.tableName());</span>
+<span class="row"><span class="ln">13</span>  }</span>
+<span class="row"><span class="ln">14</span>}</span>
+<span class="row"><span class="ln">15</span></span>
+<span class="row"><span class="ln">16</span><span class="com">// src/main/resources/META-INF/spring/</span></span>
+<span class="row mark"><span class="ln">17</span><span class="com">//   org.springframework.boot.autoconfigure.AutoConfiguration.imports</span></span>
+<span class="row mark"><span class="ln">18</span><span class="com">// com.acme.audit.AuditTrailAutoConfiguration</span></span></pre>
+        </div>
+        <ul class="lines">
+          <li><span class="lref">L1</span><span><code>@AutoConfiguration</code> ek composed annotation hai (<code>@Configuration(proxyBeanMethods=false)</code> + ordering). <code>after=</code> guarantee karta hai ki <code>DataSource</code> pehle ban chuka ho — warna condition evaluate hoti hai jab bean maujood hi nahi.</span></li>
+          <li><span class="lref">L2</span><span><code>@ConditionalOnClass</code> ASM se bytecode padhta hai, class load nahi karta. Isiliye missing class pe <code>NoClassDefFoundError</code> nahi aata — condition bas false ho jaati hai.</span></li>
+          <li><span class="lref">L3–4</span><span><code>matchIfMissing=true</code> = "default on". Yeh <b>opt-out</b> design hai. Internal platform libraries ke liye theek, par public library ke liye <code>false</code> rakho — kisi ke classpath pe aake chup-chaap behaviour badalna rude hai.</span></li>
+          <li><span class="lref">L9</span><span><code>@ConditionalOnMissingBean</code> pe <b>type explicitly likho</b>. Bina argument ke woh method ka return type use karta hai; agar aapka custom bean subclass hai aur return type concrete hai, match fail ho jaata hai aur do beans register ho jaate hain.</span></li>
+          <li><span class="lref">L17–18</span><span>Yeh file <code>spring.factories</code> ko replace karti hai. Ek line per class, no key. Boot 2.7 dono padhta hai (compatibility window), <b>Boot 3.0+ sirf yeh</b>. Library upgrade karte waqt sabse pehle yahi check karo.</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="code">
+      <div class="code-bar"><b>Debugging</b><span>guess mat karo — report nikalo</span></div>
+<pre><span class="row"><span class="ln">1</span><span class="com"># Condition Evaluation Report: kya matched, kya nahi, aur kyun</span></span>
+<span class="row mark"><span class="ln">2</span>java -jar app.jar --debug</span>
+<span class="row"><span class="ln">3</span></span>
+<span class="row"><span class="ln">4</span><span class="com"># Running app pe, actuator se</span></span>
+<span class="row mark"><span class="ln">5</span>GET /actuator/conditions   <span class="com"># positiveMatches / negativeMatches / unconditionalClasses</span></span>
+<span class="row"><span class="ln">6</span>GET /actuator/beans        <span class="com"># actual registered beans + dependencies</span></span>
+<span class="row"><span class="ln">7</span>GET /actuator/configprops  <span class="com"># resolved property binding (masked)</span></span>
+<span class="row"><span class="ln">8</span>GET /actuator/env          <span class="com"># property source precedence order</span></span></pre>
+    </div>
+
+    <div class="trade">
+      <h4>TRADE-OFF · custom auto-configuration likhna</h4>
+      <div class="trade-grid">
+        <div class="trade-col"><h5>Apply karo jab</h5><ul>
+          <li>Aap ek <b>internal platform starter</b> bana rahe ho jo 5+ services use karengi</li>
+          <li>Cross-cutting concern hai: tracing, audit, tenant resolution, error contract</li>
+          <li>Consumers ko override karne ki zarurat hai</li>
+        </ul></div>
+        <div class="trade-col"><h5>Ignore karo jab</h5><ul>
+          <li>Sirf 1–2 services use karengi — simple <code>@Configuration</code> kaafi hai</li>
+          <li>Aap conditions ka use "if-else in XML" ki tarah kar rahe ho</li>
+          <li>Team ke paas condition report debug karne ka experience nahi hai</li>
+        </ul></div>
+        <div class="trade-col"><h5>Kyun</h5><ul>
+          <li>Auto-config ka cost <b>invisible failure</b> hai — bean chup-chaap gayab</li>
+          <li>Plain <code>@Configuration</code> loud fail karti hai, jo debug karna asaan hai</li>
+          <li>Magic tab justify hoti hai jab uska reuse ratio high ho</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 04 ASYNC ============ -->
+<section class="sec" id="async">
+  <div class="wrap">
+    <div class="sec-head"><div class="sec-num">04</div><h2>Async — proxy, pool aur context</h2></div>
+    <p class="sec-lede"><code>@Async</code> teen alag cheezein ek saath maangta hai: ek working proxy, ek <em>named</em> executor, aur context propagation. Teeno mein se koi ek bhi miss ho toh yeh production mein galat tareeke se fail hota hai — silently.</p>
+
+    <div class="split">
+      <div class="pane pane-l">
+        <span class="pane-tag">PROBLEM</span>
+        <h3>Teen classic @Async failures</h3>
+        <ul class="symptom">
+          <li><b>Self-invocation:</b> same class ke andar method call — proxy bypass, sab kuch synchronous chalta hai aur koi error nahi aata</li>
+          <li><b>Default executor:</b> Boot ka <code>SimpleAsyncTaskExecutor</code> (jab koi <code>TaskExecutor</code> bean na ho) har call pe <em>naya thread</em> banata hai — unbounded, no queue, OOM at load</li>
+          <li><b>Silent exceptions:</b> <code>void</code> return karne wale <code>@Async</code> method ka exception kahin log hi nahi hota</li>
+          <li><b>Context loss:</b> Security context, MDC, tenant ID — sab worker thread pe khali</li>
+        </ul>
+        <div class="code">
+          <div class="code-bar"><b>OrderService.java</b><span>galat — self-invocation</span></div>
+<pre><span class="row bad"><span class="ln">1</span><span class="kw">public void</span> placeOrder(<span class="typ">OrderRequest</span> request) {</span>
+<span class="row bad"><span class="ln">2</span>  orderRepository.save(toEntity(request));</span>
+<span class="row bad"><span class="ln">3</span>  publishOrderPlacedEvent(request);  <span class="com">// this.* → proxy skip</span></span>
+<span class="row bad"><span class="ln">4</span>}</span>
+<span class="row bad"><span class="ln">5</span><span class="ann">@Async</span>                              <span class="com">// ye annotation ab dead hai</span></span>
+<span class="row bad"><span class="ln">6</span><span class="kw">public void</span> publishOrderPlacedEvent(<span class="typ">OrderRequest</span> r) { ... }</span></pre>
+        </div>
+      </div>
+
+      <div class="pane pane-r">
+        <span class="pane-tag">SOLUTION</span>
+        <h3>Bounded pool + separate bean + handler</h3>
+        <div class="code">
+          <div class="code-bar"><b>AsyncExecutionConfig.java</b><span>Boot 3.2+ / 4.x</span></div>
+<pre><span class="row"><span class="ln">1</span><span class="ann">@Configuration</span></span>
+<span class="row"><span class="ln">2</span><span class="ann">@EnableAsync</span></span>
+<span class="row"><span class="ln">3</span><span class="kw">public class</span> <span class="typ">AsyncExecutionConfig</span> <span class="kw">implements</span> <span class="typ">AsyncConfigurer</span> {</span>
+<span class="row"><span class="ln">4</span></span>
+<span class="row mark"><span class="ln">5</span>  <span class="ann">@Bean</span>(<span class="str">"orderEventExecutor"</span>)</span>
+<span class="row"><span class="ln">6</span>  <span class="kw">public</span> <span class="typ">ThreadPoolTaskExecutor</span> orderEventExecutor() {</span>
+<span class="row"><span class="ln">7</span>    <span class="typ">ThreadPoolTaskExecutor</span> executor = <span class="kw">new</span> <span class="typ">ThreadPoolTaskExecutor</span>();</span>
+<span class="row mark"><span class="ln">8</span>    executor.setCorePoolSize(<span class="num">8</span>);</span>
+<span class="row mark"><span class="ln">9</span>    executor.setMaxPoolSize(<span class="num">16</span>);</span>
+<span class="row mark"><span class="ln">10</span>    executor.setQueueCapacity(<span class="num">200</span>);</span>
+<span class="row mark"><span class="ln">11</span>    executor.setRejectedExecutionHandler(</span>
+<span class="row mark"><span class="ln">12</span>            <span class="kw">new</span> <span class="typ">ThreadPoolExecutor</span>.<span class="typ">CallerRunsPolicy</span>());</span>
+<span class="row"><span class="ln">13</span>    executor.setThreadNamePrefix(<span class="str">"order-evt-"</span>);</span>
+<span class="row mark"><span class="ln">14</span>    executor.setTaskDecorator(<span class="kw">new</span> <span class="typ">ContextCopyingTaskDecorator</span>());</span>
+<span class="row"><span class="ln">15</span>    executor.setWaitForTasksToCompleteOnShutdown(<span class="kw">true</span>);</span>
+<span class="row"><span class="ln">16</span>    executor.setAwaitTerminationSeconds(<span class="num">30</span>);</span>
+<span class="row"><span class="ln">17</span>    executor.initialize();</span>
+<span class="row"><span class="ln">18</span>    <span class="kw">return</span> executor;</span>
+<span class="row"><span class="ln">19</span>  }</span>
+<span class="row"><span class="ln">20</span></span>
+<span class="row"><span class="ln">21</span>  <span class="ann">@Override</span></span>
+<span class="row mark"><span class="ln">22</span>  <span class="kw">public</span> <span class="typ">AsyncUncaughtExceptionHandler</span> getAsyncUncaughtExceptionHandler() {</span>
+<span class="row"><span class="ln">23</span>    <span class="kw">return</span> (throwable, method, params) -&gt;</span>
+<span class="row"><span class="ln">24</span>        log.error(<span class="str">"Async failure in {} args={}"</span>, method.getName(), params, throwable);</span>
+<span class="row"><span class="ln">25</span>  }</span>
+<span class="row"><span class="ln">26</span>}</span>
+<span class="row"><span class="ln">27</span></span>
+<span class="row"><span class="ln">28</span><span class="com">// alag bean — proxy ab beech mein hai</span></span>
+<span class="row"><span class="ln">29</span><span class="ann">@Component</span></span>
+<span class="row"><span class="ln">30</span><span class="kw">public class</span> <span class="typ">OrderEventPublisher</span> {</span>
+<span class="row mark"><span class="ln">31</span>  <span class="ann">@Async</span>(<span class="str">"orderEventExecutor"</span>)</span>
+<span class="row"><span class="ln">32</span>  <span class="kw">public</span> <span class="typ">CompletableFuture</span>&lt;<span class="typ">Void</span>&gt; publishOrderPlacedEvent(<span class="typ">OrderId</span> id) {</span>
+<span class="row"><span class="ln">33</span>    notificationGateway.sendOrderConfirmation(id);</span>
+<span class="row"><span class="ln">34</span>    <span class="kw">return</span> <span class="typ">CompletableFuture</span>.completedFuture(<span class="kw">null</span>);</span>
+<span class="row"><span class="ln">35</span>  }</span>
+<span class="row"><span class="ln">36</span>}</span></pre>
+        </div>
+        <ul class="lines">
+          <li><span class="lref">L5</span><span>Executor ko <b>naam do</b> aur <code>@Async("name")</code> mein wahi naam likho. Ek shared default pool ka matlab hai: slow email calls aapke fast audit writes ko bhookha maar dengi. Har workload ka apna bulkhead.</span></li>
+          <li><span class="lref">L8–10</span><span>Yeh teen numbers hi <code>ThreadPoolExecutor</code> ka poora behaviour decide karte hain. Order yeh hai: core threads bharo → <b>queue bharo</b> → tab jaake max tak grow karo. Yani agar queue 200 hai, thread 9 tab tak nahi banega jab tak 200 tasks queue mein na ho. Unbounded queue = <code>maxPoolSize</code> kabhi use hi nahi hoga.</span></li>
+          <li><span class="lref">L11–12</span><span><code>CallerRunsPolicy</code> = natural backpressure. Pool full hone pe task submitting thread (yani Tomcat worker) pe chalta hai, jisse woh request slow hoti hai aur upstream apne aap dheema hota hai. <code>AbortPolicy</code> (default) load pe requests drop karta hai.</span></li>
+          <li><span class="lref">L14</span><span><code>TaskDecorator</code> woh single hook hai jahan aap MDC, SecurityContext aur tenant copy karte ho. Boot 4 / Framework 7 mein Micrometer <code>ContextSnapshot</code> ke saath yeh kaam pehle se hota hai agar context-propagation classpath pe ho.</span></li>
+          <li><span class="lref">L15–16</span><span>Graceful shutdown. Iske bina rolling deploy in-flight async tasks ko beech mein maar deta hai — jo aksar "kabhi kabhi email nahi jaata" bug ban jaata hai.</span></li>
+          <li><span class="lref">L22–24</span><span><code>void</code>-returning <code>@Async</code> methods ka exception <b>kahin nahi</b> jaata unless yeh handler ho. <code>CompletableFuture</code> return karo (L32) toh exception future mein aati hai — behtar, kyunki caller decide kar sakta hai.</span></li>
+          <li><span class="lref">L31</span><span>Alag bean hone se call <code>orderEventPublisher.publishOrderPlacedEvent(...)</code> proxy se guzarta hai. Yahi self-invocation ka asli fix hai — <code>@Autowired</code> self-reference ya <code>AopContext.currentProxy()</code> nahi, jo dono code smell hain.</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="note">
+      <h4>Virtual threads (Boot 3.2+) — kya badalta hai, kya nahi</h4>
+      <p><code>spring.threads.virtual.enabled=true</code> set karne se Tomcat har request ko virtual thread pe chalata hai aur Boot <code>SimpleAsyncTaskExecutor</code> ko virtual-thread mode mein daal deta hai. <b>Badalta hai:</b> blocking I/O ab sasta hai, 200-thread pool ki limit khatam. <b>Nahi badalta:</b> CPU-bound kaam (woh carrier threads pe hi hai), <code>synchronized</code> blocks (Java 21 mein pinning — Java 24+ mein largely fix), aur <code>ThreadLocal</code>-heavy libraries ka memory footprint. Aur sabse zaroori: <b>connection pool abhi bhi bottleneck hai.</b> 10,000 virtual threads 20 Hikari connections ke liye ladenge. Virtual threads ne bottleneck hataya nahi, use thread pool se connection pool pe shift kar diya.</p>
+    </div>
+
+    <div class="trade">
+      <h4>TRADE-OFF · @Async vs message queue vs virtual threads</h4>
+      <div class="trade-grid">
+        <div class="trade-col"><h5>Apply karo jab</h5><ul>
+          <li><b>@Async:</b> fire-and-forget jiska loss tolerable ho — cache warm, metrics push, best-effort notification</li>
+          <li><b>Queue (Kafka/SQS):</b> kaam ka loss <em>tolerable nahi</em> — payment, invoice, outbox</li>
+          <li><b>Virtual threads:</b> I/O-bound service jisme fan-out downstream calls ho</li>
+        </ul></div>
+        <div class="trade-col"><h5>Ignore karo jab</h5><ul>
+          <li><b>@Async</b> ko durability ke liye — JVM crash pe queue silently gayab</li>
+          <li><b>Virtual threads</b> CPU-bound service pe — koi faayda nahi, sirf profiling confusion</li>
+          <li><b>Queue</b> ek internal 50-req/day admin action ke liye — operational cost zyada hai</li>
+        </ul></div>
+        <div class="trade-col"><h5>Kyun</h5><ul>
+          <li><code>@Async</code> ki queue in-memory hai: crash = data loss, no retry, no DLQ</li>
+          <li>Virtual threads concurrency ka <em>cost</em> ghatate hain, <em>capacity</em> nahi</li>
+          <li>Durability ek storage property hai, thread model ki nahi</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 05 TRANSACTIONS ============ -->
+<section class="sec" id="tx">
+  <div class="wrap">
+    <div class="sec-head"><div class="sec-num">05</div><h2>Transactions — boundary hi design hai</h2></div>
+    <p class="sec-lede">Ek transaction ka asli kharcha uska <em>duration</em> hai, uska kaam nahi. Har millisecond jab tak TX khuli hai, ek DB connection block hai aur DB pe locks tike hue hain. Isiliye TX boundary ek <b>architecture decision</b> hai, ek annotation nahi.</p>
+
+    <div class="split">
+      <div class="pane pane-l">
+        <span class="pane-tag">PROBLEM</span>
+        <h3>Transaction ke andar HTTP call</h3>
+        <div class="code">
+          <div class="code-bar"><b>CheckoutService.java</b><span>galat — connection starvation</span></div>
+<pre><span class="row bad"><span class="ln">1</span><span class="ann">@Transactional</span></span>
+<span class="row bad"><span class="ln">2</span><span class="kw">public</span> <span class="typ">Receipt</span> checkout(<span class="typ">CartId</span> cartId) {</span>
+<span class="row bad"><span class="ln">3</span>  <span class="typ">Cart</span> cart = cartRepository.findById(cartId).orElseThrow();</span>
+<span class="row bad"><span class="ln">4</span>  <span class="typ">PaymentResult</span> result =</span>
+<span class="row bad"><span class="ln">5</span>      paymentGateway.charge(cart.total());   <span class="com">// 900 ms external</span></span>
+<span class="row bad"><span class="ln">6</span>  cart.markPaid(result.reference());</span>
+<span class="row bad"><span class="ln">7</span>  <span class="kw">return</span> receiptFactory.from(cart);</span>
+<span class="row bad"><span class="ln">8</span>}</span></pre>
+        </div>
+        <ul class="symptom">
+          <li>Hikari pool 20 connections · gateway 900 ms → max ~22 checkouts/sec, CPU 4% pe idle</li>
+          <li><code>HikariPool-1 - Connection is not available, request timed out after 30000ms</code></li>
+          <li>Gateway timeout → TX rollback, par paisa <b>kat chuka hai</b>. DB aur payment provider ab out of sync</li>
+          <li>Row locks 900 ms tak tike — same cart pe concurrent requests deadlock karti hain</li>
+        </ul>
+        <p><b>Aur ek chhupa hua bug:</b> <code>@Transactional</code> default sirf <code>RuntimeException</code> pe rollback karta hai. <code>paymentGateway</code> agar checked <code>PaymentDeclinedException</code> throw kare toh Spring <b>commit</b> kar dega.</p>
+      </div>
+
+      <div class="pane pane-r">
+        <span class="pane-tag">SOLUTION</span>
+        <h3>TX ko sirf DB ke aas-paas rakho</h3>
+        <div class="code">
+          <div class="code-bar"><b>CheckoutOrchestrator.java</b><span>TX boundary shrunk + outbox</span></div>
+<pre><span class="row"><span class="ln">1</span><span class="ann">@Service</span></span>
+<span class="row"><span class="ln">2</span><span class="kw">public class</span> <span class="typ">CheckoutOrchestrator</span> {          <span class="com">// NO @Transactional here</span></span>
+<span class="row"><span class="ln">3</span></span>
+<span class="row"><span class="ln">4</span>  <span class="kw">public</span> <span class="typ">Receipt</span> completeCheckout(<span class="typ">CartId</span> cartId) {</span>
+<span class="row mark"><span class="ln">5</span>    <span class="typ">CartSnapshot</span> snapshot = cartReader.loadPayableSnapshot(cartId);</span>
+<span class="row mark"><span class="ln">6</span>    <span class="typ">PaymentResult</span> result = paymentGateway.charge(snapshot.total());</span>
+<span class="row mark"><span class="ln">7</span>    <span class="kw">return</span> checkoutWriter.recordSuccessfulPayment(cartId, result);</span>
+<span class="row"><span class="ln">8</span>  }</span>
+<span class="row"><span class="ln">9</span>}</span>
+<span class="row"><span class="ln">10</span></span>
+<span class="row"><span class="ln">11</span><span class="ann">@Component</span></span>
+<span class="row"><span class="ln">12</span><span class="kw">class</span> <span class="typ">CheckoutWriter</span> {</span>
+<span class="row"><span class="ln">13</span></span>
+<span class="row mark"><span class="ln">14</span>  <span class="ann">@Transactional</span>(timeout = <span class="num">3</span>, rollbackFor = <span class="typ">Exception</span>.class)</span>
+<span class="row"><span class="ln">15</span>  <span class="typ">Receipt</span> recordSuccessfulPayment(<span class="typ">CartId</span> id, <span class="typ">PaymentResult</span> result) {</span>
+<span class="row"><span class="ln">16</span>    <span class="typ">Cart</span> cart = cartRepository.findById(id).orElseThrow();</span>
+<span class="row"><span class="ln">17</span>    cart.markPaid(result.reference());       <span class="com">// dirty checking</span></span>
+<span class="row mark"><span class="ln">18</span>    outboxRepository.save(<span class="typ">OutboxEvent</span>.orderPaid(id, result));</span>
+<span class="row"><span class="ln">19</span>    <span class="kw">return</span> receiptFactory.from(cart);</span>
+<span class="row"><span class="ln">20</span>  }</span>
+<span class="row"><span class="ln">21</span></span>
+<span class="row mark"><span class="ln">22</span>  <span class="ann">@Transactional</span>(propagation = <span class="typ">Propagation</span>.REQUIRES_NEW)</span>
+<span class="row"><span class="ln">23</span>  <span class="kw">void</span> recordDeclinedAttempt(<span class="typ">CartId</span> id, <span class="typ">String</span> reason) {</span>
+<span class="row"><span class="ln">24</span>    attemptRepository.save(<span class="typ">CheckoutAttempt</span>.declined(id, reason));</span>
+<span class="row"><span class="ln">25</span>  }</span>
+<span class="row"><span class="ln">26</span>}</span>
+<span class="row"><span class="ln">27</span></span>
+<span class="row"><span class="ln">28</span><span class="ann">@Transactional</span>(readOnly = <span class="kw">true</span>)</span>
+<span class="row"><span class="ln">29</span><span class="kw">class</span> <span class="typ">CartReader</span> {</span>
+<span class="row mark"><span class="ln">30</span>  <span class="typ">CartSnapshot</span> loadPayableSnapshot(<span class="typ">CartId</span> id) { <span class="com">/* projection */</span> }</span>
+<span class="row"><span class="ln">31</span>}</span></pre>
+        </div>
+        <ul class="lines">
+          <li><span class="lref">L2</span><span>Orchestrator pe TX <b>nahi</b> hai. Yeh sabse important line hai jo yahan <em>nahi</em> likhi gayi. Slow external call ab kisi bhi connection ke bahar hai.</span></li>
+          <li><span class="lref">L5–7</span><span>Teen phases: <b>read → external → write</b>. Har phase ka apna short TX (ya koi TX nahi). Connection hold time 900 ms se ~4 ms ho gaya. Same 20-connection pool ab ~5000 checkouts/sec handle kar sakta hai.</span></li>
+          <li><span class="lref">L14</span><span><code>timeout=3</code> ek circuit breaker hai TX level pe — koi bhi query jo pool ko 3 sec se zyada hold kare, marr jaayegi. <code>rollbackFor=Exception.class</code> checked exception wale silent-commit bug ko band karta hai. Team-wide baseline yahi hona chahiye.</span></li>
+          <li><span class="lref">L17</span><span>Yahan koi <code>save()</code> call nahi hai — aur zarurat bhi nahi. Managed entity pe kiya gaya change <b>dirty checking</b> se flush hota hai commit ke waqt. Yeh JPA ka woh hissa hai jo sabse zyada galat samjha jata hai (animation section mein isi ko visually dikhaya hai).</span></li>
+          <li><span class="lref">L18</span><span><b>Transactional outbox.</b> Event usi TX mein DB pe likha jaata hai jisme business data. Ek separate poller use Kafka pe bhejta hai. Yeh dual-write problem solve karta hai bina distributed transaction (XA) ke — jo modern stacks mein practically dead hai.</span></li>
+          <li><span class="lref">L22</span><span><code>REQUIRES_NEW</code> outer TX ko suspend karke naya connection leta hai. Failure ko audit karne ke liye sahi (outer roll back hoga, yeh nahi), par yeh <b>do connections ek saath</b> hold karta hai — pool exhaustion ka classic route. Kabhi loop ke andar mat rakho.</span></li>
+          <li><span class="lref">L28</span><span><code>readOnly=true</code> sirf hint nahi hai: Hibernate flush mode <code>MANUAL</code> kar deta hai (dirty-check skip = tez), aur JDBC driver ko batata hai, jisse read replica routing possible hoti hai.</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>Propagation</th><th>Outer TX hai toh</th><th>Kab use karo</th><th>Chhupa hua kharcha</th></tr></thead>
+        <tbody>
+          <tr><td><code>REQUIRED</code> <span class="tag t-new">default</span></td><td>Join kar lega</td><td>99% cases — normal business method</td><td>Inner rollback outer ko <code>rollback-only</code> mark karta hai → <code>UnexpectedRollbackException</code></td></tr>
+          <tr><td><code>REQUIRES_NEW</code></td><td>Suspend, naya TX</td><td>Audit / failure log jo outer rollback pe bhi bachna chahiye</td><td><b>2 connections simultaneously</b>; deadlock risk agar dono same row chhue</td></tr>
+          <tr><td><code>NESTED</code></td><td>Savepoint banata hai</td><td>Partial rollback batch processing mein</td><td>Sirf JDBC savepoint-capable DB + <code>DataSourceTransactionManager</code>; JPA pe reliable nahi</td></tr>
+          <tr><td><code>SUPPORTS</code></td><td>Join, warna none</td><td>Read method jo dono contexts mein chale</td><td>Bina TX chalne pe har query apni auto-commit TX kholti hai</td></tr>
+          <tr><td><code>MANDATORY</code></td><td>Join; nahi hai toh throw</td><td>Internal helper jo akela nahi chalna chahiye</td><td>Koi nahi — actually underused, boundary enforce karta hai</td></tr>
+          <tr><td><code>NEVER</code> / <code>NOT_SUPPORTED</code></td><td>Throw / suspend</td><td>Long-running report, external call block</td><td>Suspend hone pe bhi connection turant release nahi hoti</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="trade">
+      <h4>TRADE-OFF · transaction boundary</h4>
+      <div class="trade-grid">
+        <div class="trade-col"><h5>Apply karo jab</h5><ul>
+          <li>TX <b>service layer</b> pe, use-case ke around — repository pe nahi</li>
+          <li>Har write TX pe explicit <code>timeout</code></li>
+          <li><code>rollbackFor = Exception.class</code> as a team default</li>
+          <li>Cross-service consistency ke liye outbox</li>
+        </ul></div>
+        <div class="trade-col"><h5>Ignore karo jab</h5><ul>
+          <li>Controller pe <code>@Transactional</code> — view rendering TX ke andar aa jaata hai</li>
+          <li>Single-query read pe <code>readOnly</code> TX — overhead &gt; benefit</li>
+          <li>XA / JTA two-phase commit — cost enormous, failure modes worse</li>
+          <li><code>NESTED</code> JPA ke saath</li>
+        </ul></div>
+        <div class="trade-col"><h5>Kyun</h5><ul>
+          <li>TX duration hi throughput ka asli constraint hai</li>
+          <li>Repository-level TX use-case ko atomic nahi banata</li>
+          <li>Outbox eventual consistency deta hai, at-least-once delivery ke saath — jo distributed systems mein realistic target hai</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 06 AOP ============ -->
+<section class="sec" id="aop">
+  <div class="wrap">
+    <div class="sec-head"><div class="sec-num">06</div><h2>AOP — proxy ka mechanics</h2></div>
+    <p class="sec-lede"><code>@Transactional</code>, <code>@Async</code>, <code>@Cacheable</code>, <code>@Retryable</code>, <code>@PreAuthorize</code> — yeh sab ek hi machine hain: <em>proxy + interceptor chain</em>. Ek baar yeh machine samajh aa gayi toh in sabke saare bugs ek hi shakal ke lagte hain.</p>
+
+    <div class="split">
+      <div class="pane pane-l">
+        <span class="pane-tag">PROBLEM</span>
+        <h3>Proxy kab kaam nahi karta</h3>
+        <ul class="symptom">
+          <li><b>Self-invocation</b> — <code>this.method()</code> proxy ke bahar hai</li>
+          <li><b><code>private</code> / <code>final</code> method</b> — CGLIB override nahi kar sakta, annotation silently ignore</li>
+          <li><b><code>final</code> class</b> — CGLIB subclass hi nahi bana sakta, startup pe error</li>
+          <li><b><code>static</code> method</b> — proxy ka concept hi lagu nahi</li>
+          <li><b>new se banaya object</b> — Spring container ke bahar, koi proxy nahi</li>
+          <li><b>@PostConstruct se call</b> — bean abhi poori tarah proxy-wrapped nahi hua</li>
+        </ul>
+        <p><b>Sabse mehnga:</b> in sab cases mein koi exception nahi aata. <code>@Transactional</code> bas <em>nahi lagta</em>, aur aapko pata chalta hai tab jab data half-written mil jaata hai.</p>
+      </div>
+
+      <div class="pane pane-r">
+        <span class="pane-tag">SOLUTION</span>
+        <h3>Ordered aspect + verification</h3>
+        <div class="code">
+          <div class="code-bar"><b>PersistenceBoundaryAuditAspect.java</b><span>ordering explicit</span></div>
+<pre><span class="row"><span class="ln">1</span><span class="ann">@Aspect</span></span>
+<span class="row"><span class="ln">2</span><span class="ann">@Component</span></span>
+<span class="row mark"><span class="ln">3</span><span class="ann">@Order</span>(<span class="typ">Ordered</span>.LOWEST_PRECEDENCE - <span class="num">10</span>)  <span class="com">// TX ke ANDAR chalega</span></span>
+<span class="row"><span class="ln">4</span><span class="kw">public class</span> <span class="typ">PersistenceBoundaryAuditAspect</span> {</span>
+<span class="row"><span class="ln">5</span></span>
+<span class="row mark"><span class="ln">6</span>  <span class="ann">@Around</span>(<span class="str">"@annotation(com.acme.audit.Audited)"</span>)</span>
+<span class="row"><span class="ln">7</span>  <span class="kw">public</span> <span class="typ">Object</span> recordAuditedInvocation(<span class="typ">ProceedingJoinPoint</span> joinPoint)</span>
+<span class="row"><span class="ln">8</span>          <span class="kw">throws</span> <span class="typ">Throwable</span> {</span>
+<span class="row"><span class="ln">9</span></span>
+<span class="row mark"><span class="ln">10</span>    <span class="typ">String</span> operation = joinPoint.getSignature().toShortString();</span>
+<span class="row"><span class="ln">11</span>    <span class="kw">long</span> startedAt = <span class="typ">System</span>.nanoTime();</span>
+<span class="row"><span class="ln">12</span>    <span class="kw">try</span> {</span>
+<span class="row mark"><span class="ln">13</span>      <span class="typ">Object</span> result = joinPoint.proceed();</span>
+<span class="row"><span class="ln">14</span>      auditTrailWriter.writeSuccess(operation, elapsedMs(startedAt));</span>
+<span class="row"><span class="ln">15</span>      <span class="kw">return</span> result;</span>
+<span class="row"><span class="ln">16</span>    } <span class="kw">catch</span> (<span class="typ">Throwable</span> failure) {</span>
+<span class="row mark"><span class="ln">17</span>      auditTrailWriter.writeFailure(operation, failure.getClass().getSimpleName());</span>
+<span class="row mark"><span class="ln">18</span>      <span class="kw">throw</span> failure;              <span class="com">// rethrow — warna TX commit ho jayega</span></span>
+<span class="row"><span class="ln">19</span>    }</span>
+<span class="row"><span class="ln">20</span>  }</span>
+<span class="row"><span class="ln">21</span>}</span></pre>
+        </div>
+        <ul class="lines">
+          <li><span class="lref">L3</span><span>Ordering interceptor chain mein position decide karti hai. <b>Chhota number = bahar.</b> Spring ka <code>@Transactional</code> interceptor default <code>LOWEST_PRECEDENCE</code> pe hai, toh <code>-10</code> aapko uske <em>andar</em> rakhta hai — matlab aapka audit write usi transaction mein hoga aur rollback ke saath rollback hoga. Agar aap audit ko rollback ke <b>baad bhi</b> chahte ho, order badal ke bahar jao (ya <code>REQUIRES_NEW</code> use karo).</span></li>
+          <li><span class="lref">L6</span><span>Pointcut <code>@annotation(...)</code> pe hai, package wildcard pe nahi. Wildcard pointcuts (<code>execution(* com.acme..*.*(..))</code>) har bean pe proxy laga dete hain — startup slow aur stack traces unreadable.</span></li>
+          <li><span class="lref">L13</span><span><code>proceed()</code> chain mein agla link call karta hai. Agar aap ise call karna bhool jao, target method <b>kabhi chalta hi nahi</b> — aur test tab tak pass hote rehte hain jab tak return value check na ho.</span></li>
+          <li><span class="lref">L17–18</span><span>Rethrow <b>mandatory</b> hai. Exception nigal liya toh TX interceptor ko lagta hai sab theek hai aur woh commit kar deta hai. Yeh AOP ka sabse dangerous single-line bug hai.</span></li>
+        </ul>
+        <div class="code">
+          <div class="code-bar"><b>Verification test</b><span>proxy actually laga ya nahi</span></div>
+<pre><span class="row"><span class="ln">1</span><span class="ann">@Test</span></span>
+<span class="row"><span class="ln">2</span><span class="kw">void</span> checkoutWriterShouldBeTransactionallyProxied() {</span>
+<span class="row mark"><span class="ln">3</span>  assertThat(<span class="typ">AopUtils</span>.isAopProxy(checkoutWriter)).isTrue();</span>
+<span class="row mark"><span class="ln">4</span>  assertThat(<span class="typ">AopProxyUtils</span>.ultimateTargetClass(checkoutWriter))</span>
+<span class="row"><span class="ln">5</span>      .isEqualTo(<span class="typ">CheckoutWriter</span>.class);</span>
+<span class="row"><span class="ln">6</span>}</span></pre>
+        </div>
+      </div>
+    </div>
+
+    <div class="note">
+      <h4>JDK dynamic proxy vs CGLIB — Boot ka default</h4>
+      <p>Spring Boot <code>spring.aop.proxy-target-class=true</code> <b>default</b> rakhta hai (Boot 2.0 se), yani hamesha CGLIB — chahe class interface implement karti ho. Isliye: (a) class <code>final</code> nahi honi chahiye, (b) CGLIB ko ek non-private constructor chahiye, (c) Spring Framework 6+ mein Objenesis ki wajah se constructor call nahi hota, toh field initializers proxy instance pe nahi chalte — kabhi bhi proxy ke fields pe directly bharosa mat karo. Agar aap plain <code>@Configuration</code> class mein <code>proxyBeanMethods=false</code> likhte ho toh CGLIB subclassing skip hoti hai aur startup thoda tez hota hai; par tab <code>@Bean</code> method ko dusre <code>@Bean</code> method se call karna do alag instances banayega.</p>
+    </div>
+
+    <div class="trade">
+      <h4>TRADE-OFF · AOP kab use karein</h4>
+      <div class="trade-grid">
+        <div class="trade-col"><h5>Apply karo jab</h5><ul>
+          <li>Concern sach mein cross-cutting ho: tracing, audit, rate limit, tenant guard</li>
+          <li>Pointcut ek <b>custom annotation</b> pe ho — explicit aur greppable</li>
+          <li>Aap Boot 4 mein <code>@Retryable</code>/<code>@ConcurrencyLimit</code> use kar rahe ho (framework-provided aspects)</li>
+        </ul></div>
+        <div class="trade-col"><h5>Ignore karo jab</h5><ul>
+          <li>Business logic aspect mein daalne ka mann ho — woh "invisible code" hai</li>
+          <li>Hot path pe (per-call overhead, though small, measurable ho jaata hai)</li>
+          <li>Ek simple decorator/wrapper class kaam kar sakti ho</li>
+          <li>Aap AspectJ load-time weaving soch rahe ho sirf self-invocation fix karne ke liye</li>
+        </ul></div>
+        <div class="trade-col"><h5>Kyun</h5><ul>
+          <li>AOP ka asli cost readability hai: naya joiner code padh ke behaviour nahi samajh sakta</li>
+          <li>Self-invocation problem ka sasta fix <b>class todna</b> hai, weaving nahi</li>
+          <li>Explicit decorator debug karna 10x asaan hai</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 07 SECURITY ============ -->
+<section class="sec" id="security">
+  <div class="wrap">
+    <div class="sec-head"><div class="sec-num">07</div><h2>Security — adapter se filter chain tak</h2></div>
+    <p class="sec-lede">Spring Security 5 → 6 → 7 ka safar ek hi idea hai: <em>inheritance-based configuration se component-based configuration</em>. Aap ab base class extend nahi karte, aap beans publish karte ho. Isse multiple chains, testing aur ordering sab explicit ho jaate hain.</p>
+
+    <div class="split">
+      <div class="pane pane-l">
+        <span class="pane-tag">PROBLEM</span>
+        <h3>Boot 2.x era config, Boot 3/4 pe compile hi nahi hoti</h3>
+        <div class="code">
+          <div class="code-bar"><b>SecurityConfig.java</b><span>Boot 2.x — ab exist nahi karta</span></div>
+<pre><span class="row bad"><span class="ln">1</span><span class="ann">@EnableWebSecurity</span></span>
+<span class="row bad"><span class="ln">2</span><span class="kw">public class</span> <span class="typ">SecurityConfig</span> <span class="kw">extends</span> <span class="typ">WebSecurityConfigurerAdapter</span> {</span>
+<span class="row bad"><span class="ln">3</span>  <span class="ann">@Override</span></span>
+<span class="row bad"><span class="ln">4</span>  <span class="kw">protected void</span> configure(<span class="typ">HttpSecurity</span> http) <span class="kw">throws</span> <span class="typ">Exception</span> {</span>
+<span class="row bad"><span class="ln">5</span>    http.csrf().disable()</span>
+<span class="row bad"><span class="ln">6</span>        .authorizeRequests()</span>
+<span class="row bad"><span class="ln">7</span>        .antMatchers(<span class="str">"/api/admin/**"</span>).hasRole(<span class="str">"ADMIN"</span>)</span>
+<span class="row bad"><span class="ln">8</span>        .anyRequest().authenticated();</span>
+<span class="row bad"><span class="ln">9</span>  }</span>
+<span class="row bad"><span class="ln">10</span>}</span></pre>
+        </div>
+        <ul class="symptom">
+          <li><code>WebSecurityConfigurerAdapter</code> — deprecated 5.7, <b>removed 6.0</b> (Boot 3.0)</li>
+          <li><code>authorizeRequests()</code> / <code>antMatchers()</code> — removed 6.x</li>
+          <li>Chained <code>.and()</code> DSL — removed 7.0 (Boot 4), lambda mandatory</li>
+          <li><code>hasRole("ADMIN")</code> silently <code>ROLE_ADMIN</code> expect karta hai — JWT claim <code>"ADMIN"</code> hai toh 403</li>
+          <li>Ek adapter = ek global chain. Actuator, public API aur admin API ke liye alag rules likhna painful</li>
+        </ul>
+      </div>
+
+      <div class="pane pane-r">
+        <span class="pane-tag">SOLUTION</span>
+        <h3>Multiple ordered SecurityFilterChain beans</h3>
+        <div class="code">
+          <div class="code-bar"><b>HttpSecurityConfig.java</b><span>Security 6.x / 7.x · lambda DSL</span></div>
+<pre><span class="row"><span class="ln">1</span><span class="ann">@Configuration</span></span>
+<span class="row"><span class="ln">2</span><span class="ann">@EnableWebSecurity</span></span>
+<span class="row"><span class="ln">3</span><span class="ann">@EnableMethodSecurity</span>                       <span class="com">// @PreAuthorize on</span></span>
+<span class="row"><span class="ln">4</span><span class="kw">public class</span> <span class="typ">HttpSecurityConfig</span> {</span>
+<span class="row"><span class="ln">5</span></span>
+<span class="row mark"><span class="ln">6</span>  <span class="ann">@Bean</span></span>
+<span class="row mark"><span class="ln">7</span>  <span class="ann">@Order</span>(<span class="num">1</span>)</span>
+<span class="row"><span class="ln">8</span>  <span class="typ">SecurityFilterChain</span> actuatorFilterChain(<span class="typ">HttpSecurity</span> http) <span class="kw">throws</span> <span class="typ">Exception</span> {</span>
+<span class="row mark"><span class="ln">9</span>    <span class="kw">return</span> http</span>
+<span class="row mark"><span class="ln">10</span>        .securityMatcher(<span class="typ">EndpointRequest</span>.toAnyEndpoint())</span>
+<span class="row"><span class="ln">11</span>        .authorizeHttpRequests(auth -&gt; auth</span>
+<span class="row"><span class="ln">12</span>            .requestMatchers(<span class="typ">EndpointRequest</span>.to(<span class="str">"health"</span>, <span class="str">"info"</span>)).permitAll()</span>
+<span class="row"><span class="ln">13</span>            .anyRequest().hasAuthority(<span class="str">"SCOPE_ops:read"</span>))</span>
+<span class="row"><span class="ln">14</span>        .httpBasic(<span class="typ">Customizer</span>.withDefaults())</span>
+<span class="row"><span class="ln">15</span>        .build();</span>
+<span class="row"><span class="ln">16</span>  }</span>
+<span class="row"><span class="ln">17</span></span>
+<span class="row"><span class="ln">18</span>  <span class="ann">@Bean</span></span>
+<span class="row mark"><span class="ln">19</span>  <span class="ann">@Order</span>(<span class="num">2</span>)</span>
+<span class="row"><span class="ln">20</span>  <span class="typ">SecurityFilterChain</span> apiFilterChain(<span class="typ">HttpSecurity</span> http) <span class="kw">throws</span> <span class="typ">Exception</span> {</span>
+<span class="row"><span class="ln">21</span>    <span class="kw">return</span> http</span>
+<span class="row"><span class="ln">22</span>        .securityMatcher(<span class="str">"/api/**"</span>)</span>
+<span class="row mark"><span class="ln">23</span>        .csrf(<span class="typ">CsrfConfigurer</span>::disable)              <span class="com">// stateless JWT only</span></span>
+<span class="row mark"><span class="ln">24</span>        .sessionManagement(s -&gt; s</span>
+<span class="row mark"><span class="ln">25</span>            .sessionCreationPolicy(<span class="typ">SessionCreationPolicy</span>.STATELESS))</span>
+<span class="row"><span class="ln">26</span>        .authorizeHttpRequests(auth -&gt; auth</span>
+<span class="row"><span class="ln">27</span>            .requestMatchers(<span class="typ">HttpMethod</span>.GET, <span class="str">"/api/catalog/**"</span>).permitAll()</span>
+<span class="row mark"><span class="ln">28</span>            .requestMatchers(<span class="str">"/api/admin/**"</span>).hasAuthority(<span class="str">"SCOPE_admin"</span>)</span>
+<span class="row"><span class="ln">29</span>            .anyRequest().authenticated())</span>
+<span class="row mark"><span class="ln">30</span>        .oauth2ResourceServer(oauth -&gt; oauth</span>
+<span class="row mark"><span class="ln">31</span>            .jwt(jwt -&gt; jwt.jwtAuthenticationConverter(scopeAuthorityConverter())))</span>
+<span class="row"><span class="ln">32</span>        .exceptionHandling(ex -&gt; ex</span>
+<span class="row"><span class="ln">33</span>            .authenticationEntryPoint(problemDetailEntryPoint()))</span>
+<span class="row"><span class="ln">34</span>        .build();</span>
+<span class="row"><span class="ln">35</span>  }</span>
+<span class="row"><span class="ln">36</span>}</span></pre>
+        </div>
+        <ul class="lines">
+          <li><span class="lref">L6–7</span><span>Har chain ek bean hai. <code>@Order</code> chain selection ka order decide karta hai — <b>pehla matching chain jeet jaata hai aur baaki dekhe bhi nahi jaate</b>. Actuator chain ko <code>@Order(1)</code> dena zaroori hai warna <code>/api/**</code> chain pehle match ho sakta hai.</span></li>
+          <li><span class="lref">L10</span><span><code>securityMatcher</code> = "yeh chain kis request pe apply hoti hai". <code>requestMatchers</code> (L12) = "us chain ke andar kis path pe kya rule". Yeh do alag cheezein hain; inhe confuse karna #1 misconfiguration hai.</span></li>
+          <li><span class="lref">L13, L28</span><span><code>hasAuthority("SCOPE_admin")</code> use kiya, <code>hasRole</code> nahi. <code>hasRole("X")</code> internally <code>ROLE_X</code> maangta hai. OAuth2 resource server scopes ko <code>SCOPE_</code> prefix deta hai. Prefix mismatch = 403 without any useful log. Team convention: <b>hamesha <code>hasAuthority</code> with full string.</b></span></li>
+          <li><span class="lref">L23–25</span><span>CSRF disable karna <b>sirf</b> tab valid hai jab session/cookie auth bilkul na ho. Agar aapke paas browser + cookie hai toh CSRF disable karna ek real vulnerability hai, "API hai isliye theek hai" nahi. <code>STATELESS</code> yeh guarantee deta hai ki Spring session banayega hi nahi.</span></li>
+          <li><span class="lref">L30–31</span><span>Custom converter JWT claims (jaise <code>realm_access.roles</code>) ko <code>GrantedAuthority</code> mein map karta hai. Keycloak/Auth0/Entra sab alag claim shapes bhejte hain — yeh woh single adaptation point hai.</span></li>
+          <li><span class="lref">L32–33</span><span>Default 401 body khaali hota hai. <code>ProblemDetail</code> (RFC 7807/9457) entry point clients ko machine-readable error deta hai — Boot 3+ mein first-class support hai.</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>Concept</th><th>Boot 2.x (Security 5)</th><th>Boot 3.x (Security 6)</th><th>Boot 4.x (Security 7)</th></tr></thead>
+        <tbody>
+          <tr><td>Config style</td><td><code>extends WebSecurityConfigurerAdapter</code></td><td><code>SecurityFilterChain</code> bean</td><td><code>SecurityFilterChain</code> bean, lambda-only</td></tr>
+          <tr><td>Path rules</td><td><code>authorizeRequests().antMatchers()</code></td><td><code>authorizeHttpRequests().requestMatchers()</code></td><td>same, <code>.and()</code> chaining gone</td></tr>
+          <tr><td>Method security</td><td><code>@EnableGlobalMethodSecurity</code></td><td><code>@EnableMethodSecurity</code> (pre/post on by default)</td><td>same + <code>MessageExpressionAuthorizationManager</code></td></tr>
+          <tr><td>Password encoding</td><td><code>NoOpPasswordEncoder</code> still possible</td><td><code>DelegatingPasswordEncoder</code> default</td><td>same</td></tr>
+          <tr><td>Authorization model</td><td><code>AccessDecisionManager</code> / voters</td><td><code>AuthorizationManager</code> <span class="tag t-new">new</span></td><td><code>AuthorizationManager</code> only <span class="tag t-gone">voters removed</span></td></tr>
+          <tr><td>Servlet types</td><td><code>javax.servlet.*</code></td><td><code>jakarta.servlet.*</code></td><td><code>jakarta.servlet.*</code> 6.1</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="trade">
+      <h4>TRADE-OFF · security configuration</h4>
+      <div class="trade-grid">
+        <div class="trade-col"><h5>Apply karo jab</h5><ul>
+          <li>Multiple chains jab audiences alag ho: actuator, public, partner, admin</li>
+          <li><code>@PreAuthorize</code> jab authorization <b>data-dependent</b> ho (<code>#order.ownerId == authentication.name</code>)</li>
+          <li>Har chain ka apna <code>@WebMvcTest</code> + <code>@WithMockUser</code> test</li>
+        </ul></div>
+        <div class="trade-col"><h5>Ignore karo jab</h5><ul>
+          <li>Sab kuch <code>@PreAuthorize</code> pe daalna — URL-level rule readable aur auditable hai</li>
+          <li>Custom <code>Filter</code> likhna jab <code>AuthenticationProvider</code> ya converter kaafi ho</li>
+          <li>CSRF disable karna sirf isliye ki tests fail ho rahe the</li>
+        </ul></div>
+        <div class="trade-col"><h5>Kyun</h5><ul>
+          <li>Security review URL-map dekh ke hota hai, annotations dhoondh ke nahi</li>
+          <li>Method security scattered rules banata hai — audit karna mushkil</li>
+          <li>Filter chain order galat hone pe rules chup-chaap bypass ho jaate hain</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 08 LOGGING ============ -->
+<section class="sec" id="logging">
+  <div class="wrap">
+    <div class="sec-head"><div class="sec-num">08</div><h2>Logging &amp; observability</h2></div>
+    <p class="sec-lede">Ek distributed system mein log ka kaam padha jaana nahi hai — <em>query kiya jaana</em> hai. Iska matlab: structured output, correlation ID, aur bounded volume. Teeno ke bina logging ek costly write-only medium hai.</p>
+
+    <div class="split">
+      <div class="pane pane-l">
+        <span class="pane-tag">PROBLEM</span>
+        <h3>String-concatenated logs, no trace id</h3>
+        <div class="code">
+          <div class="code-bar"><b>OrderService.java</b><span>galat</span></div>
+<pre><span class="row bad"><span class="ln">1</span>log.info(<span class="str">"Processing order "</span> + orderId +</span>
+<span class="row bad"><span class="ln">2</span>         <span class="str">" for user "</span> + user.getEmail());</span>
+<span class="row bad"><span class="ln">3</span></span>
+<span class="row bad"><span class="ln">4</span><span class="kw">catch</span> (<span class="typ">Exception</span> e) {</span>
+<span class="row bad"><span class="ln">5</span>  log.error(<span class="str">"Failed: "</span> + e.getMessage());   <span class="com">// stack trace gone</span></span>
+<span class="row bad"><span class="ln">6</span>  <span class="kw">throw new</span> <span class="typ">OrderException</span>(e.getMessage()); <span class="com">// cause dropped</span></span>
+<span class="row bad"><span class="ln">7</span>}</span></pre>
+        </div>
+        <ul class="symptom">
+          <li>String concat <b>hamesha</b> evaluate hota hai, chahe level DEBUG off ho</li>
+          <li>PII (email) plain log mein — GDPR / DPDP exposure</li>
+          <li><code>e.getMessage()</code> log karne se stack trace gaayab; root cause kabhi nahi milega</li>
+          <li>Trace ID nahi hai → 12 services mein ek request follow karna impossible</li>
+          <li><code>@Async</code> ya virtual thread pe MDC empty ho jaata hai</li>
+        </ul>
+      </div>
+
+      <div class="pane pane-r">
+        <span class="pane-tag">SOLUTION</span>
+        <h3>Structured JSON + Micrometer tracing</h3>
+        <div class="code">
+          <div class="code-bar"><b>application.yaml</b><span>Boot 3.4+ native structured logging</span></div>
+<pre><span class="row"><span class="ln">1</span>logging:</span>
+<span class="row mark"><span class="ln">2</span>  structured:</span>
+<span class="row mark"><span class="ln">3</span>    format:</span>
+<span class="row mark"><span class="ln">4</span>      console: ecs        <span class="com"># ecs | logstash | gelf | custom class</span></span>
+<span class="row"><span class="ln">5</span>  level:</span>
+<span class="row"><span class="ln">6</span>    root: INFO</span>
+<span class="row"><span class="ln">7</span>    com.acme.order: DEBUG</span>
+<span class="row"><span class="ln">8</span></span>
+<span class="row"><span class="ln">9</span>management:</span>
+<span class="row"><span class="ln">10</span>  tracing:</span>
+<span class="row mark"><span class="ln">11</span>    sampling.probability: 0.1</span>
+<span class="row"><span class="ln">12</span>  otlp.tracing.endpoint: http://collector:4318/v1/traces</span></pre>
+        </div>
+        <div class="code">
+          <div class="code-bar"><b>OrderAuditLogger.java</b><span>parameterised + scoped MDC</span></div>
+<pre><span class="row"><span class="ln">1</span><span class="ann">@Component</span></span>
+<span class="row"><span class="ln">2</span><span class="kw">public class</span> <span class="typ">OrderAuditLogger</span> {</span>
+<span class="row"><span class="ln">3</span></span>
+<span class="row"><span class="ln">4</span>  <span class="kw">private static final</span> <span class="typ">Logger</span> log =</span>
+<span class="row"><span class="ln">5</span>      <span class="typ">LoggerFactory</span>.getLogger(<span class="typ">OrderAuditLogger</span>.class);</span>
+<span class="row"><span class="ln">6</span></span>
+<span class="row"><span class="ln">7</span>  <span class="kw">public void</span> logOrderAccepted(<span class="typ">OrderId</span> orderId, <span class="typ">CustomerRef</span> customer) {</span>
+<span class="row mark"><span class="ln">8</span>    <span class="kw">try</span> (<span class="typ">MDC</span>.<span class="typ">MDCCloseable</span> scope = <span class="typ">MDC</span>.putCloseable(<span class="str">"orderId"</span>, orderId.value())) {</span>
+<span class="row mark"><span class="ln">9</span>      log.info(<span class="str">"Order accepted customerRef={} channel={}"</span>,</span>
+<span class="row mark"><span class="ln">10</span>               customer.pseudonymousId(), customer.channel());</span>
+<span class="row"><span class="ln">11</span>    }</span>
+<span class="row"><span class="ln">12</span>  }</span>
+<span class="row"><span class="ln">13</span></span>
+<span class="row"><span class="ln">14</span>  <span class="kw">public void</span> logOrderRejected(<span class="typ">OrderId</span> orderId, <span class="typ">Throwable</span> cause) {</span>
+<span class="row mark"><span class="ln">15</span>    log.error(<span class="str">"Order rejected orderId={}"</span>, orderId.value(), cause);</span>
+<span class="row"><span class="ln">16</span>  }</span>
+<span class="row"><span class="ln">17</span>}</span></pre>
+        </div>
+        <ul class="lines">
+          <li><span class="lref">yaml L2–4</span><span>Boot 3.4 se JSON logging <b>built-in</b> hai — <code>logstash-logback-encoder</code> aur custom <code>logback-spring.xml</code> ki zarurat nahi. ECS/GELF/Logstash formats ready hain. Yeh ek poori dependency aur uski upgrade-pain hata deta hai.</span></li>
+          <li><span class="lref">yaml L11</span><span>10% sampling. 100% tracing ka storage cost brutal hai aur throughput pe measurable hit hai. Errors ko hamesha sample karo (tail-based sampling collector pe), baaki 5–10%.</span></li>
+          <li><span class="lref">L8</span><span><code>putCloseable</code> try-with-resources ke saath. Plain <code>MDC.put()</code> bina <code>remove()</code> ke <b>thread pool mein leak</b> karta hai — agli request ko purana orderId dikhega. Yeh production mein wrong-customer-in-logs incidents ka classic source hai.</span></li>
+          <li><span class="lref">L9–10</span><span><code>{}</code> placeholders: string tabhi banega jab level enabled ho. Aur <code>pseudonymousId()</code> — raw email nahi. PII redaction log statement pe hoti hai, log pipeline pe nahi; pipeline pe karna hamesha late hota hai.</span></li>
+          <li><span class="lref">L15</span><span><code>Throwable</code> <b>last argument</b> hai, bina <code>{}</code> ke. SLF4J ise pehchaan ke poora stack trace print karta hai. <code>log.error(msg, e.getMessage())</code> likhne se sirf text milta hai — yahi woh ek line hai jo 3 AM debugging ko namumkin banati hai.</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="trade">
+      <h4>TRADE-OFF · logging volume aur tracing</h4>
+      <div class="trade-grid">
+        <div class="trade-col"><h5>Apply karo jab</h5><ul>
+          <li>JSON logging jab log aggregator (Loki/ELK/Datadog) ho</li>
+          <li>Async appender jab log volume &gt; ~5k lines/sec ho</li>
+          <li>Actuator <code>/loggers</code> endpoint — runtime pe level badalne ke liye, redeploy ke bina</li>
+        </ul></div>
+        <div class="trade-col"><h5>Ignore karo jab</h5><ul>
+          <li>JSON logging local dev mein — human-readable rakho (profile se switch)</li>
+          <li>DEBUG prod mein "just in case" — cost aur PII risk dono</li>
+          <li>Har method pe entry/exit logging — yeh tracing ka kaam hai, logging ka nahi</li>
+        </ul></div>
+        <div class="trade-col"><h5>Kyun</h5><ul>
+          <li>Log ingestion typical cloud bill ka 15–30% hota hai</li>
+          <li>Async appender queue full hone pe events <b>drop</b> karta hai — configure karo, socho mat</li>
+          <li>Traces "kahan slow hai" batate hain, logs "kya hua" — dono alag tools hain</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 09 TOMCAT ============ -->
+<section class="sec" id="tomcat">
+  <div class="wrap">
+    <div class="sec-head"><div class="sec-num">09</div><h2>Embedded Tomcat tuning</h2></div>
+    <p class="sec-lede">Tomcat ke sirf chaar numbers matter karte hain, aur unmein se teen ek dusre se bandhe hue hain. Inhe alag-alag tune karna sabse common capacity-planning galti hai.</p>
+
+    <div class="split">
+      <div class="pane pane-l">
+        <span class="pane-tag">PROBLEM</span>
+        <h3>"Threads badha do" — jo kabhi kaam nahi karta</h3>
+        <ul class="symptom">
+          <li>Latency spike aaya, kisi ne <code>max-threads: 800</code> kar diya</li>
+          <li>Hikari pool abhi bhi 10 pe hai → 800 threads 10 connections pe queue</li>
+          <li>Latency badh gayi (ab queue thread pool mein bhi hai aur pool mein bhi), throughput same</li>
+          <li>GC pressure badh gayi: 800 × 1 MB stack = 800 MB reserved</li>
+          <li>Deploy pe in-flight requests kat jaati hain — graceful shutdown off hai</li>
+        </ul>
+        <p><b>Asli rule:</b> ek service ki concurrency uska <em>sabse tang</em> resource decide karta hai. Aksar woh DB connection pool hota hai, ya downstream service ka rate limit. Thread count usse zyada rakhna sirf <em>queue ki jagah badalna</em> hai, capacity badhana nahi.</p>
+      </div>
+
+      <div class="pane pane-r">
+        <span class="pane-tag">SOLUTION</span>
+        <h3>Bottleneck se peeche ki taraf size karo</h3>
+        <div class="code">
+          <div class="code-bar"><b>application.yaml</b><span>coherent sizing</span></div>
+<pre><span class="row"><span class="ln">1</span>server:</span>
+<span class="row"><span class="ln">2</span>  tomcat:</span>
+<span class="row mark"><span class="ln">3</span>    threads:</span>
+<span class="row mark"><span class="ln">4</span>      max: 60            <span class="com"># ≈ pool 20 × 3 (I/O:CPU ratio)</span></span>
+<span class="row"><span class="ln">5</span>      min-spare: 20</span>
+<span class="row mark"><span class="ln">6</span>    accept-count: 100    <span class="com"># OS backlog jab sab threads busy</span></span>
+<span class="row"><span class="ln">7</span>    max-connections: 8192</span>
+<span class="row"><span class="ln">8</span>    connection-timeout: 5s</span>
+<span class="row"><span class="ln">9</span>    keep-alive-timeout: 20s</span>
+<span class="row mark"><span class="ln">10</span>  shutdown: graceful</span>
+<span class="row"><span class="ln">11</span></span>
+<span class="row"><span class="ln">12</span>spring:</span>
+<span class="row"><span class="ln">13</span>  lifecycle:</span>
+<span class="row mark"><span class="ln">14</span>    timeout-per-shutdown-phase: 25s</span>
+<span class="row"><span class="ln">15</span>  datasource:</span>
+<span class="row"><span class="ln">16</span>    hikari:</span>
+<span class="row mark"><span class="ln">17</span>      maximum-pool-size: 20</span>
+<span class="row"><span class="ln">18</span>      minimum-idle: 20        <span class="com"># fixed pool: no ramp latency</span></span>
+<span class="row mark"><span class="ln">19</span>      connection-timeout: 2000</span>
+<span class="row"><span class="ln">20</span>      leak-detection-threshold: 20000</span>
+<span class="row"><span class="ln">21</span>      max-lifetime: 1200000    <span class="com"># DB idle timeout se kam rakho</span></span>
+<span class="row"><span class="ln">22</span></span>
+<span class="row"><span class="ln">23</span><span class="com"># I/O-bound service ho toh iske badle:</span></span>
+<span class="row mark"><span class="ln">24</span><span class="com"># spring.threads.virtual.enabled: true</span></span></pre>
+        </div>
+        <ul class="lines">
+          <li><span class="lref">L4</span><span>Thread count ko connection pool se derive karo, guess mat karo. Agar ek request average 30 ms DB pe aur 60 ms CPU/serialization pe kharch karti hai, toh ek connection ~3 threads ko feed kar sakta hai. 20 × 3 = 60. Isse zyada threads sirf context switching add karenge.</span></li>
+          <li><span class="lref">L6</span><span><code>accept-count</code> OS-level backlog hai. Ise <b>chhota</b> rakho: bada backlog matlab requests 10 sec queue mein baithengi aur phir timeout hokar client ko fail hongi — usse behtar hai turant reject karna (fail fast), taaki load balancer dusre pod pe bhej de.</span></li>
+          <li><span class="lref">L10, L14</span><span>Graceful shutdown: Tomcat naye connections lena band karta hai, in-flight requests ko 25 sec deta hai. K8s <code>terminationGracePeriodSeconds</code> isse <b>bada</b> hona chahiye (30s+), warna kubelet SIGKILL bhej dega aur graceful ka koi matlab nahi rahega.</span></li>
+          <li><span class="lref">L17–19</span><span>Pool ka size DB ke <code>max_connections</code> ÷ pod count se limited hai — 50 pods × 20 = 1000 connections, jo bahut DB instances ke liye zyada hai. <code>connection-timeout: 2000</code> ka matlab: pool exhausted hone pe request 2 sec mein fail hogi, 30 sec tak latak ke nahi.</span></li>
+          <li><span class="lref">L20</span><span><code>leak-detection-threshold</code> un methods ko pakadta hai jo connection 20 sec se zyada hold karti hain — yani woh <code>@Transactional</code> jiske andar HTTP call chhup gaya hai. Isse prod mein <b>on</b> rakho.</span></li>
+          <li><span class="lref">L24</span><span>Virtual threads on karne ke baad <code>server.tomcat.threads.max</code> ka matlab khatam ho jaata hai — har request apna virtual thread paata hai. Par pool size aur zyada important ho jaata hai, kyunki ab uske liye compete karne wale zyada hain. Saath mein <code>max-connections</code> ya semaphore-based admission control lagao.</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="trade">
+      <h4>TRADE-OFF · thread model</h4>
+      <div class="trade-grid">
+        <div class="trade-col"><h5>Platform threads jab</h5><ul>
+          <li>CPU-bound workload (encoding, computation)</li>
+          <li>Legacy libraries jo <code>ThreadLocal</code> ya <code>synchronized</code> heavy hain</li>
+          <li>Aapko predictable bounded concurrency chahiye</li>
+        </ul></div>
+        <div class="trade-col"><h5>Virtual threads jab</h5><ul>
+          <li>Request mein 3+ blocking downstream calls hain</li>
+          <li>Java 21+ (behtar: 24+, pinning fixes ke saath)</li>
+          <li>Aap already admission control laga chuke ho</li>
+        </ul></div>
+        <div class="trade-col"><h5>WebFlux jab</h5><ul>
+          <li>Streaming / SSE / huge fan-out — backpressure chahiye</li>
+          <li>Poori chain reactive ho (driver tak)</li>
+          <li>Team reactive debugging jaanti ho — warna virtual threads 90% faayda deta hai 10% cost pe</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 10 MIGRATION HLD ============ -->
+<section class="sec" id="migrate">
+  <div class="wrap">
+    <div class="sec-head"><div class="sec-num">10</div><h2>Migration 2.7 → 3.5 → 4.1 · HLD</h2></div>
+    <p class="sec-lede">Yeh ek refactor nahi, ek <em>program</em> hai. Ise phases mein todo jahan har phase apne aap deployable ho. "Ek branch pe sab kar denge" wala approach 3 mahine baad merge hell mein khatam hota hai.</p>
+
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>Phase</th><th>Kya karna hai</th><th>Deployable?</th><th>Sabse bada risk</th></tr></thead>
+        <tbody>
+          <tr><td><b>0 · Baseline</b></td><td>Java 17 pe jao (Boot 2.7 pe rehte hue). Test coverage critical paths pe. Deprecation warnings zero karo.</td><td>Haan</td><td>Koi nahi — yeh phase risk <em>ghatata</em> hai</td></tr>
+          <tr><td><b>1 · Namespace</b></td><td><code>javax.*</code> → <code>jakarta.*</code>. <code>openrewrite</code> recipe chalao, phir manual review.</td><td>Nahi (atomic)</td><td>Third-party jars jo abhi bhi javax pe hain — inventory pehle banao</td></tr>
+          <tr><td><b>2 · Boot 3.0 → 3.5</b></td><td>Security config rewrite, <code>spring.factories</code> → <code>.imports</code>, property renames (<code>spring-boot-properties-migrator</code>).</td><td>Haan, har minor pe</td><td>Security rules chup-chaap badal jaana. Har chain pe integration test likho.</td></tr>
+          <tr><td><b>3 · Observability</b></td><td>Sleuth → Micrometer Tracing (Sleuth 3.x pe hi ruk gaya hai). Structured logging on.</td><td>Haan</td><td>Trace continuity toot jaana mixed-version fleet mein</td></tr>
+          <tr><td><b>4 · Boot 4.0</b></td><td><code>starter-classic</code> bridge ke saath jao. Jackson 3 migration. JSpecify warnings.</td><td>Haan</td><td>Jackson: <code>com.fasterxml</code> → <code>tools.jackson</code>. Custom serializers, mixins, <code>ObjectMapper</code> beans sab touch honge.</td></tr>
+          <tr><td><b>5 · Demodularise</b></td><td><code>starter-classic</code> hatao, explicit modular starters lagao. Boot 4.1 pe jao.</td><td>Haan</td><td>Missing module = runtime <code>ClassNotFoundException</code>, compile pe nahi</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="split">
+      <div class="pane pane-l">
+        <span class="pane-tag">PROBLEM</span>
+        <h3>Jackson 2 → 3 — sabse underestimated step</h3>
+        <ul class="symptom">
+          <li>Package <code>com.fasterxml.jackson.databind</code> → <code>tools.jackson.databind</code></li>
+          <li><code>ObjectMapper</code> → format-specific <code>JsonMapper</code> / <code>XmlMapper</code> beans</li>
+          <li>Jackson 3 mappers <b>immutable</b> hain — runtime pe <code>mapper.configure(...)</code> nahi chalega</li>
+          <li>Checked <code>JsonProcessingException</code> ab unchecked — <code>catch</code> blocks compile fail</li>
+          <li>Annotations (<code>jackson-annotations</code> 2.x) dono versions pe kaam karte hain — isliye woh <em>compile</em> ho jaata hai aur galatfehmi hoti hai ki migration ho gaya</li>
+        </ul>
+      </div>
+      <div class="pane pane-r">
+        <span class="pane-tag">SOLUTION</span>
+        <h3>Customizer se jao, mapper replace mat karo</h3>
+        <div class="code">
+          <div class="code-bar"><b>JsonMapperConfig.java</b><span>Boot 4 · Jackson 3</span></div>
+<pre><span class="row"><span class="ln">1</span><span class="ann">@Configuration</span></span>
+<span class="row"><span class="ln">2</span><span class="kw">public class</span> <span class="typ">JsonMapperConfig</span> {</span>
+<span class="row"><span class="ln">3</span></span>
+<span class="row mark"><span class="ln">4</span>  <span class="ann">@Bean</span></span>
+<span class="row mark"><span class="ln">5</span>  <span class="typ">JsonMapperBuilderCustomizer</span> apiJsonConventionsCustomizer() {</span>
+<span class="row"><span class="ln">6</span>    <span class="kw">return</span> builder -&gt; builder</span>
+<span class="row mark"><span class="ln">7</span>        .disable(<span class="typ">SerializationFeature</span>.WRITE_DATES_AS_TIMESTAMPS)</span>
+<span class="row"><span class="ln">8</span>        .disable(<span class="typ">DeserializationFeature</span>.FAIL_ON_UNKNOWN_PROPERTIES)</span>
+<span class="row"><span class="ln">9</span>        .addModule(<span class="kw">new</span> <span class="typ">JavaTimeModule</span>());</span>
+<span class="row"><span class="ln">10</span>  }</span>
+<span class="row"><span class="ln">11</span>}</span></pre>
+        </div>
+        <ul class="lines">
+          <li><span class="lref">L4–5</span><span>Apna <code>@Bean JsonMapper</code> define karne ke bajaye <b>customizer</b> do. Apna mapper banane se Boot ka poora auto-config (modules, well-known defaults, HTTP converter wiring) bypass ho jaata hai — jo aksar "dates suddenly serialize differently" bug banta hai.</span></li>
+          <li><span class="lref">L6–9</span><span>Builder pattern isliye zaroori hai kyunki Jackson 3 mappers immutable hain. Configuration <b>build ke pehle</b> honi hai. Jo bhi code runtime pe mapper reconfigure karta tha, use yahan aana padega.</span></li>
+        </ul>
+        <div class="note" style="margin-top:16px">
+          <h4>Automation jo actually kaam karti hai</h4>
+          <p><code>mvn org.openrewrite.maven:rewrite-maven-plugin:run -Drewrite.activeRecipes=org.openrewrite.java.spring.boot3.UpgradeSpringBoot_3_5</code> — javax→jakarta, property renames aur security config ka bada hissa automate karta hai. Isse 60–70% mechanical kaam ho jaata hai. Baaki 30% — jahan business logic aur config interact karti hai — manual hi rahega, aur wahi jagah hai jahan aapko architect chahiye.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 11 MATRIX ============ -->
+<section class="sec" id="matrix">
+  <div class="wrap">
+    <div class="sec-head"><div class="sec-num">11</div><h2>Master trade-off matrix</h2></div>
+    <p class="sec-lede">Interview aur design review mein sabse zyada poochha jaane wala sawaal: "iska cost kya hai?" Yeh table wahi ek jagah hai.</p>
+    <div class="tbl-scroll">
+      <table>
+        <thead><tr><th>Decision</th><th>Lagao jab</th><th>Chhod do jab</th><th>Chhupa hua cost</th></tr></thead>
+        <tbody>
+          <tr><td><b>Boot 4 abhi</b></td><td>Greenfield service; ya current line EOL ke 6 mahine ke andar</td><td>Aapke critical third-party libs Jackson 3 support nahi karte</td><td>Ecosystem catch-up — internal libs, agents, profilers sab</td></tr>
+          <tr><td><b>Virtual threads</b></td><td>I/O-bound, Java 21+, admission control maujood</td><td>CPU-bound; ya heavy <code>ThreadLocal</code>/<code>synchronized</code> libraries</td><td>Bottleneck DB pool pe shift ho jaata hai; monitoring dashboards rewrite</td></tr>
+          <tr><td><b>@Async</b></td><td>Fire-and-forget jiska loss acceptable hai</td><td>Kaam durable hona chahiye</td><td>In-memory queue: crash pe silent data loss</td></tr>
+          <tr><td><b>REQUIRES_NEW</b></td><td>Audit jo outer rollback survive kare</td><td>Loop mein; ya same rows touch karte ho</td><td>Do connections ek saath hold — pool exhaustion</td></tr>
+          <tr><td><b>Custom AOP aspect</b></td><td>Genuinely cross-cutting, 5+ classes pe</td><td>Ek decorator kaafi hai</td><td>Invisible behaviour; stack traces unreadable</td></tr>
+          <tr><td><b>Method security (@PreAuthorize)</b></td><td>Authorization data pe depend karti ho</td><td>Simple URL-role mapping</td><td>Rules scattered — security audit mushkil</td></tr>
+          <tr><td><b>Structured JSON logs</b></td><td>Centralised aggregator hai</td><td>Local dev; ya sirf file pe log ho raha ho</td><td>Ingestion cost; human readability loss</td></tr>
+          <tr><td><b>Native image (GraalVM)</b></td><td>Serverless / scale-to-zero, startup critical</td><td>Long-running service, heavy reflection, dynamic proxies</td><td>Build time 10× ; peak throughput JIT se kam</td></tr>
+          <tr><td><b>WebFlux</b></td><td>Streaming, huge fan-out, backpressure chahiye</td><td>CRUD service; blocking JDBC</td><td>Debugging aur team ramp-up cost bahut zyada</td></tr>
+          <tr><td><b>Outbox pattern</b></td><td>Cross-service consistency chahiye</td><td>Single-service transaction kaafi hai</td><td>Poller infra + at-least-once → consumers idempotent hone chahiye</td></tr>
+          <tr><td><b>Modular starters (Boot 4)</b></td><td>Naya service, lean classpath chahiye</td><td>Migration ka pehla din — <code>starter-classic</code> use karo</td><td>Runtime <code>ClassNotFoundException</code>, compile pe nahi</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 12 ANIMATION ============ -->
+<section class="sec" id="anim">
+  <div class="wrap">
+    <div class="sec-head"><div class="sec-num">12</div><h2>Internal architecture, chalte hue</h2></div>
+    <p class="sec-lede">Ek request ka poora safar — socket se lekar commit tak. Do modes hain: <b>Save</b> (naya record) aur <b>Update</b> (existing record). Dono ka path ek jaisa dikhta hai, par step 11–15 pe jo hota hai woh bilkul alag hai — aur wahi hissa interview mein sabse zyada galat bataya jata hai.</p>
+
+    <div class="arch">
+      <div class="arch-top">
+        <div class="arch-modes">
+          <button class="btn on" id="modeSave" type="button">Save · POST /orders</button>
+          <button class="btn" id="modeUpdate" type="button">Update · PUT /orders/42</button>
+        </div>
+        <div class="arch-modes">
+          <button class="btn" id="btnBack" type="button">← Back</button>
+          <button class="btn primary" id="btnPlay" type="button">Play</button>
+          <button class="btn" id="btnNext" type="button">Step →</button>
+          <button class="btn" id="btnReset" type="button">Reset</button>
+        </div>
+      </div>
+      <div class="arch-body">
+        <div class="arch-canvas">
+          <svg id="archSvg" viewBox="0 0 1000 620" role="img" aria-label="Spring Boot request lifecycle diagram">
+            <g id="archLinks"></g>
+            <g id="archNodes"></g>
+            <circle id="pkt" r="7" cx="0" cy="0" style="transform:translate(125px,57px)"></circle>
+          </svg>
+        </div>
+        <aside class="arch-side">
+          <div class="arch-step" id="archStep">Step 1 / 17</div>
+          <div class="arch-title" id="archTitle">HTTP Client</div>
+          <p class="arch-desc" id="archDesc">Loading…</p>
+          <div class="state-row"><span>thread</span><span id="stThread">—</span></div>
+          <div class="state-row"><span>transaction</span><span id="stTx">none</span></div>
+          <div class="state-row"><span>persistence</span><span id="stPc">—</span></div>
+          <div class="state-row sql"><span>sql</span><span id="stSql">—</span></div>
+          <div class="arch-progress"><i id="archBar"></i></div>
+        </aside>
+      </div>
+    </div>
+
+    <div class="split" style="margin-top:34px">
+      <div class="pane pane-l">
+        <span class="pane-tag">GALAT MENTAL MODEL</span>
+        <h3>"Update karne ke liye save() call karna padta hai"</h3>
+        <div class="code">
+          <div class="code-bar"><b>OrderWriteService.java</b><span>redundant</span></div>
+<pre><span class="row"><span class="ln">1</span><span class="ann">@Transactional</span></span>
+<span class="row"><span class="ln">2</span><span class="kw">public void</span> markOrderPaid(<span class="typ">Long</span> orderId) {</span>
+<span class="row"><span class="ln">3</span>  <span class="typ">Order</span> order = orderRepository.findById(orderId).orElseThrow();</span>
+<span class="row"><span class="ln">4</span>  order.setStatus(<span class="typ">Status</span>.PAID);</span>
+<span class="row bad"><span class="ln">5</span>  orderRepository.save(order);   <span class="com">// no-op — entity already managed</span></span>
+<span class="row"><span class="ln">6</span>}</span></pre>
+        </div>
+        <p>Line 5 kuch nahi karti (ya thoda nuksaan karti hai). <code>save()</code> managed entity pe <code>em.merge()</code> call karta hai, jo ek extra state copy banata hai. Update toh line 4 pe hi ho chuka tha — bas commit ka intezaar tha.</p>
+        <p><b>Par dhyan do:</b> agar entity <em>detached</em> ho (dusri TX se aayi, ya DTO se banayi), tab <code>save()</code>/<code>merge()</code> <b>zaroori</b> hai. Sawaal yeh nahi ki save() sahi hai ya galat — sawaal yeh hai ki entity is waqt <b>managed hai ya detached</b>.</p>
+      </div>
+      <div class="pane pane-r">
+        <span class="pane-tag">SAHI MENTAL MODEL</span>
+        <h3>Entity lifecycle hi asli API hai</h3>
+        <div class="code">
+          <div class="code-bar"><b>Entity states</b><span>JPA</span></div>
+<pre><span class="row"><span class="ln">1</span>NEW / TRANSIENT</span>
+<span class="row"><span class="ln">2</span>  <span class="com">new Order()  — PC ko iska pata nahi</span></span>
+<span class="row mark"><span class="ln">3</span>  ↓ em.persist() / repository.save()</span>
+<span class="row"><span class="ln">4</span>MANAGED</span>
+<span class="row"><span class="ln">5</span>  <span class="com">PC track kar raha hai · dirty checking ON</span></span>
+<span class="row"><span class="ln">6</span>  <span class="com">setter = UPDATE at flush. Koi call nahi chahiye.</span></span>
+<span class="row"><span class="ln">7</span>  ↓ TX close / em.detach() / em.clear()</span>
+<span class="row"><span class="ln">8</span>DETACHED</span>
+<span class="row"><span class="ln">9</span>  <span class="com">setter ab kuch nahi karta — chup-chaap lost</span></span>
+<span class="row mark"><span class="ln">10</span>  ↓ em.merge() / repository.save()</span>
+<span class="row"><span class="ln">11</span>MANAGED (naya instance return hota hai!)</span>
+<span class="row"><span class="ln">12</span>  ↓ em.remove()</span>
+<span class="row"><span class="ln">13</span>REMOVED</span></pre>
+        </div>
+        <ul class="lines">
+          <li><span class="lref">L3</span><span><code>SimpleJpaRepository.save()</code> ka poora logic bas itna hai: <code>if (isNew(entity)) em.persist(entity); else return em.merge(entity);</code>. <code>isNew</code> ID null / version null se decide hota hai (ya <code>Persistable</code> se).</span></li>
+          <li><span class="lref">L6</span><span>Yahi woh line hai jo interview mein poochhi jaati hai. Managed entity pe setter = UPDATE, kyunki Hibernate load ke waqt liya gaya <b>snapshot</b> flush pe compare karta hai.</span></li>
+          <li><span class="lref">L9</span><span>Detached entity pe setter <b>silent data loss</b> hai — na error, na SQL. Yeh open-session-in-view band karne ke baad sabse common bug hota hai.</span></li>
+          <li><span class="lref">L11</span><span><code>merge()</code> ka return value use karo, argument ko nahi. <code>merge</code> aapka object managed nahi banata — woh ek <em>naya</em> managed copy return karta hai. <code>order = repository.save(order)</code> likhne ki aadat daalo.</span></li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="trade">
+      <h4>TRADE-OFF · JPA vs JDBC</h4>
+      <div class="trade-grid">
+        <div class="trade-col"><h5>JPA / Hibernate jab</h5><ul>
+          <li>Rich domain model, aggregate roots, complex object graph</li>
+          <li>Write-heavy business logic jisme invariants entity mein hain</li>
+          <li>Team ko PC, flush aur dirty checking sach mein aati ho</li>
+        </ul></div>
+        <div class="trade-col"><h5>Spring Data JDBC / jOOQ jab</h5><ul>
+          <li>Reporting, analytics, bulk operations</li>
+          <li>SQL pe poora control chahiye</li>
+          <li>Simple CRUD service — ORM ka overhead justify nahi hota</li>
+        </ul></div>
+        <div class="trade-col"><h5>Kyun</h5><ul>
+          <li>JPA ka cost <b>chhupa hua behaviour</b> hai: N+1, lazy loading, flush timing</li>
+          <li>Ek team jo PC ko nahi samajhti, JPA ke saath dheemi service banayegi, tez nahi</li>
+          <li>Mixed approach valid hai: writes JPA se, reads projections/JDBC se (CQRS-lite)</li>
+        </ul></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 13 MOCK Q&A ============ -->
+<section class="sec" id="mock">
+  <div class="wrap">
+    <div class="sec-head"><div class="sec-num">13</div><h2>Mock questions with answers</h2></div>
+    <p class="sec-lede">Architect-round style. Har answer mein woh hissa bold hai jo interviewer sunna chahta hai — yani <em>trade-off ka naam lena</em>, sirf mechanism batana nahi.</p>
+
+    <div class="qa">
+
+<details><summary><span class="q-n">Q1</span><span>Boot 2 se Boot 3 mein sabse bada breaking change kya hai, aur uska blast radius kya hai?</span><span class="q-sig">migration</span></summary>
+<div class="ans">
+<p><b>Change:</b> <code>javax.*</code> → <code>jakarta.*</code> namespace, kyunki Oracle ne "Java EE" trademark Eclipse Foundation ko transfer karte waqt package naam use karne nahi diya. Yeh cosmetic rename nahi hai — yeh <b>binary incompatible</b> hai.</p>
+<p><b>Blast radius (yahi asli jawab hai):</b> aapka apna code sabse chhota hissa hai; usse <code>openrewrite</code> 20 minute mein fix kar deta hai. Asli problem <b>transitive dependencies</b> hain — koi bhi library jo <code>javax.servlet</code>, <code>javax.persistence</code>, <code>javax.validation</code> ya <code>javax.annotation</code> ke against compile hui hai, woh runtime pe <code>NoClassDefFoundError</code> degi. Isme aksar internal shared libraries, purane SOAP/JAXB clients, monitoring agents aur servlet filters aate hain.</p>
+<p><b>Practical first step:</b> code touch karne se pehle <code>mvn dependency:tree</code> se poori inventory banao aur har third-party jar ka Jakarta-compatible version dhoondo. Agar koi ek bhi library abandoned hai, woh aapka critical path hai — migration ka schedule usi se decide hoga, aapke code se nahi.</p>
+</div></details>
+
+<details><summary><span class="q-n">Q2</span><span><code>spring.factories</code> ko auto-config ke liye kyun hataya gaya, aur upgrade pe iska symptom kya hota hai?</span><span class="q-sig">LLD</span></summary>
+<div class="ans">
+<p><code>spring.factories</code> ek multi-purpose key-value file thi jisme har entry ke liye poori file parse honi padti thi, aur auto-config entries ek hi lambi comma-separated line mein hoti thi — diff karna aur maintain karna dono kharab. Boot 3.0 se auto-configurations ke liye <code>META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports</code> use hoti hai: <b>ek class per line</b>, no key, faster parsing aur AOT-friendly.</p>
+<p><b>Symptom:</b> koi exception nahi aata. Library load hoti hai, jar classpath pe hai, par uska bean kabhi register nahi hota. Aapko <code>NoSuchBeanDefinitionException</code> kisi bilkul alag jagah milta hai. <code>--debug</code> se condition report nikalo — agar aapki auto-config class <b>na positiveMatches mein hai na negativeMatches mein</b>, iska matlab woh discover hi nahi hui. Yeh single diagnostic ghanton bacha deta hai.</p>
+<p><code>spring.factories</code> abhi bhi <code>ApplicationListener</code>, <code>EnvironmentPostProcessor</code>, <code>FailureAnalyzer</code> jaise doosre extension points ke liye zinda hai — sirf auto-config uske se nikli hai.</p>
+</div></details>
+
+<details><summary><span class="q-n">Q3</span><span>Self-invocation pe <code>@Transactional</code> kaam kyun nahi karta? Teen fixes aur unke trade-offs?</span><span class="q-sig">trap</span></summary>
+<div class="ans">
+<p><b>Kyun:</b> Spring AOP proxy-based hai. Container aapke bean ka ek proxy inject karta hai; annotation ka behaviour <em>proxy</em> par lagta hai, target object pe nahi. Jab aap class ke andar <code>this.method()</code> likhte ho, call proxy ke through jaati hi nahi — woh direct target instance pe hai. Interceptor chain skip.</p>
+<p><b>Fix 1 — method ko alag bean mein nikalo.</b> ✅ Recommended. Cost: ek extra class. Faayda: TX boundary code padh ke dikh jaati hai; koi runtime magic nahi. Zyadatar cases mein yeh design ko behtar hi banata hai, kyunki alag TX boundary ka matlab hai alag responsibility.</p>
+<p><b>Fix 2 — self-injection</b> (<code>@Autowired @Lazy OrderService self</code>) ya <code>AopContext.currentProxy()</code>. ⚠️ Kaam karta hai par circular reference banata hai (Boot 2.6+ mein by default disallowed, explicitly enable karna padta hai) aur naye readers ko confuse karta hai. Sirf legacy code mein use karo jahan class todna mehnga ho.</p>
+<p><b>Fix 3 — AspectJ load-time / compile-time weaving.</b> ❌ Technically sahi (bytecode weave hota hai, proxy nahi), self-invocation bhi kaam karta hai. Par cost bahut zyada: build complexity, javaagent, IDE support issues, aur debugging mein bytecode aapke source se match nahi karta. Ek design problem ke liye poore build system ka change — 99% cases mein galat trade hai.</p>
+<p><b>Interviewer ko yeh sunna hai:</b> "Main Fix 1 lunga, kyunki self-invocation ki problem actually ek missing boundary ki nishani hai."</p>
+</div></details>
+
+<details><summary><span class="q-n">Q4</span><span>Hikari pool size kaise decide karoge? Kya formula hai?</span><span class="q-sig">perf</span></summary>
+<div class="ans">
+<p>HikariCP ki apni guidance: <code>connections = ((core_count × 2) + effective_spindle_count)</code> — yeh <b>database server</b> ke resources pe based hai, aapke app pe nahi. Modern SSD/cloud DB pe practically iska matlab hai: <b>chhota pool rakho.</b> 8-core DB pe ~20 connections per instance kaafi hain.</p>
+<p><b>Asli constraint jo log bhool jaate hain:</b> pool per-pod hai. 50 pods × 20 = 1000 connections. PostgreSQL default <code>max_connections</code> 100 hai, aur har connection ~10 MB backend memory leta hai. Toh formula yeh hona chahiye: <code>pool_size ≤ (db_max_connections × 0.8 - admin_reserve) / max_pod_count</code>. Agar yeh number 5 se neeche jaa raha hai, aapko PgBouncer jaisa external pooler chahiye — pool tuning se problem solve nahi hogi.</p>
+<p><b>Aur zyada important:</b> pool badhane se pehle <em>hold time</em> ghatao. 20 connections × 5 ms hold = 4000 TPS. 100 connections × 500 ms hold = 200 TPS. Ek slow query ya TX ke andar chhupa hua HTTP call theek karna pool doubling se hamesha behtar hai.</p>
+</div></details>
+
+<details><summary><span class="q-n">Q5</span><span>Virtual threads on karne se aapke system mein kya-kya badlega?</span><span class="q-sig">HLD</span></summary>
+<div class="ans">
+<p><b>Badalta hai:</b> Tomcat ab har request ko naya virtual thread deta hai — 200-thread ceiling khatam. Blocking I/O sasta ho jaata hai: 10,000 concurrent blocked requests ab ~10,000 platform threads nahi maangti.</p>
+<p><b>Nahi badalta (aur yahi jawab ka core hai):</b></p>
+<ul>
+<li><b>Downstream capacity.</b> Bottleneck thread pool se DB pool / downstream rate limit pe shift ho jaata hai. Ab aapke paas 10,000 threads hain jo 20 connections ke liye lad rahe hain — pehle backpressure Tomcat pe thi, ab woh Hikari pe hai aur wahan timeouts different hain.</li>
+<li><b>CPU-bound kaam.</b> Virtual threads carrier (platform) threads pe hi chalte hain. Compute mein koi faayda nahi.</li>
+<li><b>Pinning.</b> Java 21 mein <code>synchronized</code> block ke andar blocking carrier thread ko pin kar deta hai. Purani JDBC drivers aur logging libraries isse affected hain. JDK 24+ mein largely address ho gaya hai, par apni library versions verify karo.</li>
+<li><b>ThreadLocal-heavy code.</b> Ab 10,000 copies ho sakti hain. MDC aur SecurityContext memory footprint badh jaata hai.</li>
+</ul>
+<p><b>Isliye zaroori hai:</b> virtual threads ke saath <b>explicit admission control</b> lagao — semaphore, <code>@ConcurrencyLimit</code> (Boot 4), ya bounded queue. Warna aapne ek fail-fast system ko ek slowly-collapsing system mein badal diya.</p>
+</div></details>
+
+<details><summary><span class="q-n">Q6</span><span><code>@Async void</code> method ka exception kahan jaata hai?</span><span class="q-sig">trap</span></summary>
+<div class="ans">
+<p><b>Kahin nahi.</b> Task executor pe submit hota hai, exception <code>Future</code> mein capture hoti hai, aur kyunki return type <code>void</code> hai, koi us future ko hold hi nahi karta. Exception silently discard ho jaati hai.</p>
+<p><b>Do fixes:</b> (1) <code>AsyncConfigurer.getAsyncUncaughtExceptionHandler()</code> implement karo — yeh sirf <code>void</code> methods ke liye chalta hai. (2) Behtar: <code>CompletableFuture&lt;T&gt;</code> return karo, tab exception future mein aati hai aur caller <code>.exceptionally()</code> / <code>.handle()</code> se decide kar sakta hai.</p>
+<p><b>Follow-up jo aksar aata hai:</b> "<code>@Async</code> + <code>@Transactional</code> ek hi method pe?" — Do proxy interceptors hain. Async pehle chalta hai, toh method naye thread pe jaata hai aur <b>wahan naya TX shuru hota hai</b>. Caller ka TX inherit nahi hota (TX ThreadLocal pe bind hai). Iska matlab: caller commit ho sakta hai aur async part fail ho sakta hai, ya ulta. Agar aap consistency chahte ho toh <code>@TransactionalEventListener(phase = AFTER_COMMIT)</code> use karo — tab async kaam tabhi shuru hoga jab main TX safely commit ho chuki ho.</p>
+</div></details>
+
+<details><summary><span class="q-n">Q7</span><span>Tomcat ke <code>max-threads</code> badhane se throughput kyun nahi badhta?</span><span class="q-sig">perf</span></summary>
+<div class="ans">
+<p>Little's Law: <code>concurrency = throughput × latency</code>. Throughput system ke <b>sabse tang resource</b> se decide hota hai, threads se nahi. Agar DB pool 20 hai aur har request 50 ms DB pe kharch karti hai, toh ceiling 400 req/s hai — chahe aap 60 threads rakho ya 800.</p>
+<p>800 threads rakhne se jo <em>actually</em> hota hai: (a) 800 MB+ stack memory reserve, (b) zyada context switching, (c) queue Tomcat se hat ke Hikari pe chali gayi jahan uski visibility kam hai, (d) latency badh gayi kyunki ab requests do jagah wait kar rahi hain, aur (e) load shedding khatam — pehle Tomcat busy hone pe reject karta tha (jo LB ko signal deta tha), ab sab accept hokar dheere-dheere timeout hoti hain.</p>
+<p><b>Sahi approach:</b> bottleneck ko measure karo (thread dump lo — threads kis state mein hain?), phir <em>usi</em> ko fix karo. Aur thread count ko downstream capacity se thoda upar rakho, taaki backpressure wahin lage jahan woh visible ho.</p>
+</div></details>
+
+<details><summary><span class="q-n">Q8</span><span>Dirty checking kya hai? Update ke liye <code>save()</code> kab zaroori hai aur kab nahi?</span><span class="q-sig">LLD</span></summary>
+<div class="ans">
+<p><b>Dirty checking:</b> jab Hibernate ek entity load karta hai, woh uske field values ka ek <b>snapshot</b> persistence context mein rakh leta hai. Flush ke waqt (aksar commit se just pehle) woh current values ko snapshot se compare karta hai aur sirf changed entities ke liye UPDATE generate karta hai.</p>
+<p><b>Isliye:</b> ek <em>managed</em> entity pe setter call karna hi kaafi hai. <code>save()</code> ki zarurat nahi — woh <code>merge()</code> call karega jo managed entity pe practically no-op hai (bas ek extra check aur potential copy).</p>
+<p><b><code>save()</code> zaroori hai jab:</b> (a) entity NEW hai (<code>persist</code> chahiye), (b) entity <b>detached</b> hai — jaise DTO se banayi gayi, ya kisi purani TX se aayi, ya <code>em.clear()</code> ke baad. Detached entity pe setter kuch nahi karta aur <b>koi error bhi nahi aata</b> — yeh silent data loss hai.</p>
+<p><b>Architect-level addition:</b> <code>@DynamicUpdate</code> se sirf changed columns UPDATE hote hain. Default behaviour sab columns likhna hai, jo wide tables pe row-lock contention aur replication traffic badhata hai — par har flush pe SQL string cache miss bhi karta hai, toh yeh measure karke lagane wali cheez hai, default nahi.</p>
+</div></details>
+
+<details><summary><span class="q-n">Q9</span><span><code>LazyInitializationException</code> — root cause aur chaar fixes with trade-offs?</span><span class="q-sig">trap</span></summary>
+<div class="ans">
+<p><b>Root cause:</b> lazy association ko tab access kiya gaya jab persistence context band ho chuka tha — aksar controller ya Jackson serialization ke waqt, kyunki TX service layer pe khatam ho gayi thi.</p>
+<ul>
+<li><b>Fix 1 — <code>JOIN FETCH</code> ya <code>@EntityGraph</code> query pe.</b> ✅ Best default. Aap explicitly bolte ho ki is use-case ko kya chahiye. Cost: har use-case ke liye alag query. Faayda: N+1 bhi solve, aur data requirement code mein documented.</li>
+<li><b>Fix 2 — DTO projection.</b> ✅ Best for read APIs. Entity controller tak jaati hi nahi. Cost: mapping code. Faayda: over-fetching khatam, API contract entity se decouple.</li>
+<li><b>Fix 3 — <code>open-in-view: true</code>.</b> ❌ Boot mein default <code>true</code> hai aur startup pe warn karta hai. Exception "chali jaati hai" par cost bhayanak: DB connection <b>poore request ke liye</b> hold hoti hai, aur lazy loads view rendering ke waqt trigger hote hain — matlab N+1 queries invisible ho jaati hain. <b>Ise explicitly <code>false</code> karo</b> aur jo toote use theek karo. Yeh migration ka acha pehla task hai.</li>
+<li><b>Fix 4 — <code>FetchType.EAGER</code>.</b> ❌ Sabse kharab. Problem ko poore application pe fail deta hai — ab har query, har jagah, woh association fetch karegi chahe zarurat ho ya na ho. Cartesian products aur N+1 dono milte hain.</li>
+</ul>
+</div></details>
+
+<details><summary><span class="q-n">Q10</span><span>Security config mein <code>securityMatcher</code> aur <code>requestMatchers</code> mein kya farak hai?</span><span class="q-sig">LLD</span></summary>
+<div class="ans">
+<p><code>securityMatcher(...)</code> — <b>chain-level</b>. Yeh decide karta hai ki <em>yeh poori filter chain</em> kis request pe apply hogi. Agar match nahi hua, Spring agli chain dekhta hai.</p>
+<p><code>requestMatchers(...)</code> — <b>rule-level</b>, <code>authorizeHttpRequests</code> ke andar. Yeh decide karta hai ki us chain ke <em>andar</em> kis path ko kya authority chahiye.</p>
+<p><b>Critical behaviour:</b> chains <code>@Order</code> ke hisaab se evaluate hoti hain aur <b>pehla matching chain jeet jaata hai</b> — baaki chains dekhi bhi nahi jaati. Toh agar aapki pehli chain ka <code>securityMatcher</code> bahut broad hai (ya hai hi nahi, jo "sab" ka matlab hai), aapki baaki saari chains dead code hain. Yeh production security holes ka common source hai kyunki koi error nahi aata.</p>
+<p><b>Debug:</b> <code>logging.level.org.springframework.security=DEBUG</code> se dikh jaata hai ki kaunsi chain match hui aur kaunse filters chale.</p>
+</div></details>
+
+<details><summary><span class="q-n">Q11</span><span><code>hasRole("ADMIN")</code> aur <code>hasAuthority("ADMIN")</code> mein kya farak hai? Kya use karoge?</span><span class="q-sig">trap</span></summary>
+<div class="ans">
+<p><code>hasRole("ADMIN")</code> internally <code>"ROLE_ADMIN"</code> authority dhoondta hai — prefix Spring apne aap laga deta hai. <code>hasAuthority("ADMIN")</code> exactly <code>"ADMIN"</code> dhoondta hai.</p>
+<p><b>Problem yeh hai:</b> OAuth2 resource server JWT scopes ko <code>SCOPE_</code> prefix deta hai, LDAP <code>ROLE_</code> deta hai, aur custom converters kuch bhi de sakte hain. Mismatch pe aapko 403 milta hai <b>bina kisi useful log ke</b> — bas "Access Denied".</p>
+<p><b>Team convention:</b> hamesha <code>hasAuthority</code> with the full literal string. Prefix implicit rakhne se koi faayda nahi hota, sirf ek chhupa hua contract banta hai jo naya joiner nahi jaanta. Agar aap <code>hasRole</code> use karte ho, toh authority converter ko codebase mein ek jagah rakho aur uspe test likho jo actual JWT sample verify kare.</p>
+</div></details>
+
+<details><summary><span class="q-n">Q12</span><span>Spring Boot CGLIB use karta hai ya JDK dynamic proxy? Iska practical asar kya hai?</span><span class="q-sig">LLD</span></summary>
+<div class="ans">
+<p>Boot 2.0 se <code>spring.aop.proxy-target-class=true</code> <b>default</b> hai — yani hamesha CGLIB (subclass-based), chahe class interface implement karti ho. Plain Spring Framework ka default alag tha (interface ho toh JDK proxy).</p>
+<p><b>Practical asar:</b></p>
+<ul>
+<li>Class <code>final</code> nahi ho sakti; <code>final</code>/<code>private</code>/<code>static</code> methods intercept nahi honge — aur <b>chup-chaap</b> ignore honge. Kotlin mein yeh badi problem thi (classes default final), isliye <code>kotlin-spring</code> plugin exist karta hai.</li>
+<li>Spring 6+ Objenesis se instance banata hai, toh <b>proxy ka constructor nahi chalta</b>. Field initializers proxy pe null rahenge. Isliye proxy ke fields pe kabhi bharosa mat karo — hamesha methods se jao.</li>
+<li>Native image (GraalVM) mein CGLIB runtime bytecode generation problematic hai; isiliye Boot AOT processing build time pe proxies generate karta hai.</li>
+</ul>
+<p><b>Design implication:</b> agar aap chahte ho ki interception guaranteed ho, toh public methods pe annotate karo aur classes ko non-final rakho — ya behtar, interface-driven design use karo taaki intent explicit ho.</p>
+</div></details>
+
+<details><summary><span class="q-n">Q13</span><span>Custom aspect ko <code>@Transactional</code> ke andar chalana hai ya bahar? Kaise decide karoge?</span><span class="q-sig">LLD</span></summary>
+<div class="ans">
+<p>Interceptor chain <code>@Order</code> se banti hai — <b>chhota number = bahar (pehle chalega)</b>. Spring ka <code>TransactionInterceptor</code> default <code>Ordered.LOWEST_PRECEDENCE</code> pe hai, yani sabse andar.</p>
+<p><b>TX ke andar rakho</b> (order = <code>LOWEST_PRECEDENCE - N</code>) jab aapka aspect DB pe likhta hai aur uska write business write ke saath atomic hona chahiye — jaise audit row jo rollback pe bhi gayab ho jaani chahiye.</p>
+<p><b>TX ke bahar rakho</b> (chhota order) jab aapka aspect commit/rollback ka <em>result</em> observe karna chahta hai — jaise metrics, timing, ya error rate. Bahar hone se aap <code>commit()</code> mein aayi exception bhi pakad sakte ho, jo andar se dikhti hi nahi.</p>
+<p><b>Trap:</b> agar aapka aspect exception nigal leta hai (rethrow nahi karta) aur woh TX ke <em>andar</em> hai, toh transaction <b>commit</b> ho jaayega — kyunki TransactionInterceptor ko exception dikhi hi nahi. Yeh AOP ka sabse mehnga single-line bug hai.</p>
+</div></details>
+
+<details><summary><span class="q-n">Q14</span><span>Distributed transaction chahiye — order service aur payment service dono update karne hain. Kya karoge?</span><span class="q-sig">HLD</span></summary>
+<div class="ans">
+<p><b>Pehla jawab: 2PC/XA mat karo.</b> Kaam karta hai par cost bahut zyada hai — coordinator ek naya single point of failure hai, locks network round-trips tak hold hote hain, aur cloud-managed DBs / Kafka mein XA support aksar hai hi nahi ya second-class hai. Modern distributed systems mein yeh practically dead hai.</p>
+<p><b>Recommended: Transactional Outbox + Saga.</b></p>
+<ol>
+<li>Order service apni local TX mein <b>dono</b> likhta hai: business row aur ek <code>outbox</code> row. Yeh ek hi DB hai, toh atomicity free hai.</li>
+<li>Ek separate poller (ya Debezium/CDC) outbox se padh ke Kafka pe publish karta hai, phir row mark karta hai.</li>
+<li>Payment service consume karta hai, apna kaam karta hai, aur apna event publish karta hai.</li>
+<li>Failure pe compensating action (refund, cancel) — rollback nahi, <b>compensation</b>.</li>
+</ol>
+<p><b>Jo trade-off aapko naam lekar batana hai:</b> yeh <b>eventual consistency</b> hai, strong nahi. Delivery <b>at-least-once</b> hai, toh har consumer ko <b>idempotent</b> banana hi padega (dedupe key / natural idempotency). Aur ek window hoti hai jisme order "paid" dikhta hai par payment abhi confirm nahi hui — yeh business ko explicitly accept karna hoga (UI mein "processing" state). Agar business yeh accept nahi kar sakti, toh aapko services ko merge karna chahiye, distributed transaction nahi.</p>
+</div></details>
+
+<details><summary><span class="q-n">Q15</span><span>Boot 4 ke modular starters se aapki build mein kya toota, aur aap uska plan kaise banayenge?</span><span class="q-sig">migration</span></summary>
+<div class="ans">
+<p><b>Kya hua:</b> pehle <code>spring-boot-autoconfigure</code> ek bada jar tha jisme sab auto-configurations thin. Boot 4 mein woh chhote, feature-specific modules mein split ho gaya hai. Faayda: lean classpath, tez startup, chhoti native images, saaf module boundaries.</p>
+<p><b>Kya toota:</b> jo classes aap transitively paa rahe the, woh ab nahi aatin. Symptom <b>runtime <code>ClassNotFoundException</code></b> hai — compile pe pata nahi chalta agar aap us class ko directly import nahi karte (jaise ek auto-config jo kisi aur module mein chali gayi).</p>
+<p><b>Plan (do-step, deliberately):</b></p>
+<ol>
+<li><b>Step A:</b> <code>spring-boot-starter-classic</code> add karke Boot 4 pe upgrade karo. Yeh purana "sab kuch ek jagah" layout wapas de deta hai. Ab aapke paas ek <em>chalti hui</em> Boot 4 app hai, aur aap Jackson 3 / JSpecify jaise asli changes pe focus kar sakte ho.</li>
+<li><b>Step B (alag PR, alag sprint):</b> <code>starter-classic</code> hatao, explicit modular starters add karo, aur integration tests se verify karo. Yahan har missing module ek chhota fix hai.</li>
+</ol>
+<p><b>Kyun do steps:</b> ek hi PR mein karne se aapko pata nahi chalega ki failure Jackson ki wajah se hai ya missing module ki. Bridge module ka poora maqsad <b>ek waqt pe ek variable badalna</b> hai. Par uski expiry date CI mein likh do — warna woh permanent ho jaayega.</p>
+</div></details>
+
+<details><summary><span class="q-n">Q16</span><span>Jackson 2 → 3 migration mein kya-kya toot sakta hai?</span><span class="q-sig">migration</span></summary>
+<div class="ans">
+<ul>
+<li><b>Package rename:</b> <code>com.fasterxml.jackson.databind</code> → <code>tools.jackson.databind</code>. Core imports sab badalne padenge.</li>
+<li><b>Annotations same rehte hain:</b> <code>jackson-annotations</code> 2.x dono versions ke saath kaam karta hai. Yeh deliberately kiya gaya hai taaki shared domain models na tootein — par iska side effect yeh hai ki aapka code <b>compile ho jaata hai</b> aur aapko lagta hai migration ho gaya, jabki runtime behaviour badal chuka hai.</li>
+<li><b>Immutable mappers:</b> Jackson 3 mein <code>JsonMapper</code> build ke baad configure nahi ho sakta. Jo bhi code <code>mapper.configure(...)</code> ya <code>setSerializationInclusion(...)</code> runtime pe karta tha, use builder pe shift karna hoga.</li>
+<li><b>Unchecked exceptions:</b> <code>JsonProcessingException</code> ab runtime exception hai. Purane <code>catch</code> blocks "exception is never thrown" pe compile fail karenge — jo actually acha hai, kyunki yeh aapko har jagah dikha deta hai.</li>
+<li><b>Default changes:</b> kuch defaults badle hain (jaise date handling). Isliye <b>contract tests</b> likho jo actual JSON string compare karein, sirf round-trip nahi — round-trip test dono taraf same galti hone pe pass ho jaata hai.</li>
+</ul>
+</div></details>
+
+<details><summary><span class="q-n">Q17</span><span>Kubernetes pe graceful shutdown ka poora sequence samjhaao. Kahan-kahan galti hoti hai?</span><span class="q-sig">HLD</span></summary>
+<div class="ans">
+<p><b>Sahi sequence:</b></p>
+<ol>
+<li>Pod ko <code>Terminating</code> mark kiya jaata hai; endpoints controller use Service se hatata hai. <b>Yeh async hai</b> — kubelet ka SIGTERM aur LB ka update ek saath nahi hote.</li>
+<li>Kubelet <code>preStop</code> hook chalata hai, phir SIGTERM bhejta hai.</li>
+<li>Boot <code>server.shutdown=graceful</code> pe: Tomcat naye connections lena band karta hai, in-flight requests ko <code>spring.lifecycle.timeout-per-shutdown-phase</code> tak complete hone deta hai.</li>
+<li>Context close: <code>@PreDestroy</code>, executors ka <code>awaitTermination</code>, Hikari pool close.</li>
+<li><code>terminationGracePeriodSeconds</code> ke baad SIGKILL.</li>
+</ol>
+<p><b>Galti #1 (sabse common):</b> LB abhi bhi traffic bhej raha hai jab app shutdown shuru kar chuki hai — kyunki step 1 async hai. <b>Fix:</b> <code>preStop: sleep 5</code> lagao. Yeh counter-intuitive lagta hai par yahi standard fix hai: 5 second de do taaki endpoint removal propagate ho jaaye, tab shutdown shuru ho.</p>
+<p><b>Galti #2:</b> <code>terminationGracePeriodSeconds</code> (default 30) app ke shutdown timeout se <b>chhota</b> hona. Tab kubelet SIGKILL bhej dega aur graceful shutdown ka koi matlab nahi rahega. Rule: <code>terminationGracePeriod &gt; preStop sleep + shutdown timeout + buffer</code>.</p>
+<p><b>Galti #3:</b> readiness probe ko liveness probe jaisa treat karna. Shutdown ke waqt readiness fail honi chahiye (traffic band), liveness nahi (warna kubelet turant maar dega).</p>
+</div></details>
+
+<details><summary><span class="q-n">Q18</span><span>MDC / SecurityContext thread pool mein leak kaise hota hai? Kaise rokoge?</span><span class="q-sig">trap</span></summary>
+<div class="ans">
+<p><b>Mechanism:</b> MDC aur <code>SecurityContextHolder</code> dono <code>ThreadLocal</code> pe based hain. Thread pool mein threads <b>reuse</b> hote hain. Agar request ke end mein clear nahi kiya, toh agli request usi thread pe purana <code>userId</code>, <code>traceId</code> ya poora <code>Authentication</code> object dekh legi.</p>
+<p><b>Impact:</b> logs mein galat customer ka data (compliance incident), aur worst case mein authorization decision purane user ke context pe. Yeh sirf bug nahi, yeh security issue hai.</p>
+<p><b>Prevention:</b></p>
+<ul>
+<li>Request ke liye: Spring ka <code>SecurityContextPersistenceFilter</code> / <code>MDCInsertingServletFilter</code> yeh handle karte hain — <b>agar aapne custom filter likha hai toh <code>finally</code> block mein clear karna aapki zimmedari hai.</b></li>
+<li>Manual MDC ke liye: <code>try (MDC.MDCCloseable c = MDC.putCloseable(k, v))</code> — try-with-resources hi use karo, plain <code>put()</code> nahi.</li>
+<li>Async ke liye: <code>TaskDecorator</code> jo <b>copy karta hai aur <code>finally</code> mein clear bhi karta hai</b>. Sirf copy karna aadha kaam hai — worker thread pe bhi leak hota hai.</li>
+<li>Boot 3.2+ / 4.x mein Micrometer <code>context-propagation</code> library yeh standardise karti hai; use prefer karo apne custom decorator pe.</li>
+</ul>
+<p><b>Test kaise karein:</b> ek integration test jo same executor pe do requests chalaye, aur assert kare ki dusri request ka MDC pehli ka data na dekhe. Yeh test aksar likha nahi jaata, isiliye yeh bug prod tak pahunchta hai.</p>
+</div></details>
+
+<details><summary><span class="q-n">Q19</span><span>Aapko 40 services ka estate Boot 2.7 se Boot 4 pe le jaana hai. Aapka plan kya hoga?</span><span class="q-sig">HLD</span></summary>
+<div class="ans">
+<p><b>1 · Inventory aur classification (week 1–2).</b> Har service ko teen axes pe map karo: business criticality, dependency weirdness (SOAP, custom agents, abandoned libs), aur test coverage. Isse aapko batch order milta hai — <b>sabse kam critical + sabse acha tested service pehle</b>, taaki playbook wahan bane jahan galti sasti hai.</p>
+<p><b>2 · Platform team pehle (week 2–6).</b> Shared internal libraries aur starters migrate karo. Agar yeh nahi hua, har team apne aap yahi kaam 40 baar karegi. Yeh single highest-leverage step hai.</p>
+<p><b>3 · Pilot (2 services).</b> Poora path 2.7 → 3.5 → 4.1 chalao aur ek <b>likha hua playbook</b> banao: exact commands, openrewrite recipes, known gotchas, aur time estimates. Pilot ka output code nahi, <b>documentation</b> hai.</p>
+<p><b>4 · Waves.</b> 5–8 services per wave, parallel teams, weekly sync. Har wave ke baad playbook update.</p>
+<p><b>5 · Guardrails throughout.</b> CI mein Boot version enforcement, dependency-check, aur ek dashboard jo har service ka current Boot version dikhaye. Migration ka status guesswork nahi hona chahiye.</p>
+<p><b>Do cheezein jo interviewer specifically sunna chahta hai:</b></p>
+<ul>
+<li><b>Contract tests between services.</b> Boot 3 mein error response format badalta hai (<code>ProblemDetail</code>), Jackson 3 mein serialization defaults badalte hain. Agar service A migrate ho gayi aur B nahi, toh unka contract silently toot sakta hai. Consumer-driven contract tests (Pact / Spring Cloud Contract) yeh pakadte hain.</li>
+<li><b>Mixed-version fleet ka period.</b> Aap 40 services ek din mein migrate nahi karoge. Toh 3–6 mahine tak Boot 2, 3 aur 4 saath chalenge. Tracing (Sleuth vs Micrometer) is period mein toot sakti hai — B3 vs W3C propagation format ka overlap plan karo.</li>
+</ul>
+</div></details>
+
+<details><summary><span class="q-n">Q20</span><span>Boot 4 ke <code>@Retryable</code> aur <code>@ConcurrencyLimit</code> — kab use karoge aur kab Resilience4j?</span><span class="q-sig">HLD</span></summary>
+<div class="ans">
+<p>Boot 4 mein <code>spring-boot-starter-resilience</code> basic patterns framework mein hi le aata hai: <code>@Retryable</code> (exponential backoff + jitter ke saath) aur <code>@ConcurrencyLimit</code> (bulkhead). Yeh <code>spring-context</code> par based hai, koi external dependency nahi.</p>
+<p><b>Built-in use karo jab:</b> simple retry chahiye (transient network error, 503), ya ek downstream ke liye concurrency cap chahiye. Faayda: ek kam dependency, Boot ke saath version-aligned, aur observability already wired.</p>
+<p><b>Resilience4j use karo jab:</b> aapko <b>circuit breaker</b> chahiye state machine ke saath (closed → open → half-open), sliding-window failure rate, rate limiter, ya bulkhead metrics jo aap Grafana pe chahte ho. Built-in retry circuit breaker nahi hai — yeh important distinction hai.</p>
+<p><b>Trade-off jo naam lena hai:</b> <b>retry without circuit breaker = retry storm.</b> Agar downstream down hai aur aapki 200 instances har request 3 baar retry kar rahi hain, aapne load 3× kar diya jab woh already gir raha hai. Retry hamesha (a) circuit breaker ke saath, (b) jitter ke saath, aur (c) sirf <b>idempotent</b> operations pe. Non-idempotent POST retry karna duplicate order banata hai — isliye idempotency key ka design retry se pehle aata hai.</p>
+</div></details>
+
+    </div>
+  </div>
+</section>
+</main>
+
+<footer class="foot">
+  <div class="wrap">
+    <p><b>Spring Boot 2 → 4 · architect's deep reference.</b> Version data verified September 2026: Boot 4.1.x current (Spring Framework 7, Jakarta EE 11, Tomcat 11.0.x), Boot 3.5 OSS EOL 30 June 2026.</p>
+    <p>Har animation step aur code sample production behaviour dikhata hai, tutorial-simplified nahi. <a href="#top" style="color:#9BC77F">Wapas upar ↑</a></p>
+  </div>
+</footer>
+
+<script>
+(function(){
+  "use strict";
+  var SVGNS = "http://www.w3.org/2000/svg";
+  var COLS = [18,268,518,768], ROWS = [26,156,286,416,546], W = 214, H = 62;
+
+  var NODES = [
+    {id:"client",     t:"HTTP Client",          s:"browser / service",        c:0, r:0},
+    {id:"connector",  t:"Tomcat NIO Connector", s:"acceptor + poller",        c:1, r:0},
+    {id:"worker",     t:"Worker Thread",        s:"request ka maalik",        c:2, r:0},
+    {id:"filters",    t:"Filter Chain",         s:"Security · encoding",      c:3, r:0},
+    {id:"dispatcher", t:"DispatcherServlet",    s:"front controller",         c:3, r:1},
+    {id:"mapping",    t:"HandlerMapping",       s:"+ HandlerAdapter",         c:2, r:1},
+    {id:"binding",    t:"Argument Resolvers",   s:"@RequestBody · @Valid",    c:1, r:1},
+    {id:"controller", t:"@RestController",      s:"OrderController",          c:0, r:1},
+    {id:"txproxy",    t:"AOP Proxy",            s:"TransactionInterceptor",   c:0, r:2, tx:1},
+    {id:"service",    t:"Service Method",       s:"OrderWriteService",        c:1, r:2, tx:1},
+    {id:"repo",       t:"Repository",           s:"SimpleJpaRepository",      c:2, r:2, tx:1},
+    {id:"pc",         t:"Persistence Context",  s:"EntityManager · L1 cache", c:3, r:2, tx:1},
+    {id:"hikari",     t:"HikariCP",             s:"pooled Connection",        c:3, r:3, tx:1},
+    {id:"db",         t:"Database",             s:"PostgreSQL",               c:2, r:3, tx:1},
+    {id:"commit",     t:"Flush + Commit",       s:"TX boundary closes",       c:1, r:3, tx:1},
+    {id:"converter",  t:"HttpMessageConverter", s:"Jackson · JSON out",       c:0, r:3},
+    {id:"response",   t:"Response",             s:"client ko wapas",          c:0, r:4}
+  ];
+
+  var STEPS = [
+    { d:"Client request bhejta hai. Abhi tak Spring ka ek line code nahi chala — yeh poori tarah OS aur TCP ka kaam hai.",
+      thread:"—", tx:"none", pc:"—", sql:"—",
+      save:{d:"Client POST /orders bhejta hai ek JSON body ke saath. Abhi tak Spring ka ek line code nahi chala."},
+      upd:{d:"Client PUT /orders/42 bhejta hai. Note: URL mein ID hai — yeh update path ka pehla signal hai."} },
+
+    { d:"Acceptor thread TCP connection accept karta hai aur socket ko Poller ko de deta hai. Yeh NIO hai — <em>ek connection = ek thread nahi</em>. Isiliye 8000 idle keep-alive connections 8000 threads nahi maangte.",
+      thread:"http-nio-8080-Acceptor", tx:"none", pc:"—", sql:"—" },
+
+    { d:"Poller readable socket ko worker pool pe hand off karta hai. Ab ek thread request ka maalik hai. <em>Yahi woh thread hai jispe aage sab ThreadLocals bandhenge</em> — SecurityContext, MDC, transaction.",
+      thread:"http-nio-8080-exec-3", tx:"none", pc:"—", sql:"—" },
+
+    { d:"Servlet filter chain. Spring Security yahin baithi hai — JWT parse hota hai, signature verify hoti hai, aur SecurityContextHolder set hota hai. <em>Auth fail hua toh 401 yahin se jaata hai; controller ko pata bhi nahi chalta.</em>",
+      thread:"http-nio-8080-exec-3", tx:"none", pc:"—", sql:"—" },
+
+    { d:"DispatcherServlet — front controller pattern. Yeh khud kuch handle nahi karta, sirf orchestrate karta hai: mapping dhoondo, adapter chalao, result render karo, exception ho toh resolver bulao.",
+      thread:"http-nio-8080-exec-3", tx:"none", pc:"—", sql:"—" },
+
+    { d:"RequestMappingHandlerMapping URL + HTTP method + headers + params ko ek HandlerMethod pe map karta hai. Boot 4 mein <em>API version</em> bhi yahin match hoti hai (spring.mvc.apiversion.*).",
+      thread:"http-nio-8080-exec-3", tx:"none", pc:"—", sql:"—" },
+
+    { d:"HttpMessageConverter body ko DTO mein deserialize karta hai (Boot 4 = Jackson 3), phir @Valid Bean Validation chalti hai. <em>Yahan fail = 400, aur controller call hi nahi hota.</em> Validation ek boundary concern hai, business logic nahi.",
+      thread:"http-nio-8080-exec-3", tx:"none", pc:"—", sql:"—" },
+
+    { d:"Controller method chalta hai. Iska kaam sirf translate karna hai: DTO → domain command. <em>Agar yahan if-else business rules likhe hain, woh design smell hai</em> — kyunki controller test karna sabse mehnga layer hai.",
+      thread:"http-nio-8080-exec-3", tx:"none", pc:"—", sql:"—" },
+
+    { d:"Yahan proxy intercept karta hai. TransactionInterceptor Hikari se connection maangta hai, <code>autoCommit=false</code> set karta hai, aur TX ko ThreadLocal (TransactionSynchronizationManager) mein bind karta hai. <em>Agar aapne yeh method same class ke andar se call kiya hota, yeh step skip ho jaata — bina kisi error ke.</em>",
+      thread:"http-nio-8080-exec-3", tx:"ACTIVE · connection acquired", pc:"empty", sql:"BEGIN" },
+
+    { d:"Ab transaction khuli hai aur ek connection block hai. <em>Yeh window jitni chhoti rahegi, throughput utna zyada</em>. Har external HTTP call, har S3 upload, har sleep — sab is window se bahar hona chahiye.",
+      thread:"http-nio-8080-exec-3", tx:"ACTIVE", pc:"empty", sql:"—" },
+
+    { d:"Repository call.", thread:"http-nio-8080-exec-3", tx:"ACTIVE",
+      save:{ d:"<code>repository.save(order)</code> → SimpleJpaRepository dekhta hai ki ID null hai, toh <code>em.persist()</code> call karta hai. <em>Dhyan do: INSERT abhi NAHI chala.</em> Entity sirf persistence context mein register hui hai.",
+             pc:"1 entity: NEW → MANAGED", sql:"— (persist queued)" },
+      upd:{ d:"<code>repository.findById(42)</code> → SELECT chalta hai. Entity load hoke MANAGED ho jaati hai, <em>aur Hibernate uske field values ka ek snapshot bhi rakh leta hai</em>. Yeh snapshot hi dirty checking ka poora raaz hai.",
+             pc:"1 entity: MANAGED + snapshot", sql:"SELECT * FROM orders WHERE id=42" } },
+
+    { d:"Persistence context.", thread:"http-nio-8080-exec-3", tx:"ACTIVE",
+      save:{ d:"Entity ab MANAGED hai, L1 cache mein. <em>ID generation strategy yahan behaviour badalti hai:</em> IDENTITY ho toh Hibernate ko ID chahiye, isliye INSERT turant chalega. SEQUENCE ho toh woh flush tak wait kar sakta hai aur batching possible hoti hai — isliye SEQUENCE preferred hai.",
+             pc:"1 MANAGED entity", sql:"— (IDENTITY ho toh INSERT yahin)" },
+      upd:{ d:"<code>order.setStatus(PAID)</code> — bas itna. <em>Koi save() call nahi hai, aur na hi zarurat hai.</em> Entity managed hai, toh Hibernate commit ke waqt snapshot se compare karega. Yahi <b>dirty checking</b> hai. Agar yeh entity detached hoti, toh yeh setter chup-chaap kho jaata.",
+             pc:"1 MANAGED · dirty: status", sql:"— (UPDATE queued for flush)" } },
+
+    { d:"Yeh pooled connection step 9 se hold hai aur step 15 tak hold rahegi. <em>Pool 20 ka hai — matlab is waqt sirf 20 requests is stage tak pahunch sakti hain.</em> Yahi aapki asli concurrency limit hai, Tomcat ka max-threads nahi.",
+      thread:"http-nio-8080-exec-3", tx:"ACTIVE", pc:"1 MANAGED", sql:"—" },
+
+    { d:"Database.", thread:"http-nio-8080-exec-3", tx:"ACTIVE",
+      save:{ d:"Flush pe INSERT bheja gaya. Row created, par abhi <em>uncommitted</em> — dusri transactions ise dekh nahi sakti (READ_COMMITTED pe). Row lock ab is TX ke paas hai.",
+             pc:"1 MANAGED", sql:"INSERT INTO orders (id, status, total) VALUES (?,?,?)" },
+      upd:{ d:"Dirty check ne bataya ki sirf <code>status</code> badla hai. Default Hibernate <em>saare</em> columns likhta hai; <code>@DynamicUpdate</code> lagane pe sirf changed column. Wide tables pe yeh farak lock contention aur replication traffic dono pe padta hai.",
+             pc:"1 MANAGED · dirty: status", sql:"UPDATE orders SET status=? WHERE id=42" } },
+
+    { d:"Hibernate flush karta hai (dirty check + SQL generate), phir COMMIT. Transaction ThreadLocal se unbind hoti hai, connection pool mein wapas jaati hai, persistence context clear ho jaata hai. <em>Agar yahan tak koi RuntimeException aayi hoti, toh ROLLBACK hota — checked exception pe by default COMMIT ho jaata, jo #1 silent bug hai.</em>",
+      thread:"http-nio-8080-exec-3", tx:"COMMITTED · connection released", pc:"cleared", sql:"COMMIT" },
+
+    { d:"Return value ko Jackson JSON mein serialize kiya jaata hai. <em>CRITICAL: transaction ab band ho chuki hai.</em> Agar aapka response object koi lazy association rakhta hai aur Jackson use touch kare, toh yahan LazyInitializationException aayega. Isiliye entity ko response mein mat bhejo — DTO projection use karo.",
+      thread:"http-nio-8080-exec-3", tx:"none", pc:"closed", sql:"—" },
+
+    { d:"Response client tak. Worker thread pool mein wapas jaata hai — <em>par uske ThreadLocals clear hone chahiye</em>: SecurityContext, MDC, transaction sync. Nahi hue toh agli request ko pichhle user ka data dikhega. Yeh log-leak aur auth-leak dono ka source hai.",
+      thread:"http-nio-8080-exec-3 → released", tx:"none", pc:"closed", sql:"—",
+      save:{ d:"Response client tak: <b>201 Created</b> + Location header. Worker thread pool mein wapas — par uske ThreadLocals clear hone chahiye (SecurityContext, MDC, transaction sync), warna agli request ko pichhle user ka data dikhega." },
+      upd:{ d:"Response client tak: <b>200 OK</b>. Worker thread pool mein wapas — par uske ThreadLocals clear hone chahiye (SecurityContext, MDC, transaction sync), warna agli request ko pichhle user ka data dikhega." } }
+  ];
+
+  /* ---------- build diagram ---------- */
+  var linksG = document.getElementById("archLinks");
+  var nodesG = document.getElementById("archNodes");
+  if(!linksG || !nodesG) return;
+
+  NODES.forEach(function(n){
+    n.x = COLS[n.c]; n.y = ROWS[n.r];
+    n.cx = n.x + W/2; n.cy = n.y + H/2;
+  });
+
+  var linkEls = [];
+  for(var i=0;i<NODES.length-1;i++){
+    var a = NODES[i], b = NODES[i+1], x1,y1,x2,y2;
+    if(a.r === b.r){
+      y1 = y2 = a.cy;
+      if(b.c > a.c){ x1 = a.x + W; x2 = b.x; } else { x1 = a.x; x2 = b.x + W; }
+    } else {
+      x1 = x2 = a.cx; y1 = a.y + H; y2 = b.y;
+    }
+    var ln = document.createElementNS(SVGNS,"line");
+    ln.setAttribute("x1",x1); ln.setAttribute("y1",y1);
+    ln.setAttribute("x2",x2); ln.setAttribute("y2",y2);
+    ln.setAttribute("class","lnk");
+    linksG.appendChild(ln);
+    linkEls.push(ln);
+  }
+
+  var nodeEls = NODES.map(function(n){
+    var g = document.createElementNS(SVGNS,"g");
+    g.setAttribute("class","nd" + (n.tx ? " tx" : ""));
+    var rect = document.createElementNS(SVGNS,"rect");
+    rect.setAttribute("x",n.x); rect.setAttribute("y",n.y);
+    rect.setAttribute("width",W); rect.setAttribute("height",H);
+    rect.setAttribute("rx","3");
+    var t1 = document.createElementNS(SVGNS,"text");
+    t1.setAttribute("x",n.x+14); t1.setAttribute("y",n.y+26); t1.textContent = n.t;
+    var t2 = document.createElementNS(SVGNS,"text");
+    t2.setAttribute("x",n.x+14); t2.setAttribute("y",n.y+44);
+    t2.setAttribute("class","t2"); t2.textContent = n.s;
+    g.appendChild(rect); g.appendChild(t1); g.appendChild(t2);
+    nodesG.appendChild(g);
+    return g;
+  });
+
+  /* ---------- state ---------- */
+  var idx = 0, mode = "save", timer = null;
+  var pkt   = document.getElementById("pkt");
+  var elStep= document.getElementById("archStep");
+  var elTit = document.getElementById("archTitle");
+  var elDesc= document.getElementById("archDesc");
+  var elThr = document.getElementById("stThread");
+  var elTx  = document.getElementById("stTx");
+  var elPc  = document.getElementById("stPc");
+  var elSql = document.getElementById("stSql");
+  var elBar = document.getElementById("archBar");
+  var btnPlay = document.getElementById("btnPlay");
+
+  function stepData(i){
+    var base = STEPS[i];
+    var over = (mode === "save") ? base.save : base.upd;
+    return {
+      d:      (over && over.d)      || base.d,
+      thread: (over && over.thread) || base.thread,
+      tx:     (over && over.tx)     || base.tx,
+      pc:     (over && over.pc)     || base.pc,
+      sql:    (over && over.sql)    || base.sql
+    };
+  }
+
+  function render(){
+    nodeEls.forEach(function(g,i){
+      g.setAttribute("class","nd" + (NODES[i].tx?" tx":"") + (i===idx?" live":(i<idx?" done":"")));
+    });
+    linkEls.forEach(function(l,i){
+      l.setAttribute("class","lnk" + (i < idx ? " hot" : ""));
+    });
+    var n = NODES[idx], s = stepData(idx);
+    pkt.style.transform = "translate(" + n.cx + "px," + n.cy + "px)";
+    elStep.textContent = "Step " + (idx+1) + " / " + NODES.length + "  ·  " + (mode==="save"?"POST /orders":"PUT /orders/42");
+    elTit.textContent  = n.t;
+    elDesc.innerHTML   = s.d;
+    elThr.textContent  = s.thread;
+    elTx.textContent   = s.tx;
+    elPc.textContent   = s.pc;
+    elSql.textContent  = s.sql;
+    elBar.style.width  = (((idx+1)/NODES.length)*100) + "%";
+  }
+
+  function stop(){ if(timer){ clearInterval(timer); timer = null; } btnPlay.textContent = "Play"; btnPlay.classList.add("primary"); }
+  function next(){ if(idx < NODES.length-1){ idx++; render(); } else { stop(); } }
+
+  document.getElementById("btnNext").onclick  = function(){ stop(); next(); };
+  document.getElementById("btnBack").onclick  = function(){ stop(); if(idx>0){ idx--; render(); } };
+  document.getElementById("btnReset").onclick = function(){ stop(); idx = 0; render(); };
+  btnPlay.onclick = function(){
+    if(timer){ stop(); return; }
+    if(idx >= NODES.length-1){ idx = 0; render(); }
+    btnPlay.textContent = "Pause"; btnPlay.classList.remove("primary");
+    timer = setInterval(next, 2400);
+  };
+
+  var mS = document.getElementById("modeSave"), mU = document.getElementById("modeUpdate");
+  function setMode(m){
+    mode = m;
+    mS.classList.toggle("on", m === "save");
+    mU.classList.toggle("on", m === "update");
+    render();
+  }
+  mS.onclick = function(){ setMode("save"); };
+  mU.onclick = function(){ setMode("update"); };
+
+  render();
+
+  /* ---------- hero reveal ---------- */
+  var hero = document.querySelector(".hero");
+  if(hero){ requestAnimationFrame(function(){ hero.classList.add("go"); }); }
+
+  /* ---------- nav highlight ---------- */
+  var links = Array.prototype.slice.call(document.querySelectorAll(".nav a"));
+  var secs  = links.map(function(a){ return document.querySelector(a.getAttribute("href")); });
+  if("IntersectionObserver" in window){
+    var obs = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){
+        if(!e.isIntersecting) return;
+        var k = secs.indexOf(e.target);
+        if(k < 0) return;
+        links.forEach(function(a){ a.classList.remove("on"); });
+        links[k].classList.add("on");
+        var nav = document.querySelector(".nav-inner");
+        if(nav) nav.scrollTo({ left: links[k].offsetLeft - 60, behavior: "smooth" });
+      });
+    }, { rootMargin: "-96px 0px -68% 0px" });
+    secs.forEach(function(s){ if(s) obs.observe(s); });
+  }
+})();
+</script>
+</body>
+</html>

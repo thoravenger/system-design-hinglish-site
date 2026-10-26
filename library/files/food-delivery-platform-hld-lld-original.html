@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Food Delivery Platform: Event-Driven Microservices HLD and LLD</title>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css">
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-core.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-clike.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-java.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-sql.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-json.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-bash.min.js"></script>
+
+<style>
+  :root{--bg:#fff;--fg:#1c1e21;--muted:#5a6472;--line:#d8dee6;--accent:#ff6a00;--code-bg:#1e2430;--th-bg:#eef2f7;--note-bg:#fff7f0;--diagram-bg:#fbfcfe;}
+  *{box-sizing:border-box;}html{-webkit-text-size-adjust:100%;}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:16px;line-height:1.6;}
+  .page{max-width:1080px;margin:0 auto;padding:32px 20px 96px;}
+  header.doc-header{border-bottom:3px solid var(--fg);padding-bottom:16px;margin-bottom:32px;}
+  header.doc-header h1{font-size:2rem;line-height:1.25;margin:0 0 8px;letter-spacing:-0.01em;}
+  .doc-meta{color:var(--muted);font-size:0.95rem;margin:0;}
+  h2{font-size:1.5rem;margin:48px 0 12px;padding-bottom:6px;border-bottom:1px solid var(--line);scroll-margin-top:16px;}
+  h3{font-size:1.18rem;margin:32px 0 10px;}
+  h4{font-size:1.02rem;margin:24px 0 8px;}
+  p{margin:10px 0;}ul,ol{margin:10px 0 10px 22px;padding:0;}li{margin:6px 0;}a{color:var(--accent);}
+  code{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;font-size:0.88em;background:#eef2f7;color:#b3005e;padding:1px 5px;border-radius:4px;}
+  pre[class*="language-"]{background:var(--code-bg)!important;border-radius:8px;padding:14px 16px;font-size:0.82rem;line-height:1.55;margin:14px 0;overflow-x:auto;border:1px solid #0f141c;}
+  pre[class*="language-"] code{background:none;color:inherit;padding:0;font-size:inherit;border-radius:0;}
+  .table-wrap{overflow-x:auto;margin:16px 0;border:1px solid var(--line);border-radius:8px;}
+  table{border-collapse:collapse;width:100%;font-size:0.92rem;}
+  th,td{border:1px solid var(--line);padding:8px 11px;text-align:left;vertical-align:top;}
+  thead th{background:var(--th-bg);font-weight:600;white-space:nowrap;}
+  tbody tr:nth-child(even){background:#fafbfd;}
+  td code{white-space:nowrap;}
+  .note{background:var(--note-bg);border-left:4px solid var(--accent);border-radius:0 8px 8px 0;padding:10px 16px;margin:16px 0;}
+  .toc{background:var(--note-bg);border:1px solid var(--line);border-radius:8px;padding:16px 20px;margin:0 0 24px;}
+  .toc h2{margin:0 0 8px;font-size:1.05rem;border:none;padding:0;}
+  .toc ol{margin:0 0 0 20px;}.toc a{text-decoration:none;}.toc a:hover{text-decoration:underline;}
+  hr{border:none;border-top:1px solid var(--line);margin:40px 0;}
+  .qa{border-top:1px solid var(--line);padding-top:14px;margin-top:14px;}
+  .qa:first-of-type{border-top:none;padding-top:0;margin-top:0;}.qa h3{margin-top:0;}
+  .diagram-label{font-size:0.8rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin:18px 0 6px;font-weight:600;}
+  .mermaid{background:var(--diagram-bg);border:1px solid var(--line);border-radius:8px;padding:16px;margin:14px 0;text-align:center;overflow-x:auto;}
+  pre[class*="language-java"] .token.keyword,pre[class*="language-sql"] .token.keyword{color:#c792ea;}
+  pre[class*="language-java"] .token.string,pre[class*="language-sql"] .token.string{color:#c3e88d;}
+  pre[class*="language-java"] .token.comment,pre[class*="language-sql"] .token.comment{color:#7c8a9c;font-style:italic;}
+  pre[class*="language-java"] .token.function{color:#82aaff;}
+  pre[class*="language-java"] .token.class-name{color:#ffcb6b;}
+  pre[class*="language-java"] .token.number{color:#f78c6c;}
+  pre[class*="language-java"] .token.annotation{color:#ffcb6b;}
+</style>
+</head>
+<body>
+<div class="page">
+
+<header class="doc-header">
+  <h1>Food Delivery Platform: Event-Driven Microservices HLD and LLD</h1>
+  <p class="doc-meta">17 Sept 2026 · @Vv</p>
+</header>
+
+<nav class="toc">
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#s1">Context and requirements</a></li>
+    <li><a href="#s2">High-level design</a></li>
+    <li><a href="#s3">Order saga and domain events</a></li>
+    <li><a href="#s4">Core flows</a></li>
+    <li><a href="#s5">Correctness under failure</a></li>
+    <li><a href="#s6">Low-level design</a></li>
+    <li><a href="#s7">State machines</a></li>
+    <li><a href="#s8">Data model</a></li>
+    <li><a href="#s9">API design</a></li>
+    <li><a href="#s10">Geospatial driver matching</a></li>
+    <li><a href="#s11">Architecture decision records</a></li>
+    <li><a href="#s12">Scaling, failure modes, security and observability</a></li>
+    <li><a href="#s13">Interview questions and model answers</a></li>
+  </ol>
+</nav>
+
+<h2 id="s1">1. Context and requirements</h2>
+
+<p>The platform is a three-sided marketplace: customers order food, restaurants accept and prepare it, and drivers pick it up and deliver it. An order is never owned by one service — it crosses order, restaurant, driver, pricing, payment and notification services, each with its own database. The hard part is keeping a single order consistent across all of them without a distributed transaction.</p>
+
+<p>Stack: Java 25 with Spring Boot 4.1, PostgreSQL per service, Kafka 4.x for the event backbone, Redis for geospatial driver state, PostGIS or an H3 index for proximity queries, and Kubernetes across three zones. Payments run through an external PSP in sandbox mode.</p>
+
+<h3>Functional requirements</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>ID</th><th>Requirement</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>F1</td><td>Customer places an order against a restaurant menu</td><td>Menu and prices are snapshotted at placement</td></tr>
+    <tr><td>F2</td><td>Restaurant accepts or rejects within a timeout</td><td>Auto-reject after 90 seconds</td></tr>
+    <tr><td>F3</td><td>Payment is authorised before the restaurant is asked to cook</td><td>Capture on delivery, void on cancellation</td></tr>
+    <tr><td>F4</td><td>Match the nearest available driver</td><td>Offer broadcast with first-accept wins</td></tr>
+    <tr><td>F5</td><td>Track order and driver on a live map</td><td>Driver pings every 3 seconds</td></tr>
+    <tr><td>F6</td><td>Cancel and refund with clear rules per state</td><td>Free before accept, partial after</td></tr>
+    <tr><td>F7</td><td>Restaurant and driver payouts</td><td>Daily settlement batches</td></tr>
+    <tr><td>F8</td><td>Order history with statuses</td><td>Newest first, cursor pagination</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Non-functional requirements</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Quality</th><th>Target</th><th>Why it matters</th></tr></thead>
+  <tbody>
+    <tr><td>Consistency</td><td>No orphan orders, no double charges, no double deliveries</td><td>A stuck order is a support call and a refund</td></tr>
+    <tr><td>Durability</td><td>No committed order state lost (RPO 0)</td><td>Synchronous standby per service database</td></tr>
+    <tr><td>Availability</td><td>99.95% for place-order and driver-match</td><td>~22 minutes of downtime a month</td></tr>
+    <tr><td>Latency</td><td>Place order p99 &lt; 400 ms; first driver offer &lt; 2 s</td><td>Excludes restaurant and PSP time</td></tr>
+    <tr><td>Eventual consistency</td><td>Order reaches a terminal state within 60 s of the last event</td><td>Driven by sagas and timeouts</td></tr>
+    <tr><td>Auditability</td><td>Every state change traceable to an event</td><td>Disputes between three parties</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Scale assumptions and capacity estimates</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Quantity</th><th>Value</th><th>How it is derived</th></tr></thead>
+  <tbody>
+    <tr><td>Registered customers</td><td>40 million</td><td>Assumption</td></tr>
+    <tr><td>Active restaurants</td><td>400,000</td><td>Assumption</td></tr>
+    <tr><td>Active drivers at peak</td><td>250,000</td><td>Assumption</td></tr>
+    <tr><td>Orders per day</td><td>5 million</td><td>Assumption</td></tr>
+    <tr><td>Average order rate</td><td>~58 per second</td><td>5,000,000 / 86,400 s</td></tr>
+    <tr><td>Peak order rate</td><td>~600 per second</td><td>Dinner peak, 10x average; design for 2,000/s</td></tr>
+    <tr><td>Kafka events per order</td><td>~20</td><td>Order, payment, restaurant, driver, tracking, notification</td></tr>
+    <tr><td>Event throughput at peak</td><td>~12,000 per second</td><td>600 orders/s x 20 events</td></tr>
+    <tr><td>Driver location pings at peak</td><td>~85,000 per second</td><td>250,000 drivers / 3 s</td></tr>
+    <tr><td>Order storage growth</td><td>~2 TB per year</td><td>5M orders x ~1 KB plus indexes</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>Order writes are modest for PostgreSQL; the load is on the event backbone, the geospatial index, and cross-service coordination.</p>
+
+<h2 id="s2">2. High-level design</h2>
+
+<p>Each capability owns its own database and publishes domain events to Kafka. An order is a saga that an orchestrator drives across services. A transactional outbox per service guarantees that a state change and its event commit together. Driver location is a hot path kept entirely in Redis with a geospatial index; only state changes are persisted.</p>
+
+<div class="diagram-label">Architecture flow</div>
+<div class="mermaid">
+flowchart LR
+    CUST["Customer app"] --> GW["API gateway<br/>auth, rate limits"]
+    REST["Restaurant app"] --> GW
+    DRV["Driver app"] --> GW
+    GW --> ORD["Order service<br/>saga orchestrator"]
+    GW --> TRK["Tracking service<br/>WebSocket + Redis geo"]
+    ORD --> ODB[("orders DB")]
+    ORD --> PAY["Payment service"]
+    ORD --> RES["Restaurant service"]
+    ORD --> DRI["Driver service"]
+    ORD --> NOT["Notification service"]
+    PAY --> PDB[("payments DB")]
+    RES --> RDB[("restaurants DB")]
+    DRI --> DDB[("drivers DB")]
+    DRI --> GEO[("Redis geo<br/>live driver positions")]
+    TRK --> GEO
+    ORD --> OBX["Outbox"]
+    PAY --> OBX2["Outbox"]
+    RES --> OBX3["Outbox"]
+    DRI --> OBX4["Outbox"]
+    OBX --> KF[["Kafka"]]
+    OBX2 --> KF
+    OBX3 --> KF
+    OBX4 --> KF
+    KF --> ORD
+    KF --> PAY
+    KF --> RES
+    KF --> DRI
+    KF --> TRK
+    KF --> NOT
+    KF --> ANA["Analytics and risk"]
+    PAY -->|webhooks| PSP["PSP<br/>cards"]
+</div>
+
+<p>Only a service writes its own database; every other service learns about it from Kafka. This keeps a service's local transaction fast and its failure isolated.</p>
+
+<h3>Components</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Component</th><th>Responsibility</th><th>Owns</th></tr></thead>
+  <tbody>
+    <tr><td>API gateway</td><td>TLS, OAuth2, rate limits, WebSocket upgrade</td><td>—</td></tr>
+    <tr><td>Order service</td><td>Saga orchestrator; owns order state and lifecycle</td><td>orders DB</td></tr>
+    <tr><td>Payment service</td><td>Authorise, capture, void, refund; PSP adapter</td><td>payments DB</td></tr>
+    <tr><td>Restaurant service</td><td>Menu, hours, accept/reject, prep time</td><td>restaurants DB</td></tr>
+    <tr><td>Driver service</td><td>Onboarding, availability, assignment, payouts</td><td>drivers DB, Redis geo</td></tr>
+    <tr><td>Tracking service</td><td>Live driver positions; WebSocket fan-out to customers</td><td>Redis geo</td></tr>
+    <tr><td>Notification service</td><td>Push, SMS, email from events</td><td>—</td></tr>
+    <tr><td>Outbox relay (per service)</td><td>Publishes committed events to Kafka</td><td>—</td></tr>
+    <tr><td>Analytics and risk</td><td>Fraud, ETA models, dashboards</td><td>warehouse</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Technology choices</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Concern</th><th>Choice</th><th>Reason</th></tr></thead>
+  <tbody>
+    <tr><td>Service framework</td><td>Java 25, Spring Boot 4.1</td><td>Virtual threads for blocking PSP and map calls</td></tr>
+    <tr><td>Service database</td><td>PostgreSQL per service</td><td>ACID locally; no shared tables across services</td></tr>
+    <tr><td>Event backbone</td><td>Apache Kafka 4.x, compacted topics for menus</td><td>Ordered per key, replayable, decoupled consumers</td></tr>
+    <tr><td>Geospatial index</td><td>Redis geo (GEOADD / GEOSEARCH) for live, PostGIS for history</td><td>Sub-millisecond proximity queries on hot data</td></tr>
+    <tr><td>Live tracking</td><td>WebSocket at the gateway, Redis pub/sub fan-out</td><td>Low-latency updates without polling</td></tr>
+    <tr><td>Saga coordination</td><td>Orchestrated saga in order service</td><td>Single place to see and steer an order</td></tr>
+    <tr><td>Reliability</td><td>Transactional outbox + idempotent consumers</td><td>Exactly-once effects over at-least-once delivery</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="s3">3. Order saga and domain events</h2>
+
+<p>Placing an order is a saga with six steps, each a local transaction in its owning service. The order service is the orchestrator; it stores the saga state and decides the next step or the compensation.</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>#</th><th>Step</th><th>Service</th><th>Compensation</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Create order (PENDING_PAYMENT)</td><td>Order</td><td>Mark CANCELLED</td></tr>
+    <tr><td>2</td><td>Authorise payment</td><td>Payment</td><td>Void authorisation</td></tr>
+    <tr><td>3</td><td>Request restaurant accept</td><td>Restaurant</td><td>Cancel request</td></tr>
+    <tr><td>4</td><td>Reserve a driver</td><td>Driver</td><td>Release driver</td></tr>
+    <tr><td>5</td><td>Capture payment on pickup</td><td>Payment</td><td>Refund capture</td></tr>
+    <tr><td>6</td><td>Mark delivered, settle payouts</td><td>Order / Driver</td><td>Manual review</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note">A saga step never rolls back another service. It emits a compensation that the owning service applies as a new, forward-only transition.</div>
+
+<h3>Domain events</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Event</th><th>Producer</th><th>Key</th><th>Consumers</th></tr></thead>
+  <tbody>
+    <tr><td>OrderPlaced</td><td>Order</td><td>orderId</td><td>Payment, Notification, Analytics</td></tr>
+    <tr><td>PaymentAuthorised / PaymentFailed</td><td>Payment</td><td>orderId</td><td>Order, Notification</td></tr>
+    <tr><td>RestaurantAccepted / RestaurantRejected</td><td>Restaurant</td><td>orderId</td><td>Order, Driver, Notification</td></tr>
+    <tr><td>DriverAssigned / DriverReleased</td><td>Driver</td><td>orderId</td><td>Order, Tracking, Notification</td></tr>
+    <tr><td>OrderPickedUp</td><td>Driver</td><td>orderId</td><td>Order, Payment, Notification</td></tr>
+    <tr><td>OrderDelivered</td><td>Order</td><td>orderId</td><td>Payment, Driver, Analytics</td></tr>
+    <tr><td>OrderCancelled</td><td>Order</td><td>orderId</td><td>Payment, Restaurant, Driver, Notification</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>Every event carries an <code>eventId</code> (UUID), <code>orderId</code>, <code>occurredAt</code>, a schema version, and a trace id. Consumers record processed event ids and ignore repeats.</p>
+
+<h2 id="s4">4. Core flows</h2>
+
+<h3>Place order saga</h3>
+
+<div class="mermaid">
+sequenceDiagram
+    actor C as Customer
+    participant API as API gateway
+    participant ORD as Order service
+    participant PAY as Payment service
+    participant RES as Restaurant service
+    participant DRV as Driver service
+    participant K as Kafka
+    C->>API: POST /v1/orders with Idempotency-Key
+    API->>ORD: create order PENDING_PAYMENT
+    ORD->>ORD: write order + outbox OrderPlaced
+    ORD->>K: OrderPlaced (via relay)
+    K->>PAY: consume OrderPlaced
+    PAY->>PAY: authorise card via PSP
+    PAY->>K: PaymentAuthorised
+    K->>ORD: consume PaymentAuthorised
+    ORD->>K: RequestRestaurantAccept
+    K->>RES: consume request
+    RES->>RES: restaurant accepts
+    RES->>K: RestaurantAccepted
+    K->>ORD: consume RestaurantAccepted
+    ORD->>K: RequestDriverMatch
+    K->>DRV: consume request
+    DRV->>DRV: match nearest driver
+    DRV->>K: DriverAssigned
+    K->>ORD: consume DriverAssigned
+    ORD-->>C: order CONFIRMED with ETA
+</div>
+
+<h3>Driver matching</h3>
+
+<div class="diagram-label">flowchart</div>
+<div class="mermaid">
+flowchart TD
+    A["Order ready for driver"] --> B["Query Redis geo for drivers within R1 (2 km)"]
+    B --> C{"Any available?"}
+    C -->|yes| D["Rank by ETA, rating, acceptance rate"]
+    C -->|no| E["Expand to R2 (5 km)"]
+    E --> F{"Any available?"}
+    F -->|no| G["Expand to R3 (10 km), notify ops"]
+    F -->|yes| D
+    D --> H["Broadcast offer to top N drivers, 15 s window"]
+    H --> I{"First accept wins?"}
+    I -->|yes| J["Assign driver, emit DriverAssigned"]
+    I -->|no, expired| K["Blacklist these N for this order, retry"]
+    K --> B
+</div>
+
+<h3>Delivery completion and capture</h3>
+
+<div class="mermaid">
+sequenceDiagram
+    actor D as Driver
+    participant DRV as Driver service
+    participant K as Kafka
+    participant ORD as Order service
+    participant PAY as Payment service
+    participant NOT as Notification
+    D->>DRV: POST /v1/deliveries/{id}/complete
+    DRV->>DRV: write proof of delivery + outbox
+    DRV->>K: OrderDelivered
+    K->>ORD: consume OrderDelivered
+    ORD->>ORD: transition to DELIVERED
+    ORD->>K: RequestCapture
+    K->>PAY: consume RequestCapture
+    PAY->>PAY: capture against authorisation
+    PAY->>K: PaymentCaptured
+    K->>NOT: notify customer and restaurant
+    K->>ORD: mark settlement batch
+</div>
+
+<h2 id="s5">5. Correctness under failure</h2>
+
+<p>Four mechanisms keep an order correct when a service is slow, a message repeats, or a saga step fails halfway: the transactional outbox, idempotent consumers, saga compensation with timeouts, and a reconciliation job that compares internal state to the event log.</p>
+
+<h3>Transactional outbox</h3>
+
+<p>Writing to a service database and publishing to Kafka are two systems. Publishing before commit can announce a state change that rolls back; publishing after commit loses the event on a crash. Each service writes the event into an <code>outbox_events</code> table inside the same local transaction as the state change. A relay reads unpublished rows with <code>FOR UPDATE SKIP LOCKED</code>, publishes to Kafka, and marks them published.</p>
+
+<div class="mermaid">
+flowchart LR
+    TX["BEGIN transaction"] --> S1["Update order state"]
+    S1 --> S2["Insert row into outbox_events"]
+    S2 --> CM["COMMIT"]
+    CM --> REL["Relay polls unpublished rows"]
+    REL --> PUB["Publish to Kafka"]
+    PUB --> MARK["Mark published_at"]
+</div>
+
+<h3>Idempotent consumers</h3>
+
+<p>Delivery is at-least-once, so every consumer records the <code>eventId</code> it has processed in a <code>processed_events</code> table with a unique constraint. Replays are dropped. The consumer applies its state change and writes the dedupe row in one transaction.</p>
+
+<h3>Saga timeouts and compensation</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Step</th><th>Timeout</th><th>On timeout</th></tr></thead>
+  <tbody>
+    <tr><td>Restaurant accept</td><td>90 s</td><td>Compensate: void payment, cancel order</td></tr>
+    <tr><td>Driver match</td><td>120 s</td><td>Broadcast wider; if still none, cancel and refund</td></tr>
+    <tr><td>Driver pickup</td><td>15 min after prep ETA</td><td>Reassign driver, notify ops</td></tr>
+    <tr><td>Payment capture</td><td>3 retries with backoff</td><td>Send to manual settlement queue</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Order reconciliation</h3>
+
+<p>A nightly job replays the event log for each order and checks that the stored state and the event-derived state agree. Any divergence pages the on-call engineer and opens a break case. This catches bugs that unit tests miss, such as a consumer that silently dropped an event type.</p>
+
+<h2 id="s6">6. Low-level design</h2>
+
+<h3>Package structure (order service)</h3>
+
+<pre><code class="language-bash">com.example.delivery.order
+├── api             Controllers, DTOs, problem-detail errors, idempotency filter
+├── saga            OrderSagaOrchestrator, SagaState, SagaStep, CompensationRegistry
+├── domain          Order, OrderStatus, OrderEvent, Money, Address
+├── outbox          OutboxWriter, OutboxRelay, ProcessedEventStore
+├── consumers       PaymentEventConsumer, RestaurantEventConsumer, DriverEventConsumer
+├── pricing         FeeCalculator, SurgePricing, PromoEngine
+└── config          KafkaConfig, DbConfig, WebSocketConfig</code></pre>
+
+<h3>Key classes</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Class</th><th>Responsibility</th><th>Key methods</th></tr></thead>
+  <tbody>
+    <tr><td>OrderSagaOrchestrator</td><td>Drives an order across services; decides next step or compensation</td><td>start, onEvent, compensate, timeout</td></tr>
+    <tr><td>SagaState (entity)</td><td>Persistent saga state: current step, attempts, deadline</td><td>advance, fail, isExpired</td></tr>
+    <tr><td>CompensationRegistry</td><td>Maps a forward step to its compensating command</td><td>forStep</td></tr>
+    <tr><td>OutboxWriter</td><td>Writes a domain event in the current transaction</td><td>write</td></tr>
+    <tr><td>OutboxRelay</td><td>Publishes unpublished rows to Kafka</td><td>publishBatch</td></tr>
+    <tr><td>ProcessedEventStore</td><td>Dedupes consumed events</td><td>seen, record</td></tr>
+    <tr><td>DriverMatcher</td><td>Finds and ranks candidate drivers near a restaurant</td><td>findCandidates, broadcastOffer</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Saga orchestrator</h3>
+
+<pre><code class="language-java">@Service
+public class OrderSagaOrchestrator {
+
+    private final SagaStateRepository sagas;
+    private final CommandPublisher commands;
+    private final CompensationRegistry compensations;
+    private final Clock clock;
+
+    public OrderSagaOrchestrator(SagaStateRepository sagas,
+                                 CommandPublisher commands,
+                                 CompensationRegistry compensations,
+                                 Clock clock) {
+        this.sagas = sagas;
+        this.commands = commands;
+        this.compensations = compensations;
+        this.clock = clock;
+    }
+
+    @Transactional
+    public void onEvent(OrderEvent event) {
+        SagaState saga = sagas.findByOrderId(event.orderId())
+                .orElseThrow(() -&gt; new IllegalStateException("no saga for " + event.orderId()));
+
+        // Forward-only: a late or duplicate event that would move us backwards is dropped.
+        if (!saga.accepts(event)) {
+            return;
+        }
+
+        SagaStep next = saga.advance(event);
+        switch (next) {
+            case AUTHORISE_PAYMENT -&gt; commands.authorise(event.orderId(), event.amount());
+            case REQUEST_RESTAURANT -&gt; commands.requestAccept(event.orderId(), event.restaurantId());
+            case MATCH_DRIVER -&gt; commands.matchDriver(event.orderId(), event.restaurantId());
+            case CAPTURE_PAYMENT -&gt; commands.capture(event.orderId());
+            case COMPLETE -&gt; commands.complete(event.orderId());
+            case FAILED -&gt; compensate(saga);
+        }
+    }
+
+    private void compensate(SagaState saga) {
+        for (SagaStep done : saga.completedStepsReversed()) {
+            compensations.forStep(done).ifPresent(cmd -&gt; commands.send(cmd, saga.orderId()));
+        }
+        saga.markCompensated();
+    }
+
+    @Scheduled(fixedDelay = 1000)
+    public void sweepTimeouts() {
+        for (SagaState saga : sagas.findExpired(clock.instant())) {
+            compensate(saga);
+        }
+    }
+}</code></pre>
+
+<h3>Outbox writer</h3>
+
+<pre><code class="language-java">@Component
+public class OutboxWriter {
+
+    private final JdbcTemplate jdbc;
+    private final ObjectMapper json;
+
+    public OutboxWriter(JdbcTemplate jdbc, ObjectMapper json) {
+        this.jdbc = jdbc;
+        this.json = json;
+    }
+
+    @Transactional(propagation = Propagation.MANDATORY) // must join the money/order transaction
+    public void write(DomainEvent event) {
+        jdbc.update("""
+            INSERT INTO outbox_events
+                (event_id, aggregate_type, aggregate_id, event_type, payload)
+            VALUES (?, ?, ?, ?, ?::jsonb)
+            """,
+            event.id(), event.aggregateType(), event.aggregateId(),
+            event.type(), json.writeValueAsString(event));
+    }
+}</code></pre>
+
+<h2 id="s7">7. State machines</h2>
+
+<h3>Order</h3>
+
+<div class="mermaid">
+stateDiagram-v2
+    [*] --> PENDING_PAYMENT
+    PENDING_PAYMENT --> PAYMENT_AUTHORISED: card authorised
+    PENDING_PAYMENT --> CANCELLED: authorisation failed
+    PAYMENT_AUTHORISED --> AWAITING_RESTAURANT: request sent
+    AWAITING_RESTAURANT --> CONFIRMED: restaurant accepted
+    AWAITING_RESTAURANT --> CANCELLED: restaurant rejected or timeout
+    CONFIRMED --> MATCHING_DRIVER: request driver
+    MATCHING_DRIVER --> DRIVER_ASSIGNED: driver accepted
+    MATCHING_DRIVER --> CANCELLED: no driver in window
+    DRIVER_ASSIGNED --> PICKED_UP: driver confirms pickup
+    PICKED_UP --> DELIVERED: driver confirms drop
+    DELIVERED --> [*]
+    CANCELLED --> [*]
+</div>
+
+<h3>Driver</h3>
+
+<div class="mermaid">
+stateDiagram-v2
+    [*] --> OFFLINE
+    OFFLINE --> AVAILABLE: goes online
+    AVAILABLE --> OFFERED: receives offer
+    OFFERED --> ASSIGNED: accepts
+    OFFERED --> AVAILABLE: declines or expires
+    ASSIGNED --> PICKING_UP: en route to restaurant
+    PICKING_UP --> DELIVERING: picked up
+    DELIVERING --> AVAILABLE: delivered
+    ASSIGNED --> AVAILABLE: cancelled before pickup
+</div>
+
+<h3>Delivery</h3>
+
+<div class="mermaid">
+stateDiagram-v2
+    [*] --> REQUESTED
+    REQUESTED --> ASSIGNED: driver accepted
+    REQUESTED --> FAILED: no driver
+    ASSIGNED --> AT_RESTAURANT: driver arrived
+    AT_RESTAURANT --> PICKED_UP: food collected
+    PICKED_UP --> IN_TRANSIT: en route
+    IN_TRANSIT --> DELIVERED: drop confirmed
+    IN_TRANSIT --> RETURNED: customer unreachable
+    DELIVERED --> [*]
+    RETURNED --> [*]
+    FAILED --> [*]
+</div>
+
+<h2 id="s8">8. Data model</h2>
+
+<p>Each service owns its database. Below are the order service tables and the shared event envelope; other services follow the same pattern.</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Table</th><th>Purpose</th><th>Constraint that protects correctness</th></tr></thead>
+  <tbody>
+    <tr><td>orders</td><td>Order header and status</td><td>Unique idempotency key per customer</td></tr>
+    <tr><td>order_items</td><td>Menu snapshot at placement</td><td>Positive quantity, price copied</td></tr>
+    <tr><td>saga_state</td><td>Current step, attempts, deadline</td><td>One saga per order</td></tr>
+    <tr><td>outbox_events</td><td>Events waiting for Kafka</td><td>Unique event id</td></tr>
+    <tr><td>processed_events</td><td>Dedupe table for consumers</td><td>Unique (consumer, event_id)</td></tr>
+    <tr><td>idempotency_keys</td><td>Saved responses for retried requests</td><td>Unique (client_id, key)</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Schema (order service)</h3>
+
+<pre><code class="language-sql">CREATE TABLE orders (
+    id                 uuid PRIMARY KEY,
+    customer_id        uuid NOT NULL,
+    restaurant_id      uuid NOT NULL,
+    status             text NOT NULL CHECK (status IN (
+                          'PENDING_PAYMENT','PAYMENT_AUTHORISED','AWAITING_RESTAURANT',
+                          'CONFIRMED','MATCHING_DRIVER','DRIVER_ASSIGNED',
+                          'PICKED_UP','DELIVERED','CANCELLED')),
+    currency           char(3) NOT NULL,
+    subtotal_minor     bigint NOT NULL CHECK (subtotal_minor &gt;= 0),
+    fee_minor          bigint NOT NULL CHECK (fee_minor &gt;= 0),
+    total_minor        bigint NOT NULL CHECK (total_minor &gt;= 0),
+    delivery_address   jsonb NOT NULL,
+    idempotency_key    text NOT NULL,
+    version            bigint NOT NULL DEFAULT 0,
+    created_at         timestamptz NOT NULL DEFAULT now(),
+    updated_at         timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (customer_id, idempotency_key)
+);
+
+CREATE TABLE order_items (
+    id            bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    order_id      uuid NOT NULL REFERENCES orders (id),
+    menu_item_id  uuid NOT NULL,
+    name          text NOT NULL,
+    unit_minor    bigint NOT NULL CHECK (unit_minor &gt;= 0),
+    quantity      int NOT NULL CHECK (quantity &gt; 0)
+);
+
+CREATE TABLE saga_state (
+    order_id       uuid PRIMARY KEY REFERENCES orders (id),
+    current_step   text NOT NULL,
+    attempts       int NOT NULL DEFAULT 0,
+    deadline_at    timestamptz NOT NULL,
+    compensated    boolean NOT NULL DEFAULT false
+);
+
+CREATE TABLE outbox_events (
+    id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    event_id        uuid NOT NULL UNIQUE,
+    aggregate_type  text NOT NULL,
+    aggregate_id    uuid NOT NULL,
+    event_type      text NOT NULL,
+    payload         jsonb NOT NULL,
+    created_at      timestamptz NOT NULL DEFAULT now(),
+    published_at    timestamptz
+);
+
+CREATE INDEX outbox_unpublished_idx ON outbox_events (id) WHERE published_at IS NULL;
+
+CREATE TABLE processed_events (
+    consumer    text NOT NULL,
+    event_id    uuid NOT NULL,
+    processed_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (consumer, event_id)
+);</code></pre>
+
+<h2 id="s9">9. API design</h2>
+
+<p>REST over HTTPS with OAuth2 bearer tokens. Every mutating endpoint takes an <code>Idempotency-Key</code>. Errors use RFC 9457 problem details with a stable code.</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Method</th><th>Path</th><th>Purpose</th><th>Idempotency-Key</th></tr></thead>
+  <tbody>
+    <tr><td>POST</td><td>/v1/orders</td><td>Place an order</td><td>Required</td></tr>
+    <tr><td>GET</td><td>/v1/orders/{id}</td><td>Order status and ETA</td><td>Not used</td></tr>
+    <tr><td>GET</td><td>/v1/orders</td><td>History, cursor pagination</td><td>Not used</td></tr>
+    <tr><td>POST</td><td>/v1/orders/{id}/cancel</td><td>Cancel with rule check</td><td>Required</td></tr>
+    <tr><td>POST</td><td>/v1/restaurants/{id}/accept</td><td>Restaurant accepts</td><td>Required</td></tr>
+    <tr><td>POST</td><td>/v1/drivers/{id}/offers/{offerId}/accept</td><td>Driver accepts offer</td><td>Required</td></tr>
+    <tr><td>POST</td><td>/v1/drivers/{id}/location</td><td>Driver location ping</td><td>Not needed (idempotent by ts)</td></tr>
+    <tr><td>GET</td><td>/ws/v1/orders/{id}/track</td><td>WebSocket live tracking</td><td>Not used</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Place order request and response</h3>
+
+<pre><code class="language-json">POST /v1/orders HTTP/1.1
+Authorization: Bearer &lt;access-token&gt;
+Idempotency-Key: 5e9c1a02-3b7d-4c9e-8f2a-1d6b0c7a4e33
+Content-Type: application/json
+
+{
+  "restaurantId": "9a2f3c11-4b7e-4d9f-8a51-0c7e2d4b9a10",
+  "items": [
+    { "menuItemId": "11111111-2222-3333-4444-555555555555", "quantity": 2 }
+  ],
+  "deliveryAddress": {
+    "line1": "12 Rose Lane",
+    "city": "Berlin",
+    "postalCode": "10115",
+    "lat": 52.5321,
+    "lng": 13.3846
+  }
+}
+HTTP/1.1 201 Created
+Location: /v1/orders/7f0c2a91-5d3e-4b8f-a1c6-2e9d0b7f4c33
+
+{
+  "id": "7f0c2a91-5d3e-4b8f-a1c6-2e9d0b7f4c33",
+  "status": "PENDING_PAYMENT",
+  "total": { "value": "24.50", "currency": "EUR" },
+  "etaMinutes": null,
+  "createdAt": "2026-09-17T18:15:02Z"
+}</code></pre>
+
+<h3>Error model</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>HTTP</th><th>Code</th><th>When</th><th>Client action</th></tr></thead>
+  <tbody>
+    <tr><td>400</td><td>invalid_order</td><td>Empty items, bad address</td><td>Fix the request</td></tr>
+    <tr><td>401</td><td>unauthorized</td><td>Missing or expired token</td><td>Refresh</td></tr>
+    <tr><td>409</td><td>request_in_progress</td><td>Same key still executing</td><td>Retry after Retry-After</td></tr>
+    <tr><td>422</td><td>restaurant_closed</td><td>Outside opening hours</td><td>Pick another</td></tr>
+    <tr><td>422</td><td>item_unavailable</td><td>Menu item sold out</td><td>Update cart</td></tr>
+    <tr><td>422</td><td>payment_declined</td><td>Card declined</td><td>Try another card</td></tr>
+    <tr><td>503</td><td>provider_unavailable</td><td>PSP or map provider down</td><td>Retry later</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="s10">10. Geospatial driver matching</h2>
+
+<p>Driver positions are hot, high-frequency, and short-lived. They live entirely in Redis with a geospatial index. Only state changes (online, assigned, offline) are persisted to PostgreSQL.</p>
+
+<h3>Location updates</h3>
+
+<pre><code class="language-bash">GEOADD drivers:geo:berlin &lt;lng&gt; &lt;lat&gt; driver:&lt;driverId&gt;
+EXPIRE drivers:geo:berlin 30
+HSET driver:&lt;driverId&gt; status AVAILABLE rating 4.92 lastPing 1758132000</code></pre>
+
+<h3>Candidate search</h3>
+
+<pre><code class="language-bash">GEOSEARCH drivers:geo:berlin
+    FROMMEMBER restaurant:&lt;restaurantId&gt;
+    BYRADIUS 2 km ASC
+    COUNT 20
+    WITHDIST</code></pre>
+
+<h3>Ranking</h3>
+
+<p>Distance alone is wrong: a driver 300 m away heading the other way is worse than one 1.2 km away heading to the restaurant. The matcher computes an ETA with a routing provider and combines it with rating and recent acceptance rate.</p>
+
+<pre><code class="language-java">public record Candidate(UUID driverId, double distanceKm, Duration eta,
+                        double rating, double acceptanceRate) {
+
+    /** Lower score is better. ETA dominates, then rating and acceptance. */
+    public double score() {
+        return eta.toSeconds()
+             + (5.0 - rating) * 30.0
+             + (1.0 - acceptanceRate) * 60.0;
+    }
+}
+
+@Service
+public class DriverMatcher {
+
+    private final GeoIndex geo;
+    private final RoutingClient routing;
+    private final OfferBroadcaster offers;
+
+    public DriverMatcher(GeoIndex geo, RoutingClient routing, OfferBroadcaster offers) {
+        this.geo = geo;
+        this.routing = routing;
+        this.offers = offers;
+    }
+
+    public Optional&lt;UUID&gt; match(Order order) {
+        for (double radiusKm : new double[]{2, 5, 10}) {
+            List&lt;GeoHit&gt; hits = geo.search(order.restaurantId(), radiusKm, 20);
+            List&lt;Candidate&gt; ranked = hits.stream()
+                    .filter(h -&gt; geo.isAvailable(h.driverId()))
+                    .map(h -&gt; new Candidate(
+                            h.driverId(),
+                            h.distanceKm(),
+                            routing.eta(h.driverId(), order.restaurantId()),
+                            geo.rating(h.driverId()),
+                            geo.acceptanceRate(h.driverId())))
+                    .sorted(Comparator.comparingDouble(Candidate::score))
+                    .limit(5)
+                    .toList();
+
+            if (!ranked.isEmpty()) {
+                // Broadcast to top N; first accept wins in the driver service.
+                return offers.broadcast(order.id(), ranked, Duration.ofSeconds(15));
+            }
+        }
+        return Optional.empty();
+    }
+}</code></pre>
+
+<h3>First-accept-wins</h3>
+
+<p>The driver service keeps a single row per order offer in PostgreSQL with a unique constraint on <code>order_id</code>. The first accept wins; later accepts hit the unique constraint and are rejected with a friendly "offer already taken" response.</p>
+
+<h2 id="s11">11. Architecture decision records</h2>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>#</th><th>Decision</th><th>Chosen</th><th>Rejected</th><th>Why</th><th>Cost accepted</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Service shape</td><td>Microservices per capability</td><td>Modular monolith</td><td>Independent scaling of tracking vs order; independent release cadence</td><td>Cross-service coordination; eventual consistency</td></tr>
+    <tr><td>2</td><td>Cross-service consistency</td><td>Orchestrated saga</td><td>Two-phase commit</td><td>2PC does not survive a service being down for minutes</td><td>Compensations must be written per step</td></tr>
+    <tr><td>3</td><td>Event publishing</td><td>Transactional outbox</td><td>Publish inside the request</td><td>No lost or phantom events without 2PC</td><td>At-least-once; consumers dedupe</td></tr>
+    <tr><td>4</td><td>Event backbone</td><td>Kafka, keyed by orderId</td><td>RabbitMQ or SQS</td><td>Ordered per key, replayable, many independent consumers</td><td>Operational complexity</td></tr>
+    <tr><td>5</td><td>Driver location store</td><td>Redis geo</td><td>PostGIS only</td><td>Sub-ms proximity at 85k pings/s</td><td>Location is not durable; only state changes are</td></tr>
+    <tr><td>6</td><td>Matching strategy</td><td>Broadcast to top N, first accept wins</td><td>Direct assignment</td><td>Higher acceptance rate; no ghost offers</td><td>More messages; dedupe on accept</td></tr>
+    <tr><td>7</td><td>Payments</td><td>Authorise on order, capture on pickup</td><td>Capture at order time</td><td>Customer is not charged for a cancelled order</td><td>Authorisation hold may expire; must re-auth</td></tr>
+    <tr><td>8</td><td>Tracking</td><td>WebSocket with Redis pub/sub</td><td>Client polling</td><td>Lower latency and less load on the API</td><td>Sticky sessions or a fan-out layer</td></tr>
+    <tr><td>9</td><td>Order history</td><td>Read model fed by Kafka</td><td>Query across service databases</td><td>No cross-service joins on the hot path</td><td>Read model lag; eventual consistency</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="s12">12. Scaling, failure modes, security and observability</h2>
+
+<h3>Scaling path</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Stage</th><th>Trigger</th><th>Change</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Launch</td><td>One primary per service, one synchronous standby, read replicas for history</td></tr>
+    <tr><td>2</td><td>Event throughput above 5k/s</td><td>Partition Kafka topics by orderId; increase consumer groups</td></tr>
+    <tr><td>3</td><td>Redis geo memory near limit</td><td>Shard geo by city; keep only active drivers in each shard</td></tr>
+    <tr><td>4</td><td>Order DB write limit</td><td>Partition orders by month; move history to a read model</td></tr>
+    <tr><td>5</td><td>Several regions</td><td>Region-pinned order and driver services; global Kafka with regional clusters</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Failure modes</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Failure</th><th>Behaviour</th><th>What the user sees</th></tr></thead>
+  <tbody>
+    <tr><td>Payment service down</td><td>Saga waits, then compensates after timeout</td><td>Order cancelled, no charge</td></tr>
+    <tr><td>Restaurant service down</td><td>Accept request retried; auto-reject after 90 s</td><td>Order cancelled with refund</td></tr>
+    <tr><td>Driver service down</td><td>Match retried; falls back to wider radius</td><td>Longer ETA, then cancel</td></tr>
+    <tr><td>Kafka unavailable</td><td>Outbox rows accumulate; relay catches up</td><td>Delayed notifications; order state correct</td></tr>
+    <tr><td>Redis geo unavailable</td><td>Matcher falls back to a slower PostGIS query</td><td>Slightly slower matching</td></tr>
+    <tr><td>Duplicate DriverAssigned</td><td>Second event dropped by forward-only state machine</td><td>Nothing</td></tr>
+    <tr><td>Process crash mid-saga</td><td>Saga state persists; timeout sweep resumes</td><td>Order completes or is compensated</td></tr>
+    <tr><td>Reconciliation finds a break</td><td>Alert, open break, freeze order for review</td><td>Rarely, a message from support</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Security and compliance</h3>
+
+<ul>
+  <li>No card data in any service. Card details go through the PSP SDK; services only see tokens.</li>
+  <li>OAuth2 with short-lived tokens per actor (customer, restaurant, driver). Step-up auth for refunds above a threshold.</li>
+  <li>TLS everywhere, encrypted storage, envelope encryption for addresses and phone numbers.</li>
+  <li>Driver location is PII; retention is short and access is restricted to the tracking service.</li>
+  <li>Every operator action is logged to write-once storage with who, what, when and why.</li>
+</ul>
+
+<h3>Observability</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Signal</th><th>Measure</th><th>Alert when</th></tr></thead>
+  <tbody>
+    <tr><td>Order correctness</td><td>Sagas stuck past deadline</td><td>Any saga older than 5 minutes</td></tr>
+    <tr><td>Order flow</td><td>Place-order success rate</td><td>5 points below the 7-day baseline</td></tr>
+    <tr><td>Latency</td><td>Place order p99 at the API</td><td>Above 400 ms for 10 minutes</td></tr>
+    <tr><td>Driver match</td><td>Median time to assign a driver</td><td>Above 90 s for 10 minutes</td></tr>
+    <tr><td>Outbox lag</td><td>Age of the oldest unpublished event</td><td>Older than 30 seconds</td></tr>
+    <tr><td>Consumer lag</td><td>Kafka consumer lag per group</td><td>Above 50,000 for 5 minutes</td></tr>
+    <tr><td>Geo index</td><td>Redis geo memory and p99 latency</td><td>Memory above 80% or latency above 5 ms</td></tr>
+    <tr><td>Reconciliation</td><td>Open breaks</td><td>Any break older than 24 hours</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>OpenTelemetry trace ids travel in the event envelope, so a single order can be followed from the app tap through every service to the push notification.</p>
+
+<h2 id="s13">13. Interview questions and model answers</h2>
+
+<div class="qa">
+  <h3>1. Why a saga instead of a distributed transaction?</h3>
+  <p>Two-phase commit requires every participant to be up and to hold locks across the network. A restaurant service that is deploying or a payment PSP that is slow would block all orders. A saga makes each step a local transaction and uses compensations, so a slow participant only delays its own step.</p>
+</div>
+
+<div class="qa">
+  <h3>2. What happens if the payment is authorised but the restaurant rejects the order?</h3>
+  <p>The saga compensates: the order service emits a void for the authorisation, and the payment service voids it against the PSP. Because compensation is a new forward-only transition, a retried void is harmless.</p>
+</div>
+
+<div class="qa">
+  <h3>3. How do you stop a duplicate event from assigning two drivers?</h3>
+  <p>The driver service has a unique constraint on <code>order_id</code> in the offer table. The first accept wins; the second hits the constraint and is rejected. Every consumer also records the event id in a dedupe table, so a replayed <code>DriverAssigned</code> is dropped at the order service.</p>
+</div>
+
+<div class="qa">
+  <h3>4. How do you guarantee an event is not lost when a service crashes after committing state?</h3>
+  <p>The event is written to the outbox in the same local transaction as the state change. A relay publishes it later. If the service crashes after commit but before publish, the relay picks up the unpublished row on restart.</p>
+</div>
+
+<div class="qa">
+  <h3>5. How do you match nearby drivers without hammering PostGIS?</h3>
+  <p>Live positions live in Redis with <code>GEOADD</code> and <code>GEOSEARCH</code>. Only state transitions (online, assigned, offline) are persisted to PostgreSQL. PostGIS is the fallback when Redis is unavailable, and the historical store for analytics.</p>
+</div>
+
+<div class="qa">
+  <h3>6. How do you avoid offering the same driver to two orders at once?</h3>
+  <p>The driver service marks a driver as <code>OFFERED</code> in Redis with a short lease. The first offer to be accepted flips the driver to <code>ASSIGNED</code>; other orders see the driver as unavailable. A failed accept releases the lease.</p>
+</div>
+
+<div class="qa">
+  <h3>7. What is your source of truth for an order?</h3>
+  <p>The order service database is the source of truth for order state. Every other service keeps its own copy of what it needs, updated from Kafka. A nightly reconciliation replays the event log and compares it to the stored state.</p>
+</div>
+
+<div class="qa">
+  <h3>8. How do you handle a restaurant that is slow to accept?</h3>
+  <p>The saga has a 90-second deadline. If the restaurant has not accepted, the order service compensates: it voids the payment and cancels the order. This is configurable per restaurant tier.</p>
+</div>
+
+<div class="qa">
+  <h3>9. How would you handle 10x the traffic?</h3>
+  <p>Partition Kafka by <code>orderId</code> and scale consumer groups. Shard Redis geo by city. Partition the orders table by month. Move order history to a read model. The saga and outbox patterns do not change.</p>
+</div>
+
+<div class="qa">
+  <h3>10. How do you test a saga end-to-end?</h3>
+  <p>With contract tests per consumer, a saga simulator that injects failures at each step, and a staging environment that runs the full Kafka topology. The simulator asserts that every failure path ends in a terminal state with a compensating event.</p>
+</div>
+
+</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'base',
+    themeVariables: {
+      primaryColor: '#ffe8d6',
+      primaryTextColor: '#3a1f00',
+      primaryBorderColor: '#ff6a00',
+      lineColor: '#5a6472',
+      secondaryColor: '#fff3c4',
+      tertiaryColor: '#f0fdf4',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      fontSize: '14px'
+    },
+    flowchart: { htmlLabels: true, curve: 'basis', useMaxWidth: true },
+    sequence: { useMaxWidth: true, mirrorActors: false, showSequenceNumbers: false },
+    state: { useMaxWidth: true }
+  });
+  if (window.Prism) { Prism.highlightAll(); }
+</script>
+</body>
+</html>

@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Java internals — animated walkthrough</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#FBFAF7; --paper-2:#F1EFE8; --ink:#14161B; --ink-2:#565C69; --ink-3:#8A8F9A;
+  --rule:#DDD9CF;
+  --stage:#12151B; --stage-2:#1B1F28; --stage-line:#2A303C; --stage-ink:#C9D1DE; --stage-dim:#6C7688;
+
+  --j8:#0F6E63; --j17:#3B4CA8; --j21:#AC2159; --j25:#A5650B;
+  --live:#3DD68C; --dead:#7A8296; --hot:#FF7A59; --cool:#5AA9E6; --gold:#F2C14E;
+
+  --display:"Space Grotesk","Segoe UI",system-ui,sans-serif;
+  --body:"IBM Plex Sans","Segoe UI",system-ui,sans-serif;
+  --mono:"JetBrains Mono","SF Mono",Consolas,monospace;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--body);line-height:1.6;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:var(--display);font-weight:600;letter-spacing:-.02em;margin:0}
+a{color:inherit}
+.wrap{max-width:1120px;margin:0 auto;padding:0 24px}
+
+.topbar{position:sticky;top:0;z-index:60;background:rgba(251,250,247,.94);backdrop-filter:blur(10px);border-bottom:1px solid var(--rule)}
+.topbar-in{display:flex;align-items:center;gap:16px;height:60px;max-width:1120px;margin:0 auto;padding:0 24px}
+.brand{font-family:var(--display);font-weight:700;font-size:16.5px;letter-spacing:-.03em}
+.brand span{color:var(--ink-3);font-weight:500}
+.back{margin-left:auto;font-family:var(--mono);font-size:12.5px;color:var(--ink-2);text-decoration:none;border:1px solid var(--rule);padding:6px 13px;border-radius:999px}
+.back:hover{border-color:var(--ink);color:var(--ink)}
+
+.intro{padding:48px 0 26px}
+.intro h1{font-size:clamp(30px,4.6vw,48px);line-height:1.04;max-width:18ch}
+.intro p{max-width:64ch;color:var(--ink-2);font-size:16.5px;margin:18px 0 0}
+.intro p b{color:var(--ink)}
+
+/* scene tabs */
+.tabs{display:flex;gap:0;flex-wrap:wrap;border-bottom:1px solid var(--rule);margin-top:34px}
+.tab{
+  font-family:var(--body);font-size:14.5px;font-weight:500;background:none;border:0;
+  padding:13px 18px;color:var(--ink-3);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;
+}
+.tab:hover{color:var(--ink)}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--ink)}
+.tab .tnum{font-family:var(--mono);font-size:11px;color:var(--ink-3);margin-right:7px}
+
+/* scene */
+.scene{padding:30px 0 10px}
+.scene-head{max-width:74ch;margin-bottom:20px}
+.scene-head h2{font-size:26px}
+.scene-head p{color:var(--ink-2);font-size:15.5px;margin:9px 0 0}
+
+.stage{
+  background:var(--stage);border-radius:6px;padding:0;overflow:hidden;
+  border:1px solid #0B0E13;
+}
+.stage svg{display:block;width:100%;height:auto}
+
+/* svg base styles */
+.stage text{font-family:var(--mono);fill:var(--stage-ink)}
+.lbl{font-size:11px;fill:var(--stage-dim);letter-spacing:.04em}
+.hdr{font-size:12.5px;fill:var(--stage-ink);font-weight:700}
+.tiny{font-size:9.5px;fill:var(--stage-dim)}
+.val{font-size:11px;fill:var(--stage-ink)}
+.region{fill:none;stroke:var(--stage-line);stroke-width:1.5}
+.regionfill{fill:#171B23;stroke:var(--stage-line);stroke-width:1.5}
+.movable{transition:transform .65s cubic-bezier(.4,0,.2,1),opacity .4s ease}
+.fade{transition:opacity .4s ease,fill .4s ease,stroke .4s ease}
+.hidden{opacity:0}
+.obj rect{transition:fill .45s ease,stroke .45s ease,opacity .4s ease}
+.arrow{stroke:var(--cool);stroke-width:2;fill:none;marker-end:url(#ah);transition:opacity .4s ease}
+.flash{animation:flashPulse 1s ease}
+@keyframes flashPulse{0%{filter:brightness(2.1)}100%{filter:brightness(1)}}
+
+/* controls */
+.controls{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:14px 16px;background:var(--stage-2);border-top:1px solid #0B0E13;
+}
+.ctl{
+  font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:.02em;
+  background:#262C38;color:#D6DCE7;border:1px solid #333B49;border-radius:3px;
+  padding:8px 14px;cursor:pointer;transition:.14s;
+}
+.ctl:hover{background:#323A48;color:#fff}
+.ctl:disabled{opacity:.35;cursor:not-allowed}
+.ctl.primary{background:var(--live);border-color:var(--live);color:#08110C}
+.ctl.primary:hover{background:#54E29D}
+.dots{display:flex;gap:5px;margin-left:auto;flex-wrap:wrap}
+.dot{width:7px;height:7px;border-radius:50%;background:#3A4353;transition:.2s;border:0;padding:0;cursor:pointer}
+.dot[data-on="true"]{background:var(--live);transform:scale(1.4)}
+.dot[data-done="true"]{background:#5C6678}
+
+.narration{
+  background:#0D1015;border-top:1px solid #0B0E13;padding:18px 20px;
+  color:#C9D1DE;font-size:15px;line-height:1.65;min-height:92px;
+}
+.narration .step-no{font-family:var(--mono);font-size:11px;color:var(--live);display:block;margin-bottom:6px;letter-spacing:.06em}
+.narration b{color:#fff}
+.narration code{font-family:var(--mono);font-size:.88em;background:#1D222B;padding:2px 5px;border-radius:2px;color:#9FE8C4}
+
+.takeaway{
+  border:1px solid var(--rule);border-left:3px solid var(--ink);background:#fff;
+  padding:18px 22px;margin-top:22px;font-size:15px;color:var(--ink-2);
+}
+.takeaway h3{font-size:14px;font-family:var(--mono);margin-bottom:10px;color:var(--ink)}
+.takeaway ul{margin:0;padding-left:18px}
+.takeaway li{margin-bottom:7px}
+.takeaway li b{color:var(--ink)}
+
+footer{border-top:1px solid var(--rule);margin-top:64px;padding:32px 0 60px;color:var(--ink-3);font-size:13.5px}
+
+@media (max-width:760px){
+  .wrap{padding:0 16px}
+  .topbar-in{padding:0 16px}
+  .tab{padding:11px 12px;font-size:13.5px}
+  .narration{font-size:14px}
+  .controls{padding:12px}
+  .ctl{padding:7px 11px;font-size:11.5px}
+}
+@media (prefers-reduced-motion:reduce){
+  .movable,.fade,.obj rect{transition:none!important}
+  .flash{animation:none!important}
+}
+</style>
+</head>
+<body>
+<div id="sdh-libbar" style="position:relative;z-index:2147483000;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0;padding:8px 16px;background:#0f172a;color:#cbd5e1;font:600 13px/1.5 Inter,'Segoe UI',system-ui,-apple-system,sans-serif;border-bottom:2px solid #4f46e5;box-sizing:border-box;width:100%;text-align:left;letter-spacing:0"><a href="../../index.html" style="color:#fff;text-decoration:none;font-weight:800">SystemDesign<span style="color:#8b8cff">.hinglish</span></a><span style="opacity:.45">/</span><a href="../index.html" style="color:#fff;text-decoration:none">📚 Library</a><span style="opacity:.45">/</span><a href="../index.html#java-modern" style="color:#cbd5e1;text-decoration:none">Java Internals · Concurrency · Versions</a><a href="../files/jvm-internals-animation-original.html" download style="color:#a5b4fc;text-decoration:none;font-size:12px">⬇ Original</a><span style="margin-left:auto;font-size:11px;padding:2px 9px;border-radius:999px;border:1px solid #6366f1;color:#c7d2fe">📘 HTML ebook</span></div>
+
+<header class="topbar">
+  <div class="topbar-in">
+    <div class="brand">JVM internals <span>/ dekhkar samjho</span></div>
+    <a class="back" href="java-8-to-25-features-hld-lld.html">← Features page</a>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="intro">
+    <h1>Object banta kahan hai, badalta kaise hai, marta kab hai.</h1>
+    <p>
+      Paanch animations. Har ek mein <b>Play</b> dabao ya <b>step-by-step</b> aage badho —
+      neeche har step ka matlab Hinglish mein likha hai. Ye wahi cheezein hain jo interview mein
+      "internally kya hota hai" poochne par expected hoti hain:
+      heap allocation aur GC, virtual threads ka mount/unmount, stream ka lazy execution,
+      record/sealed/pattern matching ka compile-to-runtime safar, aur ek object ka poora janm-mrityu chakra.
+    </p>
+  </section>
+
+  <div class="tabs" id="tabs" role="tablist"></div>
+
+  <section class="scene">
+    <div class="scene-head">
+      <h2 id="sceneTitle"></h2>
+      <p id="sceneBlurb"></p>
+    </div>
+
+    <div class="stage" id="stage"></div>
+
+    <div class="controls">
+      <button class="ctl" id="btnPrev">◀ Peeche</button>
+      <button class="ctl primary" id="btnPlay">▶ Play</button>
+      <button class="ctl" id="btnNext">Aage ▶</button>
+      <button class="ctl" id="btnReset">Reset</button>
+      <div class="dots" id="dots"></div>
+    </div>
+
+    <div class="narration" id="narration"></div>
+
+    <div class="takeaway" id="takeaway"></div>
+  </section>
+
+  <footer>
+    <p>Ye simplified models hain — asli JVM mein TLABs, card tables, remembered sets, safepoints
+       aur bahut kuch aur hai. Yahan sirf wo hissa dikhaya hai jo design decisions samajhne ke liye kaafi hai.</p>
+  </footer>
+</main>
+<style>
+.no-anim *{transition:none!important;animation:none!important}
+</style>
+<script>
+/* ------------------------------------------------------------------
+   Small SVG builders — repetition kam karne ke liye
+   ------------------------------------------------------------------ */
+function svgFrame(inner, viewBox){
+  return '<svg viewBox="' + viewBox + '" xmlns="http://www.w3.org/2000/svg" role="img">'
+    + '<defs>'
+    + '<marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">'
+    + '<path d="M 0 0 L 10 5 L 0 10 z" fill="#5AA9E6"/></marker>'
+    + '<marker id="ahg" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">'
+    + '<path d="M 0 0 L 10 5 L 0 10 z" fill="#3DD68C"/></marker>'
+    + '</defs>' + inner + '</svg>';
+}
+
+function region(x, y, w, h, label, note){
+  return '<g>'
+    + '<rect class="regionfill" x="' + x + '" y="' + y + '" width="' + w + '" height="' + h + '" rx="4"/>'
+    + '<text class="lbl" x="' + (x + 10) + '" y="' + (y + 17) + '">' + label + '</text>'
+    + (note ? '<text class="tiny" x="' + (x + 10) + '" y="' + (y + 31) + '">' + note + '</text>' : '')
+    + '</g>';
+}
+
+function cell(id, x, y, w, h, title, l1, l2, colour){
+  const c = colour || '#3DD68C';
+  return '<g id="' + id + '" class="obj movable" transform="translate(' + x + ',' + y + ')">'
+    + '<rect x="0" y="0" width="' + w + '" height="' + h + '" rx="3" fill="#1E2530" stroke="' + c + '" stroke-width="1.6"/>'
+    + '<text class="hdr" id="' + id + '-t" x="8" y="17" fill="' + c + '">' + title + '</text>'
+    + (l1 ? '<text class="tiny" id="' + id + '-l1" x="8" y="32">' + l1 + '</text>' : '')
+    + (l2 ? '<text class="tiny" id="' + id + '-l2" x="8" y="45">' + l2 + '</text>' : '')
+    + '</g>';
+}
+
+/* mutation helpers */
+const pick = (root, id) => root.querySelector('#' + id);
+function move(root, id, x, y){ const e = pick(root, id); if (e) e.setAttribute('transform', 'translate(' + x + ',' + y + ')'); }
+function show(root, id, on){ const e = pick(root, id); if (e) e.style.opacity = on ? 1 : 0; }
+function say(root, id, text){ const e = pick(root, id); if (e) e.textContent = text; }
+function paint(root, id, colour){
+  const g = pick(root, id); if (!g) return;
+  const rect = g.querySelector('rect'); if (rect) rect.setAttribute('stroke', colour);
+  const head = g.querySelector('.hdr'); if (head) head.setAttribute('fill', colour);
+}
+function setPath(root, id, d){ const e = pick(root, id); if (e) e.setAttribute('d', d); }
+function flash(root, id){
+  const e = pick(root, id); if (!e) return;
+  e.classList.remove('flash'); void e.getBoundingClientRect(); e.classList.add('flash');
+}
+
+/* ------------------------------------------------------------------
+   SCENE 1 — Heap, allocation, update, GC
+   ------------------------------------------------------------------ */
+const SCENE_HEAP = {
+id:'heap',
+tab:'Heap · save & GC',
+title:'Object heap mein banta hai, badalta hai, aur unreachable hoke marta hai',
+blurb:'Allocation Eden mein pointer bump se hoti hai. "Update" ka matlab mutable field ke liye in-place likhna hai, par immutable object ke liye naya object. Aur delete kabhi nahi hota — sirf unreachable hona hota hai.',
+svg: svgFrame(
+    '<rect x="0" y="0" width="900" height="500" fill="none"/>'
+  + '<text class="hdr" x="20" y="32">JVM MEMORY</text>'
+  + '<text class="tiny" x="20" y="46">simplified — TLAB, card table, remembered set chhod diye hain</text>'
+
+  + region(18, 62, 172, 380, 'THREAD STACK', 'per-thread, GC root')
+  + '<g id="frame" class="fade" style="opacity:0">'
+  + '<rect x="30" y="106" width="148" height="82" rx="3" fill="#1E2530" stroke="#5AA9E6" stroke-width="1.5"/>'
+  + '<text class="hdr" x="40" y="126" fill="#5AA9E6">placeOrder()</text>'
+  + '<text class="tiny" x="40" y="143">local variables</text>'
+  + '<text class="val" id="slot" x="40" y="167">order = null</text>'
+  + '</g>'
+  + '<path id="ref" class="arrow" style="opacity:0" d="M 180 160 L 236 158"/>'
+
+  + region(202, 62, 682, 380, 'HEAP', 'saare threads ke liye shared, GC yahan chalti hai')
+  + region(214, 92, 462, 236, 'YOUNG GENERATION', '')
+  + '<rect class="region" x="224" y="118" width="252" height="198" rx="3"/>'
+  + '<text class="lbl" x="232" y="134">Eden</text>'
+  + '<rect class="region" x="486" y="118" width="90" height="198" rx="3"/>'
+  + '<text class="lbl" x="494" y="134">S0</text>'
+  + '<rect class="region" x="584" y="118" width="86" height="198" rx="3"/>'
+  + '<text class="lbl" x="592" y="134">S1</text>'
+  + region(688, 92, 184, 236, 'OLD GEN', 'promoted objects')
+  + region(214, 340, 658, 88, 'METASPACE', 'class metadata — heap ke bahar, alag se manage hoti hai')
+  + '<text class="tiny" x="228" y="392">Order.class  ·  String.class  ·  method bytecode  ·  runtime constant pool  ·  static fields</text>'
+
+  + '<line id="tlab" x1="232" y1="300" x2="470" y2="300" stroke="#F2C14E" stroke-dasharray="4 4" stroke-width="1.4" style="opacity:0"/>'
+  + '<text class="tiny" id="tlabtxt" x="232" y="312" fill="#F2C14E" style="opacity:0">TLAB bump pointer →</text>'
+
+  + cell('g1', 350, 142, 58, 26, '', '', '', '#6C7688')
+  + cell('g2', 350, 176, 58, 26, '', '', '', '#6C7688')
+  + cell('g3', 414, 142, 58, 26, '', '', '', '#6C7688')
+  + cell('g4', 414, 176, 58, 26, '', '', '', '#6C7688')
+
+  + cell('o1', 236, 142, 96, 56, 'Order', 'hdr 12B  id=1001', 'status → ', '#3DD68C')
+  + cell('s1', 236, 224, 86, 40, '"NEW"', 'String', '', '#3DD68C')
+  + cell('s2', 344, 224, 86, 40, '"PAID"', 'String', '', '#3DD68C')
+  + '<path id="fptr" class="arrow" style="opacity:0" d="M 260 200 L 260 222"/>'
+
+  + '<text class="hdr" id="agetxt" x="232" y="470" style="opacity:0" fill="#F2C14E">age = 1</text>'
+  + '<text class="hdr" id="banner" x="20" y="470" style="opacity:0" fill="#FF7A59">MINOR GC</text>',
+  '0 0 900 500'),
+
+reset(root){
+  ['frame','ref','fptr','tlab','tlabtxt','banner','agetxt','o1','s1','s2','g1','g2','g3','g4']
+    .forEach(id => show(root, id, false));
+  move(root, 'o1', 236, 142); move(root, 's1', 236, 224); move(root, 's2', 344, 224);
+  paint(root, 'o1', '#3DD68C'); paint(root, 's1', '#3DD68C'); paint(root, 's2', '#3DD68C');
+  say(root, 'slot', 'order = null');
+  say(root, 'agetxt', 'age = 1');
+  setPath(root, 'ref', 'M 180 160 L 232 162');
+  setPath(root, 'fptr', 'M 262 200 L 262 222');
+},
+
+steps:[
+{n:'Thread ne <code>placeOrder()</code> call kiya. Stack par ek <b>frame</b> bana. Frame mein sirf local variables aur references hote hain — koi object nahi. Har thread ka apna stack hai, isliye yahan koi synchronisation nahi chahiye.',
+ run(r){ show(r,'frame',true); }},
+
+{n:'<code>new Order(1001)</code>. JVM Eden mein <b>pointer bump</b> se jagah leta hai — thread ka apna TLAB hota hai, isliye allocation lagbhag ek pointer add karne jitni sasti hai. Header likha jaata hai (mark word + class pointer), phir saare fields <b>default value</b> par set hote hain (0 / null).',
+ run(r){ show(r,'o1',true); show(r,'tlab',true); show(r,'tlabtxt',true); flash(r,'o1'); }},
+
+{n:'String <code>"NEW"</code> bhi ek <b>alag object</b> hai — wo bhi Eden mein hai. Order ke andar sirf uska <b>reference</b> hai (compressed oops on hone par 4 bytes), poori string nahi. Isiliye object graph banta hai, flat structure nahi.',
+ run(r){ show(r,'s1',true); show(r,'fptr',true); flash(r,'s1'); }},
+
+{n:'Constructor return hua aur reference stack par likh diya gaya. Ab object ek <b>GC root</b> (thread stack) se reachable hai — matlab wo zinda hai. GC roots: thread stacks, static fields, JNI handles, aur active monitors.',
+ run(r){ show(r,'ref',true); say(r,'slot','order = 0x00c1a4'); }},
+
+{n:'<code>order.setStatus("PAID")</code>. Do alag cheezein ek saath ho rahi hain: <b>(1)</b> Order mutable hai, isliye naya Order nahi bana — uske field mein likh diya gaya, in place. <b>(2)</b> String immutable hai, isliye <code>"PAID"</code> ek <b>naya object</b> hai. Purana <code>"NEW"</code> ab kisi ke kaam ka nahi — wo garbage hai.',
+ run(r){ show(r,'s2',true); setPath(r,'fptr','M 300 200 L 360 222'); paint(r,'s1','#6C7688'); flash(r,'s2'); }},
+
+{n:'Application chalti rahi, aur allocations hoti rahin. Eden bhar gaya. <b>Yahi minor GC ka trigger hai</b> — GC time par nahi chalti, allocation pressure par chalti hai.',
+ run(r){ ['g1','g2','g3','g4'].forEach(g => show(r, g, true)); }},
+
+{n:'<b>Minor GC (young collection).</b> Ek chhota stop-the-world pause. Marking GC roots se shuru hoti hai — stack se <code>order</code> tak, aur wahan se <code>"PAID"</code> tak. Jo reference chain se reachable hai wahi live hai; baaki sab <b>bina chhue</b> garbage maan liya jaata hai.',
+ run(r){ show(r,'banner',true); say(r,'banner','MINOR GC — marking from GC roots'); paint(r,'o1','#F2C14E'); paint(r,'s2','#F2C14E'); }},
+
+{n:'Live objects <b>S0 mein copy</b> ho gaye aur Eden poora clear ho gaya. Ye ek <b>copying collector</b> hai — iska cost sirf <b>live data</b> ke proportional hai, Eden ke size ke nahi. Isiliye "garbage collect karna" lagbhag free hai; mehnga to <i>zinda rehna</i> hai. Ye generational hypothesis ka poora point hai.',
+ run(r){
+   move(r,'o1',492,142); move(r,'s2',492,224);
+   setPath(r,'fptr','M 540 200 L 540 222'); setPath(r,'ref','M 180 160 L 488 162');
+   ['s1','g1','g2','g3','g4'].forEach(g => show(r, g, false));
+   show(r,'tlab',false); show(r,'tlabtxt',false);
+   paint(r,'o1','#3DD68C'); paint(r,'s2','#3DD68C');
+   show(r,'agetxt',true); say(r,'agetxt','age = 1'); say(r,'banner','MINOR GC — live copied, Eden cleared');
+ }},
+
+{n:'Agli minor GC par survivors <b>S0 se S1</b> mein chale jaate hain, aur unki <b>age</b> ek badh jaati hai. Ye ping-pong har young collection par hota hai. Ek object jitni GC cycles jhel leta hai, utna hi zyada chance hai ki wo lambe samay tak zinda rahega.',
+ run(r){
+   move(r,'o1',588,142); move(r,'s2',588,224);
+   setPath(r,'fptr','M 636 200 L 636 222'); setPath(r,'ref','M 180 160 L 584 162');
+   say(r,'agetxt','age = 2 → 3 → 4 … 15'); say(r,'banner','MINOR GC ×14 — S0 ⇄ S1 ping-pong');
+ }},
+
+{n:'Age threshold (<code>MaxTenuringThreshold</code>, default 15) cross ho gaya — ya survivor space bhar gaya. Object <b>Old Generation mein promote</b> ho gaya. Ab minor GC ise chhuegi bhi nahi. <b>Premature promotion</b> ek asli problem hai: survivor space chhota ho to short-lived objects bhi old gen mein pahunch jaate hain aur wahan mehngi collection maangte hain.',
+ run(r){
+   move(r,'o1',700,142); move(r,'s2',700,224);
+   setPath(r,'fptr','M 748 200 L 748 222'); setPath(r,'ref','M 180 160 L 696 162');
+   say(r,'agetxt','promoted → OLD GEN'); say(r,'banner','PROMOTION');
+ }},
+
+{n:'<code>order = null</code> — ya method return ho gaya aur stack frame hi chala gaya. Ab koi bhi GC root is object tak nahi pahunchta. <b>Object "delete" nahi hota — wo sirf unreachable ho jaata hai.</b> Java mein aap memory free nahi karte, aap sirf reachability todte ho. Isiliye memory leak ka matlab hai: koi cheez galti se abhi bhi reference pakde baithi hai (static map, listener list, ThreadLocal).',
+ run(r){
+   show(r,'ref',false); say(r,'slot','order = null');
+   paint(r,'o1','#6C7688'); paint(r,'s2','#6C7688');
+   say(r,'banner','UNREACHABLE — collectable'); say(r,'agetxt','');
+ }},
+
+{n:'Old generation collection mein memory reclaim ho gayi. G1 ye "mixed collection" mein karta hai; <b>ZGC aur Shenandoah ye kaam application ke saath-saath (concurrent) karte hain</b>, isliye pause sirf chhote root-scanning stages ka hota hai. Java 25 ke <b>compact object headers</b> (16 → 12 bytes) se live set chhota hota hai — kam marking, kam copying, kam GC.',
+ run(r){
+   show(r,'o1',false); show(r,'s2',false); show(r,'fptr',false);
+   say(r,'banner','OLD GEN COLLECTION — memory reclaimed');
+ }}
+],
+
+takeaway:`<h3>Isse interview mein kya bolna hai</h3><ul>
+<li><b>Allocation sasti hai, survival mehnga hai.</b> Copying collector ka cost live data ke proportional hai. Isliye "kam object banao" se zyada important hai "objects ko jaldi marne do".</li>
+<li><b>Update ke do matlab hain.</b> Mutable field = in-place write, koi allocation nahi. Immutable object (String, record, <code>Integer</code>) = naya object + purana garbage. String concatenation loop isiliye khatarnak hai.</li>
+<li><b>Memory leak = unwanted reachability.</b> Static collections, un-deregistered listeners, aur pooled threads par bhula hua <code>ThreadLocal</code> — teeno ka mechanism yahi hai.</li>
+<li><b>Premature promotion</b> ek asli tuning issue hai: survivor space chhota hone par short-lived objects old gen mein pahunch jaate hain.</li>
+</ul>`
+};
+
+/* ------------------------------------------------------------------
+   SCENE 2 — Virtual threads: mount / unmount
+   ------------------------------------------------------------------ */
+const SCENE_VT = {
+id:'vthreads',
+tab:'Virtual threads',
+title:'Mount, block, unmount — carrier thread kabhi bekaar nahi baithta',
+blurb:'Virtual thread ek heap object hai, OS thread nahi. Blocking call par uska stack heap par wapas chala jaata hai aur carrier free ho jaata hai. Yahi poora Project Loom hai.',
+svg: svgFrame(
+    '<text class="hdr" x="20" y="30">VIRTUAL THREADS ON CARRIER THREADS</text>'
+  + region(18, 48, 864, 132, 'HEAP — continuation objects', 'har virtual thread ka stack yahan rehta hai jab wo chal nahi raha')
+  + '<text class="lbl" x="18" y="212">JVM SCHEDULER — dedicated ForkJoinPool (FIFO)</text>'
+  + '<line x1="18" y1="222" x2="882" y2="222" stroke="#2A303C" stroke-width="1.5"/>'
+  + region(18, 240, 864, 128, 'CARRIER THREADS — asli platform / OS threads', 'default count = available processors')
+  + '<rect class="region" x="30" y="272" width="196" height="82" rx="3"/><text class="lbl" x="40" y="290">C1</text>'
+  + '<rect class="region" x="238" y="272" width="196" height="82" rx="3"/><text class="lbl" x="248" y="290">C2</text>'
+  + '<rect class="region" x="446" y="272" width="196" height="82" rx="3"/><text class="lbl" x="456" y="290">C3</text>'
+  + '<rect class="region" x="654" y="272" width="196" height="82" rx="3"/><text class="lbl" x="664" y="290">C4</text>'
+  + region(18, 384, 864, 70, 'OPERATING SYSTEM', 'OS ko sirf 4 threads dikhte hain, chahe upar 10,000 virtual threads hon')
+
+  + cell('vt1', 34, 88, 130, 62, 'VT-1', 'req /orders/1001', 'stack: heap', '#5AA9E6')
+  + cell('vt2', 176, 88, 130, 62, 'VT-2', 'req /orders/1002', 'stack: heap', '#5AA9E6')
+  + cell('vt3', 318, 88, 130, 62, 'VT-3', 'req /orders/1003', 'stack: heap', '#5AA9E6')
+  + cell('vt4', 460, 88, 130, 62, 'VT-4', 'req /orders/1004', 'stack: heap', '#5AA9E6')
+  + cell('vt5', 602, 88, 130, 62, 'VT-5', 'req /orders/1005', 'stack: heap', '#5AA9E6')
+  + cell('vt6', 744, 88, 130, 62, 'VT-6', 'req /orders/1006', 'stack: heap', '#5AA9E6')
+
+  + '<text class="hdr" id="vbanner" x="20" y="478" style="opacity:0" fill="#3DD68C"></text>',
+  '0 0 900 500'),
+
+reset(root){
+  const home = [[34,88],[176,88],[318,88],[460,88],[602,88],[744,88]];
+  home.forEach((p, i) => { move(root, 'vt' + (i + 1), p[0], p[1]); paint(root, 'vt' + (i + 1), '#5AA9E6'); show(root, 'vt' + (i + 1), false); });
+  for (let i = 1; i <= 6; i++){ say(root, 'vt' + i + '-l2', 'stack: heap'); }
+  show(root, 'vbanner', false);
+},
+
+steps:[
+{n:'Har incoming request ke liye ek virtual thread. Ye <b>OS thread nahi hai</b> — ye heap par ek <b>continuation object</b> hai jismein uska stack rehta hai. Shuruaat kuch sau bytes se hoti hai aur zaroorat par grow karta hai. Isiliye 10,000 banana bilkul normal hai; 10,000 platform threads banana namumkin.',
+ run(r){ for (let i = 1; i <= 6; i++) show(r, 'vt' + i, true); }},
+
+{n:'Chalne ke liye virtual thread ko ek <b>carrier thread</b> chahiye. Carrier ek asli platform (OS) thread hai. Inki sankhya default mein CPU cores ke barabar hoti hai — yahan 4. Scheduling JVM ka apna ForkJoinPool karta hai, OS nahi.',
+ run(r){ show(r, 'vbanner', true); say(r, 'vbanner', '4 carriers ready · 6 virtual threads queued'); }},
+
+{n:'<b>MOUNT.</b> Virtual thread ka stack heap se carrier ke native stack par copy hota hai. Ab wo sach mein CPU par chal raha hai. VT-5 aur VT-6 abhi queue mein hain — carriers khaali nahi hain.',
+ run(r){
+   move(r,'vt1',36,296); move(r,'vt2',244,296); move(r,'vt3',452,296); move(r,'vt4',660,296);
+   [1,2,3,4].forEach(i => { say(r,'vt' + i + '-l2','stack: carrier'); paint(r,'vt' + i,'#3DD68C'); });
+   say(r,'vbanner','MOUNTED — VT1→C1, VT2→C2, VT3→C3, VT4→C4');
+ }},
+
+{n:'VT-1 ne <code>socket.read()</code> call kiya. Purane model mein yahan OS thread <b>block</b> ho jaata aur 1 MB stack ke saath bekaar padi rehti. Par JDK ne apni saari blocking calls ko andar se <b>non-blocking + park</b> mein badal diya hai.',
+ run(r){ paint(r,'vt1','#FF7A59'); say(r,'vt1-l1','socket.read() …'); say(r,'vbanner','VT-1 blocking on I/O'); }},
+
+{n:'<b>UNMOUNT.</b> VT-1 ka stack wapas heap par copy hua aur wo carrier se hatt gaya. <b>C1 ab bilkul khaali hai</b> — wo kisi ke intezaar mein bekaar nahi baitha. Blocked virtual thread sirf heap khaata hai, OS thread nahi.',
+ run(r){
+   move(r,'vt1',34,88); paint(r,'vt1','#F2C14E');
+   say(r,'vt1-l1','PARKED — waiting I/O'); say(r,'vt1-l2','stack: heap');
+   say(r,'vbanner','UNMOUNTED — C1 free');
+ }},
+
+{n:'C1 turant <b>VT-5 ko utha leta hai</b>. Yahi poora feature hai: 4 carriers hazaron virtual threads ko chala sakte hain, jab tak wo <b>mostly wait</b> kar rahe hain. Throughput badhta hai, latency nahi — ek request abhi bhi utna hi time legi.',
+ run(r){ move(r,'vt5',36,296); say(r,'vt5-l2','stack: carrier'); paint(r,'vt5','#3DD68C'); say(r,'vbanner','C1 picked VT-5 immediately'); }},
+
+{n:'I/O complete ho gaya. VT-1 ab <b>runnable</b> hai aur scheduler ki queue mein wapas aa gaya. Iske saath VT-3 apna kaam khatam karke exit kar gaya, to C3 khaali ho gaya.',
+ run(r){
+   paint(r,'vt1','#5AA9E6'); say(r,'vt1-l1','runnable — queued');
+   show(r,'vt3',false); say(r,'vbanner','VT-1 runnable · VT-3 finished, C3 free');
+ }},
+
+{n:'<b>REMOUNT — par dhyaan do, VT-1 ab C3 par chadha hai, C1 par nahi.</b> Virtual thread ki koi <b>thread affinity</b> nahi hoti; wo har baar alag carrier par mount ho sakta hai. Isiliye carrier thread ke <code>ThreadLocal</code> par bharosa karna galat hai, aur <code>Thread.currentThread()</code> par based caching todi hui hai. Yahi wajah hai ki Java 25 ne <code>ScopedValue</code> diya.',
+ run(r){
+   move(r,'vt1',452,296); say(r,'vt1-l1','req /orders/1001'); say(r,'vt1-l2','stack: carrier');
+   paint(r,'vt1','#3DD68C'); say(r,'vbanner','REMOUNTED on a DIFFERENT carrier (C3)');
+ }},
+
+{n:'<b>PINNING — Java 21 ka asli gotcha.</b> VT-2 ek <code>synchronized</code> block ke andar block ho gaya. Monitor carrier thread se bandha hota hai, isliye VT-2 <b>unmount nahi kar sakta</b> — C2 uske saath phasa hua hai. Scalability wapas platform-thread jaisi. <b>Fix:</b> <code>ReentrantLock</code> use karo. Diagnose: <code>-Djdk.tracePinnedThreads=full</code> ya JFR ka <code>jdk.VirtualThreadPinned</code> event. <b>JDK 24 (JEP 491)</b> ne ise largely khatm kar diya — ye 21 se aage upgrade karne ka apne aap mein ek argument hai.',
+ run(r){ paint(r,'vt2','#FF7A59'); say(r,'vt2-l1','synchronized + blocking'); say(r,'vt2-l2','PINNED — C2 stuck'); say(r,'vbanner','PINNED — carrier C2 blocked, cannot be reused'); }},
+
+{n:'Aakhri picture: 5 virtual threads zinda, 4 carriers, ek pinned. Bina pinning ke aap 10,000 virtual threads 4 carriers par aaram se chala sakte ho. <b>Par yaad rakho — ab bottleneck threads nahi, DB connection pool aur downstream rate limits hain.</b> Isiliye virtual threads ke saath explicit backpressure (Semaphore / bulkhead) lagana zaroori ho jaata hai, warna aap downstream ko hi gira denge.',
+ run(r){ say(r,'vbanner','5 vthreads · 4 carriers · bottleneck ab downstream hai, threads nahi'); }}
+],
+
+takeaway:`<h3>Isse interview mein kya bolna hai</h3><ul>
+<li><b>Mount/unmount ka mechanism:</b> stack heap ⇄ carrier ke beech copy hota hai. Blocking JDK call par JVM khud unmount karta hai.</li>
+<li><b>Koi thread affinity nahi</b> — isliye <code>ThreadLocal</code> aur <code>Thread.currentThread()</code> based logic risky hai. <code>ScopedValue</code> (Java 25 mein final) sahi jawaab hai.</li>
+<li><b>Virtual threads pool mat karo</b> — wo disposable hain. <code>newVirtualThreadPerTaskExecutor()</code> hi sahi pattern hai.</li>
+<li><b>Throughput badhta hai, latency nahi.</b> Aur bottleneck sirf shift hota hai — agli deewar connection pool hai.</li>
+<li><b>CPU-bound kaam par koi faayda nahi</b> — wahan fixed pool = cores hi sahi hai.</li>
+</ul>`
+};
+
+/* ------------------------------------------------------------------
+   SCENE 3 — Stream pipeline lazy execution
+   ------------------------------------------------------------------ */
+const SCENE_STREAM = {
+id:'stream',
+tab:'Stream laziness',
+title:'Element-by-element, stage-by-stage nahi — aur limit par sab ruk jaata hai',
+blurb:'Sabse bada misconception: log samajhte hain filter poori list par chalta hai, phir map. Aisa nahi hota. Ek element poori chain se guzarta hai, phir agla aata hai.',
+svg: svgFrame(
+    '<text class="hdr" x="20" y="30">orders.stream().filter(even).map(x10).limit(2).toList()</text>'
+  + '<text class="tiny" x="20" y="46">source → filter → map → limit → collector</text>'
+
+  + region(18, 62, 120, 330, 'SOURCE', 'List of 6')
+  + cell('e1', 30, 92, 96, 34, '1', '', '', '#5AA9E6')
+  + cell('e2', 30, 140, 96, 34, '2', '', '', '#5AA9E6')
+  + cell('e3', 30, 188, 96, 34, '3', '', '', '#5AA9E6')
+  + cell('e4', 30, 236, 96, 34, '4', '', '', '#5AA9E6')
+  + cell('e5', 30, 284, 96, 34, '5', '', '', '#5AA9E6')
+  + cell('e6', 30, 332, 96, 34, '6', '', '', '#5AA9E6')
+
+  + '<rect class="region" id="stFilter" x="180" y="150" width="150" height="90" rx="4"/>'
+  + '<text class="hdr" x="192" y="176">filter</text><text class="tiny" x="192" y="192">x % 2 == 0</text>'
+  + '<text class="tiny" id="fCount" x="192" y="222" fill="#6C7688">seen: 0</text>'
+
+  + '<rect class="region" id="stMap" x="370" y="150" width="150" height="90" rx="4"/>'
+  + '<text class="hdr" x="382" y="176">map</text><text class="tiny" x="382" y="192">x * 10</text>'
+  + '<text class="tiny" id="mCount" x="382" y="222" fill="#6C7688">seen: 0</text>'
+
+  + '<rect class="region" id="stLimit" x="560" y="150" width="150" height="90" rx="4"/>'
+  + '<text class="hdr" x="572" y="176">limit(2)</text><text class="tiny" x="572" y="192">short-circuit</text>'
+  + '<text class="tiny" id="lCount" x="572" y="222" fill="#6C7688">taken: 0 / 2</text>'
+
+  + '<rect class="region" id="stSink" x="750" y="150" width="132" height="90" rx="4"/>'
+  + '<text class="hdr" x="762" y="176">toList()</text><text class="tiny" x="762" y="192">terminal op</text>'
+  + '<text class="val" id="result" x="762" y="222" fill="#3DD68C">[ ]</text>'
+
+  + '<path class="arrow" style="opacity:.35" d="M 138 195 L 176 195"/>'
+  + '<path class="arrow" style="opacity:.35" d="M 332 195 L 366 195"/>'
+  + '<path class="arrow" style="opacity:.35" d="M 522 195 L 556 195"/>'
+  + '<path class="arrow" style="opacity:.35" d="M 712 195 L 746 195"/>'
+
+  + cell('tok', 30, 92, 96, 34, '', '', '', '#F2C14E')
+  + '<text class="hdr" id="reject" x="230" y="272" style="opacity:0" fill="#FF7A59">rejected ✕</text>'
+  + '<text class="hdr" id="sbanner" x="20" y="420" style="opacity:0" fill="#3DD68C"></text>',
+  '0 0 900 440'),
+
+reset(root){
+  ['tok','reject','sbanner'].forEach(id => show(root, id, false));
+  move(root, 'tok', 30, 92);
+  ['e1','e2','e3','e4','e5','e6'].forEach(id => paint(root, id, '#5AA9E6'));
+  say(root, 'fCount', 'seen: 0'); say(root, 'mCount', 'seen: 0');
+  say(root, 'lCount', 'taken: 0 / 2'); say(root, 'result', '[ ]');
+},
+
+steps:[
+{n:'Pipeline declare ho gayi — par <b>abhi tak kuch bhi execute nahi hua</b>. <code>filter</code>, <code>map</code> aur <code>limit</code> teeno <b>intermediate</b> operations hain, aur intermediate ops <b>lazy</b> hote hain. Ye sirf pipeline mein ek stage jodte hain aur turant lautt jaate hain.',
+ run(r){ show(r,'sbanner',true); say(r,'sbanner','pipeline built — zero elements processed'); }},
+
+{n:'<code>toList()</code> — <b>terminal operation</b>. Yahin execution shuru hoti hai. Aur sabse zaroori baat: elements <b>ek-ek karke poori chain se guzarte hain</b>. Aisa nahi hai ki pehle poori list filter hoti hai, phir poori list map hoti hai.',
+ run(r){ show(r,'tok',true); say(r,'tok-t',''); paint(r,'tok','#F2C14E'); say(r,'sbanner','terminal op called — pull begins'); }},
+
+{n:'Element <b>1</b> filter tak pahuncha. 1 odd hai → <b>reject</b>. Ye element yahin khatam. <code>map</code> ne isse dekha bhi nahi — ye laziness ka seedha faayda hai.',
+ run(r){
+   move(r,'tok',192,178); say(r,'fCount','seen: 1'); show(r,'reject',true);
+   paint(r,'e1','#6C7688'); say(r,'sbanner','1 → filter → REJECTED');
+ }},
+
+{n:'Element <b>2</b> aaya. Even hai → filter <b>pass</b>. Ab yahi element aage badhega — list ka agla element abhi source mein hi hai, usse chhua bhi nahi gaya.',
+ run(r){
+   show(r,'reject',false); move(r,'tok',192,178); say(r,'tok-t','2'); paint(r,'tok','#3DD68C');
+   say(r,'fCount','seen: 2'); say(r,'sbanner','2 → filter → PASS');
+ }},
+
+{n:'Wahi element <code>map</code> mein gaya: <b>2 × 10 = 20</b>. Dhyaan do — <code>map</code> ka counter 1 hai, 2 nahi. Kyunki usne element 1 kabhi dekha hi nahi.',
+ run(r){ move(r,'tok',382,178); say(r,'tok-t','20'); say(r,'mCount','seen: 1'); say(r,'sbanner','2 → map → 20'); }},
+
+{n:'20 <code>limit(2)</code> se guzra — pehla accepted element. Aur seedha collector mein pahunch gaya. Ek poora round trip ho gaya, jabki source mein abhi 4 elements bache hain.',
+ run(r){ move(r,'tok',572,178); say(r,'lCount','taken: 1 / 2'); say(r,'result','[20]'); say(r,'sbanner','20 → limit(1/2) → collected'); }},
+
+{n:'Ab agla element source se pull hua: <b>3</b>. Odd hai → filter reject. Phir se, map aur limit ne isse dekha hi nahi.',
+ run(r){
+   move(r,'tok',192,178); say(r,'tok-t','3'); paint(r,'tok','#F2C14E');
+   say(r,'fCount','seen: 3'); paint(r,'e3','#6C7688'); show(r,'reject',true);
+   say(r,'sbanner','3 → filter → REJECTED');
+ }},
+
+{n:'Element <b>4</b>: filter pass → map → <b>40</b> → limit ne le liya. Ab limit poora ho chuka hai: 2 / 2.',
+ run(r){
+   show(r,'reject',false); move(r,'tok',572,178); say(r,'tok-t','40'); paint(r,'tok','#3DD68C');
+   say(r,'fCount','seen: 4'); say(r,'mCount','seen: 2'); say(r,'lCount','taken: 2 / 2');
+   say(r,'result','[20, 40]'); say(r,'sbanner','4 → filter → map → 40 → limit(2/2)');
+ }},
+
+{n:'<b>SHORT-CIRCUIT.</b> <code>limit</code> ne pipeline ko bata diya ki bas. Elements <b>5 aur 6 ko source se pull hi nahi kiya gaya</b> — na filter, na map, na koi allocation. Purane loop mein aapko manually <code>break</code> likhna padta; yahan ye pipeline ka structure hai.',
+ run(r){
+   show(r,'tok',false); paint(r,'e5','#6C7688'); paint(r,'e6','#6C7688');
+   say(r,'sbanner','SHORT-CIRCUITED — elements 5 & 6 never touched');
+ }},
+
+{n:'Result: <b>[20, 40]</b>. Counters dekho — filter ne 4 elements dekhe, map ne sirf 2, limit ne 2. <b>Isiliye laziness matter karti hai:</b> <code>findFirst</code>, <code>anyMatch</code>, <code>limit</code> sab short-circuit karte hain, aur infinite streams (<code>Stream.iterate</code>) par bhi kaam karte hain. <b>Par savdhan:</b> <code>sorted()</code> aur <code>distinct()</code> <b>stateful</b> hain — wo poora stream buffer karte hain, isliye infinite stream par hang ho jaayenge.',
+ run(r){ say(r,'sbanner','result = [20, 40] · filter saw 4, map saw 2'); }}
+],
+
+takeaway:`<h3>Isse interview mein kya bolna hai</h3><ul>
+<li><b>Vertical execution, horizontal nahi.</b> Ek element poori chain traverse karta hai, phir agla. Ye sabse common misconception hai.</li>
+<li><b>Intermediate ops lazy, terminal op eager.</b> Terminal op ke bina pipeline kabhi chalti hi nahi — <code>peek</code> se logging isiliye kabhi-kabhi dikhti hi nahi.</li>
+<li><b>Short-circuiting ops:</b> <code>limit</code>, <code>findFirst</code>, <code>findAny</code>, <code>anyMatch</code>, <code>allMatch</code>, <code>noneMatch</code>.</li>
+<li><b>Stateful ops:</b> <code>sorted</code>, <code>distinct</code>, <code>limit</code> (partially) — ye buffer karte hain aur infinite stream par khatarnak hain.</li>
+<li><b>Stream reuse nahi hota</b> — terminal op ke baad <code>IllegalStateException</code>. Bar-bar chahiye to <code>Supplier&lt;Stream&lt;T&gt;&gt;</code> rakho.</li>
+</ul>`
+};
+
+/* ------------------------------------------------------------------
+   SCENE 4 — Record / sealed / pattern matching: compile → runtime
+   ------------------------------------------------------------------ */
+const SCENE_COMPILE = {
+id:'compile',
+tab:'Record · sealed · switch',
+title:'Source se bytecode se linked call site — teen features ka safar',
+blurb:'Records aur sealed classes sirf syntax sugar nahi hain. Compiler special attributes likhta hai, aur equals/hashCode/toString aur type-switch runtime par invokedynamic se link hote hain.',
+svg: svgFrame(
+    '<text class="hdr" x="20" y="30">COMPILE-TIME → CLASS FILE → RUNTIME</text>'
+
+  + region(18, 46, 250, 180, 'SOURCE  ·  Payment.java', '')
+  + '<text class="tiny" x="30" y="88" id="src1">sealed interface PaymentResult</text>'
+  + '<text class="tiny" x="30" y="104" id="src2">    permits Approved, Declined { }</text>'
+  + '<text class="tiny" x="30" y="126" id="src3">record Approved(String txnId)</text>'
+  + '<text class="tiny" x="30" y="142" id="src4">    implements PaymentResult { }</text>'
+  + '<text class="tiny" x="30" y="164" id="src5">switch (result) {</text>'
+  + '<text class="tiny" x="30" y="180" id="src6">  case Approved(String id) -> …</text>'
+  + '<text class="tiny" x="30" y="196" id="src7">  case Declined d -> …   // no default</text>'
+
+  + region(292, 46, 288, 180, 'javac', 'compile-time stages')
+  + cell('c1', 304, 78, 122, 40, 'parse', 'AST banao', '', '#3A4353')
+  + cell('c2', 440, 78, 128, 40, 'attribute', 'types resolve', '', '#3A4353')
+  + cell('c3', 304, 128, 122, 40, 'sealed check', 'permits valid?', '', '#3A4353')
+  + cell('c4', 440, 128, 128, 40, 'exhaustive?', 'saare cases?', '', '#3A4353')
+  + cell('c5', 304, 178, 264, 36, 'generate bytecode', '', '', '#3A4353')
+
+  + region(604, 46, 278, 180, 'CLASS FILE', 'PaymentResult.class / Approved.class')
+  + cell('k1', 616, 78, 254, 32, 'PermittedSubclasses attr', '', '', '#3A4353')
+  + cell('k2', 616, 116, 254, 32, 'Record attr + components', '', '', '#3A4353')
+  + cell('k3', 616, 154, 254, 32, 'invokedynamic entries', '', '', '#3A4353')
+
+  + region(18, 246, 864, 220, 'RUNTIME  ·  JVM', '')
+  + cell('r1', 34, 288, 158, 56, 'class load', 'bytes → metaspace', '', '#3A4353')
+  + cell('r2', 208, 288, 158, 56, 'verify + link', 'sealed re-checked', '', '#3A4353')
+  + cell('r3', 382, 288, 176, 56, 'first switch call', 'indy not linked yet', '', '#3A4353')
+  + cell('r4', 574, 288, 148, 56, 'bootstrap', 'SwitchBootstraps', '', '#3A4353')
+  + cell('r5', 738, 288, 132, 56, 'CallSite linked', 'MethodHandle', '', '#3A4353')
+  + '<path class="arrow" style="opacity:.3" d="M 196 316 L 204 316"/>'
+  + '<path class="arrow" style="opacity:.3" d="M 370 316 L 378 316"/>'
+  + '<path class="arrow" style="opacity:.3" d="M 562 316 L 570 316"/>'
+  + '<path class="arrow" style="opacity:.3" d="M 726 316 L 734 316"/>'
+  + '<text class="val" id="cnote" x="34" y="388" fill="#6C7688">…</text>'
+  + '<text class="val" id="cnote2" x="34" y="410" fill="#6C7688"></text>'
+  + '<text class="hdr" id="cbanner" x="34" y="444" style="opacity:0" fill="#3DD68C"></text>',
+  '0 0 900 480'),
+
+reset(root){
+  ['c1','c2','c3','c4','c5','k1','k2','k3','r1','r2','r3','r4','r5']
+    .forEach(id => paint(root, id, '#3A4353'));
+  show(root, 'cbanner', false);
+  say(root, 'cnote', '…'); say(root, 'cnote2', '');
+},
+
+steps:[
+{n:'Source mein teen features saath hain: ek <b>sealed interface</b>, ek <b>record</b> jo use implement karta hai, aur ek <b>switch</b> jismein record pattern hai aur <code>default</code> nahi hai. Ye Java 21+ ka signature combination hai.',
+ run(r){ say(r,'cnote','source → javac'); }},
+
+{n:'<b>Parse.</b> javac source ko AST mein badalta hai. Yahan tak sab kuch syntax hai — koi type checking nahi hui.',
+ run(r){ paint(r,'c1','#5AA9E6'); }},
+
+{n:'<b>Attribution.</b> Types resolve hote hain, aur record ke liye compiler <b>implicit members synthesize</b> karta hai: private final fields, canonical constructor, accessors (<code>txnId()</code>), aur <code>equals</code>/<code>hashCode</code>/<code>toString</code>. Aapne likha ek line, compiler ne banaya poora class.',
+ run(r){ paint(r,'c2','#5AA9E6'); say(r,'cnote','record → fields + canonical ctor + accessors + equals/hashCode/toString'); }},
+
+{n:'<b>Sealed check.</b> Compiler verify karta hai ki <code>permits</code> mein likhi har class sach mein is interface ko implement karti hai, <b>same module/package</b> mein hai, aur har permitted subtype <code>final</code>, <code>sealed</code> ya <code>non-sealed</code> hai. Record implicitly <code>final</code> hai, isliye pass.',
+ run(r){ paint(r,'c3','#5AA9E6'); say(r,'cnote','permits validated · subtypes must be final / sealed / non-sealed'); }},
+
+{n:'<b>Exhaustiveness check — yahi sealed ka asli faayda hai.</b> Compiler poori permitted list ke against switch ke cases match karta hai. Sab covered hain to <code>default</code> ki zaroorat nahi. <b>Kal koi teesra variant add karega to yahi check fail hoga aur build tootega</b> — bug production ke bajaye compile time par mil jaayega.',
+ run(r){ paint(r,'c4','#5AA9E6'); say(r,'cnote','all permitted subtypes covered → no default needed'); say(r,'cnote2','naya variant add hua? → yahin compile error milega'); }},
+
+{n:'<b>Bytecode generation.</b> Ab class file likhi jaati hai. Aur yahan teen dilchasp cheezein jaati hain jo normal class mein nahi hoti.',
+ run(r){ paint(r,'c5','#5AA9E6'); say(r,'cnote2',''); }},
+
+{n:'<b>(1) <code>PermittedSubclasses</code> attribute.</b> Sealed-ness sirf compiler ka rule nahi hai — ye class file mein likhi jaati hai aur <b>JVM runtime par bhi enforce</b> karta hai. Isliye koi bytecode-manipulation library chupke se subclass nahi bana sakti.',
+ run(r){ paint(r,'k1','#F2C14E'); }},
+
+{n:'<b>(2) <code>Record</code> attribute.</b> Isme components ke naam aur types likhe hote hain. Isi ki wajah se reflection (<code>Class.getRecordComponents()</code>) aur Jackson jaise libraries records ko bina extra config ke samajh lete hain.',
+ run(r){ paint(r,'k2','#F2C14E'); }},
+
+{n:'<b>(3) <code>invokedynamic</code> entries.</b> Record ka <code>equals</code>/<code>hashCode</code>/<code>toString</code> <b>inline copy nahi</b> kiya jaata — unke liye ek indy instruction hota hai jo <code>ObjectMethods.bootstrap</code> ko point karta hai. Wahi switch ke liye bhi: <code>SwitchBootstraps.typeSwitch</code>. Isse class file chhoti rehti hai aur JDK baad mein implementation improve kar sakta hai.',
+ run(r){ paint(r,'k3','#F2C14E'); say(r,'cnote','equals/hashCode/toString → ObjectMethods.bootstrap · switch → SwitchBootstraps.typeSwitch'); }},
+
+{n:'<b>Runtime.</b> Class loader bytes ko metaspace mein load karta hai. Yaad rakho — class metadata heap mein nahi, <b>metaspace</b> mein jaata hai (Java 8 se pehle ye PermGen tha, jo fixed size hone ki wajah se famous <code>OutOfMemoryError: PermGen space</code> deta tha).',
+ run(r){ paint(r,'r1','#5AA9E6'); say(r,'cnote','class metadata → metaspace (heap se alag)'); say(r,'cnote2',''); }},
+
+{n:'<b>Verification aur linking.</b> JVM bytecode verify karta hai, aur yahin <code>PermittedSubclasses</code> dobara check hota hai. Ek galat subclass load karne ki koshish par <code>IncompatibleClassChangeError</code> milta hai.',
+ run(r){ paint(r,'r2','#5AA9E6'); }},
+
+{n:'<b>Pehli baar switch chala.</b> <code>invokedynamic</code> instruction abhi <b>unlinked</b> hai — uske peeche koi actual code nahi hai. Ye pehli call thodi mehngi hoti hai.',
+ run(r){ paint(r,'r3','#F2C14E'); say(r,'cnote','indy call site: not yet linked'); }},
+
+{n:'<b>Bootstrap method chalti hai.</b> <code>SwitchBootstraps.typeSwitch</code> saare case labels dekhkar ek <b>MethodHandle chain</b> banata hai jo type test karke matching case ka index lautaata hai. Yahi ek baar hota hai, poore JVM ke liye.',
+ run(r){ paint(r,'r4','#F2C14E'); }},
+
+{n:'<b>Call site linked.</b> Ab se har call seedha linked MethodHandle par jaati hai — <b>ye linear <code>instanceof</code> chain nahi hai</b>. JIT ise inline kar sakta hai aur profile ke basis par optimise kar sakta hai. Isiliye pattern matching switch performance mein if-else chain se behtar ya barabar hota hai, kharab nahi.',
+ run(r){
+   paint(r,'r5','#3DD68C'); paint(r,'r3','#3DD68C'); paint(r,'r4','#3DD68C');
+   show(r,'cbanner',true); say(r,'cbanner','linked · subsequent calls are fast and JIT-inlinable');
+   say(r,'cnote','compile-time exhaustiveness + runtime enforcement + fast dispatch');
+ }}
+],
+
+takeaway:`<h3>Isse interview mein kya bolna hai</h3><ul>
+<li><b>Sealed sirf compiler check nahi hai</b> — <code>PermittedSubclasses</code> class file mein jaata hai aur JVM bhi enforce karta hai.</li>
+<li><b>Record ke methods indy se bante hain</b> (<code>ObjectMethods.bootstrap</code>), inline copy nahi hote. Isiliye <code>Record</code> attribute reflection aur Jackson ke liye available hai.</li>
+<li><b>Pattern switch <code>SwitchBootstraps.typeSwitch</code> se link hota hai</b> — ye linear instanceof chain nahi hai, isliye performance ka bahana banake ise avoid mat karo.</li>
+<li><b>Exhaustiveness compile-time par milti hai.</b> <code>default</code> likhte hi wo faayda khatm ho jaata hai.</li>
+<li><b>Class metadata metaspace mein jaata hai</b>, heap mein nahi — Java 8 mein PermGen hataya gaya tha.</li>
+</ul>`
+};
+
+/* ------------------------------------------------------------------
+   SCENE 5 — Object instance lifecycle
+   ------------------------------------------------------------------ */
+const SCENE_LIFE = {
+id:'lifecycle',
+tab:'Instance lifecycle',
+title:'Ek instance ka poora safar — allocate, construct, publish, update, marna',
+blurb:'Constructor ke andar exactly kya order mein hota hai, Java 25 ke flexible constructor bodies ne kya badla, aur ek object static map mein daalne se memory leak kaise banta hai.',
+svg: svgFrame(
+    '<text class="hdr" x="20" y="30">new SafeCounter(5, 2)</text>'
+
+  + region(18, 46, 330, 410, 'CONSTRUCTOR CODE', 'Java 25 — flexible constructor bodies')
+  + '<text class="tiny" x="30" y="88"  id="p0">class SafeCounter extends AbstractCounter {</text>'
+  + '<text class="tiny" x="30" y="108" id="p1">  private final int step;</text>'
+  + '<text class="tiny" x="30" y="128" id="p2">  private int value;</text>'
+  + '<text class="tiny" x="30" y="156" id="p3">  SafeCounter(int initial, int step) {</text>'
+  + '<text class="tiny" x="30" y="176" id="p4">    if (step &lt;= 0) throw new IAE();   // prologue</text>'
+  + '<text class="tiny" x="30" y="196" id="p5">    this.step = step;                 // pre-super write</text>'
+  + '<text class="tiny" x="30" y="216" id="p6">    super(initial);                   // parent ctor</text>'
+  + '<text class="tiny" x="30" y="236" id="p7">    this.value = initial;             // epilogue</text>'
+  + '<text class="tiny" x="30" y="256" id="p8">  }</text>'
+  + '<text class="tiny" x="30" y="284" id="p9">  void increment() { value += step; }</text>'
+  + '<text class="tiny" x="30" y="304" id="p10">}</text>'
+  + '<text class="tiny" x="30" y="344" id="p11" fill="#6C7688">static Map&lt;String,SafeCounter&gt; CACHE = …</text>'
+  + '<text class="tiny" x="30" y="364" id="p12" fill="#6C7688">CACHE.put("orders", counter);</text>'
+  + '<text class="tiny" x="30" y="384" id="p13" fill="#6C7688">CACHE.remove("orders");</text>'
+
+  + region(366, 46, 250, 410, 'HEAP', 'object ka andar ka haal')
+  + '<g id="objbox" class="fade" style="opacity:0">'
+  + '<rect x="382" y="90" width="218" height="176" rx="4" fill="#1E2530" stroke="#3DD68C" stroke-width="1.8"/>'
+  + '<text class="hdr" x="394" y="114" fill="#3DD68C" id="objtitle">SafeCounter@1f2e</text>'
+  + '<line x1="382" y1="126" x2="600" y2="126" stroke="#2A303C"/>'
+  + '<text class="tiny" x="394" y="146" id="f0">header  : mark + class ptr (12 B)</text>'
+  + '<text class="tiny" x="394" y="170" id="f1">step    : 0</text>'
+  + '<text class="tiny" x="394" y="194" id="f2">value   : 0</text>'
+  + '<text class="tiny" x="394" y="218" id="f3">parent  : uninitialised</text>'
+  + '<text class="tiny" x="394" y="248" id="f4" fill="#6C7688">state: allocating</text>'
+  + '</g>'
+
+  + region(634, 46, 248, 410, 'REACHABILITY', 'kaun is object ko pakde hua hai')
+  + cell('root1', 648, 92, 218, 48, 'THREAD STACK', 'local: counter', '', '#3A4353')
+  + cell('root2', 648, 156, 218, 48, 'STATIC FIELD', 'CACHE map', '', '#3A4353')
+  + '<text class="tiny" x="648" y="238" fill="#6C7688">GC roots: thread stacks, static</text>'
+  + '<text class="tiny" x="648" y="254" fill="#6C7688">fields, JNI handles, monitors</text>'
+  + '<text class="hdr" id="reach" x="648" y="296" fill="#F2C14E">status: not yet reachable</text>'
+  + '<text class="tiny" id="leaknote" x="648" y="330" fill="#FF7A59" style="opacity:0">memory leak ka #1 karan</text>'
+
+  + '<text class="hdr" id="lbanner" x="20" y="478" style="opacity:0" fill="#3DD68C"></text>',
+  '0 0 900 500'),
+
+reset(root){
+  show(root, 'objbox', false); show(root, 'lbanner', false); show(root, 'leaknote', false);
+  paint(root, 'root1', '#3A4353'); paint(root, 'root2', '#3A4353');
+  for (let i = 0; i <= 13; i++){ const e = pick(root, 'p' + i); if (e) e.setAttribute('fill', i >= 11 ? '#6C7688' : '#6C7688'); }
+  say(root, 'f1', 'step    : 0'); say(root, 'f2', 'value   : 0');
+  say(root, 'f3', 'parent  : uninitialised'); say(root, 'f4', 'state: allocating');
+  say(root, 'objtitle', 'SafeCounter@1f2e');
+  say(root, 'reach', 'status: not yet reachable');
+},
+
+steps:[
+{n:'<b>Step 1 — allocation.</b> JVM Eden mein jagah leta hai. Header likha jaata hai (mark word + class pointer — Java 25 compact headers ke saath 12 bytes) aur <b>saare fields default value par zero ho jaate hain</b>. Ye zeroing JVM ki guarantee hai; isiliye Java mein "uninitialised garbage memory" jaisa concept nahi hai.',
+ run(r){ show(r,'objbox',true); flash(r,'objbox'); }},
+
+{n:'<b>Step 2 — prologue (Java 25, JEP 513).</b> <code>super()</code> se <b>pehle</b> validation chal rahi hai. Yahan aap <code>this</code> ko <b>padh</b> nahi sakte, instance method call nahi kar sakte. Faayda: agar validation fail hui to superclass ka mehnga constructor chala hi nahi, aur adhoora object kabhi bana hi nahi.',
+ run(r){ const e = pick(r,'p4'); if (e) e.setAttribute('fill','#F2C14E'); say(r,'f4','state: prologue — validating args'); }},
+
+{n:'<b>Step 3 — pre-super field write.</b> <code>this.step = step</code> — Java 25 se ye <b>legal</b> hai. Ye classic bug theek karta hai: agar parent constructor koi overridable method call kare, to purane Java mein subclass ke fields tab tak <code>0</code>/<code>null</code> hote the. Ab aap unhe pehle set kar sakte ho.',
+ run(r){ const e = pick(r,'p5'); if (e) e.setAttribute('fill','#3DD68C'); say(r,'f1','step    : 2   ← set before super()'); }},
+
+{n:'<b>Step 4 — <code>super(initial)</code>.</b> Ab parent constructor chalta hai. Java mein constructor chain hamesha <b>upar se neeche</b> complete hoti hai: <code>Object</code> → <code>AbstractCounter</code> → <code>SafeCounter</code>. Har code path par <code>super()</code> ya <code>this()</code> <b>exactly ek baar</b> hona chahiye.',
+ run(r){ const e = pick(r,'p6'); if (e) e.setAttribute('fill','#5AA9E6'); say(r,'f3','parent  : AbstractCounter initialised'); say(r,'f4','state: super() running'); }},
+
+{n:'<b>Step 5 — epilogue.</b> Yahan se <code>this</code> poori tarah available hai — instance methods call kar sakte ho, fields padh sakte ho. Constructor khatam hone par object <b>fully constructed</b> hai. <code>final</code> fields ke liye JMM yahin ek <b>freeze</b> guarantee deta hai: agar object safely publish hua to har thread ko <code>final</code> fields sahi dikhenge.',
+ run(r){ const e = pick(r,'p7'); if (e) e.setAttribute('fill','#3DD68C'); say(r,'f2','value   : 5'); say(r,'f4','state: fully constructed'); }},
+
+{n:'<b>Step 6 — publication.</b> Reference stack par local variable mein aa gaya. Ab object ek GC root (thread stack) se reachable hai. <b>Yahi wo moment hai jab object doosre threads ko dikh sakta hai</b> — agar aapne constructor ke andar <code>this</code> kahin escape kar diya tha (listener register kar diya), to object adhoora hote hue bhi dikh jaata. Isse "this escaping during construction" kehte hain aur ye ek asli concurrency bug hai.',
+ run(r){ paint(r,'root1','#3DD68C'); say(r,'reach','status: reachable via stack'); say(r,'lbanner',''); }},
+
+{n:'<b>Step 7 — update.</b> <code>counter.increment()</code> chala. <code>value</code> field ki jagah par nayi value likh di gayi — <b>naya object nahi bana</b>. Ye mutable field ka fayda aur khatra dono hai. Agar <code>value</code> bhi <code>final</code> hota to ye possible hi nahi hota, aur aapko har update par naya object banana padta (jaisa record ya String ke saath hota hai).',
+ run(r){ const e = pick(r,'p9'); if (e) e.setAttribute('fill','#F2C14E'); say(r,'f2','value   : 7   ← in-place update'); flash(r,'objbox'); }},
+
+{n:'<b>Step 8 — static cache mein daala.</b> <code>CACHE.put("orders", counter)</code>. Ab object <b>do jagah se reachable</b> hai: stack se aur static field se. Static field ek <b>GC root</b> hai jo poore class-loading lifetime tak zinda rehta hai.',
+ run(r){
+   ['p11','p12'].forEach(id => { const e = pick(r,id); if (e) e.setAttribute('fill','#F2C14E'); });
+   paint(r,'root2','#F2C14E'); say(r,'reach','status: reachable via stack + static');
+ }},
+
+{n:'<b>Step 9 — method return.</b> Stack frame khatam, local reference gaya. Purane samay mein object ab mar jaata. <b>Par static map abhi bhi use pakde hui hai</b> — isliye ye zinda hai, hamesha ke liye. <b>Yahi memory leak ka number one karan hai</b>: static collections, un-deregistered listeners, aur thread pool par bhula hua <code>ThreadLocal</code>. Java mein leak "memory free karna bhool gaye" se nahi hota — "reference chhodna bhool gaye" se hota hai.',
+ run(r){
+   paint(r,'root1','#3A4353'); say(r,'reach','status: reachable ONLY via static → immortal');
+   show(r,'leaknote',true); show(r,'lbanner',true); say(r,'lbanner','LEAK — object zinda hai kyunki static map ne pakda hua hai');
+ }},
+
+{n:'<b>Step 10 — reference chhoda.</b> <code>CACHE.remove("orders")</code>. Ab koi bhi GC root is object tak nahi pahunchta. Object <b>unreachable</b> ho gaya — collectable. Dhyaan do, wo abhi bhi memory mein hai; GC ne use dekha bhi nahi hai.',
+ run(r){
+   const e = pick(r,'p13'); if (e) e.setAttribute('fill','#3DD68C');
+   paint(r,'root2','#3A4353'); show(r,'leaknote',false);
+   say(r,'reach','status: UNREACHABLE'); paint(r,'objbox','#6C7688');
+   const box = pick(r,'objbox'); if (box) box.querySelector('rect').setAttribute('stroke','#6C7688');
+   say(r,'f4','state: unreachable — awaiting GC'); say(r,'lbanner','reference dropped');
+ }},
+
+{n:'<b>Step 11 — reclaim.</b> Agli collection mein memory wapas mil gayi. <b>Aur ek zaroori baat:</b> <code>finalize()</code> ka intezaar mat karo — wo Java 9 se deprecated hai aur Java 18 se deprecated-for-removal. Uska koi timing guarantee nahi hai. Resource cleanup ke liye <b><code>try-with-resources</code></b> (<code>AutoCloseable</code>) use karo, aur agar zaroori ho to <code>java.lang.ref.Cleaner</code> — par wo bhi safety net hai, primary mechanism nahi.',
+ run(r){ show(r,'objbox',false); say(r,'reach','status: memory reclaimed'); say(r,'lbanner','GC reclaimed — lifecycle complete'); }}
+],
+
+takeaway:`<h3>Isse interview mein kya bolna hai</h3><ul>
+<li><b>Construction ka order:</b> allocate + zero fields → prologue (Java 25) → <code>super()</code> chain → epilogue. <code>super()</code>/<code>this()</code> har path par exactly ek baar.</li>
+<li><b>Flexible constructor bodies (JEP 513)</b> ne "parent ctor ne overridable method call kiya aur child ke fields abhi 0 the" wala classic bug theek kiya.</li>
+<li><b><code>this</code> escaping during construction</b> ek asli concurrency bug hai — constructor ke andar <code>this</code> ko kahin register mat karo.</li>
+<li><b>Memory leak = unwanted reachability.</b> Static maps, listeners, aur pooled threads ke <code>ThreadLocal</code> teen sabse aam culprits hain.</li>
+<li><b><code>finalize()</code> par kabhi bharosa mat karo</b> — <code>try-with-resources</code> primary hai, <code>Cleaner</code> sirf safety net.</li>
+</ul>`
+};
+
+/* ------------------------------------------------------------------
+   ENGINE
+   ------------------------------------------------------------------ */
+const SCENES = [SCENE_HEAP, SCENE_VT, SCENE_STREAM, SCENE_COMPILE, SCENE_LIFE];
+
+const stageEl = document.getElementById('stage');
+const dotsEl = document.getElementById('dots');
+const narrationEl = document.getElementById('narration');
+const tabsEl = document.getElementById('tabs');
+
+let sceneIndex = 0;
+let stepIndex = -1;
+let timer = null;
+
+function currentScene(){ return SCENES[sceneIndex]; }
+
+function renderTabs(){
+  tabsEl.innerHTML = SCENES.map((scene, i) =>
+    '<button class="tab" role="tab" data-scene="' + i + '" aria-selected="' + (i === sceneIndex) + '">'
+    + '<span class="tnum">' + (i + 1) + '</span>' + scene.tab + '</button>').join('');
+}
+
+function renderDots(){
+  dotsEl.innerHTML = currentScene().steps
+    .map((_, i) => '<button class="dot" data-step="' + i + '" data-on="' + (i === stepIndex) + '" aria-label="Step ' + (i + 1) + '"></button>')
+    .join('');
+}
+
+function paintNarration(){
+  const scene = currentScene();
+  if (stepIndex < 0){
+    narrationEl.innerHTML = '<span class="step-no">READY</span>Play dabao, ya "Aage" se ek-ek step chalao. '
+      + 'Har step ka matlab yahin likha aayega.';
+    return;
+  }
+  narrationEl.innerHTML = '<span class="step-no">STEP ' + (stepIndex + 1) + ' / ' + scene.steps.length + '</span>'
+    + scene.steps[stepIndex].n;
+}
+
+function applyUpTo(index, animate){
+  const scene = currentScene();
+  if (!animate) stageEl.classList.add('no-anim');
+  scene.reset(stageEl);
+  for (let i = 0; i <= index; i++) scene.steps[i].run(stageEl);
+  if (!animate){ void stageEl.offsetWidth; stageEl.classList.remove('no-anim'); }
+}
+
+function goToStep(index, forwardOnly){
+  const scene = currentScene();
+  index = Math.max(-1, Math.min(index, scene.steps.length - 1));
+  if (forwardOnly && index === stepIndex + 1 && index >= 0){
+    scene.steps[index].run(stageEl);          // animate just this step
+  } else {
+    if (index < 0) { stageEl.classList.add('no-anim'); scene.reset(stageEl); void stageEl.offsetWidth; stageEl.classList.remove('no-anim'); }
+    else applyUpTo(index, false);
+  }
+  stepIndex = index;
+  renderDots();
+  paintNarration();
+  document.getElementById('btnPrev').disabled = stepIndex < 0;
+  document.getElementById('btnNext').disabled = stepIndex >= scene.steps.length - 1;
+}
+
+function loadScene(index){
+  stopPlaying();
+  sceneIndex = index;
+  const scene = currentScene();
+  document.getElementById('sceneTitle').textContent = scene.title;
+  document.getElementById('sceneBlurb').textContent = scene.blurb;
+  document.getElementById('takeaway').innerHTML = scene.takeaway;
+  stageEl.innerHTML = scene.svg;
+  renderTabs();
+  goToStep(-1, false);
+}
+
+function stopPlaying(){
+  if (timer){ clearInterval(timer); timer = null; }
+  const button = document.getElementById('btnPlay');
+  if (button) button.textContent = '▶ Play';
+}
+
+function togglePlay(){
+  if (timer){ stopPlaying(); return; }
+  if (stepIndex >= currentScene().steps.length - 1) goToStep(-1, false);
+  document.getElementById('btnPlay').textContent = '❚❚ Pause';
+  goToStep(stepIndex + 1, true);
+  timer = setInterval(() => {
+    if (stepIndex >= currentScene().steps.length - 1){ stopPlaying(); return; }
+    goToStep(stepIndex + 1, true);
+  }, 4200);
+}
+
+tabsEl.addEventListener('click', event => {
+  const tab = event.target.closest('[data-scene]');
+  if (tab) loadScene(+tab.dataset.scene);
+});
+dotsEl.addEventListener('click', event => {
+  const dot = event.target.closest('[data-step]');
+  if (dot){ stopPlaying(); goToStep(+dot.dataset.step, false); }
+});
+document.getElementById('btnNext').addEventListener('click', () => { stopPlaying(); goToStep(stepIndex + 1, true); });
+document.getElementById('btnPrev').addEventListener('click', () => { stopPlaying(); goToStep(stepIndex - 1, false); });
+document.getElementById('btnReset').addEventListener('click', () => { stopPlaying(); goToStep(-1, false); });
+document.getElementById('btnPlay').addEventListener('click', togglePlay);
+document.addEventListener('keydown', event => {
+  if (event.key === 'ArrowRight'){ stopPlaying(); goToStep(stepIndex + 1, true); }
+  if (event.key === 'ArrowLeft'){ stopPlaying(); goToStep(stepIndex - 1, false); }
+});
+
+loadScene(0);
+</script>
+</body>
+</html>

@@ -1,0 +1,2368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Virtual Threads Playbook &mdash; Java 17 to 21, Spring Boot + Kafka + Kubernetes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   Colour is functional, not decorative:
+   amber  = platform thread / blocked / old model
+   teal   = virtual thread / running / new model
+   rose   = trap, pinning, data loss
+   indigo = heap / parked state
+   ============================================================ */
+:root{
+  --bg:#0F1520; --bg-panel:#151D2A; --bg-sunk:#0B1017;
+  --rule:#26334A; --rule-soft:#1B2433;
+  --text:#DCE4F0; --text-dim:#93A3BC; --text-faint:#65748E;
+  --old:#E9A340; --old-sunk:#2A2114;
+  --new:#3FD2AE; --new-sunk:#0F2A26;
+  --warn:#FF6E80; --warn-sunk:#2B1720;
+  --heap:#8494FA; --heap-sunk:#181E3A;
+  --sans:"IBM Plex Sans",ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --w:1180px; --r:3px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:66px}
+body{margin:0;background:var(--bg);color:var(--text);font-family:var(--sans);
+  font-size:16px;line-height:1.62;-webkit-font-smoothing:antialiased}
+a{color:var(--new);text-decoration:none;border-bottom:1px solid rgba(63,210,174,.32)}
+a:hover{border-bottom-color:var(--new)}
+:focus-visible{outline:2px solid var(--new);outline-offset:3px;border-radius:2px}
+button{font-family:inherit}
+.wrap{max-width:var(--w);margin:0 auto;padding:0 22px}
+h1,h2,h3,h4,h5{font-weight:600;line-height:1.18;letter-spacing:-.015em;margin:0}
+h2{font-size:clamp(25px,4vw,36px)}
+h3{font-size:clamp(19px,2.4vw,23px)}
+h4{font-size:15.5px;letter-spacing:0}
+p{margin:0 0 14px}
+p:last-child{margin-bottom:0}
+.lede{font-size:16.5px;color:var(--text-dim);max-width:70ch}
+.mono{font-family:var(--mono);font-size:.88em}
+.dim{color:var(--text-dim)}
+
+/* ---------- HERO ---------- */
+.hero{position:relative;border-bottom:1px solid var(--rule);overflow:hidden}
+.hero-grid{position:absolute;inset:0;opacity:.55;
+  background-image:linear-gradient(var(--rule-soft) 1px,transparent 1px);background-size:100% 34px;
+  -webkit-mask-image:linear-gradient(180deg,#000,transparent 80%);mask-image:linear-gradient(180deg,#000,transparent 80%)}
+.hero-inner{position:relative;padding:52px 0 44px;display:grid;grid-template-columns:1fr;gap:34px}
+@media(min-width:960px){.hero-inner{grid-template-columns:1.04fr .96fr;align-items:center;padding:70px 0 58px}}
+.kicker{font-size:12.5px;color:var(--text-faint);margin:0 0 16px;font-family:var(--mono)}
+.hero h1{font-size:clamp(31px,5.4vw,52px);font-weight:700;letter-spacing:-.032em;line-height:1.05}
+.hero h1 em{font-style:normal;color:var(--text-faint);font-weight:300}
+.hero .lede{margin-top:18px;max-width:50ch;font-size:16.5px}
+.hero-meta{display:flex;flex-wrap:wrap;gap:7px;margin-top:24px}
+.pill{font-family:var(--mono);font-size:11.5px;padding:4px 9px;border-radius:var(--r);
+  border:1px solid var(--rule);color:var(--text-dim);background:var(--bg-panel)}
+
+/* ---------- HERO LANES ---------- */
+.lanes{background:var(--bg-sunk);border:1px solid var(--rule);border-radius:var(--r);padding:15px}
+.lanes-hd{display:flex;justify-content:space-between;align-items:baseline;gap:10px;
+  font-family:var(--mono);font-size:11px;color:var(--text-faint);margin-bottom:11px}
+.lane{position:relative;height:21px;margin-bottom:6px;background:#0D131C;border-radius:2px;overflow:hidden}
+.lane:last-of-type{margin-bottom:0}
+.lane-tag{position:absolute;left:6px;top:3px;font-family:var(--mono);font-size:10px;color:#3F4D68;z-index:2}
+.slot{position:absolute;top:3px;height:15px;border-radius:2px;font-family:var(--mono);font-size:9.5px;
+  display:flex;align-items:center;justify-content:center;color:#0B1017;font-weight:600;overflow:hidden;
+  transition:left .4s cubic-bezier(.4,0,.2,1),width .4s cubic-bezier(.4,0,.2,1),opacity .25s}
+.slot.run{background:var(--new)}
+.slot.block{background:var(--old)}
+.lanes-foot{margin-top:12px;padding-top:11px;border-top:1px solid var(--rule-soft);
+  display:flex;gap:16px;font-family:var(--mono);font-size:10.5px;color:var(--text-faint);flex-wrap:wrap}
+.lanes-foot b{color:var(--new);font-weight:500}
+.lanes-foot .amb{color:var(--old);font-weight:500}
+
+/* ---------- NAV ---------- */
+.nav{position:sticky;top:0;z-index:60;background:rgba(15,21,32,.94);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--rule)}
+.nav-in{display:flex;gap:0;overflow-x:auto;scrollbar-width:none;padding:0 22px;max-width:var(--w);margin:0 auto}
+.nav-in::-webkit-scrollbar{display:none}
+.nav a{flex:0 0 auto;padding:13px 11px;font-size:13px;color:var(--text-faint);
+  border-bottom:2px solid transparent;white-space:nowrap;font-weight:500}
+.nav a:hover{color:var(--text)}
+.nav a.on{color:var(--new);border-bottom-color:var(--new)}
+
+/* ---------- SECTIONS ---------- */
+section{padding:60px 0;border-bottom:1px solid var(--rule-soft)}
+.sec-hd{margin-bottom:32px;max-width:76ch}
+.sec-hd h2{margin-bottom:12px}
+.sec-no{font-family:var(--mono);font-size:12px;color:var(--text-faint);display:block;margin-bottom:10px}
+
+/* ---------- PROBLEM / SOLUTION ---------- */
+.topic{margin-bottom:54px;scroll-margin-top:74px}
+.topic:last-child{margin-bottom:0}
+.topic-hd{display:flex;gap:13px;align-items:flex-start;margin-bottom:19px;padding-bottom:15px;border-bottom:1px solid var(--rule)}
+.topic-no{font-family:var(--mono);font-size:12.5px;color:var(--text-faint);padding-top:5px;flex:0 0 auto}
+.topic-hd h3{margin-bottom:5px}
+.topic-hd p{font-size:14.5px;color:var(--text-dim);margin:0}
+.split{display:grid;gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:var(--r);overflow:hidden}
+@media(min-width:880px){.split{grid-template-columns:1fr 1fr}}
+.pane{background:var(--bg-panel);padding:20px 20px 22px;position:relative}
+.pane::before{content:"";position:absolute;left:0;top:0;bottom:0;width:3px}
+.pane.prob::before{background:var(--old)}
+.pane.sol::before{background:var(--new)}
+.pane-lbl{font-family:var(--mono);font-size:11px;margin-bottom:13px}
+.pane.prob .pane-lbl{color:var(--old)}
+.pane.sol .pane-lbl{color:var(--new)}
+.pane h4{margin-bottom:9px}
+.pane ul{margin:11px 0 0;padding-left:0;list-style:none}
+.pane li{position:relative;padding-left:17px;margin-bottom:9px;font-size:14.5px;color:var(--text-dim);line-height:1.55}
+.pane li:last-child{margin-bottom:0}
+.pane li::before{content:"";position:absolute;left:0;top:10px;width:7px;height:1px;background:#4A5871}
+.pane li b{color:var(--text);font-weight:600}
+.pane p{font-size:14.5px;color:var(--text-dim)}
+.hing{display:block;color:var(--text-faint);font-size:13.5px;border-left:2px solid var(--rule);
+  padding-left:11px;margin-top:13px;line-height:1.55;font-style:italic}
+.hing b{color:var(--text-dim);font-weight:500;font-style:normal}
+
+/* ---------- CODE ---------- */
+.code{background:var(--bg-sunk);border:1px solid var(--rule);border-radius:var(--r);margin:18px 0 0;overflow:hidden}
+.code-hd{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 14px;
+  border-bottom:1px solid var(--rule);font-family:var(--mono);font-size:11px;color:var(--text-faint);flex-wrap:wrap}
+.code-hd .fname{color:var(--text-dim)}
+.tag{padding:2px 7px;border-radius:2px;border:1px solid currentColor;font-size:10px;white-space:nowrap}
+.t-old{color:var(--old)}
+.t-new{color:var(--new)}
+.t-bad{color:var(--warn)}
+.code ol{margin:0;padding:11px 0;list-style:none;counter-reset:ln;overflow-x:auto;
+  font-family:var(--mono);font-size:12.6px;line-height:1.74}
+.code li{counter-increment:ln;white-space:pre;padding:0 30px 0 0;position:relative;min-height:21px}
+.code li::before{content:counter(ln);display:inline-block;width:40px;padding-right:13px;
+  text-align:right;color:#37445E;font-size:11px;user-select:none}
+.code li.nl{cursor:pointer}
+.code li.nl:hover{background:#131C29}
+.code li.nl::after{content:"?";position:absolute;right:9px;top:2px;width:15px;height:15px;line-height:14px;
+  text-align:center;border-radius:50%;border:1px solid var(--rule);color:var(--text-faint);
+  font-size:10px;font-family:var(--sans);font-weight:600}
+.code li.nl.open::after{content:"\2212";background:var(--new);color:#0B1017;border-color:var(--new)}
+.code li.nl.open{background:#131C29}
+.code li.nrow{white-space:normal;background:#101A27;border-left:2px solid var(--new);
+  margin:6px 14px 9px 40px;padding:11px 14px;font-family:var(--sans);font-size:13.5px;
+  color:var(--text-dim);line-height:1.55;border-radius:2px;min-height:0;cursor:default;
+  counter-increment:none;max-width:min(660px,calc(100vw - 96px));position:sticky;left:40px}
+.code li.nrow::before{content:none;display:none;width:0;padding:0}
+.code li.nrow::after{content:none;display:none}
+.code li.nrow b{color:var(--text)}
+.code li.nrow .hin{display:block;margin-top:6px;color:var(--text-faint);font-size:13px;font-style:italic}
+.hint{padding:9px 16px 3px 53px;font-size:12.5px;color:var(--text-faint)}
+.k{color:#82A8FF}.s{color:#E9A340}.c{color:#4B5A76;font-style:italic}
+.a{color:#3FD2AE}.n{color:#C994EC}.t{color:#93DBFF}
+
+/* ---------- TRADEOFF ---------- */
+.trade{display:grid;gap:1px;background:var(--rule);border:1px solid var(--rule);
+  border-radius:var(--r);margin-top:18px;overflow:hidden}
+@media(min-width:780px){.trade{grid-template-columns:repeat(3,1fr)}}
+.tcell{background:var(--bg-panel);padding:14px 16px}
+.tcell h5{margin:0 0 7px;font-size:11.5px;font-family:var(--mono);font-weight:500}
+.tcell p{font-size:13.5px;color:var(--text-dim);margin:0;line-height:1.52}
+.t-apply h5{color:var(--new)}
+.t-skip h5{color:var(--text-faint)}
+.t-care h5{color:var(--warn)}
+
+/* ---------- TABLE ---------- */
+.tbl-scroll{overflow-x:auto;border:1px solid var(--rule);border-radius:var(--r);-webkit-overflow-scrolling:touch}
+table{width:100%;border-collapse:collapse;font-size:13.8px;min-width:640px}
+th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--rule-soft);vertical-align:top}
+th{background:var(--bg-sunk);font-family:var(--mono);font-size:11px;font-weight:500;color:var(--text-faint);white-space:nowrap}
+td{color:var(--text-dim);line-height:1.5}
+td b{color:var(--text);font-weight:600}
+tbody tr:last-child td{border-bottom:none}
+.v-yes{color:var(--new);font-weight:500}
+.v-no{color:var(--text-faint)}
+.v-care{color:var(--warn);font-weight:500}
+
+/* ---------- CALLOUT ---------- */
+.call{border:1px solid var(--rule);border-left:3px solid var(--warn);background:var(--warn-sunk);
+  border-radius:var(--r);padding:15px 17px;margin-top:18px}
+.call h4{font-size:13.5px;margin-bottom:7px;color:var(--warn)}
+.call p{font-size:14px;color:var(--text-dim);margin-bottom:8px}
+.call ul{margin:9px 0 0;padding-left:0;list-style:none}
+.call li{position:relative;padding-left:16px;margin-bottom:7px;font-size:13.8px;color:var(--text-dim)}
+.call li::before{content:"";position:absolute;left:0;top:10px;width:6px;height:1px;background:#4A5871}
+.call.ok{border-left-color:var(--new);background:var(--new-sunk)}
+.call.ok h4{color:var(--new)}
+.call.info{border-left-color:var(--heap);background:var(--heap-sunk)}
+.call.info h4{color:var(--heap)}
+
+/* ---------- HLD / LLD BOARD ---------- */
+.board{background:var(--bg-sunk);border:1px solid var(--rule);border-radius:var(--r);padding:20px;overflow-x:auto}
+.board svg{display:block;min-width:660px;margin:0 auto}
+.legend{display:flex;flex-wrap:wrap;gap:16px;margin-top:16px;padding-top:14px;border-top:1px solid var(--rule-soft);
+  font-family:var(--mono);font-size:11px;color:var(--text-faint)}
+.legend span{display:flex;align-items:center;gap:6px}
+.legend i{width:10px;height:10px;border-radius:2px;display:inline-block}
+
+/* ---------- ANIMATION LAB ---------- */
+.lab{background:var(--bg-sunk);border:1px solid var(--rule);border-radius:var(--r);overflow:hidden}
+.lab-tabs{display:flex;border-bottom:1px solid var(--rule);overflow-x:auto;scrollbar-width:none}
+.lab-tabs::-webkit-scrollbar{display:none}
+.lab-tabs button{flex:0 0 auto;background:none;border:none;border-bottom:2px solid transparent;
+  color:var(--text-faint);padding:13px 17px;font-size:13.5px;font-weight:500;cursor:pointer;white-space:nowrap}
+.lab-tabs button:hover{color:var(--text)}
+.lab-tabs button[aria-selected="true"]{color:var(--new);border-bottom-color:var(--new)}
+.lab-body{padding:20px}
+.lab-panel[hidden]{display:none}
+
+/* stage */
+.stage{position:relative;background:#0A0F16;border:1px solid var(--rule-soft);border-radius:var(--r);
+  padding:14px;min-height:330px;overflow:hidden}
+.zones{display:grid;grid-template-columns:1fr;gap:11px}
+@media(min-width:820px){.zones{grid-template-columns:.85fr 1.35fr .95fr}}
+.zone{border:1px dashed var(--rule);border-radius:var(--r);padding:9px;min-height:96px;position:relative}
+.zone-t{font-family:var(--mono);font-size:10px;color:var(--text-faint);margin-bottom:6px;display:block}
+.zone.z-carrier{border-style:solid;border-color:var(--rule)}
+.zone.z-heap{border-color:#2B3360}
+.zone.z-heap .zone-t{color:var(--heap)}
+.zone.z-ready{border-color:#4A3A1C}
+.zone.z-ready .zone-t{color:var(--old)}
+.carrier{background:#0E1520;border:1px solid var(--rule-soft);border-radius:2px;height:30px;
+  margin-bottom:6px;position:relative;display:flex;align-items:center;padding-left:8px}
+.carrier:last-child{margin-bottom:0}
+.carrier-lbl{font-family:var(--mono);font-size:9.5px;color:#41506C}
+.chips{position:absolute;inset:0;pointer-events:none}
+.chip{position:absolute;width:44px;height:20px;border-radius:2px;font-family:var(--mono);font-size:9.5px;
+  font-weight:600;display:flex;align-items:center;justify-content:center;color:#0A0F16;background:var(--text-faint);
+  transition:transform .62s cubic-bezier(.45,.05,.2,1),background-color .3s,opacity .35s;will-change:transform}
+.chip.st-new{background:#54658A}
+.chip.st-run{background:var(--new)}
+.chip.st-park{background:var(--heap)}
+.chip.st-ready{background:var(--old)}
+.chip.st-done{background:#2E3B52;color:#8797B3;opacity:.55}
+.chip.st-block{background:var(--old)}
+@media(prefers-reduced-motion:reduce){.chip{transition:none}.slot{transition:none}}
+
+.narr{margin-top:14px;background:var(--bg-panel);border:1px solid var(--rule);border-radius:var(--r);padding:15px 17px;min-height:112px}
+.narr-step{font-family:var(--mono);font-size:10.5px;color:var(--new);margin-bottom:7px}
+.narr h4{margin-bottom:8px;font-size:15.5px}
+.narr p{font-size:14px;color:var(--text-dim);margin-bottom:7px}
+.narr .hin{color:var(--text-faint);font-size:13.5px;font-style:italic;margin-bottom:0}
+.ctrls{display:flex;gap:8px;align-items:center;margin-top:13px;flex-wrap:wrap}
+.btn{background:var(--bg-panel);border:1px solid var(--rule);color:var(--text);padding:8px 15px;
+  border-radius:var(--r);font-size:13.5px;cursor:pointer;font-weight:500}
+.btn:hover:not(:disabled){border-color:var(--new);color:var(--new)}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn.primary{background:var(--new);border-color:var(--new);color:#08110F;font-weight:600}
+.btn.primary:hover{filter:brightness(1.08);color:#08110F}
+.prog{flex:1;min-width:110px;height:3px;background:var(--rule);border-radius:2px;overflow:hidden}
+.prog i{display:block;height:100%;background:var(--new);width:0;transition:width .4s}
+.step-count{font-family:var(--mono);font-size:11.5px;color:var(--text-faint)}
+
+/* simulator */
+.sim-grid{display:grid;gap:18px}
+@media(min-width:860px){.sim-grid{grid-template-columns:290px 1fr}}
+.sim-ctrl{background:var(--bg-panel);border:1px solid var(--rule);border-radius:var(--r);padding:16px}
+.fld{margin-bottom:15px}
+.fld:last-of-type{margin-bottom:18px}
+.fld label{display:flex;justify-content:space-between;align-items:baseline;gap:8px;
+  font-size:12.5px;color:var(--text-dim);margin-bottom:7px}
+.fld label b{font-family:var(--mono);font-size:12.5px;color:var(--new);font-weight:500}
+input[type=range]{width:100%;-webkit-appearance:none;appearance:none;height:3px;background:var(--rule);
+  border-radius:2px;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;border-radius:50%;
+  background:var(--new);cursor:pointer;border:2px solid var(--bg-sunk)}
+input[type=range]::-moz-range-thumb{width:13px;height:13px;border-radius:50%;background:var(--new);
+  cursor:pointer;border:2px solid var(--bg-sunk)}
+.res-grid{display:grid;gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:var(--r);overflow:hidden}
+@media(min-width:560px){.res-grid{grid-template-columns:1fr 1fr}}
+.res{background:var(--bg-panel);padding:16px 17px}
+.res-hd{font-family:var(--mono);font-size:11px;margin-bottom:13px;padding-bottom:9px;border-bottom:1px solid var(--rule-soft)}
+.res.r17 .res-hd{color:var(--old)}
+.res.r21 .res-hd{color:var(--new)}
+.big{font-size:30px;font-weight:600;letter-spacing:-.02em;line-height:1;margin-bottom:3px;font-variant-numeric:tabular-nums}
+.res.r17 .big{color:var(--old)}
+.res.r21 .big{color:var(--new)}
+.big-lbl{font-size:11.5px;color:var(--text-faint);font-family:var(--mono);margin-bottom:14px;display:block}
+.kv{display:flex;justify-content:space-between;gap:10px;font-size:12.5px;padding:5px 0;border-bottom:1px solid var(--rule-soft)}
+.kv:last-child{border-bottom:none}
+.kv span{color:var(--text-faint)}
+.kv b{font-family:var(--mono);font-weight:500;color:var(--text-dim);font-variant-numeric:tabular-nums}
+.bar{height:8px;background:#0B1017;border-radius:2px;overflow:hidden;margin:12px 0 14px}
+.bar i{display:block;height:100%;width:0;transition:width .25s linear}
+.res.r17 .bar i{background:var(--old)}
+.res.r21 .bar i{background:var(--new)}
+.verdict{margin-top:16px;background:var(--bg-panel);border:1px solid var(--rule);border-left:3px solid var(--new);
+  border-radius:var(--r);padding:14px 16px;font-size:14px;color:var(--text-dim);line-height:1.55}
+.verdict b{color:var(--text)}
+
+/* ---------- MOCK Q&A ---------- */
+.filters{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:20px}
+.chip-btn{background:var(--bg-panel);border:1px solid var(--rule);color:var(--text-dim);
+  padding:6px 13px;border-radius:14px;font-size:12.5px;cursor:pointer;font-weight:500}
+.chip-btn:hover{color:var(--text);border-color:#3A4A68}
+.chip-btn[aria-pressed="true"]{background:var(--new);border-color:var(--new);color:#08110F;font-weight:600}
+.qa{border:1px solid var(--rule);border-radius:var(--r);overflow:hidden}
+.qa-item{border-bottom:1px solid var(--rule)}
+.qa-item:last-child{border-bottom:none}
+.qa-item[hidden]{display:none}
+.qa-q{width:100%;background:var(--bg-panel);border:none;text-align:left;padding:15px 44px 15px 17px;
+  cursor:pointer;color:var(--text);font-size:14.8px;font-weight:500;line-height:1.45;position:relative;display:block}
+.qa-q:hover{background:#18202E}
+.qa-q::after{content:"+";position:absolute;right:16px;top:14px;color:var(--text-faint);font-size:17px;font-weight:400}
+.qa-item.open .qa-q::after{content:"\2212";color:var(--new)}
+.lvl{display:inline-block;font-family:var(--mono);font-size:10px;padding:2px 7px;border-radius:2px;
+  margin-right:9px;vertical-align:2px;border:1px solid currentColor}
+.lvl.l1{color:var(--new)}
+.lvl.l2{color:var(--old)}
+.lvl.l3{color:var(--warn)}
+.qa-a{display:none;padding:2px 17px 18px;background:var(--bg-sunk);border-top:1px solid var(--rule-soft)}
+.qa-item.open .qa-a{display:block}
+.qa-a p{font-size:14.2px;color:var(--text-dim);margin:14px 0 0}
+.qa-a p:first-child{margin-top:14px}
+.qa-a .say{border-left:2px solid var(--new);padding:10px 13px;background:var(--new-sunk);
+  border-radius:2px;margin-top:14px;font-size:14px;color:var(--text-dim);line-height:1.58}
+.qa-a .say b{color:var(--new);display:block;font-family:var(--mono);font-size:10.5px;margin-bottom:6px;font-weight:500}
+.qa-a .trap{border-left:2px solid var(--warn);padding:10px 13px;background:var(--warn-sunk);
+  border-radius:2px;margin-top:12px;font-size:13.8px;color:var(--text-dim)}
+.qa-a .trap b{color:var(--warn);display:block;font-family:var(--mono);font-size:10.5px;margin-bottom:6px;font-weight:500}
+.qa-a code{font-family:var(--mono);font-size:12.5px;background:#0E1520;padding:1px 5px;border-radius:2px;color:var(--new)}
+.qa-a ul{margin:12px 0 0;padding-left:0;list-style:none}
+.qa-a li{position:relative;padding-left:17px;margin-bottom:8px;font-size:14px;color:var(--text-dim)}
+.qa-a li::before{content:"";position:absolute;left:0;top:10px;width:7px;height:1px;background:#4A5871}
+
+/* ---------- FOOTER ---------- */
+footer{padding:44px 0 60px;color:var(--text-faint);font-size:13.5px}
+footer p{max-width:72ch}
+footer b{color:var(--text-dim);font-weight:500}
+.corr{margin-top:20px;border:1px solid var(--rule);border-radius:var(--r);overflow:hidden}
+.corr-hd{background:var(--bg-sunk);padding:11px 15px;font-family:var(--mono);font-size:11px;color:var(--warn);border-bottom:1px solid var(--rule)}
+.corr ul{margin:0;padding:14px 16px;list-style:none}
+.corr li{position:relative;padding-left:17px;margin-bottom:10px;font-size:13.5px;color:var(--text-dim);line-height:1.5}
+.corr li:last-child{margin-bottom:0}
+.corr li::before{content:"";position:absolute;left:0;top:10px;width:7px;height:1px;background:var(--warn)}
+.corr li b{color:var(--text)}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="hero-grid"></div>
+  <div class="wrap hero-inner">
+    <div>
+      <p class="kicker">Migration playbook &middot; Spring Boot 3.2+ &middot; Kafka &middot; Kubernetes</p>
+      <h1>The thread stopped<br>waiting. <em>Your server<br>stopped scaling out.</em></h1>
+      <p class="lede">Java 21 ne thread ka wait hataya, capacity nahi badhayi. Yeh page har topic ko do hisso mein todta hai &mdash; left mein <strong>problem</strong>, right mein <strong>solution</strong> &mdash; with real code, tradeoffs, aur wo cross-questions jo interview mein actually poochhe jaate hain.</p>
+      <div class="hero-meta">
+        <span class="pill">9 topics</span>
+        <span class="pill">HLD + LLD</span>
+        <span class="pill">Annotated code</span>
+        <span class="pill">16 mock Q&amp;A</span>
+        <span class="pill">Live simulator</span>
+      </div>
+    </div>
+    <div class="lanes" id="heroLanes">
+      <div class="lanes-hd"><span>carrier threads &middot; 4 cores</span><span id="heroMode">java 21 &middot; virtual</span></div>
+      <div class="lane"><span class="lane-tag">CT-0</span></div>
+      <div class="lane"><span class="lane-tag">CT-1</span></div>
+      <div class="lane"><span class="lane-tag">CT-2</span></div>
+      <div class="lane"><span class="lane-tag">CT-3</span></div>
+      <div class="lanes-foot">
+        <span>done <b id="heroDone">0</b></span>
+        <span>parked on heap <b id="heroPark">0</b></span>
+        <span class="amb" id="heroNote">carrier free during I/O</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav class="nav" aria-label="Sections">
+  <div class="nav-in" id="navIn">
+    <a href="#hld">HLD</a>
+    <a href="#lld">LLD</a>
+    <a href="#topics">Problem / Solution</a>
+    <a href="#matrix">Tradeoff matrix</a>
+    <a href="#lab">Animation lab</a>
+    <a href="#numbers">Numbers to defend</a>
+    <a href="#mock">Mock Q&amp;A</a>
+  </div>
+</nav>
+
+<main class="wrap">
+
+<!-- ================= HLD ================= -->
+<section id="hld">
+  <div class="sec-hd">
+    <span class="sec-no">01 &mdash; High level design</span>
+    <h2>What the system looks like from 10,000 feet</h2>
+    <p class="lede">Same architecture, same boxes, same code shape. The only thing that changes is <strong>who holds the OS thread while a box waits for another box</strong>. Yehi ek line poore migration ka summary hai &mdash; aur yehi HLD ka pehla answer hona chahiye.</p>
+  </div>
+
+  <div class="board">
+    <svg viewBox="0 0 920 400" role="img" aria-label="High level architecture: clients to ingress to pods, each pod running a JVM with carrier threads, virtual threads on heap, talking to Postgres and Kafka">
+      <defs>
+        <marker id="ah" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+          <path d="M0,0 L9,4.5 L0,9 Z" fill="#65748E"/>
+        </marker>
+        <marker id="ahT" markerWidth="9" markerHeight="9" refX="8" refY="4.5" orient="auto">
+          <path d="M0,0 L9,4.5 L0,9 Z" fill="#3FD2AE"/>
+        </marker>
+      </defs>
+      <g font-family="IBM Plex Mono, monospace" font-size="11">
+
+        <!-- clients -->
+        <rect x="12" y="150" width="112" height="72" rx="3" fill="#151D2A" stroke="#26334A"/>
+        <text x="68" y="178" fill="#DCE4F0" text-anchor="middle" font-size="12">Clients</text>
+        <text x="68" y="196" fill="#65748E" text-anchor="middle" font-size="10">REST &middot; 12k rps peak</text>
+
+        <line x1="126" y1="186" x2="168" y2="186" stroke="#65748E" marker-end="url(#ah)"/>
+
+        <!-- ingress -->
+        <rect x="170" y="150" width="96" height="72" rx="3" fill="#151D2A" stroke="#26334A"/>
+        <text x="218" y="178" fill="#DCE4F0" text-anchor="middle" font-size="12">Ingress</text>
+        <text x="218" y="196" fill="#65748E" text-anchor="middle" font-size="10">+ HPA signal</text>
+
+        <line x1="268" y1="186" x2="308" y2="140" stroke="#65748E" marker-end="url(#ah)"/>
+        <line x1="268" y1="186" x2="308" y2="232" stroke="#65748E" marker-end="url(#ah)"/>
+
+        <!-- pod 1 (expanded) -->
+        <rect x="310" y="40" width="286" height="192" rx="3" fill="#0B1017" stroke="#3FD2AE" stroke-dasharray="3 3"/>
+        <text x="322" y="60" fill="#3FD2AE" font-size="10">pod-1 &middot; jvm &middot; 1 GiB limit</text>
+
+        <rect x="324" y="72" width="122" height="70" rx="2" fill="#0F2A26" stroke="#3FD2AE" stroke-opacity=".5"/>
+        <text x="385" y="92" fill="#3FD2AE" text-anchor="middle" font-size="10.5">heap</text>
+        <text x="385" y="108" fill="#93A3BC" text-anchor="middle" font-size="9.5">virtual thread</text>
+        <text x="385" y="121" fill="#93A3BC" text-anchor="middle" font-size="9.5">stacks live here</text>
+        <text x="385" y="134" fill="#65748E" text-anchor="middle" font-size="9">~1&ndash;10 KB each</text>
+
+        <rect x="458" y="72" width="124" height="70" rx="2" fill="#151D2A" stroke="#26334A"/>
+        <text x="520" y="92" fill="#DCE4F0" text-anchor="middle" font-size="10.5">ForkJoinPool</text>
+        <text x="520" y="108" fill="#93A3BC" text-anchor="middle" font-size="9.5">4 carrier threads</text>
+        <text x="520" y="121" fill="#93A3BC" text-anchor="middle" font-size="9.5">= availableProcessors</text>
+        <text x="520" y="134" fill="#65748E" text-anchor="middle" font-size="9">mount / unmount</text>
+
+        <path d="M446 100 L458 100" stroke="#3FD2AE" marker-end="url(#ahT)"/>
+        <path d="M458 118 L446 118" stroke="#3FD2AE" marker-end="url(#ahT)"/>
+
+        <rect x="324" y="154" width="258" height="62" rx="2" fill="#151D2A" stroke="#26334A"/>
+        <text x="336" y="172" fill="#DCE4F0" font-size="10.5">bounded resources &mdash; the real ceiling</text>
+        <text x="336" y="189" fill="#E9A340" font-size="9.5">HikariCP 30 conns</text>
+        <text x="336" y="204" fill="#E9A340" font-size="9.5">Kafka 5 partitions &middot; http client pool 50</text>
+
+        <!-- pod 2 -->
+        <rect x="310" y="246" width="286" height="56" rx="3" fill="#0B1017" stroke="#26334A" stroke-dasharray="3 3"/>
+        <text x="322" y="266" fill="#65748E" font-size="10">pod-2 &middot; identical &middot; kept for HA, not for capacity</text>
+        <text x="322" y="286" fill="#93A3BC" font-size="9.5">5 pods &rarr; 2 pods: redundancy hi ab pod count decide karta hai</text>
+
+        <line x1="598" y1="136" x2="656" y2="110" stroke="#65748E" marker-end="url(#ah)"/>
+        <line x1="598" y1="150" x2="656" y2="196" stroke="#65748E" marker-end="url(#ah)"/>
+
+        <!-- downstream -->
+        <rect x="658" y="72" width="150" height="76" rx="3" fill="#151D2A" stroke="#E9A340" stroke-opacity=".45"/>
+        <text x="733" y="98" fill="#E9A340" text-anchor="middle" font-size="12">PostgreSQL</text>
+        <text x="733" y="116" fill="#93A3BC" text-anchor="middle" font-size="9.5">max_connections 200</text>
+        <text x="733" y="132" fill="#65748E" text-anchor="middle" font-size="9">the new bottleneck</text>
+
+        <rect x="658" y="162" width="150" height="76" rx="3" fill="#151D2A" stroke="#E9A340" stroke-opacity=".45"/>
+        <text x="733" y="188" fill="#E9A340" text-anchor="middle" font-size="12">Kafka</text>
+        <text x="733" y="206" fill="#93A3BC" text-anchor="middle" font-size="9.5">orders &middot; 5 partitions</text>
+        <text x="733" y="222" fill="#65748E" text-anchor="middle" font-size="9">order is per partition</text>
+
+        <!-- annotation -->
+        <rect x="12" y="272" width="254" height="96" rx="3" fill="#181E3A" stroke="#8494FA" stroke-opacity=".4"/>
+        <text x="26" y="294" fill="#8494FA" font-size="10">the only real change</text>
+        <text x="26" y="314" fill="#DCE4F0" font-size="10.5">Blocking call ab OS thread</text>
+        <text x="26" y="330" fill="#DCE4F0" font-size="10.5">hold nahi karti. Wo heap par</text>
+        <text x="26" y="346" fill="#DCE4F0" font-size="10.5">park hoti hai, carrier free.</text>
+        <text x="26" y="362" fill="#65748E" font-size="9.5">Downstream limits unchanged.</text>
+
+        <rect x="658" y="272" width="250" height="96" rx="3" fill="#2B1720" stroke="#FF6E80" stroke-opacity=".4"/>
+        <text x="672" y="294" fill="#FF6E80" font-size="10">what does NOT change</text>
+        <text x="672" y="314" fill="#DCE4F0" font-size="10.5">DB query latency &middot; pool size</text>
+        <text x="672" y="330" fill="#DCE4F0" font-size="10.5">Partition count &middot; message order</text>
+        <text x="672" y="346" fill="#DCE4F0" font-size="10.5">CPU-bound work ka time</text>
+        <text x="672" y="362" fill="#65748E" font-size="9.5">Queue shifts, it never vanishes.</text>
+      </g>
+    </svg>
+  </div>
+  <div class="legend">
+    <span><i style="background:#3FD2AE"></i>virtual thread / heap</span>
+    <span><i style="background:#E9A340"></i>bounded resource</span>
+    <span><i style="background:#FF6E80"></i>unchanged by migration</span>
+    <span><i style="background:#8494FA"></i>the actual delta</span>
+  </div>
+
+  <div class="call info">
+    <h4>HLD answer you can say out loud</h4>
+    <p>&ldquo;Architecture identical rahi &mdash; same services, same DB, same Kafka topology. Humne sirf execution model badla: thread-per-request ab OS thread ke bajaye heap-allocated virtual thread par chalta hai. Isse admission capacity badhi, lekin service capacity utni hi rahi, kyunki wo DB connection pool aur partition count se bandhi hai. Isliye migration ka half kaam Java upgrade tha, aur baaki half downstream limits ko re-tune karna tha.&rdquo;</p>
+  </div>
+</section>
+
+<!-- ================= LLD ================= -->
+<section id="lld">
+  <div class="sec-hd">
+    <span class="sec-no">02 &mdash; Low level design</span>
+    <h2>What actually happens inside the JVM</h2>
+    <p class="lede">Interview mein HLD sabko aata hai. Difference LLD par banta hai: continuation, stack chunk, scheduler, aur unmount ka exact trigger. Yeh section un chaar cheezon ko line by line kholta hai.</p>
+  </div>
+
+  <div class="board">
+    <svg viewBox="0 0 920 340" role="img" aria-label="Low level design: virtual thread lifecycle through mount, run, unmount to heap, ready queue and remount">
+      <g font-family="IBM Plex Mono, monospace" font-size="11">
+        <!-- lifecycle rail -->
+        <line x1="60" y1="60" x2="860" y2="60" stroke="#26334A" stroke-width="1"/>
+
+        <g>
+          <circle cx="80" cy="60" r="5" fill="#54658A"/>
+          <text x="80" y="44" fill="#93A3BC" text-anchor="middle" font-size="10">NEW</text>
+          <text x="80" y="86" fill="#65748E" text-anchor="middle" font-size="9">Thread object</text>
+          <text x="80" y="99" fill="#65748E" text-anchor="middle" font-size="9">on heap</text>
+        </g>
+        <g>
+          <circle cx="240" cy="60" r="5" fill="#3FD2AE"/>
+          <text x="240" y="44" fill="#3FD2AE" text-anchor="middle" font-size="10">MOUNTED</text>
+          <text x="240" y="86" fill="#65748E" text-anchor="middle" font-size="9">frames copied onto</text>
+          <text x="240" y="99" fill="#65748E" text-anchor="middle" font-size="9">carrier&rsquo;s real stack</text>
+        </g>
+        <g>
+          <circle cx="420" cy="60" r="5" fill="#8494FA"/>
+          <text x="420" y="44" fill="#8494FA" text-anchor="middle" font-size="10">UNMOUNTED</text>
+          <text x="420" y="86" fill="#65748E" text-anchor="middle" font-size="9">Continuation.yield()</text>
+          <text x="420" y="99" fill="#65748E" text-anchor="middle" font-size="9">stack chunk &rarr; heap</text>
+        </g>
+        <g>
+          <circle cx="600" cy="60" r="5" fill="#E9A340"/>
+          <text x="600" y="44" fill="#E9A340" text-anchor="middle" font-size="10">RUNNABLE</text>
+          <text x="600" y="86" fill="#65748E" text-anchor="middle" font-size="9">I/O done &rarr; submitted</text>
+          <text x="600" y="99" fill="#65748E" text-anchor="middle" font-size="9">to FJP queue</text>
+        </g>
+        <g>
+          <circle cx="780" cy="60" r="5" fill="#3FD2AE"/>
+          <text x="780" y="44" fill="#3FD2AE" text-anchor="middle" font-size="10">REMOUNTED</text>
+          <text x="780" y="86" fill="#65748E" text-anchor="middle" font-size="9">any free carrier,</text>
+          <text x="780" y="99" fill="#65748E" text-anchor="middle" font-size="9">not the original one</text>
+        </g>
+
+        <path d="M600 60 Q510 8 420 60" fill="none" stroke="#26334A" stroke-dasharray="2 3"/>
+        <text x="510" y="20" fill="#4B5A76" text-anchor="middle" font-size="9">loop per blocking call</text>
+
+        <!-- three mechanism boxes -->
+        <rect x="20" y="130" width="286" height="186" rx="3" fill="#151D2A" stroke="#26334A"/>
+        <text x="36" y="152" fill="#DCE4F0" font-size="11.5">1 &middot; Continuation</text>
+        <text x="36" y="174" fill="#93A3BC" font-size="9.5">Virtual thread = Runnable + Continuation.</text>
+        <text x="36" y="190" fill="#93A3BC" font-size="9.5">yield() poore stack ko freeze karke</text>
+        <text x="36" y="206" fill="#93A3BC" font-size="9.5">heap par StackChunk object bana deta hai.</text>
+        <text x="36" y="228" fill="#65748E" font-size="9.5">run() usi jagah se resume karta hai &mdash;</text>
+        <text x="36" y="244" fill="#65748E" font-size="9.5">program counter, locals, sab wapas.</text>
+        <text x="36" y="272" fill="#3FD2AE" font-size="9.5">Isliye aapka code imperative dikhta hai</text>
+        <text x="36" y="288" fill="#3FD2AE" font-size="9.5">par behave async karta hai. Compiler ne</text>
+        <text x="36" y="304" fill="#3FD2AE" font-size="9.5">kuch rewrite nahi kiya &mdash; JVM ne kiya.</text>
+
+        <rect x="318" y="130" width="286" height="186" rx="3" fill="#151D2A" stroke="#26334A"/>
+        <text x="334" y="152" fill="#DCE4F0" font-size="11.5">2 &middot; Scheduler</text>
+        <text x="334" y="174" fill="#93A3BC" font-size="9.5">Default: dedicated ForkJoinPool,</text>
+        <text x="334" y="190" fill="#93A3BC" font-size="9.5">FIFO mode, parallelism =</text>
+        <text x="334" y="206" fill="#93A3BC" font-size="9.5">Runtime.availableProcessors().</text>
+        <text x="334" y="228" fill="#65748E" font-size="9.5">jdk.virtualThreadScheduler.parallelism</text>
+        <text x="334" y="244" fill="#65748E" font-size="9.5">jdk.virtualThreadScheduler.maxPoolSize</text>
+        <text x="334" y="260" fill="#65748E" font-size="9.5">(default max 256)</text>
+        <text x="334" y="288" fill="#FF6E80" font-size="9.5">No priority. setPriority() silently</text>
+        <text x="334" y="304" fill="#FF6E80" font-size="9.5">ignored &mdash; always NORM_PRIORITY.</text>
+
+        <rect x="616" y="130" width="286" height="186" rx="3" fill="#151D2A" stroke="#26334A"/>
+        <text x="632" y="152" fill="#DCE4F0" font-size="11.5">3 &middot; Unmount triggers</text>
+        <text x="632" y="174" fill="#3FD2AE" font-size="9.5">Yields (good): socket read/write,</text>
+        <text x="632" y="190" fill="#3FD2AE" font-size="9.5">Thread.sleep, BlockingQueue,</text>
+        <text x="632" y="206" fill="#3FD2AE" font-size="9.5">ReentrantLock, CompletableFuture.get</text>
+        <text x="632" y="228" fill="#FF6E80" font-size="9.5">Pins (bad): synchronized + blocking,</text>
+        <text x="632" y="244" fill="#FF6E80" font-size="9.5">native / JNI frames, class init</text>
+        <text x="632" y="272" fill="#65748E" font-size="9.5">File I/O still blocks the carrier on</text>
+        <text x="632" y="288" fill="#65748E" font-size="9.5">most platforms &mdash; it is offloaded,</text>
+        <text x="632" y="304" fill="#65748E" font-size="9.5">not truly async. Logging par asar.</text>
+      </g>
+    </svg>
+  </div>
+
+  <div class="call ok">
+    <h4>LLD answer you can say out loud</h4>
+    <p>&ldquo;Ek virtual thread JVM ke liye ek Runnable plus ek Continuation hai. Jab blocking call aati hai, JDK internally <span class="mono">Continuation.yield()</span> call karta hai &mdash; carrier ke native stack se frames uthakar heap par StackChunk objects ki form mein save kar diye jaate hain, aur carrier turant doosra virtual thread le leta hai. I/O complete hone par thread wapas scheduler ki FIFO queue mein submit hota hai aur kisi bhi free carrier par remount ho jata hai. Isliye <span class="mono">Thread.currentThread()</span> same rehta hai lekin carrier badal sakta hai &mdash; aur isliye thread identity par based caching ab galat assumption hai.&rdquo;</p>
+  </div>
+</section>
+
+<!-- ================= TOPICS ================= -->
+<section id="topics">
+  <div class="sec-hd">
+    <span class="sec-no">03 &mdash; Problem / Solution, topic by topic</span>
+    <h2>Left side breaks. Right side fixes it.</h2>
+    <p class="lede">Har topic ka structure same hai: Java 17 mein kya toota, Java 21 mein kya karna hai, uske baad annotated code (numbered line par click karo &mdash; explanation khulega), aur last mein teen-column tradeoff: <strong>apply</strong>, <strong>skip</strong>, <strong>watch out</strong>.</p>
+  </div>
+
+  <!-- ---------- T1 ---------- -->
+  <article class="topic" id="t1">
+    <div class="topic-hd">
+      <span class="topic-no">T1</span>
+      <div>
+        <h3>Where the stack lives</h3>
+        <p>Platform thread ka stack OS ke paas tha. Virtual thread ka stack heap par hai. Baaki sab isi ek fact se nikalta hai.</p>
+      </div>
+    </div>
+    <div class="split">
+      <div class="pane prob">
+        <div class="pane-lbl">problem &middot; java 17</div>
+        <h4>1 Java thread = 1 OS thread, forever</h4>
+        <ul>
+          <li>Har thread ke liye OS <b>1 MB stack reserve</b> karta hai (<span class="mono">-Xss</span> default). Reserve virtual memory hai, commit lazy hota hai &mdash; par reservation address space aur container accounting dono kha jaata hai.</li>
+          <li>Thread create karna <b>syscall</b> hai. ~1 ms tak lag sakta hai. Isliye pooling majboori thi.</li>
+          <li>Blocking call par OS thread <b>park</b> ho jaata hai. CPU 8% par, threads 100% exhausted &mdash; yeh classic Java 17 graph hai.</li>
+          <li>Context switch kernel mode mein hota hai: register save, TLB pressure, scheduler run-queue churn.</li>
+        </ul>
+        <span class="hing"><b>Hinglish:</b> thread mahanga tha, isliye hum use gin-gin kar kharch karte the. Aur jab wo DB ka wait karta tha, to wo poora 1 MB aur ek OS slot leke baitha rehta tha &mdash; kaam kuch nahi.</span>
+      </div>
+      <div class="pane sol">
+        <div class="pane-lbl">solution &middot; java 21</div>
+        <h4>Stack heap par, carrier OS ke paas</h4>
+        <ul>
+          <li>Virtual thread ka stack <b>StackChunk objects</b> ki form mein heap par rehta hai &mdash; deep call chain par grow, return par shrink.</li>
+          <li>Create karna <b>object allocation</b> hai, syscall nahi. Microseconds.</li>
+          <li>Blocking call par stack heap par save, carrier free. Kernel involve hi nahi hota.</li>
+          <li>Thread khatam &rarr; <b>GC</b> use collect kar leta hai. Koi explicit cleanup nahi.</li>
+        </ul>
+        <span class="hing"><b>Hinglish:</b> ab thread ek normal Java object hai. Sasta hai, isliye har request ke liye naya bana sakte ho aur baad mein fenk sakte ho &mdash; pool ki zaroorat khatam.</span>
+      </div>
+    </div>
+
+    <div class="code">
+      <div class="code-hd"><span class="fname">ThreadFootprintDemo.java</span><span class="tag t-new">java 21</span></div>
+      <ol>
+        <li>public final class ThreadFootprintDemo {</li>
+        <li></li>
+        <li class="nl" data-n="<b>startVirtualThread</b> ek unstarted Thread nahi, seedha chalu thread deta hai. Yahan 100k threads banana bilkul normal hai &mdash; yehi poora point hai.<span class='hin'>Java 17 mein yeh line 100k OS threads maangti aur OutOfMemoryError: unable to create native thread milta.</span>">    public void spawnHundredThousandParkedThreads() throws InterruptedException {</li>
+        <li>        var latch = new CountDownLatch(100_000);</li>
+        <li></li>
+        <li>        for (int i = 0; i &lt; 100_000; i++) {</li>
+        <li class="nl" data-n="Har iteration ek naya virtual thread banata hai. Cost = ek object allocation. Koi pool, koi queue, koi reuse nahi.">            Thread.startVirtualThread(() -&gt; {</li>
+        <li class="nl" data-n="<b>Yahi unmount trigger hai.</b> sleep() JDK ke andar Continuation.yield() call karta hai &mdash; stack heap par chala jaata hai, carrier turant free.<span class='hin'>Is ek second mein 100k threads zinda hain, par OS threads sirf CPU core ke barabar.</span>">                sleepQuietlyForOneSecond();</li>
+        <li>                latch.countDown();</li>
+        <li>            });</li>
+        <li>        }</li>
+        <li class="nl" data-n="Main thread yahan block hota hai. Agar main bhi virtual thread hota to yeh bhi unmount ho jaata &mdash; blocking ab free hai.">        latch.await();</li>
+        <li>    }</li>
+        <li></li>
+        <li class="nl" data-n="Method ka naam batata hai ki interrupt ko swallow kiya ja raha hai. Naming se intent visible hona chahiye &mdash; review mein yeh pakda jaata hai.">    private void sleepQuietlyForOneSecond() {</li>
+        <li>        try {</li>
+        <li>            Thread.sleep(Duration.ofSeconds(1));</li>
+        <li>        } catch (InterruptedException e) {</li>
+        <li class="nl" data-n="Interrupt flag restore karna zaroori hai. Virtual threads ke saath cancellation ka poora mechanism interrupt par hi chalta hai &mdash; flag kha gaye to shutdown hang karega.">            Thread.currentThread().interrupt();</li>
+        <li>        }</li>
+        <li>    }</li>
+        <li>}</li>
+      </ol>
+      <p class="hint">Numbered lines with a marker are clickable.</p>
+    </div>
+
+    <div class="trade">
+      <div class="tcell t-apply"><h5>apply when</h5><p>Workload I/O-bound hai aur aap already thread-per-request model par ho. Yahi 90% microservices hain.</p></div>
+      <div class="tcell t-skip"><h5>skip when</h5><p>Kaam CPU-bound hai. Virtual threads wait hataate hain, compute nahi. 4 cores 4 hi rahenge.</p></div>
+      <div class="tcell t-care"><h5>watch out</h5><p>Deep call stacks (Hibernate + AOP + security chain) ka heap footprint 1&ndash;10 KB hota hai, &ldquo;200 bytes&rdquo; nahi. Heap sizing usi hisaab se karo.</p></div>
+    </div>
+  </article>
+
+  <!-- ---------- T2 ---------- -->
+  <article class="topic" id="t2">
+    <div class="topic-hd">
+      <span class="topic-no">T2</span>
+      <div>
+        <h3>Executors: pool ab anti-pattern hai</h3>
+        <p>ExecutorService abhi bhi chahiye. Fixed thread pool ab nahi chahiye &mdash; aur wo actively nuksan karta hai.</p>
+      </div>
+    </div>
+    <div class="split">
+      <div class="pane prob">
+        <div class="pane-lbl">problem &middot; java 17</div>
+        <h4>Pool size = permanent guess</h4>
+        <ul>
+          <li><span class="mono">newFixedThreadPool(20)</span> ek <b>concurrency limit</b> hai jo aapne resource cost ki wajah se lagayi thi, business reason se nahi.</li>
+          <li>21st task queue mein baithta hai. Latency tab tak dikhti nahi jab tak queue lamba na ho jaaye &mdash; P99 suddenly cliff karti hai.</li>
+          <li>Pool app ke poore lifetime tak RAM aur OS threads hold karta hai, chaahe traffic zero ho.</li>
+          <li>Nested pools = deadlock. Pool A ka task pool B ka wait kare aur B full ho &rarr; system freeze.</li>
+        </ul>
+        <span class="hing"><b>Hinglish:</b> pool ek permanent dhakkan tha. Usse throughput control nahi hota tha, bas queue chhupti thi.</span>
+      </div>
+      <div class="pane sol">
+        <div class="pane-lbl">solution &middot; java 21</div>
+        <h4>Per-task executor + explicit limit</h4>
+        <ul>
+          <li><span class="mono">newVirtualThreadPerTaskExecutor()</span> har task ke liye naya thread banata hai. Koi queue nahi, koi starvation nahi.</li>
+          <li><b>try-with-resources</b> par <span class="mono">close()</span> saare submitted tasks ke complete hone tak block karta hai.</li>
+          <li>Agar aapko limit chahiye, use <b>Semaphore</b> &mdash; ab limit business decision hai, thread cost nahi.</li>
+          <li>Virtual threads ko <b>kabhi pool mat karo</b>. Pooling ka matlab hai unhe mahanga maan lena.</li>
+        </ul>
+        <span class="hing"><b>Hinglish:</b> pehle thread mahanga tha isliye limit lagti thi. Ab thread sasta hai &mdash; limit sirf wahan lagao jahan downstream sach mein limited ho.</span>
+      </div>
+    </div>
+
+    <div class="code">
+      <div class="code-hd"><span class="fname">OutboundCallExecutor.java</span><span class="tag t-new">java 21</span><span class="tag t-bad">close() ka trap dekho</span></div>
+      <ol>
+        <li>public class OutboundCallExecutor {</li>
+        <li></li>
+        <li class="nl" data-n="Semaphore <b>downstream</b> ki capacity represent karta hai, JVM ki nahi. Payment gateway 40 concurrent allow karta hai &mdash; isliye 40. Yeh ab ek documented business constraint hai.">    private final Semaphore paymentGatewayPermits = new Semaphore(40);</li>
+        <li></li>
+        <li class="nl" data-n="Method ka naam poora contract bolta hai: batch process karega aur failures return karega &mdash; swallow nahi karega.">    public List&lt;String&gt; settleBatchAndReturnFailures(List&lt;Payment&gt; payments) {</li>
+        <li>        List&lt;Future&lt;String&gt;&gt; inFlight = new ArrayList&lt;&gt;();</li>
+        <li></li>
+        <li class="nl" data-n="Yeh executor <b>state-less</b> hai &mdash; ise field mein mat rakho. Method scope mein banao, method scope mein close karo. Zero idle cost.">        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {</li>
+        <li>            for (Payment payment : payments) {</li>
+        <li class="nl" data-n="submit() Future deta hai. <b>Yeh Future pakadna zaroori hai</b> &mdash; warna exception chup-chaap Future ke andar mar jaayegi aur aapko pata hi nahi chalega.">                inFlight.add(executor.submit(() -&gt; settleSinglePayment(payment)));</li>
+        <li>            }</li>
+        <li class="nl" data-n="close() yahan implicitly call hota hai aur <b>saare tasks ke khatam hone tak block karta hai</b>. Lekin &mdash; aur yahi asli trap hai &mdash; kisi task ki exception ko yeh throw NAHI karta.<span class='hin'>Isliye sirf try-with-resources par bharosa karke &lsquo;sab pass ho gaya&rsquo; maan lena galat hai.</span>">        }</li>
+        <li></li>
+        <li class="nl" data-n="Isliye har Future ko explicitly drain karna padta hai. Yahi wo step hai jo 90% blog posts mein missing hai &mdash; aur Kafka manual commit ke saath yeh data loss banta hai (T7 dekho).">        return collectFailureReasons(inFlight);</li>
+        <li>    }</li>
+        <li></li>
+        <li>    private List&lt;String&gt; collectFailureReasons(List&lt;Future&lt;String&gt;&gt; inFlight) {</li>
+        <li>        List&lt;String&gt; failures = new ArrayList&lt;&gt;();</li>
+        <li>        for (Future&lt;String&gt; future : inFlight) {</li>
+        <li>            try {</li>
+        <li class="nl" data-n="Tasks already complete hain (close() ne wait kiya), isliye get() yahan block nahi karega. Yeh sirf result ya exception nikaalne ke liye hai.">                future.get();</li>
+        <li>            } catch (ExecutionException e) {</li>
+        <li>                failures.add(e.getCause().getMessage());</li>
+        <li>            } catch (InterruptedException e) {</li>
+        <li>                Thread.currentThread().interrupt();</li>
+        <li>                break;</li>
+        <li>            }</li>
+        <li>        }</li>
+        <li>        return failures;</li>
+        <li>    }</li>
+        <li></li>
+        <li>    private String settleSinglePayment(Payment payment) throws InterruptedException {</li>
+        <li class="nl" data-n="acquire() ek blocking call hai jo virtual thread ko <b>unmount</b> kar deti hai &mdash; carrier block nahi hota. Isliye Semaphore yahan safe hai; synchronized nahi hota (T4).">        paymentGatewayPermits.acquire();</li>
+        <li>        try {</li>
+        <li>            return gatewayClient.charge(payment);</li>
+        <li>        } finally {</li>
+        <li class="nl" data-n="finally mein release &mdash; warna ek exception poore gateway ko permanently choke kar degi. Yeh classic production incident hai.">            paymentGatewayPermits.release();</li>
+        <li>        }</li>
+        <li>    }</li>
+        <li>}</li>
+      </ol>
+    </div>
+
+    <div class="trade">
+      <div class="tcell t-apply"><h5>apply when</h5><p>Fan-out kaam hai: N independent I/O calls, sab ka result chahiye. Per-task executor + Future drain.</p></div>
+      <div class="tcell t-skip"><h5>skip when</h5><p>Task purely CPU-bound hai. Wahan <span class="mono">newFixedThreadPool(cores)</span> ya parallel stream hi sahi hai &mdash; platform threads ke saath.</p></div>
+      <div class="tcell t-care"><h5>watch out</h5><p><span class="mono">close()</span> exception propagate nahi karta. Future drain kiye bina &ldquo;sab safal&rdquo; maan lena silent data loss hai.</p></div>
+    </div>
+  </article>
+
+  <!-- ---------- T3 ---------- -->
+  <article class="topic" id="t3">
+    <div class="topic-hd">
+      <span class="topic-no">T3</span>
+      <div>
+        <h3>Turning it on in Spring Boot</h3>
+        <p>Ek property. Lekin wo property kya-kya chhoo rahi hai, yeh pata hona interview ka asli sawal hai.</p>
+      </div>
+    </div>
+    <div class="split">
+      <div class="pane prob">
+        <div class="pane-lbl">problem &middot; before</div>
+        <h4>Tuning ke teen alag knobs</h4>
+        <ul>
+          <li><span class="mono">server.tomcat.threads.max=200</span> &mdash; HTTP capacity.</li>
+          <li>Custom <span class="mono">TaskExecutor</span> bean &mdash; <span class="mono">@Async</span> ke liye alag pool.</li>
+          <li><span class="mono">spring.kafka.listener.concurrency</span> &mdash; listener threads.</li>
+          <li>Teeno ko alag-alag guess karna padta tha, aur teeno galat set hone par alag symptom dete the.</li>
+        </ul>
+        <span class="hing"><b>Hinglish:</b> teen dials the, teeno ka rishta samajh nahi aata tha. Load test se number nikalte the, samajh se nahi.</span>
+      </div>
+      <div class="pane sol">
+        <div class="pane-lbl">solution &middot; boot 3.2+</div>
+        <h4>Ek flag, phir downstream tuning</h4>
+        <ul>
+          <li>Flag on karte hi Tomcat request handling, <span class="mono">@Async</span> executor, aur Kafka listener container &mdash; teeno virtual threads par shift ho jaate hain.</li>
+          <li>Ab <b>Tomcat thread max meaning kho deta hai</b>. Real limit heap aur downstream pools hain.</li>
+          <li>Requirement: <b>Java 21+ runtime</b> aur <b>Spring Boot 3.2+</b>. Boot 3.1 par property exist hi nahi karti.</li>
+          <li>Verify karo, maan mat lo: startup par thread name <span class="mono">VirtualThread[#42]</span> dikhna chahiye.</li>
+        </ul>
+        <span class="hing"><b>Hinglish:</b> flag on karna 5 minute ka kaam hai. Asli migration uske baad shuru hoti hai &mdash; T4 se T9 tak.</span>
+      </div>
+    </div>
+
+    <div class="code">
+      <div class="code-hd"><span class="fname">application.yml</span><span class="tag t-new">spring boot 3.2+</span></div>
+      <ol>
+        <li>spring:</li>
+        <li>  threads:</li>
+        <li class="nl" data-n="Yeh <b>ek</b> flag Tomcat, @Async, aur Kafka listener containers &mdash; teeno ko virtual threads par le jaata hai. Scheduling (@Scheduled) abhi bhi alag executor hai.">    virtual:</li>
+        <li>      enabled: true</li>
+        <li></li>
+        <li>  datasource:</li>
+        <li>    hikari:</li>
+        <li class="nl" data-n="Pool size <b>badhao mat</b> &mdash; pehle apne DB ka max_connections dekho. Virtual threads ke baad hazaron threads is 30 ke liye line lagayenge. Yahi naya bottleneck hai (T5).">      maximum-pool-size: 30</li>
+        <li class="nl" data-n="Yeh sabse important tuning hai. Pehle Tomcat ki 200-thread limit natural backpressure thi. Ab wo limit nahi hai, isliye connection-timeout hi aapka fail-fast mechanism ban jaata hai.">      connection-timeout: 3000</li>
+        <li>      leak-detection-threshold: 20000</li>
+        <li></li>
+        <li>  kafka:</li>
+        <li>    listener:</li>
+        <li class="nl" data-n="Batch mode yahan set hota hai &mdash; @KafkaListener par nahi. <b>@KafkaListener(batch = &quot;true&quot;) jaisa koi attribute exist hi nahi karta.</b> Yeh ek common galat blog claim hai.">      type: batch</li>
+        <li class="nl" data-n="Manual commit. Iske bina ack.acknowledge() call karne par IllegalStateException milegi.">      ack-mode: manual</li>
+        <li class="nl" data-n="Partitions ke barabar rakho, zyada mat. 5 partitions par concurrency 8 set karoge to 3 consumer threads permanently idle baithenge (T6).">      concurrency: 5</li>
+        <li></li>
+        <li>logging:</li>
+        <li>  pattern:</li>
+        <li class="nl" data-n="%X{traceId} &mdash; thread name ab disposable hai, isliye MDC hi aapka asli debugging handle hai (T8).">    console: &quot;%d{HH:mm:ss} [%thread] [%X{traceId}] %-5level %logger{28} - %msg%n&quot;</li>
+      </ol>
+    </div>
+
+    <div class="trade">
+      <div class="tcell t-apply"><h5>apply when</h5><p>Boot 3.2+ aur Java 21+ dono confirmed hain, aur aapne T4 (pinning) ka audit kar liya hai.</p></div>
+      <div class="tcell t-skip"><h5>skip when</h5><p>App already WebFlux par hai. Reactive stack ko virtual threads se milane ka koi fayda nahi &mdash; do concurrency models ek saath = confusion.</p></div>
+      <div class="tcell t-care"><h5>watch out</h5><p>Flag on karte hi ThreadLocal-heavy code aur <span class="mono">synchronized</span> blocks exposed ho jaate hain. Pehle audit, phir flag.</p></div>
+    </div>
+  </article>
+
+  <!-- ---------- T4 ---------- -->
+  <article class="topic" id="t4">
+    <div class="topic-hd">
+      <span class="topic-no">T4</span>
+      <div>
+        <h3>Thread pinning</h3>
+        <p>Wo ek word jo poore migration ka fayda chup-chaap kha jaata hai &mdash; aur jiska answer 2026 mein badal chuka hai.</p>
+      </div>
+    </div>
+    <div class="split">
+      <div class="pane prob">
+        <div class="pane-lbl">problem &middot; java 21</div>
+        <h4>synchronized + blocking = carrier stuck</h4>
+        <ul>
+          <li>Java 21 mein <span class="mono">synchronized</span> monitor ka ownership <b>carrier thread</b> se juda hota hai. Andar blocking call aayi to virtual thread unmount nahi kar sakta.</li>
+          <li>Ab wo carrier thread bhi block hai &mdash; yaani aapne Java 17 wali problem wapas bana di, bas ab wo <b>invisible</b> hai.</li>
+          <li>4 cores par 4 pinned threads = poora scheduler dead. FJP <span class="mono">maxPoolSize</span> (256) tak grow karega, lekin tab tak latency spike ho chuki hogi.</li>
+          <li>Sabse khatarnak jagah: aapka apna code nahi, <b>puraane JDBC drivers aur connection pools</b>.</li>
+        </ul>
+        <span class="hing"><b>Hinglish:</b> pinning ka sabse bura hissa yeh hai ki app crash nahi hoti. Wo bas dheere ho jaati hai, aur aapko lagta hai virtual threads kaam hi nahi karte.</span>
+      </div>
+      <div class="pane sol">
+        <div class="pane-lbl">solution</div>
+        <h4>ReentrantLock, drivers, aur Java 24+</h4>
+        <ul>
+          <li>Apne code mein <span class="mono">synchronized</span> &rarr; <b>ReentrantLock</b>. ReentrantLock virtual-thread-aware hai, wo yield karta hai.</li>
+          <li>Drivers upgrade karo. PostgreSQL 42.5.1+ aur HikariCP ke recent versions ne apne internal <span class="mono">synchronized</span> hata diye.</li>
+          <li>Detect karo: JFR event <span class="mono">jdk.VirtualThreadPinned</span>. Yeh production-safe hai.</li>
+          <li><b>2026 update:</b> <b>JEP 491 (Java 24)</b> ne <span class="mono">synchronized</span> ki pinning problem largely khatam kar di. Java 25 LTS par yeh ab mostly a non-issue hai &mdash; lekin <b>native/JNI frames</b> abhi bhi pin karte hain.</li>
+        </ul>
+        <span class="hing"><b>Hinglish:</b> agar aap aaj Java 21 par ho to lock replace karna zaroori hai. Agar Java 25 LTS par ja rahe ho, to yeh problem bahut had tak apne aap solve ho jaati hai &mdash; aur interview mein yeh bolna aapko alag dikhata hai.</span>
+      </div>
+    </div>
+
+    <div class="code">
+      <div class="code-hd"><span class="fname">InventoryReservationService.java</span><span class="tag t-bad">before &mdash; pins the carrier</span></div>
+      <ol>
+        <li>public class InventoryReservationService {</li>
+        <li></li>
+        <li class="nl" data-n="Intent sahi hai: ek SKU par ek waqt mein ek hi reservation. Problem implementation hai.">    private final Object skuLock = new Object();</li>
+        <li></li>
+        <li>    public boolean reserveStock(String sku, int qty) {</li>
+        <li class="nl" data-n="<b>Yahan se pinning shuru.</b> Java 21 mein synchronized block ke andar virtual thread unmount nahi kar sakta.">        synchronized (skuLock) {</li>
+        <li class="nl" data-n="Yeh call 40 ms leti hai. Poore 40 ms ke liye ek carrier thread (yaani ek CPU core ka scheduler slot) mara gaya. 4 cores par 4 aise calls = zero throughput.">            int available = inventoryRepository.findAvailableQty(sku);</li>
+        <li>            if (available &lt; qty) return false;</li>
+        <li>            inventoryRepository.decrementQty(sku, qty);</li>
+        <li>            return true;</li>
+        <li>        }</li>
+        <li>    }</li>
+        <li>}</li>
+      </ol>
+    </div>
+
+    <div class="code">
+      <div class="code-hd"><span class="fname">InventoryReservationService.java</span><span class="tag t-new">after &mdash; yields correctly</span></div>
+      <ol>
+        <li>public class InventoryReservationService {</li>
+        <li></li>
+        <li class="nl" data-n="ReentrantLock ke lock() ke andar blocking call aane par virtual thread <b>unmount</b> ho jaata hai. Carrier free &mdash; behaviour semantically same, scheduling behaviour completely different.">    private final ReentrantLock skuLock = new ReentrantLock();</li>
+        <li></li>
+        <li class="nl" data-n="Naam bolta hai ki yeh timeout ke saath try karega aur boolean dega &mdash; caller ko pata hai ki false ka matlab &lsquo;lock nahi mila&rsquo; bhi ho sakta hai.">    public boolean reserveStockOrTimeout(String sku, int qty) throws InterruptedException {</li>
+        <li class="nl" data-n="tryLock with timeout &mdash; unbounded wait se bachne ke liye. Hazaron virtual threads ek hi lock ke peeche lag sakte hain, isliye timeout ab pehle se zyada zaroori hai.">        if (!skuLock.tryLock(2, TimeUnit.SECONDS)) {</li>
+        <li>            return false;</li>
+        <li>        }</li>
+        <li>        try {</li>
+        <li>            return applyReservationIfAvailable(sku, qty);</li>
+        <li>        } finally {</li>
+        <li class="nl" data-n="ReentrantLock ke saath unlock <b>aapki zimmedari</b> hai &mdash; synchronized ki tarah automatic nahi. finally block optional nahi hai.">            skuLock.unlock();</li>
+        <li>        }</li>
+        <li>    }</li>
+        <li></li>
+        <li class="nl" data-n="Lock ke andar ka kaam alag method mein nikala &mdash; lock scope chhota aur readable rehta hai, aur is method ko test karna aasan ho jaata hai.">    private boolean applyReservationIfAvailable(String sku, int qty) {</li>
+        <li>        int available = inventoryRepository.findAvailableQty(sku);</li>
+        <li>        if (available &lt; qty) return false;</li>
+        <li>        inventoryRepository.decrementQty(sku, qty);</li>
+        <li>        return true;</li>
+        <li>    }</li>
+        <li>}</li>
+      </ol>
+    </div>
+
+    <div class="code">
+      <div class="code-hd"><span class="fname">detect pinning in production</span><span class="tag t-new">jfr</span></div>
+      <ol>
+        <li class="nl" data-n="JFR default profile pinning events record karta hai. Yeh production-safe hai &mdash; overhead ~1% se kam.">jcmd &lt;pid&gt; JFR.start name=vt settings=profile duration=120s filename=vt.jfr</li>
+        <li></li>
+        <li class="nl" data-n="Is event ka har record ek pinned moment hai, uske stack trace ke saath. Wahi stack aapko batayega kis library ne pin kiya.">jfr summary vt.jfr | grep VirtualThreadPinned</li>
+        <li></li>
+        <li class="nl" data-n="Yeh saare virtual threads ka dump deta hai, JSON mein. jstack virtual threads nahi dikhata &mdash; yeh naya tool seekhna padta hai.">jcmd &lt;pid&gt; Thread.dump_to_file -format=json vt-dump.json</li>
+      </ol>
+    </div>
+
+    <div class="trade">
+      <div class="tcell t-apply"><h5>apply when</h5><p>Java 21 par ho. Lock replacement + driver upgrade non-negotiable hai, warna migration ka fayda zero.</p></div>
+      <div class="tcell t-skip"><h5>skip when</h5><p>Java 24/25 par ho <em>aur</em> koi native/JNI blocking nahi hai. JEP 491 ne yeh largely handle kar diya.</p></div>
+      <div class="tcell t-care"><h5>watch out</h5><p>3rd-party libraries jinka source aap nahi badal sakte. Unhe alag platform-thread executor par offload karo.</p></div>
+    </div>
+  </article>
+
+  <!-- ---------- T5 ---------- -->
+  <article class="topic" id="t5">
+    <div class="topic-hd">
+      <span class="topic-no">T5</span>
+      <div>
+        <h3>The bottleneck just moved</h3>
+        <p>Virtual threads ne queue delete nahi ki. Usse Tomcat se uthakar HikariCP par rakh diya.</p>
+      </div>
+    </div>
+    <div class="split">
+      <div class="pane prob">
+        <div class="pane-lbl">problem &middot; after enabling</div>
+        <h4>Backpressure gayab ho gaya</h4>
+        <ul>
+          <li>Java 17 mein Tomcat ki 200-thread limit ek <b>accidental rate limiter</b> thi. Usne aapke DB ko bachaya hua tha.</li>
+          <li>Flag on karte hi 10,000 requests andar aa gayin, aur sab 30 connections ke liye line mein khadi hain.</li>
+          <li>Symptom badal jaata hai: pehle &ldquo;connection refused&rdquo; aata tha, ab <span class="mono">SQLTransientConnectionException: timeout after 30000ms</span> aata hai &mdash; 10,000 baar.</li>
+          <li>Client side par timeouts aur retries &rarr; load aur badhta hai &rarr; <b>retry storm</b>.</li>
+        </ul>
+        <span class="hing"><b>Hinglish:</b> aapne darwaza chauda kar diya, kamra utna hi bada hai. Bheed ab andar hai, bahar nahi &mdash; aur andar ki bheed zyada khatarnak hai.</span>
+      </div>
+      <div class="pane sol">
+        <div class="pane-lbl">solution</div>
+        <h4>Backpressure ab explicit banao</h4>
+        <ul>
+          <li>Pool size formula se nikaalo: <span class="mono">connections &asymp; cores &times; 2 + effective_spindles</span>. Blindly badhana DB ko maar dega.</li>
+          <li><span class="mono">connection-timeout</span> chhota karo (2&ndash;3 s). <b>Fail fast, queue mat karo.</b></li>
+          <li>Entry par <b>Semaphore</b> ya bulkhead lagao &mdash; jitne DB connections hain, utni hi concurrent requests andar aane do.</li>
+          <li>DB-bound endpoints par <b>rate limit</b> lagao. Ab yeh optional nahi hai.</li>
+        </ul>
+        <span class="hing"><b>Hinglish:</b> pehle limit accidental thi, ab aapko jaan-boojh kar lagani padegi. Yeh migration ka sabse bada &mdash; aur sabse zyada ignore kiya jaane wala &mdash; kaam hai.</span>
+      </div>
+    </div>
+
+    <div class="code">
+      <div class="code-hd"><span class="fname">DatabaseBulkheadFilter.java</span><span class="tag t-new">explicit backpressure</span></div>
+      <ol>
+        <li>@Component</li>
+        <li>public class DatabaseBulkheadFilter extends OncePerRequestFilter {</li>
+        <li></li>
+        <li class="nl" data-n="Permits = Hikari pool size + thoda headroom. Yeh number aapke DB se aata hai, aapke traffic se nahi. Isse zyada andar bhejne ka koi fayda nahi &mdash; wo sirf Hikari ki queue mein jaakar timeout hoga.">    private final Semaphore dbBoundPermits = new Semaphore(35);</li>
+        <li></li>
+        <li>    @Override</li>
+        <li>    protected void doFilterInternal(HttpServletRequest request,</li>
+        <li>                                    HttpServletResponse response,</li>
+        <li>                                    FilterChain chain) throws IOException, ServletException {</li>
+        <li></li>
+        <li class="nl" data-n="Sirf DB-heavy paths par bulkhead. Health checks aur cached endpoints ko block karna galat hoga &mdash; wo DB use hi nahi karte.">        if (!isDatabaseBoundPath(request.getRequestURI())) {</li>
+        <li>            chain.doFilter(request, response);</li>
+        <li>            return;</li>
+        <li>        }</li>
+        <li></li>
+        <li class="nl" data-n="<b>tryAcquire with timeout</b> &mdash; acquire() nahi. Hum 200 ms se zyada wait nahi karenge. Iske aage wait karna client ka time barbaad karna hai.">        if (!tryAcquirePermitQuietly(200)) {</li>
+        <li class="nl" data-n="503 + Retry-After. Yeh honest signal hai: &lsquo;abhi capacity nahi hai, baad mein aana&rsquo;. Timeout par 500 dene se client ko pata nahi chalta ki retry karna chahiye ya nahi.">            respondWithServiceUnavailable(response);</li>
+        <li>            return;</li>
+        <li>        }</li>
+        <li>        try {</li>
+        <li>            chain.doFilter(request, response);</li>
+        <li>        } finally {</li>
+        <li>            dbBoundPermits.release();</li>
+        <li>        }</li>
+        <li>    }</li>
+        <li></li>
+        <li>    private boolean tryAcquirePermitQuietly(long waitMillis) {</li>
+        <li>        try {</li>
+        <li class="nl" data-n="Yeh blocking call virtual thread ko unmount kar deti hai &mdash; 200 ms wait karne mein koi OS thread barbaad nahi hoti. Java 17 mein yeh filter hi ek bottleneck ban jaata.">            return dbBoundPermits.tryAcquire(waitMillis, TimeUnit.MILLISECONDS);</li>
+        <li>        } catch (InterruptedException e) {</li>
+        <li>            Thread.currentThread().interrupt();</li>
+        <li>            return false;</li>
+        <li>        }</li>
+        <li>    }</li>
+        <li></li>
+        <li>    private void respondWithServiceUnavailable(HttpServletResponse response) throws IOException {</li>
+        <li>        response.setStatus(HttpServletResponse.SC_SERVICE_UNAVAILABLE);</li>
+        <li>        response.setHeader(&quot;Retry-After&quot;, &quot;1&quot;);</li>
+        <li>        response.getWriter().write(&quot;{\&quot;error\&quot;:\&quot;db_capacity_exhausted\&quot;}&quot;);</li>
+        <li>    }</li>
+        <li></li>
+        <li>    private boolean isDatabaseBoundPath(String uri) {</li>
+        <li>        return uri.startsWith(&quot;/api/orders&quot;) || uri.startsWith(&quot;/api/inventory&quot;);</li>
+        <li>    }</li>
+        <li>}</li>
+      </ol>
+    </div>
+
+    <div class="trade">
+      <div class="tcell t-apply"><h5>apply when</h5><p>Koi bhi endpoint jo shared bounded resource (DB, gateway, legacy SOAP) chhoo raha ho. Bulkhead mandatory hai.</p></div>
+      <div class="tcell t-skip"><h5>skip when</h5><p>Endpoint pure in-memory ya cache-served hai. Wahan bulkhead sirf artificial latency add karega.</p></div>
+      <div class="tcell t-care"><h5>watch out</h5><p>Pool size badhana tempting hai. DB par 500 connections matlab context switching aur lock contention &mdash; throughput girta hai, badhta nahi.</p></div>
+    </div>
+  </article>
+
+  <!-- ---------- T6 ---------- -->
+  <article class="topic" id="t6">
+    <div class="topic-hd">
+      <span class="topic-no">T6</span>
+      <div>
+        <h3>Kafka: partitions, concurrency, ordering</h3>
+        <p>5 pods se 2 pods &mdash; ho sakta hai. Lekin ordering ka jo guarantee tha, wo chup-chaap toot sakta hai.</p>
+      </div>
+    </div>
+    <div class="split">
+      <div class="pane prob">
+        <div class="pane-lbl">problem</div>
+        <h4>Partition count aapki asli concurrency hai</h4>
+        <ul>
+          <li>Kafka rule: ek consumer group mein <b>ek partition = ek consumer</b>. Virtual threads is rule ko nahi badal sakte.</li>
+          <li>5 partitions par <span class="mono">concurrency: 8</span> set karne se 3 threads permanently <b>idle</b> rehte hain.</li>
+          <li>Agar aap ek partition ke messages ko fan out karke parallel process karte ho, to <b>per-key ordering toot jaati hai</b>. <span class="mono">order-created</span> aur <span class="mono">order-cancelled</span> ulte order mein apply ho sakte hain.</li>
+          <li>Poll loop aage bhaag gaya aur processing peeche &rarr; <span class="mono">max.poll.interval.ms</span> cross &rarr; <b>rebalance storm</b>.</li>
+        </ul>
+        <span class="hing"><b>Hinglish:</b> parallel processing se speed milti hai, par correctness ki keemat par. Aur Kafka mein correctness wapas laana bahut mehnga padta hai.</span>
+      </div>
+      <div class="pane sol">
+        <div class="pane-lbl">solution</div>
+        <h4>Key ke andar sequence, keys ke beech parallel</h4>
+        <ul>
+          <li>Batch uthao, use <b>message key se group</b> karo, har group ko ek virtual thread do.</li>
+          <li>Ek group ke andar messages <b>sequentially</b> chalenge &rarr; per-key ordering bachi rahi.</li>
+          <li>Alag keys parallel chalenge &rarr; throughput mila.</li>
+          <li>Pods ab <b>HA ke liye</b> rakho, capacity ke liye nahi. 5 partitions &rarr; 2 pods &times; concurrency 3 = 6 threads, ek pod gira to baaki sambhal lega.</li>
+        </ul>
+        <span class="hing"><b>Hinglish:</b> yeh wo jawab hai jo interviewer sunna chahta hai. &lsquo;Virtual threads se parallel kar diya&rsquo; adhoora hai &mdash; &lsquo;key ke hisaab se parallel kiya&rsquo; poora hai.</span>
+      </div>
+    </div>
+
+    <div class="code">
+      <div class="code-hd"><span class="fname">OrderEventConsumer.java</span><span class="tag t-new">ordering-safe fan-out</span></div>
+      <ol>
+        <li>@Component</li>
+        <li>public class OrderEventConsumer {</li>
+        <li></li>
+        <li class="nl" data-n="concurrency = partition count. Isse zyada set karna sirf idle threads banata hai &mdash; Kafka unhe kaam nahi dega.">    @KafkaListener(topics = &quot;orders&quot;, groupId = &quot;order-svc&quot;, concurrency = &quot;5&quot;)</li>
+        <li class="nl" data-n="Batch listener signature: List of ConsumerRecord + Acknowledgment. Yeh tabhi kaam karega jab yml mein <b>listener.type: batch</b> set ho &mdash; annotation par nahi.">    public void consumeOrderBatch(List&lt;ConsumerRecord&lt;String, String&gt;&gt; records,</li>
+        <li>                                  Acknowledgment acknowledgment) {</li>
+        <li></li>
+        <li class="nl" data-n="<b>Yahi poore design ka core hai.</b> Same key ke saare records ek hi list mein. Ab har list sequential chalegi, par alag lists parallel.">        Map&lt;String, List&lt;ConsumerRecord&lt;String, String&gt;&gt;&gt; recordsByKey =</li>
+        <li>                records.stream().collect(groupingBy(ConsumerRecord::key));</li>
+        <li></li>
+        <li>        List&lt;Future&lt;?&gt;&gt; inFlight = new ArrayList&lt;&gt;();</li>
+        <li></li>
+        <li class="nl" data-n="Har <b>key group</b> ke liye ek virtual thread &mdash; har <b>message</b> ke liye nahi. Yeh ek line ordering guarantee bachati hai.">        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {</li>
+        <li>            for (var keyGroup : recordsByKey.values()) {</li>
+        <li>                inFlight.add(executor.submit(() -&gt; processKeyGroupInOrder(keyGroup)));</li>
+        <li>            }</li>
+        <li>        }</li>
+        <li></li>
+        <li class="nl" data-n="Commit tabhi jab har group safal ho. Yeh method boolean deta hai, exception swallow nahi karta &mdash; poora logic T7 mein.">        if (allTasksSucceeded(inFlight)) {</li>
+        <li>            acknowledgment.acknowledge();</li>
+        <li>        } else {</li>
+        <li class="nl" data-n="nack() se Kafka batch ko dobara deliver karega. Isliye aapka processing <b>idempotent</b> hona chahiye &mdash; yeh at-least-once delivery hai.">            acknowledgment.nack(Duration.ofSeconds(2));</li>
+        <li>        }</li>
+        <li>    }</li>
+        <li></li>
+        <li class="nl" data-n="Method ka naam hi contract hai: &lsquo;InOrder&rsquo; batata hai ki yeh loop parallel nahi ho sakta. Koi future developer ise parallelStream() se replace karega to naam use rokega.">    private void processKeyGroupInOrder(List&lt;ConsumerRecord&lt;String, String&gt;&gt; keyGroup) {</li>
+        <li>        for (ConsumerRecord&lt;String, String&gt; record : keyGroup) {</li>
+        <li>            orderProjectionWriter.applyEvent(record.value());</li>
+        <li>        }</li>
+        <li>    }</li>
+        <li>}</li>
+      </ol>
+    </div>
+
+    <div class="call">
+      <h4>Do not say this in an interview</h4>
+      <p>&ldquo;Virtual threads se hum 5 partitions ko 5000 threads se consume kar sakte hain.&rdquo; &mdash; Yeh galat hai. Partition count hi consumer parallelism ka hard limit hai. Virtual threads sirf <em>ek partition ke andar</em> processing parallelize karne mein madad karte hain, aur wo bhi ordering ki keemat par.</p>
+      <p>Sahi line: <span class="mono">&ldquo;Consumer parallelism partitions se bandha hai. Virtual threads ne per-partition processing throughput badhaya, consumer count nahi.&rdquo;</span></p>
+    </div>
+
+    <div class="trade">
+      <div class="tcell t-apply"><h5>apply when</h5><p>Messages ka natural key hai (orderId, userId) aur ordering sirf key ke andar chahiye. Yeh 80% event streams hain.</p></div>
+      <div class="tcell t-skip"><h5>skip when</h5><p>Poore partition ka strict global order chahiye, ya processing already fast hai (&lt;5 ms). Wahan fan-out sirf complexity hai.</p></div>
+      <div class="tcell t-care"><h5>watch out</h5><p>Hot key: agar 90% messages ek hi key ke hain to fan-out ka koi fayda nahi. Wahan partitioning strategy hi galat hai.</p></div>
+    </div>
+  </article>
+
+  <!-- ---------- T7 ---------- -->
+  <article class="topic" id="t7">
+    <div class="topic-hd">
+      <span class="topic-no">T7</span>
+      <div>
+        <h3>@Async + manual commit = silent data loss</h3>
+        <p>Yeh poore page ka sabse important section hai. Code compile hota hai, test pass hote hain, aur production mein messages gayab ho jaate hain.</p>
+      </div>
+    </div>
+    <div class="split">
+      <div class="pane prob">
+        <div class="pane-lbl">problem &middot; two ways to lose data</div>
+        <h4>Commit aur completion ka rishta toot jaata hai</h4>
+        <ul>
+          <li><b>Trap 1 &mdash; commit too early.</b> Listener ne <span class="mono">@Async</span> method call kiya aur turant <span class="mono">ack.acknowledge()</span> kar diya. Background thread fail hua &rarr; offset commit ho chuka hai &rarr; <b>message gaya</b>.</li>
+          <li><b>Trap 2 &mdash; commit out of order.</b> <span class="mono">@Async</span> method ke andar ack kiya. Message 2 pehle khatam hua, usne offset 2 commit kiya. Message 1 fail ho gaya. Kafka ke liye 1 bhi ho chuka hai &rarr; <b>message gaya</b>.</li>
+          <li><b>Trap 3 &mdash; the quiet one.</b> try-with-resources use kiya, lekin Future drain nahi kiya. <span class="mono">close()</span> wait to karta hai, par task ki exception <b>throw nahi karta</b>. catch block chala hi nahi, ack ho gaya &rarr; <b>message gaya</b>.</li>
+        </ul>
+        <span class="hing"><b>Hinglish:</b> teeno cases mein log clean dikhte hain, alert nahi bajta, aur consumer lag zero rehta hai. Pata tab chalta hai jab koi customer bolta hai &lsquo;mera order update nahi hua&rsquo;.</span>
+      </div>
+      <div class="pane sol">
+        <div class="pane-lbl">solution</div>
+        <h4>Listener thread hi commit karega, verify ke baad</h4>
+        <ul>
+          <li>Kafka listener par <span class="mono">@Async</span> <b>mat lagao</b>. Virtual threads ke saath uska koi fayda nahi, sirf risk hai.</li>
+          <li>Fan-out per-task executor se karo, <b>Future collect karo</b>, aur har Future par <span class="mono">get()</span> karke verify karo.</li>
+          <li>Ack <b>sirf listener thread</b> karega, tab jab sab confirmed ho. Ek bhi fail &rarr; nack aur replay.</li>
+          <li>Processing <b>idempotent</b> banao &mdash; replay hone par duplicate side-effect nahi hona chahiye.</li>
+        </ul>
+        <span class="hing"><b>Hinglish:</b> rule simple hai &mdash; jo thread commit karta hai, usi ko pata hona chahiye ki kaam sach mein hua ya nahi. @Async yeh rishta tod deta hai.</span>
+      </div>
+    </div>
+
+    <div class="code">
+      <div class="code-hd"><span class="fname">PaymentEventConsumer.java</span><span class="tag t-bad">wrong &mdash; compiles, loses data</span></div>
+      <ol>
+        <li>@KafkaListener(topics = &quot;payments&quot;, groupId = &quot;pay-svc&quot;)</li>
+        <li>public void consumePayment(String message, Acknowledgment ack) {</li>
+        <li></li>
+        <li class="nl" data-n="@Async turant return karta hai. Listener thread ko bilkul pata nahi ki background mein kya ho raha hai &mdash; yeh fire-and-forget hai.">    paymentProcessor.processAsync(message);</li>
+        <li></li>
+        <li class="nl" data-n="<b>Offset commit ho gaya.</b> Agar upar wali processing 2 second baad DB deadlock se fail hoti hai, to koi retry nahi hoga &mdash; Kafka ke liye yeh message deliver ho chuka hai.<span class='hin'>Aur worst part: pod restart hone par bhi wapas nahi aayega.</span>">    ack.acknowledge();</li>
+        <li>}</li>
+      </ol>
+    </div>
+
+    <div class="code">
+      <div class="code-hd"><span class="fname">PaymentEventConsumer.java</span><span class="tag t-new">right &mdash; commit only after verified completion</span></div>
+      <ol>
+        <li>@Component</li>
+        <li>public class PaymentEventConsumer {</li>
+        <li></li>
+        <li>    private static final Logger log = LoggerFactory.getLogger(PaymentEventConsumer.class);</li>
+        <li></li>
+        <li>    @KafkaListener(topics = &quot;payments&quot;, groupId = &quot;pay-svc&quot;, concurrency = &quot;3&quot;)</li>
+        <li class="nl" data-n="<b>Koi @Async nahi.</b> Listener thread hi is poore method ka maalik hai &mdash; wo shuru se aakhir tak yahin rahega.">    public void consumePaymentBatch(List&lt;ConsumerRecord&lt;String, String&gt;&gt; records,</li>
+        <li>                                    Acknowledgment acknowledgment) {</li>
+        <li></li>
+        <li>        List&lt;Future&lt;Void&gt;&gt; inFlight = new ArrayList&lt;&gt;(records.size());</li>
+        <li></li>
+        <li>        try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {</li>
+        <li>            for (ConsumerRecord&lt;String, String&gt; record : records) {</li>
+        <li class="nl" data-n="Har submit ka Future list mein. Yeh list hi aapka proof hai ki kya hua &mdash; iske bina aap andhere mein commit kar rahe ho.">                inFlight.add(executor.submit(() -&gt; settlePaymentRecord(record)));</li>
+        <li>            }</li>
+        <li class="nl" data-n="close() sab tasks ke finish hone tak block karta hai. Yeh <b>structured concurrency nahi</b> hai &mdash; asli StructuredTaskScope Java 21 mein preview API hai. Yeh bas ExecutorService ka AutoCloseable behaviour hai.">        }</li>
+        <li></li>
+        <li class="nl" data-n="Yahi wo line hai jo Trap 3 se bachati hai. Agar yeh false de, to hum commit nahi karenge.">        if (!allRecordsProcessedSuccessfully(inFlight)) {</li>
+        <li>            acknowledgment.nack(Duration.ofSeconds(2));</li>
+        <li>            return;</li>
+        <li>        }</li>
+        <li class="nl" data-n="Ab commit safe hai: listener thread ne khud verify kiya ki har ek record settle ho chuka hai. Zero data loss, at-least-once semantics.">        acknowledgment.acknowledge();</li>
+        <li>    }</li>
+        <li></li>
+        <li class="nl" data-n="Naam se hi pata chal raha hai ki yeh boolean deta hai aur saare records check karta hai &mdash; caller ko andar jhaankne ki zaroorat nahi.">    private boolean allRecordsProcessedSuccessfully(List&lt;Future&lt;Void&gt;&gt; inFlight) {</li>
+        <li>        boolean allOk = true;</li>
+        <li>        for (Future&lt;Void&gt; future : inFlight) {</li>
+        <li>            try {</li>
+        <li class="nl" data-n="<b>Yeh get() hi asli safety hai.</b> Task ke andar jo bhi exception aayi thi, wo yahan ExecutionException ban kar bahar aati hai. Iske bina wo exception hamesha ke liye Future ke andar dafan rehti.">                future.get();</li>
+        <li>            } catch (ExecutionException e) {</li>
+        <li class="nl" data-n="Poori list scan karo, pehli failure par break mat karo &mdash; taaki log mein saare failed records dikhein, sirf pehla nahi. Debugging bahut aasan ho jaati hai.">                log.error(&quot;record failed, batch will be replayed&quot;, e.getCause());</li>
+        <li>                allOk = false;</li>
+        <li>            } catch (InterruptedException e) {</li>
+        <li>                Thread.currentThread().interrupt();</li>
+        <li>                return false;</li>
+        <li>            }</li>
+        <li>        }</li>
+        <li>        return allOk;</li>
+        <li>    }</li>
+        <li></li>
+        <li>    private Void settlePaymentRecord(ConsumerRecord&lt;String, String&gt; record) {</li>
+        <li class="nl" data-n="Idempotency key. Batch replay hone par yeh line duplicate settlement rokti hai &mdash; at-least-once delivery ke saath yeh optional nahi hai.">        settlementService.settleIfNotAlreadySettled(record.key(), record.value());</li>
+        <li>        return null;</li>
+        <li>    }</li>
+        <li>}</li>
+      </ol>
+    </div>
+
+    <div class="trade">
+      <div class="tcell t-apply"><h5>apply when</h5><p>Manual ack ke saath koi bhi parallel processing. Future drain karna mandatory hai, optional nahi.</p></div>
+      <div class="tcell t-skip"><h5>skip when</h5><p>Processing 1&ndash;2 ms leti hai. Sequential loop hi sabse fast aur sabse safe hai &mdash; fan-out ka overhead ulta padega.</p></div>
+      <div class="tcell t-care"><h5>watch out</h5><p><span class="mono">max.poll.interval.ms</span>. Agar batch processing usse lambi ho gayi, consumer group se nikaal diya jaayega aur rebalance loop shuru ho jaayega.</p></div>
+    </div>
+  </article>
+
+  <!-- ---------- T8 ---------- -->
+  <article class="topic" id="t8">
+    <div class="topic-hd">
+      <span class="topic-no">T8</span>
+      <div>
+        <h3>Logging, tracing, ThreadLocal</h3>
+        <p>Thread name ab disposable hai. Jis cheez se aap 10 saal se debug kar rahe the, wo bekaar ho gayi.</p>
+      </div>
+    </div>
+    <div class="split">
+      <div class="pane prob">
+        <div class="pane-lbl">problem</div>
+        <h4>Grep karne layak kuch bacha hi nahi</h4>
+        <ul>
+          <li>Pehle <span class="mono">[http-nio-8080-exec-7]</span> grep karke poori request trace ho jaati thi. Ab har request ka naam <span class="mono">VirtualThread[#84213]</span> hai &mdash; ek baar use hua, phir gayab.</li>
+          <li><span class="mono">jstack</span> virtual threads <b>dikhata hi nahi</b>. Aapka purana thread-dump playbook kaam nahi karta.</li>
+          <li>ThreadLocal per-thread hai. Ab threads lakhon mein hain &mdash; har ek mein bhaari object rakha to <b>heap pressure</b> banega.</li>
+          <li>Executor ke andar submit karne par <b>MDC context copy nahi hota</b>. Child virtual thread ke logs bina traceId ke aayenge.</li>
+        </ul>
+        <span class="hing"><b>Hinglish:</b> yeh wo problem hai jo migration ke din 1 par nahi dikhti. Wo pehli production incident par dikhti hai, jab aapko kuch trace hi nahi kar paate.</span>
+      </div>
+      <div class="pane sol">
+        <div class="pane-lbl">solution</div>
+        <h4>traceId hi naya thread name hai</h4>
+        <ul>
+          <li>Har request par <b>traceId</b> generate karo, MDC mein daalo, log pattern mein <span class="mono">%X{traceId}</span> add karo.</li>
+          <li>Executor mein submit karte waqt <b>MDC snapshot manually copy</b> karo. Yeh automatic nahi hota.</li>
+          <li>ThreadLocal mein sirf <b>chhote immutable values</b> (id, tenant) rakho &mdash; objects, connections, buffers nahi.</li>
+          <li>Thread dump ke liye <span class="mono">jcmd Thread.dump_to_file -format=json</span> use karo. Sync logging ko <b>AsyncAppender</b> se replace karo &mdash; file I/O abhi bhi carrier pin kar sakti hai.</li>
+        </ul>
+        <span class="hing"><b>Hinglish:</b> Micrometer Tracing dependency daal do to traceId apne aap aa jaata hai. Lekin executor ke andar context propagation phir bhi verify karna padta hai.</span>
+      </div>
+    </div>
+
+    <div class="code">
+      <div class="code-hd"><span class="fname">TracePropagatingTaskFactory.java</span><span class="tag t-new">MDC across virtual threads</span></div>
+      <ol>
+        <li>public final class TracePropagatingTaskFactory {</li>
+        <li></li>
+        <li class="nl" data-n="Naam se clear hai: yeh ek task ko wrap karke usme parent ka trace context daal deta hai. Utility class, koi state nahi.">    private TracePropagatingTaskFactory() { }</li>
+        <li></li>
+        <li class="nl" data-n="<b>Yeh snapshot parent thread par liya jaata hai</b>, lambda ke andar nahi. Andar lete to wo child thread ka (khali) context hota &mdash; yeh sabse common bug hai.">    public static Runnable withParentTraceContext(Runnable task) {</li>
+        <li>        Map&lt;String, String&gt; parentContext = MDC.getCopyOfContextMap();</li>
+        <li></li>
+        <li>        return () -&gt; {</li>
+        <li class="nl" data-n="Child virtual thread apne aap ko parent ka context pehna leta hai. Ab iske saare log lines mein wahi traceId aayega.">            if (parentContext != null) MDC.setContextMap(parentContext);</li>
+        <li>            try {</li>
+        <li>                task.run();</li>
+        <li>            } finally {</li>
+        <li class="nl" data-n="clear() lagana zaroori hai. Virtual thread yahan die ho jaayega isliye leak ka risk kam hai &mdash; par agar kabhi koi platform thread par chala, to yeh line context leak se bachayegi.">                MDC.clear();</li>
+        <li>            }</li>
+        <li>        };</li>
+        <li>    }</li>
+        <li>}</li>
+        <li></li>
+        <li class="c">// usage &mdash; every submit goes through the wrapper</li>
+        <li>try (var executor = Executors.newVirtualThreadPerTaskExecutor()) {</li>
+        <li>    for (var record : records) {</li>
+        <li class="nl" data-n="Har submit wrapper se hokar jaata hai. Team convention banao: <b>raw Runnable kabhi submit mat karo</b> &mdash; code review checklist mein daalo.">        executor.submit(withParentTraceContext(() -&gt; processRecord(record)));</li>
+        <li>    }</li>
+        <li>}</li>
+      </ol>
+      <p class="hint">Java 21 mein <span class="mono">ScopedValue</span> (preview) yehi kaam structurally karta hai &mdash; immutable, auto-inherited, aur bina cleanup ke. Production mein abhi MDC hi practical choice hai.</p>
+    </div>
+
+    <div class="trade">
+      <div class="tcell t-apply"><h5>apply when</h5><p>Har jagah. Virtual threads ke saath traceId optional nahi hai &mdash; iske bina production debug karna practically band ho jaata hai.</p></div>
+      <div class="tcell t-skip"><h5>skip when</h5><p>Micrometer Tracing already lagi hai aur aap raw executor use nahi kar rahe. Tab framework khud handle kar leta hai.</p></div>
+      <div class="tcell t-care"><h5>watch out</h5><p>Sync file appender lakhon threads ke saath lock contention banata hai. AsyncAppender lagao aur uska queue size set karo.</p></div>
+    </div>
+  </article>
+
+  <!-- ---------- T9 ---------- -->
+  <article class="topic" id="t9">
+    <div class="topic-hd">
+      <span class="topic-no">T9</span>
+      <div>
+        <h3>Kubernetes: memory, pods, HPA</h3>
+        <p>5 pods se 2 pods jaana sahi hai &mdash; lekin us decision ka kaaran capacity nahi, redundancy hai.</p>
+      </div>
+    </div>
+    <div class="split">
+      <div class="pane prob">
+        <div class="pane-lbl">problem</div>
+        <h4>Galat signal par scale ho rahe the</h4>
+        <ul>
+          <li>HPA CPU par scale karta tha, lekin asli problem <b>thread exhaustion</b> thi. CPU 20% par aur pods 8 &mdash; yeh classic mismatch hai.</li>
+          <li>Har pod 200 platform threads ka stack space reserve karta tha. Container memory accounting mein yeh dikhta tha.</li>
+          <li>JVM ko container limit nahi pata thi &rarr; heap zyada le liya &rarr; <b>OOMKilled</b>, bina kisi Java OutOfMemoryError ke.</li>
+          <li>Pods badhane se DB par load badhta tha &mdash; har naya pod apna poora Hikari pool leke aata tha.</li>
+        </ul>
+        <span class="hing"><b>Hinglish:</b> hum wo cheez scale kar rahe the jo bottleneck thi hi nahi. Paisa kharch ho raha tha, latency wahi thi.</span>
+      </div>
+      <div class="pane sol">
+        <div class="pane-lbl">solution</div>
+        <h4>Pods = HA. Capacity = downstream.</h4>
+        <ul>
+          <li>Thread stacks ab heap par hain, isliye <b>native memory</b> ka bada hissa bach gaya. Lekin <b>heap zyada chahiye</b> &mdash; kyunki stacks ab wahin hain.</li>
+          <li><span class="mono">-XX:MaxRAMPercentage=70</span> lagao. Metaspace, code cache, GC structures ke liye headroom chhodo.</li>
+          <li>Minimum 2&ndash;3 pods rakho &mdash; <b>rolling update aur node failure</b> ke liye, load ke liye nahi.</li>
+          <li>HPA ko <b>custom metrics</b> par le jao: consumer lag, P99 latency, in-flight requests. CPU ab flat rahega jabki latency badh rahi hogi.</li>
+        </ul>
+        <span class="hing"><b>Hinglish:</b> honest number: 8 pods se 2-3 pods realistic hai agar workload I/O-bound hai. &lsquo;60-70% cost saving&rsquo; guarantee nahi, ek possible outcome hai &mdash; interview mein isse measured result ki tarah bolo, promise ki tarah nahi.</span>
+      </div>
+    </div>
+
+    <div class="code">
+      <div class="code-hd"><span class="fname">deployment.yaml</span><span class="tag t-new">java 21 sizing</span></div>
+      <ol>
+        <li>spec:</li>
+        <li class="nl" data-n="2 replicas &mdash; capacity ke liye nahi, HA ke liye. Ek pod rolling update mein jaayega to doosra traffic sambhalega. Kafka ke liye yeh partition rebalance bhi smooth karta hai.">  replicas: 2</li>
+        <li>  template:</li>
+        <li>    spec:</li>
+        <li>      containers:</li>
+        <li>        - name: order-service</li>
+        <li>          resources:</li>
+        <li>            requests:</li>
+        <li class="nl" data-n="requests = scheduler ka guarantee. Ise realistic steady-state par set karo, peak par nahi &mdash; warna cluster mein jagah barbaad hogi.">              memory: &quot;768Mi&quot;</li>
+        <li>              cpu: &quot;500m&quot;</li>
+        <li>            limits:</li>
+        <li class="nl" data-n="Memory limit = request ke kareeb rakho. Java heap elastic nahi hota &mdash; bada gap sirf OOMKill ko der se laata hai, rokta nahi.">              memory: &quot;1Gi&quot;</li>
+        <li class="nl" data-n="<b>CPU limit par savdhaan.</b> Virtual thread scheduler availableProcessors par size hota hai. Aggressive CPU throttling carrier threads ko slow karega aur pinning jaisa symptom dega.">              cpu: &quot;2000m&quot;</li>
+        <li>          env:</li>
+        <li>            - name: JAVA_TOOL_OPTIONS</li>
+        <li class="nl" data-n="70% &mdash; 75% nahi. Virtual thread stacks heap par hain, aur Metaspace + code cache + GC structures ko bhi jagah chahiye. Yeh headroom hi OOMKill se bachata hai.">              value: &gt;-</li>
+        <li>                -XX:MaxRAMPercentage=70.0</li>
+        <li class="nl" data-n="Container ke andar GC ka sahi chunav. Chhote heaps (&lt;2 GB) par G1 predictable hai. Z/Shenandoah tabhi jab pause time ka strict SLO ho.">                -XX:+UseG1GC</li>
+        <li class="nl" data-n="Native Memory Tracking. Migration ke baad yeh dikhayega ki thread stacks ka native usage kitna gir gaya &mdash; yahi aapka &lsquo;proof&rsquo; hai sizing decision ke liye.">                -XX:NativeMemoryTracking=summary</li>
+        <li>                -Djdk.virtualThreadScheduler.maxPoolSize=64</li>
+      </ol>
+    </div>
+
+    <div class="trade">
+      <div class="tcell t-apply"><h5>apply when</h5><p>Workload I/O-bound hai aur aapne load test se confirm kiya ki 2 pods peak sambhal rahe hain. Data ke bina mat ghatao.</p></div>
+      <div class="tcell t-skip"><h5>skip when</h5><p>CPU-bound service hai. Wahan pod count CPU se decide hoga &mdash; 8 pods 8 hi rahenge, Java version chahe jo ho.</p></div>
+      <div class="tcell t-care"><h5>watch out</h5><p>Pods kam karne se har pod ka blast radius badhta hai. Kam pods + PodDisruptionBudget + proper readiness probes &mdash; teeno saath chahiye.</p></div>
+    </div>
+  </article>
+</section>
+
+<!-- ================= TRADEOFF MATRIX ================= -->
+<section id="matrix">
+  <div class="sec-hd">
+    <span class="sec-no">04 &mdash; The tradeoff call</span>
+    <h2>When to apply, when to ignore, and why</h2>
+    <p class="lede">Interview mein &ldquo;virtual threads accha hai&rdquo; sabse kamzor answer hai. Strongest answer yeh hai: <strong>&ldquo;yeh un cases mein apply karta hoon, un cases mein nahi, aur yeh raha kyun.&rdquo;</strong> Neeche wahi decision table hai.</p>
+  </div>
+
+  <div class="tbl-scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Situation</th>
+          <th>Virtual threads?</th>
+          <th>Reason &mdash; the one line that matters</th>
+          <th>Agar galat chuna to</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><b>Blocking REST + JDBC service</b><br>thread-per-request, Tomcat</td>
+          <td class="v-yes">Apply</td>
+          <td>Yahi wo exact case hai jiske liye Loom bana. Code same rehta hai, admission capacity 50&times; ho jaati hai.</td>
+          <td>Thread pool exhaustion, CPU idle, pods over-scaled.</td>
+        </tr>
+        <tr>
+          <td><b>Fan-out to N services</b><br>aggregate response</td>
+          <td class="v-yes">Apply</td>
+          <td>N parallel blocking calls without N threads. <span class="mono">CompletableFuture</span> ka pura chain hat jaata hai.</td>
+          <td>Callback hell, ya pool size N se chhota to serial execution.</td>
+        </tr>
+        <tr>
+          <td><b>CPU-bound: encryption, image resize, parsing</b></td>
+          <td class="v-no">Ignore</td>
+          <td>Virtual threads waiting hataate hain, computing nahi. Cores se zyada parallel kaam nahi ho sakta.</td>
+          <td>Context switching overhead, GC pressure, throughput <em>gir</em> sakta hai.</td>
+        </tr>
+        <tr>
+          <td><b>App already on WebFlux</b></td>
+          <td class="v-no">Ignore</td>
+          <td>Reactive already non-blocking hai. Do models mix karna sirf debugging aur mental overhead hai.</td>
+          <td>Event loop par virtual threads &mdash; do schedulers ladte hain, latency unpredictable.</td>
+        </tr>
+        <tr>
+          <td><b>Legacy lib with native / JNI calls</b></td>
+          <td class="v-care">Isolate</td>
+          <td>Native frames aaj bhi carrier pin karte hain, Java 24+ par bhi. JEP 491 ne sirf <span class="mono">synchronized</span> fix kiya.</td>
+          <td>Chupke se scheduler starvation. Latency badhti hai, koi error nahi aata.</td>
+        </tr>
+        <tr>
+          <td><b>Heavy <span class="mono">ThreadLocal</span> usage</b><br>security context, tenant, caches</td>
+          <td class="v-care">Audit first</td>
+          <td>Per-thread copy &times; lakhon threads = heap blowup. Pehle size audit karo, phir flag on karo.</td>
+          <td>OutOfMemoryError peak traffic par &mdash; yaani sabse bure waqt par.</td>
+        </tr>
+        <tr>
+          <td><b>Kafka consumer, strict global ordering</b></td>
+          <td class="v-no">Ignore fan-out</td>
+          <td>Parallel processing ordering todti hai. Sequential rakho, aur partitions badhao.</td>
+          <td>Silent data corruption. Yeh production mein hafton baad pakda jaata hai.</td>
+        </tr>
+        <tr>
+          <td><b>Kafka consumer, per-key ordering</b></td>
+          <td class="v-yes">Apply, grouped</td>
+          <td>Key se group karo, group ko ek virtual thread. Ordering bachi, throughput mila.</td>
+          <td>Bina grouping ke fan-out &mdash; events ulte order mein apply honge.</td>
+        </tr>
+        <tr>
+          <td><b>Scheduled / cron jobs</b></td>
+          <td class="v-no">Low value</td>
+          <td>Fixed, small concurrency. Platform threads bilkul theek hain.</td>
+          <td>Kuch nahi tootega, bas koi fayda bhi nahi. Change karne ka risk lene ka reason nahi.</td>
+        </tr>
+        <tr>
+          <td><b>Downstream already saturated</b><br>DB pool 100% busy</td>
+          <td class="v-care">Won&rsquo;t help alone</td>
+          <td>Aap queue ko move kar rahe ho, khatam nahi. Pehle downstream capacity ya caching fix karo.</td>
+          <td>Timeout ka pahaad + retry storm. Java 17 se bhi bura ho sakta hai.</td>
+        </tr>
+        <tr>
+          <td><b>gRPC / Netty based service</b></td>
+          <td class="v-no">Ignore</td>
+          <td>Netty already non-blocking event loop par hai. Virtual threads sirf blocking code ke liye hain.</td>
+          <td>Event loop thread par blocking call &mdash; poora server freeze.</td>
+        </tr>
+        <tr>
+          <td><b>Batch job: 2M rows, DB writes</b></td>
+          <td class="v-care">Bounded apply</td>
+          <td>Virtual threads + Semaphore(pool size). Unbounded fan-out DB ko gira dega.</td>
+          <td>Connection pool exhausted, lock escalation, aur possible replica lag.</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="call ok">
+    <h4>The one-sentence framework</h4>
+    <p>Virtual threads <strong>waiting</strong> ka cost kam karte hain, <strong>working</strong> ka nahi. Isliye har decision ka test ek hi sawal hai: <em>&ldquo;is thread ka zyada waqt wait mein jaata hai ya compute mein?&rdquo;</em> Wait &rarr; apply. Compute &rarr; ignore. Aur agar wait kisi bounded resource ka hai, to pehle us resource ko theek karo &mdash; virtual threads usse nahi bachayenge.</p>
+  </div>
+</section>
+
+<!-- ================= NUMBERS ================= -->
+<section id="numbers">
+  <div class="sec-hd">
+    <span class="sec-no">05 &mdash; Numbers you can actually defend</span>
+    <h2>Jo figures internet par ghoomte hain, unme se aadhe galat hain</h2>
+    <p class="lede">Agar aap interview mein &ldquo;200 bytes per thread&rdquo; ya &ldquo;60% cost saving guaranteed&rdquo; bologe, to ek achha interviewer turant kured dega. Yeh raha defensible version &mdash; caveat ke saath.</p>
+  </div>
+
+  <div class="tbl-scroll">
+    <table>
+      <thead>
+        <tr><th>Claim you&rsquo;ll hear</th><th>Reality</th><th>What to say instead</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>&ldquo;Virtual thread takes 200 bytes&rdquo;</td>
+          <td>Thread object chhota hai, par <b>stack chunks</b> call depth ke saath badhte hain. Spring + Hibernate + security chain ke saath realistically <b>1&ndash;10 KB</b>.</td>
+          <td>&ldquo;Footprint stack depth par depend karta hai &mdash; typical Spring request par few KB. Platform thread ke 1 MB reservation se phir bhi do order of magnitude kam.&rdquo;</td>
+        </tr>
+        <tr>
+          <td>&ldquo;200 platform threads = 200 MB RAM&rdquo;</td>
+          <td>1 MB <b>reserved virtual memory</b> hai, committed nahi. Actual RSS usually bahut kam. Lekin address space aur container accounting par asar padta hai.</td>
+          <td>&ldquo;Reservation 1 MB per thread hai, commit lazy. Real saving NMT se measure ki, guess nahi ki.&rdquo;</td>
+        </tr>
+        <tr>
+          <td>&ldquo;try-with-resources = structured concurrency&rdquo;</td>
+          <td>Nahi. Wo <span class="mono">ExecutorService</span> ka <span class="mono">AutoCloseable</span> behaviour hai. Asli <span class="mono">StructuredTaskScope</span> Java 21 mein <b>preview API</b> hai.</td>
+          <td>&ldquo;Humne per-task executor + explicit Future drain use kiya. StructuredTaskScope preview tha, isliye production mein nahi liya.&rdquo;</td>
+        </tr>
+        <tr>
+          <td>&ldquo;<span class="mono">@KafkaListener(batch=&quot;true&quot;)</span>&rdquo;</td>
+          <td>Aisa koi attribute hai hi nahi. Batch mode <span class="mono">spring.kafka.listener.type=batch</span> ya <span class="mono">factory.setBatchListener(true)</span> se aata hai.</td>
+          <td>&ldquo;Batch listener container factory level par configure hota hai, annotation par nahi.&rdquo;</td>
+        </tr>
+        <tr>
+          <td>&ldquo;8 pods &rarr; 2 pods, 60&ndash;70% cost cut&rdquo;</td>
+          <td>Possible hai I/O-bound workload par, guaranteed nahi. CPU-bound par pod count barabar rehta hai.</td>
+          <td>&ldquo;Humare I/O-bound service par load test ke baad 8 se 3 pods par aaye. Minimum 3 HA ke liye rakha, capacity ke liye nahi.&rdquo;</td>
+        </tr>
+        <tr>
+          <td>&ldquo;<span class="mono">synchronized</span> is a permanent problem&rdquo;</td>
+          <td>Java 21 mein haan. <b>JEP 491 (Java 24)</b> ne ise largely khatam kar diya; Java 25 LTS par yeh mostly non-issue hai.</td>
+          <td>&ldquo;Java 21 par humne ReentrantLock migrate kiya. Java 24+ par JEP 491 ke baad yeh zaroorat kaafi kam ho gayi &mdash; native frames ab bhi pin karte hain.&rdquo;</td>
+        </tr>
+        <tr>
+          <td>&ldquo;Millions of threads&rdquo;</td>
+          <td>Technically sach, practically meaningless &mdash; kyunki aapka DB pool 30 hai. Million threads ka matlab million pending tasks, million completed nahi.</td>
+          <td>&ldquo;Concurrency ab heap-bound hai, thread-bound nahi. Lekin effective throughput downstream capacity se decide hota hai.&rdquo;</td>
+        </tr>
+        <tr>
+          <td>&ldquo;File I/O is non-blocking now&rdquo;</td>
+          <td>Nahi. Most platforms par file I/O carrier ko block karta hai &mdash; wo offload hota hai, truly async nahi.</td>
+          <td>&ldquo;Isliye humne sync file appenders ko AsyncAppender se replace kiya.&rdquo;</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ================= ANIMATION LAB ================= -->
+<section id="lab">
+  <div class="sec-hd">
+    <span class="sec-no">06 &mdash; Animation lab</span>
+    <h2>Watch the stack move</h2>
+    <p class="lede">Teen modes. <strong>Step through</strong> &mdash; ek-ek step khud aage badhao aur padho ki JVM ne kya kiya. <strong>Auto play</strong> &mdash; poora Kafka batch cycle chalta hua dekho. <strong>Simulator</strong> &mdash; apne numbers daalo aur Java 17 vs Java 21 ko same workload par race karte dekho.</p>
+  </div>
+
+  <style>
+    .zones2{display:grid;grid-template-columns:1fr;gap:11px;margin-top:11px}
+    @media(min-width:820px){.zones2{grid-template-columns:1.1fr 1.1fr 1fr}}
+    .zone.z-done{border-color:#2A3548}
+    .zone.z-off{border-style:solid;border-color:#3A2E4E;background:#12101E}
+    .zone.z-off .zone-t{color:#C994EC}
+    .offbar{margin-top:8px;font-family:var(--mono);font-size:13px;color:var(--text-dim)}
+    .offbar .cur{color:#C994EC;font-weight:600;font-size:17px;font-variant-numeric:tabular-nums}
+    .offbar .pend{color:var(--text-faint);font-size:11px;display:block;margin-top:4px}
+    .stage{min-height:0}
+  </style>
+
+  <div class="lab">
+    <div class="lab-tabs" role="tablist">
+      <button role="tab" id="tabStep" aria-controls="panStep" aria-selected="true">Step through</button>
+      <button role="tab" id="tabAuto" aria-controls="panAuto" aria-selected="false">Auto play</button>
+      <button role="tab" id="tabSim" aria-controls="panSim" aria-selected="false">Simulator</button>
+    </div>
+    <div class="lab-body">
+
+      <!-- ---- STEP ---- -->
+      <div class="lab-panel" id="panStep" role="tabpanel" aria-labelledby="tabStep">
+        <div class="stage" data-stage="step">
+          <div class="zones">
+            <div class="zone"><span class="zone-t">incoming &middot; polled batch</span><div data-zone="in" style="height:74px"></div></div>
+            <div class="zone z-carrier"><span class="zone-t">carrier threads &middot; ForkJoinPool &middot; 4 cores</span>
+              <div class="carrier" data-zone="c0"><span class="carrier-lbl">CT-0</span></div>
+              <div class="carrier" data-zone="c1"><span class="carrier-lbl">CT-1</span></div>
+              <div class="carrier" data-zone="c2"><span class="carrier-lbl">CT-2</span></div>
+              <div class="carrier" data-zone="c3"><span class="carrier-lbl">CT-3</span></div>
+            </div>
+            <div class="zone z-heap"><span class="zone-t">heap &middot; parked stack chunks</span><div data-zone="heap" style="height:74px"></div></div>
+          </div>
+          <div class="zones2">
+            <div class="zone z-ready"><span class="zone-t">scheduler FIFO queue &middot; runnable</span><div data-zone="ready" style="height:52px"></div></div>
+            <div class="zone z-done"><span class="zone-t">completed</span><div data-zone="done" style="height:52px"></div></div>
+            <div class="zone z-off"><span class="zone-t">kafka offset</span>
+              <div class="offbar"><span class="cur" data-off>1204</span><span class="pend" data-offnote>nothing committed yet</span></div>
+            </div>
+          </div>
+          <div class="chips" data-chips></div>
+        </div>
+
+        <div class="narr">
+          <div class="narr-step" data-narrstep>step 1 of 10</div>
+          <h4 data-narrtitle>Batch arrives</h4>
+          <p data-narren>English text</p>
+          <p class="hin" data-narrhi>Hinglish text</p>
+        </div>
+        <div class="ctrls">
+          <button class="btn" data-prev>Previous</button>
+          <button class="btn primary" data-next>Next step</button>
+          <button class="btn" data-reset>Reset</button>
+          <div class="prog"><i data-prog></i></div>
+          <span class="step-count" data-count>1 / 10</span>
+        </div>
+      </div>
+
+      <!-- ---- AUTO ---- -->
+      <div class="lab-panel" id="panAuto" role="tabpanel" aria-labelledby="tabAuto" hidden>
+        <div class="stage" data-stage="auto">
+          <div class="zones">
+            <div class="zone"><span class="zone-t">incoming &middot; polled batch</span><div data-zone="in" style="height:74px"></div></div>
+            <div class="zone z-carrier"><span class="zone-t">carrier threads &middot; ForkJoinPool &middot; 4 cores</span>
+              <div class="carrier" data-zone="c0"><span class="carrier-lbl">CT-0</span></div>
+              <div class="carrier" data-zone="c1"><span class="carrier-lbl">CT-1</span></div>
+              <div class="carrier" data-zone="c2"><span class="carrier-lbl">CT-2</span></div>
+              <div class="carrier" data-zone="c3"><span class="carrier-lbl">CT-3</span></div>
+            </div>
+            <div class="zone z-heap"><span class="zone-t">heap &middot; parked stack chunks</span><div data-zone="heap" style="height:74px"></div></div>
+          </div>
+          <div class="zones2">
+            <div class="zone z-ready"><span class="zone-t">scheduler FIFO queue &middot; runnable</span><div data-zone="ready" style="height:52px"></div></div>
+            <div class="zone z-done"><span class="zone-t">completed</span><div data-zone="done" style="height:52px"></div></div>
+            <div class="zone z-off"><span class="zone-t">kafka offset</span>
+              <div class="offbar"><span class="cur" data-off>1204</span><span class="pend" data-offnote>nothing committed yet</span></div>
+            </div>
+          </div>
+          <div class="chips" data-chips></div>
+        </div>
+        <div class="narr">
+          <div class="narr-step" data-narrstep>step 1 of 10</div>
+          <h4 data-narrtitle>Batch arrives</h4>
+          <p data-narren>English text</p>
+          <p class="hin" data-narrhi>Hinglish text</p>
+        </div>
+        <div class="ctrls">
+          <button class="btn primary" data-play>Play loop</button>
+          <button class="btn" data-pause disabled>Pause</button>
+          <div class="prog"><i data-prog></i></div>
+          <span class="step-count" data-count>1 / 10</span>
+        </div>
+      </div>
+
+      <!-- ---- SIM ---- -->
+      <div class="lab-panel" id="panSim" role="tabpanel" aria-labelledby="tabSim" hidden>
+        <div class="sim-grid">
+          <div class="sim-ctrl">
+            <div class="fld">
+              <label for="sTasks">Records in the run <b id="vTasks">20,000</b></label>
+              <input type="range" id="sTasks" min="2000" max="200000" step="2000" value="20000">
+            </div>
+            <div class="fld">
+              <label for="sCores">CPU cores per pod <b id="vCores">4</b></label>
+              <input type="range" id="sCores" min="1" max="16" step="1" value="4">
+            </div>
+            <div class="fld">
+              <label for="sIo">I/O wait per record <b id="vIo">200 ms</b></label>
+              <input type="range" id="sIo" min="5" max="500" step="5" value="200">
+            </div>
+            <div class="fld">
+              <label for="sCpu">CPU work per record <b id="vCpu">1 ms</b></label>
+              <input type="range" id="sCpu" min="1" max="40" step="1" value="1">
+            </div>
+            <div class="fld">
+              <label for="sPool">Java 17 thread pool <b id="vPool">200</b></label>
+              <input type="range" id="sPool" min="20" max="800" step="20" value="200">
+            </div>
+            <div class="fld">
+              <label for="sDb">Downstream concurrency cap <b id="vDb">500</b></label>
+              <input type="range" id="sDb" min="5" max="2000" step="5" value="500">
+            </div>
+            <button class="btn primary" id="runSim" style="width:100%">Run both</button>
+          </div>
+
+          <div>
+            <div class="res-grid">
+              <div class="res r17">
+                <div class="res-hd">java 17 &middot; platform threads &middot; fixed pool</div>
+                <div class="big" id="r17Time">&mdash;</div>
+                <span class="big-lbl">seconds to drain</span>
+                <div class="bar"><i id="r17Bar"></i></div>
+                <div class="kv"><span>throughput</span><b id="r17Rps">&mdash;</b></div>
+                <div class="kv"><span>peak concurrent</span><b id="r17Conc">&mdash;</b></div>
+                <div class="kv"><span>stack reserve</span><b id="r17Mem">&mdash;</b></div>
+                <div class="kv"><span>limited by</span><b id="r17Lim">&mdash;</b></div>
+              </div>
+              <div class="res r21">
+                <div class="res-hd">java 21 &middot; virtual threads &middot; per task</div>
+                <div class="big" id="r21Time">&mdash;</div>
+                <span class="big-lbl">seconds to drain</span>
+                <div class="bar"><i id="r21Bar"></i></div>
+                <div class="kv"><span>throughput</span><b id="r21Rps">&mdash;</b></div>
+                <div class="kv"><span>peak concurrent</span><b id="r21Conc">&mdash;</b></div>
+                <div class="kv"><span>heap for stacks</span><b id="r21Mem">&mdash;</b></div>
+                <div class="kv"><span>limited by</span><b id="r21Lim">&mdash;</b></div>
+              </div>
+            </div>
+            <div class="verdict" id="simVerdict">Sliders hilao aur <b>Run both</b> dabao. Ek experiment zaroor karo: <b>downstream cap ko 500 se 30 par le aao</b> &mdash; dono models ka time lagbhag barabar ho jaayega. Wahi poore migration ka sabse important sabak hai: virtual threads queue ko <em>move</em> karte hain, <em>khatam</em> nahi.</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ================= MOCK Q&A ================= -->
+<section id="mock">
+  <div class="sec-hd">
+    <span class="sec-no">07 &mdash; Mock interview</span>
+    <h2>16 questions, sabse zyada poochhe jaane wale</h2>
+    <p class="lede">Har answer mein teen cheezein hain: seedha jawab, wo line jo aap bolenge (<strong>say this</strong>), aur jahan log fisalte hain (<strong>trap</strong>). Level filter se apni band chun lo.</p>
+  </div>
+
+  <div class="filters">
+    <button class="chip-btn" data-lvl="all" aria-pressed="true">All 16</button>
+    <button class="chip-btn" data-lvl="l1" aria-pressed="false">L1 &middot; 2&ndash;4 yrs</button>
+    <button class="chip-btn" data-lvl="l2" aria-pressed="false">L2 &middot; 5&ndash;8 yrs</button>
+    <button class="chip-btn" data-lvl="l3" aria-pressed="false">L3 &middot; Lead / Architect</button>
+  </div>
+
+  <div class="qa" id="qaList">
+
+    <div class="qa-item" data-lvl="l1">
+      <button class="qa-q"><span class="lvl l1">L1</span>Virtual thread aur platform thread mein exact difference kya hai?</button>
+      <div class="qa-a">
+        <p>Platform thread OS thread ka ek thin wrapper hai &mdash; 1:1 mapping, stack OS native memory mein, creation ek syscall. Virtual thread JVM ke andar schedule hota hai &mdash; M:N mapping, stack Java heap par, creation ek object allocation.</p>
+        <div class="say"><b>say this</b>Dono <code>java.lang.Thread</code> hi hain &mdash; API same hai. Farq sirf yeh hai ki blocking call par platform thread OS ko block karta hai, jabki virtual thread heap par park hokar apna carrier chhod deta hai.</div>
+        <div class="trap"><b>trap</b>&ldquo;Virtual threads faster hain&rdquo; mat bolo. Ek single task Java 21 mein utna hi time lega. Fayda <em>concurrency</em> mein hai, <em>speed</em> mein nahi.</div>
+      </div>
+    </div>
+
+    <div class="qa-item" data-lvl="l1">
+      <button class="qa-q"><span class="lvl l1">L1</span>Spring Boot mein enable kaise karte hain? Kya aur config chahiye?</button>
+      <div class="qa-a">
+        <p>Spring Boot 3.2+ aur Java 21+ par <code>spring.threads.virtual.enabled=true</code>. Yeh Tomcat request handling, <code>@Async</code> executor, aur Kafka listener containers &mdash; teeno ko virtual threads par shift kar deta hai.</p>
+        <div class="say"><b>say this</b>Flag ek line ka hai, lekin migration us line ke baad shuru hoti hai: pinning audit, Hikari timeout tuning, ThreadLocal review, aur MDC-based tracing.</div>
+        <div class="trap"><b>trap</b>Boot 3.1 par yeh property exist hi nahi karti &mdash; chup-chaap ignore ho jaayegi. Version bolna zaroori hai.</div>
+      </div>
+    </div>
+
+    <div class="qa-item" data-lvl="l1">
+      <button class="qa-q"><span class="lvl l1">L1</span>Kya virtual threads se database query fast ho jaayegi?</button>
+      <div class="qa-a">
+        <p>Nahi. Query utna hi time legi. Farq yeh hai ki us waiting ke dauran aapka OS thread free rehta hai aur doosra kaam kar sakta hai.</p>
+        <div class="say"><b>say this</b>Virtual threads latency nahi ghatate, wo <em>concurrency ki cost</em> ghatate hain. Ek request ka P50 same rahega; badalta hai peak load par P99, kyunki ab queue nahi banti.</div>
+      </div>
+    </div>
+
+    <div class="qa-item" data-lvl="l1">
+      <button class="qa-q"><span class="lvl l1">L1</span>Thread pool ki zaroorat ab hai ya nahi?</button>
+      <div class="qa-a">
+        <p>Virtual threads ko pool karne ki zaroorat nahi &mdash; wo anti-pattern hai. Lekin <code>ExecutorService</code> API abhi bhi use hoti hai, sirf <code>newVirtualThreadPerTaskExecutor()</code> ke saath.</p>
+        <div class="say"><b>say this</b>Pool isliye tha kyunki thread mahanga tha. Ab thread sasta hai, isliye limit sirf wahan lagao jahan <em>downstream</em> limited ho &mdash; aur uske liye Semaphore sahi tool hai, pool nahi.</div>
+        <div class="trap"><b>trap</b>&ldquo;Koi limit nahi chahiye&rdquo; bhi galat answer hai. Unbounded fan-out DB ya gateway ko gira dega.</div>
+      </div>
+    </div>
+
+    <div class="qa-item" data-lvl="l2">
+      <button class="qa-q"><span class="lvl l2">L2</span>Thread pinning kya hai? Kaise detect aur fix karte ho?</button>
+      <div class="qa-a">
+        <p>Pinning tab hoti hai jab virtual thread apne carrier se unmount nahi kar paata. Java 21 mein main wajah: <code>synchronized</code> block ke andar blocking call, aur native/JNI frames.</p>
+        <div class="say"><b>say this</b>Detect JFR event <code>jdk.VirtualThreadPinned</code> se kiya &mdash; production-safe hai. Fix: apne code mein <code>ReentrantLock</code>, aur JDBC driver plus HikariCP ko recent versions par upgrade. <strong>Java 24 ke JEP 491 ke baad synchronized wali pinning largely khatam ho chuki hai</strong>, isliye Java 25 LTS par yeh problem bahut chhoti reh gayi hai &mdash; native frames abhi bhi pin karte hain.</div>
+        <div class="trap"><b>trap</b>Pinning crash nahi karti. Wo bas throughput kha jaati hai. Agar migration ke baad &ldquo;kuch fayda nahi hua&rdquo; lage, to pehla suspect yahi hai.</div>
+      </div>
+    </div>
+
+    <div class="qa-item" data-lvl="l2">
+      <button class="qa-q"><span class="lvl l2">L2</span>Migration ke baad naya bottleneck kya bana?</button>
+      <div class="qa-a">
+        <p>Database connection pool. Pehle Tomcat ki 200-thread limit ek accidental rate limiter thi jo DB ko bacha rahi thi. Wo hatte hi hazaron requests 30 connections ke liye line mein lag gayin.</p>
+        <div class="say"><b>say this</b>Humne <code>connection-timeout</code> 30s se 3s kiya taaki fail-fast ho, aur entry par Semaphore-based bulkhead lagaya jiske permits pool size ke barabar hain. Yaani backpressure ko accidental se explicit banaya.</div>
+        <div class="trap"><b>trap</b>Pool size badhana pehla instinct hota hai. DB par 500 connections lock contention aur context switching badhate hain &mdash; throughput girta hai.</div>
+      </div>
+    </div>
+
+    <div class="qa-item" data-lvl="l2">
+      <button class="qa-q"><span class="lvl l2">L2</span>ThreadLocal ka kya hua? Kya wo tut gaya?</button>
+      <div class="qa-a">
+        <p>Kaam karta hai, safe hai &mdash; problem scale ki hai. ThreadLocal per-thread copy banata hai; lakhon threads par bhaari object rakha to heap blow ho jaayega.</p>
+        <div class="say"><b>say this</b>Humne audit kiya ki ThreadLocal mein kya rakha hai &mdash; sirf chhote immutable values (tenantId, traceId) rakhe, objects aur buffers nahi. Java 21 mein <code>ScopedValue</code> yehi structurally solve karta hai, par wo preview API tha isliye production mein nahi liya.</div>
+        <div class="trap"><b>trap</b>Executor mein submit karne par MDC context <em>automatically copy nahi hota</em>. Child thread ke logs bina traceId ke aayenge &mdash; yeh migration ke baad ka pehla debugging shock hota hai.</div>
+      </div>
+    </div>
+
+    <div class="qa-item" data-lvl="l2">
+      <button class="qa-q"><span class="lvl l2">L2</span>Kafka mein 5 partitions hain. Kya virtual threads se main 5000 consumers bana sakta hoon?</button>
+      <div class="qa-a">
+        <p>Nahi. Kafka ka rule hai: ek consumer group mein ek partition ko ek hi consumer read karta hai. Partition count hi consumer parallelism ka hard limit hai.</p>
+        <div class="say"><b>say this</b>Virtual threads consumer count nahi badhate. Wo <em>ek partition ke andar</em> processing parallelize karne mein madad karte hain &mdash; batch uthao, message key se group karo, har key-group ko ek virtual thread do. Isse per-key ordering bachi rehti hai aur throughput mil jaata hai.</div>
+        <div class="trap"><b>trap</b>Bina key-grouping ke fan-out karoge to <code>order-created</code> aur <code>order-cancelled</code> ulte order mein apply ho sakte hain. Yeh silent data corruption hai.</div>
+      </div>
+    </div>
+
+    <div class="qa-item" data-lvl="l2">
+      <button class="qa-q"><span class="lvl l2">L2</span>Virtual threads mein priority kaise set karenge? Kafka producer ko fast chalana hai.</button>
+      <div class="qa-a">
+        <p>Set nahi kar sakte. <code>setPriority()</code> virtual threads par silently ignore hota hai &mdash; hamesha <code>NORM_PRIORITY</code>. Lakhon threads ke beech priority sort karna scheduler ke liye bahut mehnga hota, isliye jaan-boojh kar hataya gaya.</p>
+        <div class="say"><b>say this</b>Priority ab thread level par nahi, <em>resource level</em> par handle karte hain. Low-priority kaam (jaise email notifications) par Semaphore laga kar unhe cap karo, taaki wo high-priority path (Kafka producer) ke carriers na kha jaayein. Ya phir alag topics aur alag consumer resources.</div>
+      </div>
+    </div>
+
+    <div class="qa-item" data-lvl="l2">
+      <button class="qa-q"><span class="lvl l2">L2</span>Logs mein thread name ab kaam nahi karta. Debug kaise karte ho?</button>
+      <div class="qa-a">
+        <p>Virtual thread names disposable hain &mdash; <code>VirtualThread[#84213]</code> ek baar use hokar gayab. Grep karne ka koi matlab nahi.</p>
+        <div class="say"><b>say this</b>Humne debugging ka anchor thread name se traceId par shift kiya &mdash; MDC mein traceId, log pattern mein <code>%X{traceId}</code>, aur executor ko submit karte waqt parent ka MDC snapshot manually copy. Thread dump ke liye <code>jcmd Thread.dump_to_file -format=json</code>, kyunki <code>jstack</code> virtual threads dikhata hi nahi.</div>
+        <div class="trap"><b>trap</b>Sync file appender lakhon threads ke saath lock contention banata hai, aur file I/O carrier ko block kar sakta hai. AsyncAppender lagana zaroori hai.</div>
+      </div>
+    </div>
+
+    <div class="qa-item" data-lvl="l3">
+      <button class="qa-q"><span class="lvl l3">L3</span>Aapne try-with-resources mein executor use kiya aur uske baad ack kiya. Kya yeh safe hai?</button>
+      <div class="qa-a">
+        <p>Sirf tab jab aapne Futures drain kiye hon. <code>close()</code> saare tasks ke complete hone tak block karta hai &mdash; lekin kisi task ki exception ko <strong>throw nahi karta</strong>. Wo <code>Future</code> ke andar dafan reh jaati hai.</p>
+        <div class="say"><b>say this</b>Isliye humne har <code>submit()</code> ka Future collect kiya aur block ke baad har ek par <code>get()</code> chalaya. Ek bhi <code>ExecutionException</code> aayi to <code>nack()</code>, warna <code>acknowledge()</code>. Iske bina ack &ldquo;maine wait kiya&rdquo; kehta hai, &ldquo;sab safal hua&rdquo; nahi &mdash; aur wahi silent data loss banta hai.</div>
+        <div class="trap"><b>trap</b>Ise &ldquo;structured concurrency&rdquo; mat bolo. Wo <code>StructuredTaskScope</code> hai, jo Java 21 mein preview API thi. Yeh sirf <code>ExecutorService</code> ka <code>AutoCloseable</code> behaviour hai.</div>
+      </div>
+    </div>
+
+    <div class="qa-item" data-lvl="l3">
+      <button class="qa-q"><span class="lvl l3">L3</span>Kafka listener par <code>@Async</code> laga dein to kya hoga, manual commit ke saath?</button>
+      <div class="qa-a">
+        <p>Data loss ke do raaste khul jaate hain, aur dono silent hain.</p>
+        <ul>
+          <li><b>Commit too early</b> &mdash; listener ne async call kiya aur turant ack kar diya. Background task fail hua, par offset commit ho chuka. Message hamesha ke liye gaya.</li>
+          <li><b>Commit out of order</b> &mdash; async method ke andar ack kiya. Message 2 pehle khatam hua, offset 2 commit kiya. Message 1 fail. Kafka ke liye 1 bhi ho chuka.</li>
+        </ul>
+        <div class="say"><b>say this</b>Virtual threads ke saath Kafka listener par <code>@Async</code> ek anti-pattern hai. Jo thread commit karta hai, usi ko completion ka pata hona chahiye. Fan-out per-task executor se karo, Futures verify karo, aur ack sirf listener thread se.</div>
+        <div class="trap"><b>trap</b>Yeh bug tests mein kabhi nahi pakda jaata &mdash; test mein processing instant hoti hai. Wo production mein DB slow hone par pehli baar dikhta hai.</div>
+      </div>
+    </div>
+
+    <div class="qa-item" data-lvl="l3">
+      <button class="qa-q"><span class="lvl l3">L3</span>8 pods se 2 pods par aaye. Kya yeh hamesha sahi hai?</button>
+      <div class="qa-a">
+        <p>Sirf tab jab workload I/O-bound ho aur aapne load test se confirm kiya ho. CPU-bound service par pod count wahi rahega &mdash; virtual threads compute nahi badhate.</p>
+        <div class="say"><b>say this</b>Pod count ab capacity ka function nahi, <em>availability</em> ka function hai. Humne minimum 2&ndash;3 pods rakhe rolling updates aur node failure ke liye, aur HPA ko CPU se hata kar consumer lag aur P99 latency jaise custom metrics par le gaye &mdash; kyunki ab CPU flat rehta hai jabki latency downstream saturation se badh rahi hoti hai.</div>
+        <div class="trap"><b>trap</b>Kam pods = bada blast radius. PodDisruptionBudget aur proper readiness probes ke bina yeh decision ek outage hai jo hone ka wait kar raha hai.</div>
+      </div>
+    </div>
+
+    <div class="qa-item" data-lvl="l3">
+      <button class="qa-q"><span class="lvl l3">L3</span>Internally mount/unmount hota kaise hai? Stack ka kya hota hai?</button>
+      <div class="qa-a">
+        <p>Virtual thread JVM ke liye ek <code>Runnable</code> plus ek <code>Continuation</code> hai. Jab blocking call aati hai, JDK internally <code>Continuation.yield()</code> call karta hai: carrier ke native stack se frames uthakar heap par <code>StackChunk</code> objects ki form mein copy kiye jaate hain, aur carrier turant scheduler ki FIFO queue se agla virtual thread le leta hai.</p>
+        <p>I/O complete hone par thread wapas queue mein submit hota hai. Koi bhi free carrier use mount kar sakta hai &mdash; zaroori nahi ki wahi ho jispar wo shuru hua tha.</p>
+        <div class="say"><b>say this</b>Isliye <code>Thread.currentThread()</code> same rehta hai lekin carrier badal sakta hai. Jo bhi logic carrier identity par depend karta tha &mdash; thread-affinity caching, kuch lock implementations &mdash; wo ab invalid assumption hai.</div>
+        <div class="trap"><b>trap</b>&ldquo;Stack ban'na band ho gaya&rdquo; galat hai. Stack banta hai, bas OS native memory ke bajaye GC-managed heap par.</div>
+      </div>
+    </div>
+
+    <div class="qa-item" data-lvl="l3">
+      <button class="qa-q"><span class="lvl l3">L3</span>Memory footprint par exact impact kya tha? Numbers do.</button>
+      <div class="qa-a">
+        <p>Native memory (thread stacks) drastically giri, heap thoda badha &mdash; kyunki stacks ab wahin hain.</p>
+        <ul>
+          <li>Platform thread: <b>1 MB reserved</b> per thread (<code>-Xss</code> default). Reserve virtual memory hai, commit lazy &mdash; par address space aur container accounting par asar padta hai.</li>
+          <li>Virtual thread: Thread object chhota, stack chunks call depth ke saath. Spring + Hibernate + security chain par realistically <b>1&ndash;10 KB</b>.</li>
+        </ul>
+        <div class="say"><b>say this</b>Humne guess nahi kiya &mdash; <code>-XX:NativeMemoryTracking=summary</code> se before/after measure kiya. Heap ko <code>MaxRAMPercentage=70</code> par rakha, 75 par nahi, kyunki stacks ab heap par hain aur Metaspace plus code cache ko headroom chahiye.</div>
+        <div class="trap"><b>trap</b>&ldquo;200 bytes per thread&rdquo; ek marketing number hai jo empty stack par based hai. Real Spring request par yeh KB mein hota hai. Yeh bolne se aap informed lagte ho, over-sold nahi.</div>
+      </div>
+    </div>
+
+    <div class="qa-item" data-lvl="l3">
+      <button class="qa-q"><span class="lvl l3">L3</span>Aap virtual threads kab <em>nahi</em> use karenge?</button>
+      <div class="qa-a">
+        <p>Yeh sabse achha sawal hai, kyunki iska jawab hi seniority dikhata hai.</p>
+        <ul>
+          <li><b>CPU-bound work</b> &mdash; encryption, image processing, heavy parsing. Wahan bounded platform pool hi sahi hai.</li>
+          <li><b>Already reactive</b> &mdash; WebFlux ya Netty. Do concurrency models mix karna sirf risk hai.</li>
+          <li><b>Native/JNI heavy libraries</b> &mdash; wo abhi bhi pin karte hain, Java 24+ par bhi. Unhe alag platform-thread executor par isolate karo.</li>
+          <li><b>Downstream already saturated</b> &mdash; agar DB pool pehle se 100% busy hai, to aap queue ko move kar rahe ho, khatam nahi. Pehle caching ya read replica, phir virtual threads.</li>
+          <li><b>Strict global ordering</b> &mdash; wahan parallelism hi galat hai, thread type chahe jo ho.</li>
+        </ul>
+        <div class="say"><b>say this</b>Ek line ka framework: virtual threads <em>waiting</em> ka cost ghatate hain, <em>working</em> ka nahi. Isliye har decision ek sawal se decide hota hai &mdash; is thread ka zyada waqt wait mein jaata hai ya compute mein?</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+</main>
+
+<footer class="wrap">
+  <p><b>Scope.</b> Yeh page Java 21 LTS ko baseline maanta hai, Spring Boot 3.2+ ke saath. Jahan Java 24/25 ka behaviour alag hai &mdash; khaas taur par <span class="mono">synchronized</span> pinning &mdash; wahan alag se likha gaya hai. Version-specific claims apne runtime par verify zaroor karein.</p>
+
+  <div class="corr">
+    <div class="corr-hd">corrections applied to the source conversation</div>
+    <ul>
+      <li><b>@KafkaListener(batch = &quot;true&quot;)</b> &mdash; aisa koi attribute exist nahi karta. Batch mode <span class="mono">spring.kafka.listener.type=batch</span> ya <span class="mono">factory.setBatchListener(true)</span> se set hota hai.</li>
+      <li><b>try-with-resources &ne; structured concurrency.</b> Wo <span class="mono">ExecutorService</span> ka AutoCloseable behaviour hai. Asli <span class="mono">StructuredTaskScope</span> Java 21 mein preview API thi.</li>
+      <li><b>close() exception propagate nahi karta.</b> Original code batch complete hone par ack karta tha &mdash; lekin task failures Future ke andar dafan reh jaate. Yeh silent data loss hai; Future drain add kiya gaya.</li>
+      <li><b>Per-key ordering.</b> Har message ke liye alag virtual thread spawn karne se partition ka ordering guarantee toot jaata hai. Key-based grouping is page mein add ki gayi.</li>
+      <li><b>&ldquo;~200 bytes per virtual thread&rdquo;</b> &mdash; realistically 1&ndash;10 KB, kyunki stack chunks call depth ke saath grow karte hain. Platform thread ka 1 MB reserved virtual memory hai, committed RAM nahi.</li>
+      <li><b>synchronized pinning</b> Java 24 ke <b>JEP 491</b> ke baad largely resolved hai &mdash; Java 21 par yeh abhi bhi real problem hai, isliye dono cases likhe gaye.</li>
+      <li><b>File I/O</b> abhi bhi carrier ko block karta hai most platforms par &mdash; wo offloaded hai, truly async nahi. Isliye AsyncAppender.</li>
+    </ul>
+  </div>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+  var reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  /* ============================================================
+     1. Java syntax highlighting
+     ============================================================ */
+  var KW = ["public","private","protected","class","interface","enum","record","void","new","try","catch",
+            "finally","for","if","else","return","final","static","var","throws","throw","import","package",
+            "implements","extends","boolean","int","long","double","float","char","byte","short","true","false",
+            "null","this","super","while","switch","case","default","synchronized","break","continue","instanceof"];
+  var RE = new RegExp(
+      "(\\/\\/[^\\n]*)" +                         // 1 comment
+      "|(\"(?:[^\"\\\\]|\\\\.)*\")" +             // 2 string
+      "|(@[A-Za-z_][A-Za-z0-9_]*)" +              // 3 annotation
+      "|\\b(" + KW.join("|") + ")\\b" +           // 4 keyword
+      "|\\b(\\d[\\d_]*[LlFfDd]?)\\b" +            // 5 number
+      "|\\b([A-Z][A-Za-z0-9_]*)\\b",              // 6 type
+      "g");
+
+  function esc(s) {
+    return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
+  function highlight(line) {
+    return esc(line).replace(/&lt;/g, "\u0001").replace(/&gt;/g, "\u0002").replace(/&amp;/g, "\u0003")
+      .replace(RE, function (m, c, s, a, k, n, t) {
+        if (c) return '<span class="c">' + c + "</span>";
+        if (s) return '<span class="s">' + s + "</span>";
+        if (a) return '<span class="a">' + a + "</span>";
+        if (k) return '<span class="k">' + k + "</span>";
+        if (n) return '<span class="n">' + n + "</span>";
+        if (t) return '<span class="t">' + t + "</span>";
+        return m;
+      })
+      .replace(/\u0001/g, "&lt;").replace(/\u0002/g, "&gt;").replace(/\u0003/g, "&amp;");
+  }
+
+  document.querySelectorAll(".code ol > li").forEach(function (li) {
+    if (li.classList.contains("nrow")) return;
+    var raw = li.textContent;
+    if (!raw.trim()) return;
+    li.innerHTML = highlight(raw);
+  });
+
+  /* ============================================================
+     2. Clickable code annotations
+     ============================================================ */
+  document.querySelectorAll(".code li.nl").forEach(function (li) {
+    li.setAttribute("tabindex", "0");
+    li.setAttribute("role", "button");
+    li.setAttribute("aria-expanded", "false");
+
+    function toggle() {
+      var open = li.classList.toggle("open");
+      li.setAttribute("aria-expanded", open ? "true" : "false");
+      var next = li.nextElementSibling;
+      if (open) {
+        var row = document.createElement("li");
+        row.className = "nrow";
+        row.innerHTML = li.getAttribute("data-n");
+        li.parentNode.insertBefore(row, next);
+      } else if (next && next.classList.contains("nrow")) {
+        next.remove();
+      }
+    }
+    li.addEventListener("click", toggle);
+    li.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(); }
+    });
+  });
+
+  /* ============================================================
+     3. Nav scrollspy
+     ============================================================ */
+  var navLinks = Array.prototype.slice.call(document.querySelectorAll(".nav a"));
+  var targets = navLinks.map(function (a) { return document.querySelector(a.getAttribute("href")); });
+  function spy() {
+    var best = 0, y = window.scrollY + 120;
+    targets.forEach(function (t, i) { if (t && t.offsetTop <= y) best = i; });
+    navLinks.forEach(function (a, i) { a.classList.toggle("on", i === best); });
+  }
+  window.addEventListener("scroll", spy, { passive: true });
+  spy();
+
+  /* ============================================================
+     4. Hero lanes — continuous mount / unmount
+     ============================================================ */
+  (function heroLanes() {
+    var root = document.getElementById("heroLanes");
+    if (!root) return;
+    var lanes = Array.prototype.slice.call(root.querySelectorAll(".lane"));
+    var elDone = document.getElementById("heroDone");
+    var elPark = document.getElementById("heroPark");
+    var done = 0, parked = 0, seq = 1;
+
+    if (reduced) {
+      lanes.forEach(function (lane, i) {
+        var s = document.createElement("div");
+        s.className = "slot run";
+        s.style.left = (12 + i * 18) + "px";
+        s.style.width = "62px";
+        s.textContent = "VT-" + (i + 1);
+        lane.appendChild(s);
+      });
+      elDone.textContent = "—"; elPark.textContent = "—";
+      document.getElementById("heroNote").textContent = "motion paused";
+      return;
+    }
+
+    function runOne(lane) {
+      var w = 52 + Math.random() * 26;
+      var s = document.createElement("div");
+      s.className = "slot run";
+      s.style.left = "38px";
+      s.style.width = w + "px";
+      s.textContent = "VT-" + (seq++);
+      lane.appendChild(s);
+
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () {
+          s.style.left = Math.max(40, lane.clientWidth - w - 6) + "px";
+        });
+      });
+
+      var dwell = 520 + Math.random() * 520;
+      setTimeout(function () {
+        s.style.opacity = "0";
+        parked++; elPark.textContent = parked;
+        setTimeout(function () {
+          s.remove();
+          parked--; elPark.textContent = parked;
+          done++; elDone.textContent = done;
+        }, 420 + Math.random() * 700);
+        setTimeout(function () { runOne(lane); }, 90 + Math.random() * 260);
+      }, dwell);
+    }
+    lanes.forEach(function (lane, i) { setTimeout(function () { runOne(lane); }, i * 240); });
+  })();
+
+  /* ============================================================
+     5. Lab tabs
+     ============================================================ */
+  var tabs = [
+    { btn: document.getElementById("tabStep"), pan: document.getElementById("panStep") },
+    { btn: document.getElementById("tabAuto"), pan: document.getElementById("panAuto") },
+    { btn: document.getElementById("tabSim"),  pan: document.getElementById("panSim") }
+  ];
+  tabs.forEach(function (t, i) {
+    if (!t.btn) return;
+    t.btn.addEventListener("click", function () {
+      tabs.forEach(function (o, j) {
+        o.btn.setAttribute("aria-selected", i === j ? "true" : "false");
+        o.pan.hidden = i !== j;
+      });
+      if (i === 1) autoStage.relayout();
+      if (i === 0) stepStage.relayout();
+    });
+  });
+
+  /* ============================================================
+     6. Stage engine — mount / unmount / commit story
+     ============================================================ */
+  var CHIPS = ["VT-1", "VT-2", "VT-3", "VT-4", "VT-5", "VT-6"];
+
+  var STORY = [
+    {
+      t: "Poll returns a batch",
+      en: "The listener thread polls its partition and gets six records back. Nothing has been scheduled yet — these are just bytes in memory.",
+      hi: "Listener ne apni partition se 6 records uthaye. Abhi kuch schedule nahi hua — yeh sirf memory mein pada data hai.",
+      place: { "VT-1": "in", "VT-2": "in", "VT-3": "in", "VT-4": "in", "VT-5": "in", "VT-6": "in" },
+      state: "new", off: 1204, offnote: "nothing committed yet"
+    },
+    {
+      t: "Six virtual threads allocated on the heap",
+      en: "newVirtualThreadPerTaskExecutor() creates one thread per key-group. Each is an object allocation, not a syscall — this loop finishes in microseconds.",
+      hi: "Har key-group ke liye ek virtual thread bana. Yeh object allocation hai, syscall nahi — isliye yeh loop microseconds mein khatam ho jaata hai.",
+      place: { "VT-1": "heap", "VT-2": "heap", "VT-3": "heap", "VT-4": "heap", "VT-5": "heap", "VT-6": "heap" },
+      state: "new", off: 1204, offnote: "nothing committed yet"
+    },
+    {
+      t: "Mount — four carriers, four cores",
+      en: "The scheduler mounts four virtual threads onto the four carrier threads. Their stack frames are copied onto the carriers' real OS stacks and start running.",
+      hi: "Scheduler ne 4 virtual threads ko 4 carrier threads par mount kar diya. Unke stack frames carrier ke asli OS stack par copy hue aur code chalna shuru.",
+      place: { "VT-1": "c0", "VT-2": "c1", "VT-3": "c2", "VT-4": "c3", "VT-5": "heap", "VT-6": "heap" },
+      run: ["VT-1", "VT-2", "VT-3", "VT-4"], off: 1204, offnote: "nothing committed yet"
+    },
+    {
+      t: "VT-1 hits the database write — unmount",
+      en: "The JDBC call blocks. Internally the JDK calls Continuation.yield(): VT-1's stack is copied off CT-0 and saved onto the heap as stack chunks. CT-0 is now free.",
+      hi: "DB write par block hua. JDK ne andar Continuation.yield() call kiya — VT-1 ka stack CT-0 se uthkar heap par save ho gaya. CT-0 ab bilkul free hai.",
+      place: { "VT-1": "heap", "VT-2": "c1", "VT-3": "c2", "VT-4": "c3", "VT-5": "heap", "VT-6": "heap" },
+      run: ["VT-2", "VT-3", "VT-4"], park: ["VT-1"], off: 1204, offnote: "nothing committed yet"
+    },
+    {
+      t: "CT-0 does not wait — it mounts VT-5",
+      en: "This is the whole point of the migration. In Java 17 that OS thread would sit idle for the full I/O duration. Here it picks up the next virtual thread immediately.",
+      hi: "Yahi poore migration ka asli point hai. Java 17 mein wo OS thread poore I/O ke liye khali baithti. Yahan usne turant agla virtual thread utha liya.",
+      place: { "VT-1": "heap", "VT-2": "c1", "VT-3": "c2", "VT-4": "c3", "VT-5": "c0", "VT-6": "heap" },
+      run: ["VT-2", "VT-3", "VT-4", "VT-5"], park: ["VT-1"], off: 1204, offnote: "nothing committed yet"
+    },
+    {
+      t: "Everyone blocks — six threads, zero blocked carriers",
+      en: "The rest reach their I/O calls and park too. Six virtual threads are alive and waiting, and not one OS thread is blocked.",
+      hi: "Baaki bhi apni I/O par pahunch kar park ho gaye. 6 virtual threads zinda hain aur wait kar rahe hain — aur ek bhi OS thread block nahi hai.",
+      place: { "VT-1": "heap", "VT-2": "heap", "VT-3": "heap", "VT-4": "heap", "VT-5": "heap", "VT-6": "c1" },
+      run: ["VT-6"], park: ["VT-1", "VT-2", "VT-3", "VT-4", "VT-5"], off: 1204, offnote: "nothing committed yet"
+    },
+    {
+      t: "DB replies in 1s — VT-1 joins the FIFO queue",
+      en: "The timeout was 5s; the write finished in 1s. VT-1 does not preempt anyone. It is submitted to the scheduler's FIFO queue and waits for a free carrier.",
+      hi: "Timeout 5 second tha, kaam 1 second mein ho gaya. VT-1 kisi ko hataata nahi — wo scheduler ki FIFO queue mein lagta hai aur free carrier ka wait karta hai.",
+      place: { "VT-1": "ready", "VT-2": "heap", "VT-3": "heap", "VT-4": "heap", "VT-5": "heap", "VT-6": "c1" },
+      run: ["VT-6"], ready: ["VT-1"], park: ["VT-2", "VT-3", "VT-4", "VT-5"], off: 1204, offnote: "nothing committed yet"
+    },
+    {
+      t: "Remount — on CT-2, not CT-0",
+      en: "A different carrier picks VT-1 up and its saved stack is restored. The virtual thread identity never changed, but the carrier underneath it did.",
+      hi: "Ab ek doosre carrier ne VT-1 ko uthaya aur uska saved stack wapas restore ho gaya. Virtual thread wahi hai, par neeche ka carrier badal gaya.",
+      place: { "VT-1": "c2", "VT-2": "heap", "VT-3": "heap", "VT-4": "heap", "VT-5": "heap", "VT-6": "c1" },
+      run: ["VT-1", "VT-6"], park: ["VT-2", "VT-3", "VT-4", "VT-5"], off: 1204, offnote: "nothing committed yet"
+    },
+    {
+      t: "All six finish — the listener drains the Futures",
+      en: "close() has returned, so every task is done. But done is not the same as successful, so the listener calls get() on each Future to surface any exception.",
+      hi: "close() return ho gaya, yaani sab tasks khatam. Par khatam hona aur safal hona alag baat hai — isliye listener har Future par get() karke exception check karta hai.",
+      place: { "VT-1": "done", "VT-2": "done", "VT-3": "done", "VT-4": "done", "VT-5": "done", "VT-6": "done" },
+      state: "done", off: 1204, offnote: "verifying futures before commit"
+    },
+    {
+      t: "Only now: ack.acknowledge()",
+      en: "Every Future returned cleanly, so the offset moves from 1204 to 1210. Commit happens on the listener thread, after verified completion — never inside an @Async method.",
+      hi: "Saare Futures clean nikle, isliye offset 1204 se 1210 ho gaya. Commit listener thread par hua, verify karne ke baad — kabhi @Async method ke andar nahi.",
+      place: { "VT-1": "done", "VT-2": "done", "VT-3": "done", "VT-4": "done", "VT-5": "done", "VT-6": "done" },
+      state: "done", off: 1210, offnote: "batch committed · 6 records · zero loss"
+    }
+  ];
+
+  function makeStage(rootSel) {
+    var stage = document.querySelector('[data-stage="' + rootSel + '"]');
+    if (!stage) return { relayout: function () {}, go: function () {} };
+    var holder = stage.querySelector("[data-chips]");
+    var panel = stage.closest(".lab-panel");
+    var els = {};
+    var idx = 0;
+
+    CHIPS.forEach(function (name) {
+      var c = document.createElement("div");
+      c.className = "chip st-new";
+      c.textContent = name;
+      holder.appendChild(c);
+      els[name] = c;
+    });
+
+    function zoneRect(z) {
+      var el = stage.querySelector('[data-zone="' + z + '"]');
+      if (!el) return null;
+      var r = el.getBoundingClientRect(), s = stage.getBoundingClientRect();
+      return { x: r.left - s.left, y: r.top - s.top, w: r.width, h: r.height };
+    }
+
+    function place() {
+      var step = STORY[idx];
+      var buckets = {};
+      CHIPS.forEach(function (n) {
+        var z = step.place[n];
+        (buckets[z] = buckets[z] || []).push(n);
+      });
+
+      Object.keys(buckets).forEach(function (z) {
+        var r = zoneRect(z);
+        if (!r) return;
+        var isCarrier = z.charAt(0) === "c" && z.length === 2;
+        buckets[z].forEach(function (n, i) {
+          var el = els[n], x, y;
+          if (isCarrier) { x = r.x + 44; y = r.y + 5; }
+          else {
+            var cols = Math.max(1, Math.floor((r.w - 6) / 48));
+            x = r.x + 4 + (i % cols) * 48;
+            y = r.y + 2 + Math.floor(i / cols) * 23;
+          }
+          el.style.transform = "translate(" + Math.round(x) + "px," + Math.round(y) + "px)";
+        });
+      });
+
+      CHIPS.forEach(function (n) {
+        var el = els[n], cls = "chip ";
+        if (step.run && step.run.indexOf(n) > -1) cls += "st-run";
+        else if (step.park && step.park.indexOf(n) > -1) cls += "st-park";
+        else if (step.ready && step.ready.indexOf(n) > -1) cls += "st-ready";
+        else if (step.state === "done") cls += "st-done";
+        else cls += "st-new";
+        el.className = cls;
+      });
+
+      stage.querySelector("[data-off]").textContent = step.off;
+      stage.querySelector("[data-offnote]").textContent = step.offnote;
+
+      panel.querySelector("[data-narrstep]").textContent = "step " + (idx + 1) + " of " + STORY.length;
+      panel.querySelector("[data-narrtitle]").textContent = step.t;
+      panel.querySelector("[data-narren]").textContent = step.en;
+      panel.querySelector("[data-narrhi]").textContent = step.hi;
+      panel.querySelector("[data-count]").textContent = (idx + 1) + " / " + STORY.length;
+      panel.querySelector("[data-prog]").style.width = ((idx + 1) / STORY.length * 100) + "%";
+
+      var prev = panel.querySelector("[data-prev]"), next = panel.querySelector("[data-next]");
+      if (prev) prev.disabled = idx === 0;
+      if (next) next.disabled = idx === STORY.length - 1;
+    }
+
+    function go(n) { idx = Math.max(0, Math.min(STORY.length - 1, n)); place(); }
+    window.addEventListener("resize", function () { place(); });
+    setTimeout(place, 60);
+
+    return {
+      relayout: function () { setTimeout(place, 40); },
+      go: go,
+      next: function () { go(idx + 1); },
+      prev: function () { go(idx - 1); },
+      at: function () { return idx; },
+      last: STORY.length - 1
+    };
+  }
+
+  var stepStage = makeStage("step");
+  var autoStage = makeStage("auto");
+
+  var pStep = document.getElementById("panStep");
+  pStep.querySelector("[data-next]").addEventListener("click", function () { stepStage.next(); });
+  pStep.querySelector("[data-prev]").addEventListener("click", function () { stepStage.prev(); });
+  pStep.querySelector("[data-reset]").addEventListener("click", function () { stepStage.go(0); });
+
+  var pAuto = document.getElementById("panAuto");
+  var playBtn = pAuto.querySelector("[data-play]");
+  var pauseBtn = pAuto.querySelector("[data-pause]");
+  var timer = null;
+  function tick() {
+    var n = autoStage.at() + 1;
+    autoStage.go(n > autoStage.last ? 0 : n);
+  }
+  playBtn.addEventListener("click", function () {
+    if (timer) return;
+    playBtn.disabled = true; pauseBtn.disabled = false;
+    tick();
+    timer = setInterval(tick, reduced ? 4200 : 2600);
+  });
+  pauseBtn.addEventListener("click", function () {
+    clearInterval(timer); timer = null;
+    playBtn.disabled = false; pauseBtn.disabled = true;
+  });
+
+  /* ============================================================
+     7. Simulator — same workload, two execution models
+     ============================================================ */
+  (function simulator() {
+    var s = {
+      tasks: document.getElementById("sTasks"),
+      cores: document.getElementById("sCores"),
+      io:    document.getElementById("sIo"),
+      cpu:   document.getElementById("sCpu"),
+      pool:  document.getElementById("sPool"),
+      db:    document.getElementById("sDb")
+    };
+    if (!s.tasks) return;
+
+    var v = {
+      tasks: document.getElementById("vTasks"), cores: document.getElementById("vCores"),
+      io: document.getElementById("vIo"), cpu: document.getElementById("vCpu"),
+      pool: document.getElementById("vPool"), db: document.getElementById("vDb")
+    };
+
+    function fmt(n) { return n.toLocaleString("en-US"); }
+
+    function syncLabels() {
+      v.tasks.textContent = fmt(+s.tasks.value);
+      v.cores.textContent = s.cores.value;
+      v.io.textContent = s.io.value + " ms";
+      v.cpu.textContent = s.cpu.value + " ms";
+      v.pool.textContent = s.pool.value;
+      v.db.textContent = s.db.value;
+    }
+    Object.keys(s).forEach(function (k) { s[k].addEventListener("input", syncLabels); });
+    syncLabels();
+
+    function model() {
+      var N = +s.tasks.value, C = +s.cores.value, IO = +s.io.value,
+          CPU = +s.cpu.value, P = +s.pool.value, D = +s.db.value;
+
+      var cpuFloor = (N * CPU) / C / 1000;                  // seconds, CPU bound
+      var dbFloor  = (N * IO) / D / 1000;                   // seconds, downstream bound
+
+      // Java 17: a thread is held for the whole cpu + io span
+      var holdMs      = CPU + IO;
+      var threadFloor = (N * holdMs) / P / 1000;
+      var csPenalty   = 1 + Math.min(0.30, (P / C) / 400);  // kernel context switching
+      var t17         = Math.max(cpuFloor, dbFloor, threadFloor) * csPenalty;
+
+      // Java 21: nothing holds a carrier while waiting
+      var t21 = Math.max(cpuFloor, dbFloor) * 1.02;
+
+      var lim17 = threadFloor >= dbFloor && threadFloor >= cpuFloor ? "thread pool"
+                : dbFloor >= cpuFloor ? "downstream cap" : "cpu cores";
+      var lim21 = dbFloor >= cpuFloor ? "downstream cap" : "cpu cores";
+
+      var conc17 = Math.min(P, N);
+      var conc21 = N;
+
+      return {
+        N: N, t17: t17, t21: t21, lim17: lim17, lim21: lim21,
+        conc17: conc17, conc21: conc21,
+        mem17: conc17 * 1024,        // KB reserved, 1 MB per platform thread
+        mem21: conc21 * 6,           // KB on heap, ~6 KB per virtual thread stack
+        rps17: N / Math.max(t17, 0.001),
+        rps21: N / Math.max(t21, 0.001),
+        cpuFloor: cpuFloor, dbFloor: dbFloor, threadFloor: threadFloor
+      };
+    }
+
+    function mem(kb) {
+      if (kb >= 1024 * 1024) return (kb / 1024 / 1024).toFixed(1) + " GB";
+      if (kb >= 1024) return Math.round(kb / 1024) + " MB";
+      return Math.round(kb) + " KB";
+    }
+
+    function animateTo(el, target, suffix, dur) {
+      var start = performance.now();
+      function frame(now) {
+        var p = Math.min(1, (now - start) / dur);
+        var eased = 1 - Math.pow(1 - p, 3);
+        el.textContent = (target * eased).toFixed(target < 100 ? 1 : 0) + (suffix || "");
+        if (p < 1) requestAnimationFrame(frame);
+        else el.textContent = target.toFixed(target < 100 ? 1 : 0) + (suffix || "");
+      }
+      requestAnimationFrame(frame);
+    }
+
+    function run() {
+      var m = model();
+      var worst = Math.max(m.t17, m.t21);
+      var dur = reduced ? 1 : 900;
+
+      animateTo(document.getElementById("r17Time"), m.t17, "", dur);
+      animateTo(document.getElementById("r21Time"), m.t21, "", dur);
+      document.getElementById("r17Bar").style.width = (m.t17 / worst * 100) + "%";
+      document.getElementById("r21Bar").style.width = (m.t21 / worst * 100) + "%";
+
+      document.getElementById("r17Rps").textContent = fmt(Math.round(m.rps17)) + " /s";
+      document.getElementById("r21Rps").textContent = fmt(Math.round(m.rps21)) + " /s";
+      document.getElementById("r17Conc").textContent = fmt(m.conc17) + " threads";
+      document.getElementById("r21Conc").textContent = fmt(m.conc21) + " threads";
+      document.getElementById("r17Mem").textContent = mem(m.mem17) + " reserved";
+      document.getElementById("r21Mem").textContent = mem(m.mem21) + " on heap";
+      document.getElementById("r17Lim").textContent = m.lim17;
+      document.getElementById("r21Lim").textContent = m.lim21;
+
+      var speedup = m.t17 / Math.max(m.t21, 0.001);
+      var out = [];
+
+      if (m.lim21 === "cpu cores") {
+        out.push("<b>CPU-bound zone.</b> Yahan virtual threads ka koi fayda nahi \u2014 dono models cores par hi atke hain. Iske liye zyada cores ya zyada pods chahiye, naya thread model nahi.");
+      } else if (speedup < 1.25) {
+        out.push("<b>Sirf " + speedup.toFixed(2) + "\u00d7 tez.</b> DB connections (" + s.db.value + ") hi asli bottleneck hain \u2014 virtual threads ne queue ko Tomcat se HikariCP par shift kar diya, khatam nahi kiya. Yahi wo insight hai jo interview mein aapko alag dikhati hai.");
+      } else {
+        out.push("<b>" + speedup.toFixed(1) + "\u00d7 tez</b> same hardware par. Java 17 ka limit <em>" + m.lim17 + "</em> tha; Java 21 ab <em>" + m.lim21 + "</em> par ruk raha hai \u2014 yaani bottleneck application se downstream par chala gaya.");
+      }
+
+      if (m.mem21 > 700 * 1024) {
+        out.push("<b>Warning:</b> " + fmt(m.conc21) + " concurrent virtual threads ka matlab hai lagbhag " + mem(m.mem21) +
+                 " heap sirf stacks ke liye. Unbounded fan-out yahan OOM hai \u2014 Semaphore(" + s.db.value + ") se admission cap karo.");
+      }
+      if (+s.pool.value > 400) {
+        out.push("Java 17 ka pool " + s.pool.value + " threads par set hai \u2014 wo lagbhag " + mem(m.mem17) +
+                 " stack reserve aur bhaari kernel context switching maangta hai. Isliye pool badhana free nahi hota.");
+      }
+
+      document.getElementById("simVerdict").innerHTML = out.join(" ");
+    }
+
+    document.getElementById("runSim").addEventListener("click", run);
+    run();
+  })();
+
+  /* ============================================================
+     8. Mock Q&A — accordion + level filter
+     ============================================================ */
+  document.querySelectorAll(".qa-item .qa-q").forEach(function (btn) {
+    btn.setAttribute("aria-expanded", "false");
+    btn.addEventListener("click", function () {
+      var item = btn.parentNode;
+      var open = item.classList.toggle("open");
+      btn.setAttribute("aria-expanded", open ? "true" : "false");
+    });
+  });
+
+  var filterBtns = document.querySelectorAll(".chip-btn");
+  filterBtns.forEach(function (b) {
+    b.addEventListener("click", function () {
+      var want = b.getAttribute("data-lvl");
+      filterBtns.forEach(function (o) {
+        o.setAttribute("aria-pressed", o === b ? "true" : "false");
+      });
+      document.querySelectorAll(".qa-item").forEach(function (item) {
+        item.hidden = want !== "all" && item.getAttribute("data-lvl") !== want;
+      });
+    });
+  });
+})();
+</script>
+</body>
+</html>

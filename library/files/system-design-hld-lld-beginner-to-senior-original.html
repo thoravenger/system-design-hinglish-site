@@ -1,0 +1,1284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>System Design — Beginner se Senior tak</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Instrument+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --sheet:#ECEFF3;
+  --card:#FFFFFF;
+  --ink:#0F1B29;
+  --muted:#5A6B7B;
+  --faint:#8595A3;
+  --rule:#D2DAE2;
+  --rule-2:#E3E9EF;
+  --blue:#1B49CE;
+  --blue-soft:#E8EDFB;
+  --amber:#96620A;
+  --amber-soft:#FBF1DE;
+  --green:#186B48;
+  --green-soft:#E4F2EB;
+  --red:#A32E27;
+  --red-soft:#FAE9E7;
+  --display:"Bricolage Grotesque","Instrument Sans",system-ui,sans-serif;
+  --sans:"Instrument Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,monospace;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+body{
+  margin:0;background:var(--sheet);color:var(--ink);
+  font-family:var(--sans);font-size:16px;line-height:1.6;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:1080px;margin:0 auto;padding:0 16px 80px}
+
+/* language marking */
+.hi{display:block;font-weight:500;color:var(--ink)}
+.en{display:block;color:var(--muted);font-size:.94em}
+.bi{margin:0 0 12px}
+.bi .hi+.en{margin-top:1px}
+
+/* hero */
+header.hero{padding:44px 0 26px}
+.kicker{font-family:var(--mono);font-size:.76rem;color:var(--blue);letter-spacing:.02em;margin:0 0 14px}
+h1{
+  font-family:var(--display);font-weight:800;
+  font-size:clamp(2.1rem,8.4vw,3.55rem);line-height:.98;
+  letter-spacing:-.028em;margin:0 0 18px;max-width:15ch;
+}
+.hero .bi{max-width:46ch}
+.jump{display:flex;flex-wrap:wrap;gap:7px;margin-top:24px}
+.jump a{
+  font-size:.83rem;font-weight:500;text-decoration:none;
+  color:var(--ink);background:var(--card);
+  border:1px solid var(--rule);border-radius:100px;padding:6px 13px;
+}
+.jump a:hover,.jump a:focus-visible{border-color:var(--blue);color:var(--blue)}
+
+/* section frames */
+section{margin-top:52px;scroll-margin-top:14px}
+.shead{border-top:2px solid var(--ink);padding-top:12px;margin-bottom:20px}
+h2{font-family:var(--display);font-weight:800;font-size:clamp(1.5rem,5.4vw,2.05rem);letter-spacing:-.022em;line-height:1.1;margin:0 0 8px}
+.shead .bi{margin:0;max-width:52ch}
+h3{font-family:var(--display);font-weight:600;font-size:1.16rem;letter-spacing:-.012em;margin:0 0 8px}
+
+/* ladder */
+.rungs{display:grid;gap:12px}
+.rung{background:var(--card);border:1px solid var(--rule);border-radius:4px;padding:18px 16px;border-left:4px solid var(--faint)}
+.rung[data-lv="2"]{border-left-color:var(--blue)}
+.rung[data-lv="3"]{border-left-color:var(--amber)}
+.rung[data-lv="4"]{border-left-color:var(--green)}
+.rung .lv{font-family:var(--mono);font-size:.74rem;color:var(--faint);margin-bottom:6px}
+.rung h3{margin-bottom:10px}
+.rung dl{margin:0;display:grid;gap:9px}
+.rung dt{font-size:.76rem;font-weight:600;color:var(--faint);margin-bottom:1px}
+.rung dd{margin:0;font-size:.93rem;color:var(--ink)}
+.rung dd.warn{color:var(--red)}
+
+/* two-col split */
+.split{display:grid;gap:12px;margin-bottom:14px}
+.pane{background:var(--card);border:1px solid var(--rule);border-radius:4px;padding:16px}
+.pane.problem{background:#E5EAF0;border-color:var(--rule)}
+.pane.solution{border-left:3px solid var(--blue)}
+.tag{
+  display:inline-block;font-family:var(--mono);font-size:.7rem;
+  padding:2px 7px;border-radius:3px;margin-bottom:10px;
+}
+.tag.p{background:#D5DDE6;color:#3C4B59}
+.tag.s{background:var(--blue-soft);color:var(--blue)}
+.pane ul{margin:10px 0 0;padding-left:18px}
+.pane li{margin-bottom:6px;font-size:.94rem}
+.qline{font-family:var(--display);font-weight:600;font-size:1.05rem;line-height:1.35;margin:0 0 10px}
+
+.topic{margin-top:34px;padding-top:22px;border-top:1px solid var(--rule)}
+.topic:first-of-type{border-top:0;padding-top:0}
+.tnum{font-family:var(--mono);font-size:.75rem;color:var(--blue);margin-bottom:6px}
+
+/* code */
+.codewrap{background:#0F1B29;border-radius:4px;overflow:hidden;margin:14px 0 0}
+.codebar{
+  display:flex;justify-content:space-between;align-items:center;
+  padding:8px 13px;background:#16263A;border-bottom:1px solid #22364E;
+}
+.codebar b{font-family:var(--mono);font-size:.72rem;font-weight:400;color:#8FA6BF}
+.codebar em{font-family:var(--mono);font-size:.68rem;font-style:normal;color:#5F7590}
+pre{margin:0;padding:14px 0;overflow-x:auto;counter-reset:ln}
+pre code{
+  display:block;font-family:var(--mono);font-size:12.5px;
+  line-height:1.72;color:#D8E3EE;min-width:max-content;
+}
+.ln{display:block;padding:0 16px 0 46px;position:relative;white-space:pre}
+.ln::before{
+  counter-increment:ln;content:counter(ln);
+  position:absolute;left:0;width:32px;text-align:right;
+  color:#41566E;font-size:11px;
+}
+.ln.hl{background:#16263A}
+pre i{font-style:normal}
+pre i.k{color:#7FB4FF}
+pre i.s{color:#8FD6A8}
+pre i.c{color:#5F7590}
+pre i.n{color:#E0B072}
+
+.notes{margin:12px 0 0;padding:0;list-style:none;border-top:1px solid var(--rule-2)}
+.notes li{display:flex;gap:11px;padding:9px 0;border-bottom:1px solid var(--rule-2);font-size:.9rem}
+.notes b{
+  flex:0 0 auto;font-family:var(--mono);font-size:.72rem;font-weight:500;
+  color:var(--blue);background:var(--blue-soft);
+  padding:2px 6px;border-radius:3px;height:fit-content;min-width:44px;text-align:center;
+}
+.notes .hi{font-weight:500}
+.notes .en{font-size:.88rem}
+
+/* callouts */
+.call{border-radius:4px;padding:13px 15px;margin:14px 0 0;font-size:.92rem}
+.call.trade{background:var(--amber-soft);border-left:3px solid var(--amber)}
+.call.apply{background:var(--green-soft);border-left:3px solid var(--green)}
+.call.avoid{background:var(--red-soft);border-left:3px solid var(--red)}
+.call strong{display:block;font-family:var(--display);font-weight:600;font-size:.94rem;margin-bottom:5px}
+.call.trade strong{color:var(--amber)}
+.call.apply strong{color:var(--green)}
+.call.avoid strong{color:var(--red)}
+
+/* animation */
+.stage{background:var(--card);border:1px solid var(--rule);border-radius:4px;overflow:hidden}
+.tabs{display:flex;border-bottom:1px solid var(--rule)}
+.tabs button{
+  flex:1;font-family:var(--sans);font-size:.86rem;font-weight:500;
+  padding:12px 8px;background:#E8ECF1;border:0;border-right:1px solid var(--rule);
+  color:var(--muted);cursor:pointer;
+}
+.tabs button:last-child{border-right:0}
+.tabs button[aria-selected="true"]{background:var(--card);color:var(--blue);box-shadow:inset 0 -2px 0 var(--blue)}
+.svgbox{padding:8px 4px 0}
+svg#flow{width:100%;height:auto;display:block}
+.nd rect{fill:#F2F5F8;stroke:#C3CEDA;stroke-width:1.5;rx:4}
+.nd text{font-family:var(--sans);font-size:11px;font-weight:500;fill:#3C4B59;text-anchor:middle}
+.nd.on rect{fill:var(--blue-soft);stroke:var(--blue);stroke-width:2}
+.nd.on text{fill:var(--blue)}
+.nd.stale rect{fill:var(--red-soft);stroke:var(--red);stroke-dasharray:4 3}
+.nd.stale text{fill:var(--red)}
+.nd.fresh rect{fill:var(--green-soft);stroke:var(--green)}
+.nd.fresh text{fill:var(--green)}
+.ed{fill:none;stroke:#C3CEDA;stroke-width:1.5}
+.ed.lit{stroke:var(--blue);stroke-width:2.5}
+.ed.dash{stroke-dasharray:5 4}
+#pkt{fill:var(--blue);stroke:#fff;stroke-width:1.5}
+.caption{padding:14px 16px 6px;border-top:1px solid var(--rule-2);min-height:96px}
+.caption .step{font-family:var(--mono);font-size:.72rem;color:var(--faint);margin-bottom:6px}
+.player{display:flex;gap:7px;padding:10px 14px 14px;flex-wrap:wrap}
+.player button{
+  font-family:var(--sans);font-size:.83rem;font-weight:500;
+  background:var(--card);border:1px solid var(--rule);border-radius:3px;
+  padding:7px 13px;cursor:pointer;color:var(--ink);
+}
+.player button.primary{background:var(--blue);border-color:var(--blue);color:#fff}
+.player button:focus-visible,.tabs button:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+
+/* tables */
+.tablescroll{overflow-x:auto;background:var(--card);border:1px solid var(--rule);border-radius:4px}
+table{width:100%;border-collapse:collapse;font-size:.88rem;min-width:600px}
+th{
+  text-align:left;font-weight:600;font-size:.76rem;color:var(--faint);
+  padding:11px 12px;border-bottom:1px solid var(--rule);white-space:nowrap;
+}
+td{padding:11px 12px;border-bottom:1px solid var(--rule-2);vertical-align:top}
+tr:last-child td{border-bottom:0}
+td:first-child{font-weight:600;white-space:nowrap}
+td.ig{color:var(--red)}
+td.ap{color:var(--green)}
+
+/* three questions */
+.threeq{display:grid;gap:10px}
+.q3{background:var(--card);border:1px solid var(--rule);border-left:3px solid var(--ink);border-radius:4px;padding:15px}
+.q3 .num{font-family:var(--mono);font-size:.72rem;color:var(--faint);margin-bottom:5px}
+
+/* mock */
+details.mock{background:var(--card);border:1px solid var(--rule);border-radius:4px;margin-bottom:9px}
+details.mock summary{
+  padding:14px 15px;cursor:pointer;font-weight:600;font-size:.96rem;
+  list-style:none;display:flex;gap:11px;align-items:flex-start;
+}
+details.mock summary::-webkit-details-marker{display:none}
+details.mock summary::after{content:"+";margin-left:auto;color:var(--blue);font-size:1.15rem;line-height:1;flex:0 0 auto}
+details.mock[open] summary::after{content:"–"}
+details.mock summary .lvl{
+  font-family:var(--mono);font-size:.66rem;font-weight:400;padding:3px 6px;border-radius:3px;
+  background:var(--blue-soft);color:var(--blue);flex:0 0 auto;
+}
+details.mock summary .lvl.l{background:var(--green-soft);color:var(--green)}
+details.mock summary .lvl.h{background:var(--amber-soft);color:var(--amber)}
+details.mock .ans{padding:0 15px 16px;border-top:1px solid var(--rule-2);padding-top:13px}
+details.mock .ans ul{margin:8px 0 0;padding-left:18px}
+details.mock .ans li{font-size:.92rem;margin-bottom:6px}
+details.mock summary:focus-visible{outline:2px solid var(--blue);outline-offset:-2px}
+
+footer{margin-top:56px;padding-top:22px;border-top:2px solid var(--ink);max-width:52ch}
+
+@media (min-width:900px){
+  body{font-size:16.5px}
+  .split{grid-template-columns:1fr 1.25fr;gap:16px;align-items:start}
+  .rungs{grid-template-columns:1fr 1fr}
+  .wrap{padding:0 24px 90px}
+  .caption{min-height:78px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}html{scroll-behavior:auto}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <p class="kicker">HLD · LLD · trade-offs · mock rounds</p>
+  <h1>System design, beginner se senior tak</h1>
+  <div class="bi">
+    <span class="hi">Har topic do hisson mein hai — baayen taraf problem, daayen taraf solution. Code ke saath line-by-line explanation.</span>
+    <span class="en">Every topic is split in two: the problem on the left, the worked solution on the right, with the code explained line by line.</span>
+  </div>
+  <div class="bi">
+    <span class="hi">Sabse zaroori section trade-offs ka hai — kya lagana hai, kya chhodna hai, aur kab.</span>
+    <span class="en">The section that matters most is trade-offs: what to apply, what to ignore, and when.</span>
+  </div>
+  <nav class="jump">
+    <a href="#ladder">The four levels</a>
+    <a href="#hldlld">HLD vs LLD</a>
+    <a href="#flow">Animated flow</a>
+    <a href="#topics">Topics + code</a>
+    <a href="#trade">Trade-offs</a>
+    <a href="#mock">Mock questions</a>
+  </nav>
+</header>
+
+<!-- ============ LADDER ============ -->
+<section id="ladder">
+  <div class="shead">
+    <h2>Char levels</h2>
+    <div class="bi">
+      <span class="hi">Har level pe interviewer alag cheez dhoondh raha hai. Apna level pehchano, phir agla step lo.</span>
+      <span class="en">Each level is judged on something different. Find where you are, then take the next step only.</span>
+    </div>
+  </div>
+
+  <div class="rungs">
+    <article class="rung" data-lv="1">
+      <p class="lv">Level 1</p>
+      <h3>Beginner — can build it</h3>
+      <dl>
+        <div><dt>You can</dt><dd>CRUD API, ek database, ek server. Deploy karke chala dete ho.</dd></div>
+        <div><dt>They ask</dt><dd>"Design a URL shortener." Expected: endpoints, table schema, ek encoding scheme.</dd></div>
+        <div><dt>Learn next</dt><dd>Indexes, N+1 queries, connection pools, HTTP status codes, transactions.</dd></div>
+        <div><dt>Typical mistake</dt><dd class="warn">Seedha Kafka aur microservices bolna, jabki traffic 100 req/day hai.</dd></div>
+      </dl>
+    </article>
+
+    <article class="rung" data-lv="2">
+      <p class="lv">Level 2</p>
+      <h3>Intermediate — LLD solid</h3>
+      <dl>
+        <div><dt>You can</dt><dd>Classes, interfaces, responsibilities clean rakhna. Cache aur queue sahi jagah lagana.</dd></div>
+        <div><dt>They ask</dt><dd>"Design a rate limiter / parking lot / notification service." Class diagram + working code.</dd></div>
+        <div><dt>Learn next</dt><dd>Concurrency, idempotency, retries with backoff, cache invalidation, pagination.</dd></div>
+        <div><dt>Typical mistake</dt><dd class="warn">Ek God class jo sab kuch karti hai. Naming bhi weak — <code>doStuff()</code>, <code>Manager</code>.</dd></div>
+      </dl>
+    </article>
+
+    <article class="rung" data-lv="3">
+      <p class="lv">Level 3</p>
+      <h3>Advanced — HLD with numbers</h3>
+      <dl>
+        <div><dt>You can</dt><dd>Estimate karna: QPS, storage, bandwidth. Failure modes soch lena pehle se.</dd></div>
+        <div><dt>They ask</dt><dd>"10 million users pe kya todega?" Bottleneck, sharding, replication, consistency model.</dd></div>
+        <div><dt>Learn next</dt><dd>CAP in practice, quorum reads, leader election, backpressure, circuit breakers, SLOs.</dd></div>
+        <div><dt>Typical mistake</dt><dd class="warn">Box kheench dena par number na batana. Diagram bina estimate ke bekaar hai.</dd></div>
+      </dl>
+    </article>
+
+    <article class="rung" data-lv="4">
+      <p class="lv">Level 4</p>
+      <h3>Senior — owns the trade-off</h3>
+      <dl>
+        <div><dt>You can</dt><dd>Bata sakte ho kya <em>nahi</em> banana. Cost, migration plan, team capacity bhi soch mein hai.</dd></div>
+        <div><dt>They ask</dt><dd>"Do options hain, tum kaunsa chunoge aur kyun?" Aur: "kab galat sabit hoga?"</dd></div>
+        <div><dt>Learn next</dt><dd>One-way vs two-way doors, cost per request, on-call load, phased rollout, kill switches.</dd></div>
+        <div><dt>Typical mistake</dt><dd class="warn">Har cheez ka jawaab "it depends" — bina batayein kis cheez pe depend karta hai.</dd></div>
+      </dl>
+    </article>
+  </div>
+</section>
+
+<!-- ============ HLD vs LLD ============ -->
+<section id="hldlld">
+  <div class="shead">
+    <h2>HLD vs LLD</h2>
+    <div class="bi">
+      <span class="hi">Ek hi system, do zoom levels. Interview mein confuse mat karo — puchho pehle konsa chahiye.</span>
+      <span class="en">Same system, two zoom levels. Ask which one they want before you start drawing.</span>
+    </div>
+  </div>
+
+  <div class="split">
+    <div class="pane problem">
+      <span class="tag p">HLD — the map</span>
+      <p class="qline">Boxes, arrows, and numbers.</p>
+      <div class="bi">
+        <span class="hi">Sawal: data kahan rehta hai, kaun kisse baat karta hai, kya toota to kya hoga.</span>
+        <span class="en">Where data lives, who talks to whom, and what happens when a piece dies.</span>
+      </div>
+      <ul>
+        <li>Components and their boundaries</li>
+        <li>Data flow and storage choice</li>
+        <li>QPS, storage, latency budgets</li>
+        <li>Replication, sharding, caching layers</li>
+        <li>Failure modes and blast radius</li>
+      </ul>
+    </div>
+    <div class="pane solution">
+      <span class="tag s">LLD — the machine room</span>
+      <p class="qline">Classes, methods, and edge cases.</p>
+      <div class="bi">
+        <span class="hi">Sawal: ek component ke andar code kaisa dikhega, aur naya feature add karna aasaan hai ya nahi.</span>
+        <span class="en">What the code inside one component looks like, and whether adding the next feature will hurt.</span>
+      </div>
+      <ul>
+        <li>Classes, interfaces, responsibilities</li>
+        <li>Method signatures and naming</li>
+        <li>Concurrency and locking</li>
+        <li>Error handling and retries</li>
+        <li>Extension points for tomorrow's feature</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="call trade">
+    <strong>Interview mein kaise switch karein</strong>
+    <span class="hi">HLD mein pehle 5 minute estimate pe do — QPS, data size, read:write ratio. Uske baad hi boxes banao.</span>
+    <span class="en">In an HLD round, spend the first five minutes on estimates before drawing anything. In an LLD round, name your classes out loud before writing a single method — the names are half the grade.</span>
+  </div>
+</section>
+
+<!-- ============ ANIMATION ============ -->
+<section id="flow">
+  <div class="shead">
+    <h2>Ek save request ka safar</h2>
+    <div class="bi">
+      <span class="hi">Neeche wali animation dikhati hai ki "Save" dabane par andar kya hota hai — aur turant refresh karne par purana data kyun dikh sakta hai.</span>
+      <span class="en">This animation walks a save through the system, then shows why an immediate refresh can still show you the old value.</span>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="tabs" role="tablist">
+      <button role="tab" id="tab-write" aria-selected="true" data-scene="write">1 · Save / write</button>
+      <button role="tab" id="tab-read" aria-selected="false" data-scene="read">2 · Refresh / read</button>
+    </div>
+
+    <div class="svgbox">
+      <svg id="flow-svg" viewBox="0 0 372 505" role="img" aria-label="Animated diagram of a write request moving through client, load balancer, API server, cache, primary database, replica, queue, worker and search index">
+        <g id="edges">
+          <path class="ed" id="e-client-lb"   d="M180 49 L180 83"></path>
+          <path class="ed" id="e-lb-api"      d="M180 117 L180 151"></path>
+          <path class="ed" id="e-api-cache"   d="M160 185 L92 229"></path>
+          <path class="ed" id="e-api-db"      d="M200 185 L268 229"></path>
+          <path class="ed" id="e-db-replica"  d="M288 263 L288 305"></path>
+          <path class="ed" id="e-db-queue"    d="M264 263 L96 305"></path>
+          <path class="ed" id="e-queue-worker" d="M68 339 L68 379"></path>
+          <path class="ed" id="e-worker-search" d="M92 413 L164 449"></path>
+          <path class="ed dash" id="e-api-replica" d="M204 180 Q 356 190 300 305"></path>
+        </g>
+        <g id="nodes">
+          <g class="nd" id="n-client"><rect x="128" y="15" width="104" height="34"></rect><text x="180" y="36">Client</text></g>
+          <g class="nd" id="n-lb"><rect x="120" y="83" width="120" height="34"></rect><text x="180" y="104">Load balancer</text></g>
+          <g class="nd" id="n-api"><rect x="120" y="151" width="120" height="34"></rect><text x="180" y="172">API server</text></g>
+          <g class="nd" id="n-cache"><rect x="16" y="229" width="104" height="34"></rect><text x="68" y="250">Cache</text></g>
+          <g class="nd" id="n-db"><rect x="232" y="229" width="112" height="34"></rect><text x="288" y="250">Primary DB</text></g>
+          <g class="nd" id="n-replica"><rect x="232" y="305" width="112" height="34"></rect><text x="288" y="326">Replica</text></g>
+          <g class="nd" id="n-queue"><rect x="16" y="305" width="104" height="34"></rect><text x="68" y="326">Queue</text></g>
+          <g class="nd" id="n-worker"><rect x="16" y="379" width="104" height="34"></rect><text x="68" y="400">Worker</text></g>
+          <g class="nd" id="n-search"><rect x="118" y="449" width="124" height="34"></rect><text x="180" y="470">Search index</text></g>
+        </g>
+        <circle id="pkt" cx="180" cy="32" r="6" opacity="0"></circle>
+      </svg>
+    </div>
+
+    <div class="caption">
+      <p class="step" id="capStep">Step 0</p>
+      <div class="bi" id="capText">
+        <span class="hi">Play dabao.</span>
+        <span class="en">Press play to walk through it.</span>
+      </div>
+    </div>
+
+    <div class="player">
+      <button type="button" class="primary" id="bPlay">Play</button>
+      <button type="button" id="bPrev">Back</button>
+      <button type="button" id="bNext">Next</button>
+      <button type="button" id="bRestart">Restart</button>
+    </div>
+  </div>
+
+  <div class="call avoid">
+    <strong>Yahi woh bug hai jo production mein milta hai</strong>
+    <span class="hi">Scene 2 dekho — cache delete ho chuka hai aur replica abhi peeche hai. User apna hi update nahi dekh pata.</span>
+    <span class="en">Watch scene 2. The cache was invalidated and the replica hasn't caught up, so the user cannot see their own edit. The fix is topic 5 below.</span>
+  </div>
+</section>
+
+<!-- ============ TOPICS ============ -->
+<section id="topics">
+  <div class="shead">
+    <h2>Topic by topic</h2>
+    <div class="bi">
+      <span class="hi">Baayen problem, daayen solution. Code ke neeche har line ka matlab diya hai.</span>
+      <span class="en">Problem on the left, solution on the right, with a note for every meaningful line of code.</span>
+    </div>
+  </div>
+
+  <!-- T1 -->
+  <article class="topic">
+    <p class="tnum">Topic 01 · LLD</p>
+    <div class="split">
+      <div class="pane problem">
+        <span class="tag p">Problem</span>
+        <p class="qline">"Ek API ko har client se 100 requests/minute tak seemit karo."</p>
+        <div class="bi">
+          <span class="hi">Ek client loop mein request maar raha hai aur baaki sabki latency kharab kar raha hai.</span>
+          <span class="en">One client is hammering the API in a loop and everyone else's latency is suffering.</span>
+        </div>
+        <ul>
+          <li>Burst allow karna hai, par sustained flood nahi</li>
+          <li>Per-client, not global</li>
+          <li>Har request pe DB hit nahi kar sakte</li>
+        </ul>
+      </div>
+      <div class="pane solution">
+        <span class="tag s">Solution — token bucket</span>
+        <div class="bi">
+          <span class="hi">Har client ke paas ek bucket hai. Time ke saath tokens bharte hain, har request ek token kharch karti hai.</span>
+          <span class="en">Each client owns a bucket. Tokens refill with time; each request spends one. Bursts are allowed up to the bucket size, sustained rate is capped by the refill rate.</span>
+        </div>
+        <div class="codewrap">
+          <div class="codebar"><b>token_bucket.py</b><em>LLD</em></div>
+          <pre><code class="py">import time
+
+class TokenBucketRateLimiter:
+    """Per-client rate limit that still allows short bursts."""
+
+    def __init__(self, burst_capacity, refill_tokens_per_second, clock=time.monotonic):
+        self._burst_capacity = burst_capacity
+        self._refill_tokens_per_second = refill_tokens_per_second
+        self._clock = clock
+        self._buckets = {}
+
+    def allow_request(self, client_id):
+        tokens, last_refilled_at = self._bucket_for(client_id)
+        tokens = self._tokens_after_refill(tokens, last_refilled_at)
+        if tokens &lt; 1:
+            self._buckets[client_id] = (tokens, self._clock())
+            return False
+        self._buckets[client_id] = (tokens - 1, self._clock())
+        return True
+
+    def retry_after_seconds(self, client_id):
+        tokens, last_refilled_at = self._bucket_for(client_id)
+        tokens = self._tokens_after_refill(tokens, last_refilled_at)
+        if tokens &gt;= 1:
+            return 0
+        return (1 - tokens) / self._refill_tokens_per_second
+
+    def _bucket_for(self, client_id):
+        return self._buckets.get(client_id, (self._burst_capacity, self._clock()))
+
+    def _tokens_after_refill(self, tokens, last_refilled_at):
+        elapsed_seconds = self._clock() - last_refilled_at
+        refilled = tokens + elapsed_seconds * self._refill_tokens_per_second
+        return min(self._burst_capacity, refilled)</code></pre>
+        </div>
+        <ul class="notes">
+          <li><b>6</b><span><span class="hi">Constructor mein <code>clock</code> inject kiya — test mein fake time de sakte ho.</span><span class="en">Injecting the clock makes this testable without sleeping.</span></span></li>
+          <li><b>12</b><span><span class="hi"><code>allow_request</code> — naam se hi pata chalta hai return boolean hai.</span><span class="en">The method name states the question it answers, so no comment is needed at the call site.</span></span></li>
+          <li><b>14–19</b><span><span class="hi">Reject hone par bhi timestamp update hota hai, warna refill do baar ginn jayega.</span><span class="en">The timestamp is written even on rejection, otherwise elapsed time gets counted twice.</span></span></li>
+          <li><b>21</b><span><span class="hi"><code>retry_after_seconds</code> alag method hai — API isse <code>Retry-After</code> header bhejti hai.</span><span class="en">A separate method so the API can return a real Retry-After header instead of a bare 429.</span></span></li>
+          <li><b>28–34</b><span><span class="hi">Private helpers underscore ke saath. Refill ka maths ek hi jagah hai.</span><span class="en">The refill maths lives in exactly one place, so both public methods can never disagree.</span></span></li>
+        </ul>
+        <div class="call trade">
+          <strong>Trade-off</strong>
+          <span class="hi">Ye in-memory hai — ek server ke liye theek. Multi-server pe Redis chahiye, par tab har request pe ek network hop lagega.</span>
+          <span class="en">In-memory works for one server. Across many servers you need Redis, which buys correctness and costs a network hop per request. Start in-memory; move to Redis when a single client can actually reach two servers at once.</span>
+        </div>
+      </div>
+    </div>
+  </article>
+
+  <!-- T2 -->
+  <article class="topic">
+    <p class="tnum">Topic 02 · HLD + LLD</p>
+    <div class="split">
+      <div class="pane problem">
+        <span class="tag p">Problem</span>
+        <p class="qline">"Profile update ke baad users ko purana data dikh raha hai."</p>
+        <div class="bi">
+          <span class="hi">Cache mein purani value padi hai. Sawal ye hai ki update ke waqt cache ko update karein ya delete?</span>
+          <span class="en">The cache is holding the old row. The real question is whether an update should rewrite the cache or delete it.</span>
+        </div>
+        <ul>
+          <li>Do concurrent writes ho sakte hain</li>
+          <li>Cache aur DB ke beech koi transaction nahi</li>
+          <li>Stale data kitni der chalega?</li>
+        </ul>
+      </div>
+      <div class="pane solution">
+        <span class="tag s">Solution — write to DB, delete from cache</span>
+        <div class="bi">
+          <span class="hi">Pehle DB, phir cache <em>delete</em>. Update mat karo — do writers ulte order mein cache likh sakte hain aur purani value permanent ho jayegi.</span>
+          <span class="en">Commit to the database first, then delete the cache key. Never write the new value into the cache: two concurrent writers can land out of order and leave the older value cached until the TTL expires.</span>
+        </div>
+        <div class="codewrap">
+          <div class="codebar"><b>user_profile_service.py</b><em>write path</em></div>
+          <pre><code class="py">class UserProfileService:
+    CACHE_TTL_SECONDS = 300
+
+    def __init__(self, database, cache, event_publisher):
+        self._database = database
+        self._cache = cache
+        self._event_publisher = event_publisher
+
+    def read_profile(self, user_id):
+        cache_key = self._profile_cache_key(user_id)
+        cached = self._cache.get(cache_key)
+        if cached is not None:
+            return cached
+        profile = self._database.load_profile(user_id)
+        self._cache.set(cache_key, profile, ttl=self.CACHE_TTL_SECONDS)
+        return profile
+
+    def update_profile(self, user_id, changes):
+        updated = self._database.update_profile(user_id, changes)
+        self._cache.delete(self._profile_cache_key(user_id))
+        self._event_publisher.publish("user.profile.updated", user_id)
+        return updated
+
+    def _profile_cache_key(self, user_id):
+        return f"user:{user_id}:profile:v2"</code></pre>
+        </div>
+        <ul class="notes">
+          <li><b>2</b><span><span class="hi">TTL constant hai, magic number nahi. Ye tumhari "worst case staleness" hai.</span><span class="en">The TTL is a named constant because it is your worst-case staleness guarantee.</span></span></li>
+          <li><b>19–20</b><span><span class="hi">Order maayne rakhta hai: DB pehle. Cache pehle delete karoge to us beech koi purani value dobara bhar dega.</span><span class="en">Order matters. Delete first and a concurrent read can refill the cache from the old row before your commit lands.</span></span></li>
+          <li><b>20</b><span><span class="hi"><code>delete</code>, not <code>set</code>. Agla read khud fresh value bhar lega.</span><span class="en">Delete rather than set. The next read repopulates from the source of truth.</span></span></li>
+          <li><b>21</b><span><span class="hi">Event publish — search index aur email jaise kaam async honge.</span><span class="en">Publishing an event keeps slow work like reindexing off the request path.</span></span></li>
+          <li><b>24–25</b><span><span class="hi">Key mein <code>v2</code> — schema badle to key namespace badal do, poora cache flush karne ki zaroorat nahi.</span><span class="en">Versioning the key means a schema change retires old entries without a full flush.</span></span></li>
+        </ul>
+        <div class="call avoid">
+          <strong>Kab ignore karein</strong>
+          <span class="hi">Agar read traffic kam hai ya data har baar badalta hai, cache lagana hi mat. Cache ek naya failure mode hai.</span>
+          <span class="en">If reads are low, or the data changes on nearly every read, skip the cache entirely. A cache is a second source of truth that can be wrong.</span>
+        </div>
+      </div>
+    </div>
+  </article>
+
+  <!-- T3 -->
+  <article class="topic">
+    <p class="tnum">Topic 03 · LLD</p>
+    <div class="split">
+      <div class="pane problem">
+        <span class="tag p">Problem</span>
+        <p class="qline">"User ne Pay do baar daba diya. Do baar paisa kat gaya."</p>
+        <div class="bi">
+          <span class="hi">Network timeout ke baad mobile app retry karta hai. Server ke liye dono requests naye jaisi hain.</span>
+          <span class="en">The phone retries after a timeout, and the server sees two requests that look identical but new.</span>
+        </div>
+        <ul>
+          <li>Retry to hoga hi — network hai</li>
+          <li>Double-charge unacceptable hai</li>
+          <li>Client ko dono baar same response chahiye</li>
+        </ul>
+      </div>
+      <div class="pane solution">
+        <span class="tag s">Solution — idempotency key</span>
+        <div class="bi">
+          <span class="hi">Client ek unique key bhejta hai. Server usko record karta hai; dusri baar wahi purana response wapas de deta hai.</span>
+          <span class="en">The client generates one key per intent and repeats it on retry. The server records the outcome against the key and replays the stored response instead of charging again.</span>
+        </div>
+        <div class="codewrap">
+          <div class="codebar"><b>payment_handler.py</b><em>safe retries</em></div>
+          <pre><code class="py">class DuplicateInFlightError(Exception):
+    pass
+
+class IdempotentPaymentHandler:
+
+    def __init__(self, idempotency_store, payment_gateway):
+        self._idempotency_store = idempotency_store
+        self._payment_gateway = payment_gateway
+
+    def submit_payment(self, idempotency_key, payment_request):
+        completed = self._idempotency_store.find_completed(idempotency_key)
+        if completed is not None:
+            return completed.stored_response
+
+        if not self._idempotency_store.try_claim(idempotency_key):
+            raise DuplicateInFlightError(idempotency_key)
+
+        try:
+            response = self._payment_gateway.charge(payment_request)
+            self._idempotency_store.mark_completed(idempotency_key, response)
+            return response
+        except Exception:
+            self._idempotency_store.release_claim(idempotency_key)
+            raise</code></pre>
+        </div>
+        <ul class="notes">
+          <li><b>11–13</b><span><span class="hi">Sabse pehle purana result dhoondo. Mila to gateway ko chhuo hi mat.</span><span class="en">Check for a finished result first. If it exists, the gateway is never touched again.</span></span></li>
+          <li><b>15–16</b><span><span class="hi"><code>try_claim</code> atomic hona chahiye — DB unique constraint ya Redis SETNX.</span><span class="en">try_claim must be atomic: a unique constraint or a SETNX. This is what stops two parallel retries.</span></span></li>
+          <li><b>20</b><span><span class="hi">Response store karo, sirf "done" flag nahi. Client ko wahi body chahiye.</span><span class="en">Store the response body, not just a done flag, so the replay is byte-identical.</span></span></li>
+          <li><b>22–24</b><span><span class="hi">Fail hone par claim chhod do, warna user hamesha ke liye block ho jayega.</span><span class="en">Release the claim on failure or the user is permanently stuck on that key.</span></span></li>
+          <li><b>1–2</b><span><span class="hi">Custom exception ka naam bolta hai kya hua — caller 409 return kar sakta hai.</span><span class="en">A named exception lets the caller map it to a 409 without inspecting strings.</span></span></li>
+        </ul>
+      </div>
+    </div>
+  </article>
+
+  <!-- T4 -->
+  <article class="topic">
+    <p class="tnum">Topic 04 · HLD trade-off</p>
+    <div class="split">
+      <div class="pane problem">
+        <span class="tag p">Problem</span>
+        <p class="qline">"SQL lein ya NoSQL? Interviewer ne poocha 'kyun'."</p>
+        <div class="bi">
+          <span class="hi">Yahan koi code nahi chahiye. Sirf ek saaf reason chahiye jo tumhare access pattern se aata ho.</span>
+          <span class="en">No code needed here — just one clear reason that comes from your access pattern, not from fashion.</span>
+        </div>
+      </div>
+      <div class="pane solution">
+        <span class="tag s">Solution — access pattern decides</span>
+        <div class="bi">
+          <span class="hi">Pehle likho ki queries kaunsi hongi. Query pattern pehle, database baad mein.</span>
+          <span class="en">Write down the five queries the product actually runs. The queries pick the database, not the other way round.</span>
+        </div>
+        <div class="tablescroll" style="margin-top:12px">
+          <table>
+            <thead><tr><th>Signal</th><th>Relational</th><th>Document / KV</th><th>Wide column</th></tr></thead>
+            <tbody>
+              <tr><td>Joins across entities</td><td class="ap">Yes, natural</td><td class="ig">Manual, painful</td><td class="ig">No</td></tr>
+              <tr><td>Multi-row transactions</td><td class="ap">Built in</td><td>Limited</td><td class="ig">Rare</td></tr>
+              <tr><td>Schema still moving</td><td>Migrations needed</td><td class="ap">Flexible</td><td>Flexible</td></tr>
+              <tr><td>Write volume, huge</td><td>Needs sharding work</td><td>Good</td><td class="ap">Built for it</td></tr>
+              <tr><td>Known single-key lookups</td><td>Fine</td><td class="ap">Fastest</td><td class="ap">Fastest</td></tr>
+              <tr><td>Ad-hoc analyst queries</td><td class="ap">Yes</td><td class="ig">No</td><td class="ig">No</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="call apply">
+          <strong>Default answer jo galat nahi hota</strong>
+          <span class="hi">"Main Postgres se shuru karunga, aur is ek table ko alag store mein le jaunga jab ye limit paar hogi."</span>
+          <span class="en">"I'd start on Postgres and move this one table to a different store when it crosses this specific limit." A named limit turns a guess into a plan.</span>
+        </div>
+      </div>
+    </div>
+  </article>
+
+  <!-- T5 -->
+  <article class="topic">
+    <p class="tnum">Topic 05 · HLD + LLD</p>
+    <div class="split">
+      <div class="pane problem">
+        <span class="tag p">Problem</span>
+        <p class="qline">"Read replicas lagaye, ab log apna hi edit nahi dekh paate."</p>
+        <div class="bi">
+          <span class="hi">Replica 50–500ms peeche hai. Save ke turant baad user refresh karta hai aur purana naam dikhta hai.</span>
+          <span class="en">The replica trails by 50–500 ms. The user saves, refreshes instantly, and sees their old name.</span>
+        </div>
+        <ul>
+          <li>Sab reads primary pe bhejna scale nahi karega</li>
+          <li>Sirf <em>us user</em> ko fresh data chahiye</li>
+        </ul>
+      </div>
+      <div class="pane solution">
+        <span class="tag s">Solution — read your own writes</span>
+        <div class="bi">
+          <span class="hi">Jis user ne abhi likha hai, sirf usko kuch second tak primary se padhao. Baaki sab replica se.</span>
+          <span class="en">Pin only the user who just wrote to the primary for a few seconds. Everyone else keeps reading from replicas, so you keep almost all the scaling benefit.</span>
+        </div>
+        <div class="codewrap">
+          <div class="codebar"><b>profile_reader.py</b><em>read routing</em></div>
+          <pre><code class="py">class ProfileReader:
+    WRITE_STICKINESS_SECONDS = 10
+
+    def __init__(self, primary_database, replica_database, recent_write_log, clock):
+        self._primary_database = primary_database
+        self._replica_database = replica_database
+        self._recent_write_log = recent_write_log
+        self._clock = clock
+
+    def read_profile(self, user_id):
+        source = self._source_for(user_id)
+        return source.load_profile(user_id)
+
+    def record_write(self, user_id):
+        self._recent_write_log.set(user_id, self._clock(), ttl=self.WRITE_STICKINESS_SECONDS)
+
+    def _source_for(self, user_id):
+        if self._wrote_recently(user_id):
+            return self._primary_database
+        return self._replica_database
+
+    def _wrote_recently(self, user_id):
+        last_write_at = self._recent_write_log.get(user_id)
+        if last_write_at is None:
+            return False
+        return (self._clock() - last_write_at) &lt; self.WRITE_STICKINESS_SECONDS</code></pre>
+        </div>
+        <ul class="notes">
+          <li><b>2</b><span><span class="hi">10 second = tumhara max replication lag + margin. Isko monitor karo.</span><span class="en">Ten seconds should be your observed p99 replication lag plus margin — and it should be alerted on.</span></span></li>
+          <li><b>11–12</b><span><span class="hi"><code>read_profile</code> ko pata hi nahi ki do database hain. Routing chhupi hui hai.</span><span class="en">read_profile has no idea two databases exist. The routing decision is hidden behind one small method.</span></span></li>
+          <li><b>17–20</b><span><span class="hi"><code>_source_for</code> — ek jagah, ek faisla. Naya rule aaya to sirf yahan badlega.</span><span class="en">One method, one decision. A new routing rule changes exactly this function.</span></span></li>
+          <li><b>14–15</b><span><span class="hi">Write path ko <code>record_write</code> call karna hi hoga, warna poora mechanism dead hai.</span><span class="en">The write path must call record_write, otherwise the whole mechanism silently does nothing. Test that specifically.</span></span></li>
+        </ul>
+      </div>
+    </div>
+  </article>
+
+  <!-- T6 -->
+  <article class="topic">
+    <p class="tnum">Topic 06 · Pure LLD</p>
+    <div class="split">
+      <div class="pane problem">
+        <span class="tag p">Problem</span>
+        <p class="qline">"Notification service design karo — email, SMS, push. Kal WhatsApp bhi aayega."</p>
+        <div class="bi">
+          <span class="hi">Classic LLD sawal. Yahan interviewer naming aur extensibility dekh raha hai, algorithm nahi.</span>
+          <span class="en">A classic LLD prompt. The interviewer is grading your names and your extension points, not an algorithm.</span>
+        </div>
+        <ul>
+          <li>Naya channel bina purana code chhue add ho</li>
+          <li>User preferences respect hon</li>
+          <li>Ek channel fail ho to baaki chalein</li>
+        </ul>
+      </div>
+      <div class="pane solution">
+        <span class="tag s">Solution — one interface, many channels</span>
+        <div class="bi">
+          <span class="hi">Ek <code>NotificationChannel</code> interface, har channel uska implementation. Dispatcher ko sirf interface pata hai.</span>
+          <span class="en">One channel interface, one implementation per medium, and a dispatcher that only knows the interface. Adding WhatsApp becomes a new file, not an edit.</span>
+        </div>
+        <div class="codewrap">
+          <div class="codebar"><b>notifications.py</b><em>extensible by design</em></div>
+          <pre><code class="py">from dataclasses import dataclass
+from typing import Protocol
+
+@dataclass(frozen=True)
+class DeliveryResult:
+    channel_name: str
+    delivered: bool
+    failure_reason: str = ""
+
+class NotificationChannel(Protocol):
+    name: str
+    def deliver(self, recipient, notification) -&gt; DeliveryResult: ...
+
+class EmailChannel:
+    name = "email"
+    def __init__(self, mail_client):
+        self._mail_client = mail_client
+    def deliver(self, recipient, notification):
+        self._mail_client.send(recipient.email_address, notification.subject, notification.body)
+        return DeliveryResult(self.name, delivered=True)
+
+class NotificationDispatcher:
+
+    def __init__(self, channels_by_name, preference_store):
+        self._channels_by_name = channels_by_name
+        self._preference_store = preference_store
+
+    def dispatch(self, recipient, notification):
+        results = []
+        for channel in self._enabled_channels_for(recipient, notification):
+            results.append(self._deliver_safely(channel, recipient, notification))
+        return results
+
+    def _enabled_channels_for(self, recipient, notification):
+        allowed = self._preference_store.allowed_channel_names(recipient, notification.category)
+        return [self._channels_by_name[name] for name in allowed if name in self._channels_by_name]
+
+    def _deliver_safely(self, channel, recipient, notification):
+        try:
+            return channel.deliver(recipient, notification)
+        except Exception as error:
+            return DeliveryResult(channel.name, delivered=False, failure_reason=str(error))</code></pre>
+        </div>
+        <ul class="notes">
+          <li><b>4–8</b><span><span class="hi">Result ek frozen dataclass hai — tuple ya dict se kahin behtar padha jaata hai.</span><span class="en">A frozen result type reads far better than a tuple and cannot be mutated by a caller.</span></span></li>
+          <li><b>10–12</b><span><span class="hi">Interface pehle likho. Interview mein yehi pehla box hai jo tum board pe banate ho.</span><span class="en">Write the interface first. In the interview this is the first thing you put on the board.</span></span></li>
+          <li><b>23</b><span><span class="hi">Dispatcher ko <code>EmailChannel</code> ka naam tak nahi pata — sirf dictionary milti hai.</span><span class="en">The dispatcher never names a concrete channel. It is handed a map, which also makes it trivial to test with a fake.</span></span></li>
+          <li><b>34–36</b><span><span class="hi">Preferences ka logic apne method mein. Naya rule (quiet hours) yahin ghusega.</span><span class="en">Preference logic lives in its own method, so quiet hours or rate caps have an obvious home.</span></span></li>
+          <li><b>38–42</b><span><span class="hi">Ek channel ka failure baaki ko nahi rokta — result mein reason wapas jaata hai.</span><span class="en">One failing channel cannot abort the others; the reason travels back in the result instead of an exception.</span></span></li>
+        </ul>
+        <div class="call trade">
+          <strong>Follow-up jo hamesha aata hai</strong>
+          <span class="hi">"Ye synchronous hai — 3 channels matlab 3 network calls request ke andar. Kab async karoge?"</span>
+          <span class="en">"This is synchronous, so three channels means three network calls inside the request." Answer: push onto a queue once a send exceeds your latency budget, or the moment a notification failure can fail a user action.</span>
+        </div>
+      </div>
+    </div>
+  </article>
+</section>
+
+<!-- ============ TRADE-OFFS ============ -->
+<section id="trade">
+  <div class="shead">
+    <h2>Trade-off kaise handle karein</h2>
+    <div class="bi">
+      <span class="hi">Kya lagana hai, kya ignore karna hai, aur kab — yahi senior aur mid ke beech ka farq hai.</span>
+      <span class="en">What to apply, what to ignore, and when. This is the whole difference between a mid-level and a senior answer.</span>
+    </div>
+  </div>
+
+  <div class="threeq">
+    <div class="q3">
+      <p class="num">Question 1</p>
+      <h3>Aaj ka scale kya hai?</h3>
+      <div class="bi">
+        <span class="hi">Kalpanik 10 million nahi — aaj ka actual number. 500 users ke liye sharding ki baat karna galti hai.</span>
+        <span class="en">Not the imagined ten million — today's real number. Design for roughly ten times current load, not ten thousand times.</span>
+      </div>
+    </div>
+    <div class="q3">
+      <p class="num">Question 2</p>
+      <h3>Galat nikla to kya toota?</h3>
+      <div class="bi">
+        <span class="hi">Ek slow page, ya paisa gum? Blast radius chhota hai to tez chalo, bada hai to dhyan se.</span>
+        <span class="en">A slow page, or lost money? Small blast radius means move fast; large means slow down and write it down.</span>
+      </div>
+    </div>
+    <div class="q3">
+      <p class="num">Question 3</p>
+      <h3>Isko badalna kitna mushkil hai?</h3>
+      <div class="bi">
+        <span class="hi">One-way door ya two-way door? Database choice mushkil hai, cache TTL aasaan hai. Mushkil cheezon pe hi bahas karo.</span>
+        <span class="en">One-way door or two-way? A storage engine is hard to reverse; a cache TTL is a config change. Spend your argument budget on the one-way doors only.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tablescroll" style="margin-top:18px">
+    <table>
+      <thead><tr><th>Technique</th><th>Ignore it when</th><th>Apply it when</th><th>Cost of doing it too early</th></tr></thead>
+      <tbody>
+        <tr><td>Microservices</td><td class="ig">Team under ~15 people</td><td class="ap">Teams block each other on deploys</td><td>Distributed bugs, no team to debug them</td></tr>
+        <tr><td>Sharding</td><td class="ig">Data fits one machine</td><td class="ap">Write throughput caps out</td><td>Cross-shard joins, painful rebalances</td></tr>
+        <tr><td>Caching</td><td class="ig">Reads are cheap or rare</td><td class="ap">Same read repeats, DB is hot</td><td>Stale bugs that only appear in prod</td></tr>
+        <tr><td>Message queue</td><td class="ig">Work finishes in ~50 ms</td><td class="ap">Slow or failure-prone side effects</td><td>Ordering and duplicate handling forever</td></tr>
+        <tr><td>Read replicas</td><td class="ig">Read load is low</td><td class="ap">Reads dominate and primary is hot</td><td>Replication lag bugs, as in topic 5</td></tr>
+        <tr><td>Multi-region</td><td class="ig">Users in one region</td><td class="ap">Regulation or latency demands it</td><td>Conflict resolution, doubled cost</td></tr>
+        <tr><td>Event sourcing / CQRS</td><td class="ig">Almost always, at first</td><td class="ap">Audit trail is a real requirement</td><td>Every simple change becomes a project</td></tr>
+        <tr><td>Kubernetes</td><td class="ig">Under ~10 services</td><td class="ap">Many services, real platform team</td><td>Full-time ops load with no ops team</td></tr>
+        <tr><td>Rate limiting</td><td class="ig">Internal-only endpoints</td><td class="ap">Anything public-facing</td><td>Almost none — this one is cheap</td></tr>
+        <tr><td>Idempotency keys</td><td class="ig">Pure reads</td><td class="ap">Any write with money or side effects</td><td>Almost none — do it early</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="call apply">
+    <strong>Interview mein bolne ka formula</strong>
+    <span class="hi">"Main abhi X karunga kyunki [aaj ka number]. Y tab lagau ga jab [specific trigger]. Y ki keemat [cost] hai, isliye abhi nahi."</span>
+    <span class="en">"I'd do X now because of [today's number]. I'd add Y when [specific trigger fires]. Y costs [cost], which is why not yet." Three sentences, and you have shown scale awareness, a plan, and cost sense at once.</span>
+  </div>
+</section>
+
+<!-- ============ MOCK ============ -->
+<section id="mock">
+  <div class="shead">
+    <h2>Mock questions</h2>
+    <div class="bi">
+      <span class="hi">Pehle khud jawab bolo, phir kholo. Bina bole padhne se kuch nahi hoga.</span>
+      <span class="en">Say your answer out loud first, then open it. Reading without answering builds nothing.</span>
+    </div>
+  </div>
+
+  <details class="mock"><summary><span class="lvl l">HLD</span>Design a URL shortener. Kahan se shuru karoge?</summary>
+    <div class="ans">
+      <span class="hi">Estimate se. Read:write ratio yahan 100:1 hai — matlab poora design read ke around banega.</span>
+      <span class="en">Start with estimates, because the 100:1 read-to-write ratio drives everything else.</span>
+      <ul>
+        <li>Writes ~100/s, reads ~10k/s, 500 bytes/row → few hundred GB over five years</li>
+        <li>ID generation: counter + base62 encoding. Random strings need a collision check on every write</li>
+        <li>Reads: cache the hot 20%, CDN or edge redirect for the top links</li>
+        <li>Storage: key-value fits perfectly, but Postgres also fits at this size</li>
+        <li>Follow-up they always ask: custom aliases, expiry, and analytics without slowing the redirect</li>
+      </ul>
+    </div>
+  </details>
+
+  <details class="mock"><summary><span class="lvl">LLD</span>God class kaise pehchante ho aur todte kaise ho?</summary>
+    <div class="ans">
+      <span class="hi">Agar class ka naam <code>Manager</code>, <code>Helper</code> ya <code>Service</code> hai aur usmein 15 methods hain, wahi God class hai.</span>
+      <span class="en">If you cannot describe the class in one sentence without the word "and", it is doing too much.</span>
+      <ul>
+        <li>List the reasons the class would change. More than one reason means more than one class</li>
+        <li>Group methods by which fields they touch — those groups are your real classes</li>
+        <li>Extract the group with the fewest dependencies first; it is the safest cut</li>
+        <li>Name the new class after what it owns, not after a pattern</li>
+      </ul>
+    </div>
+  </details>
+
+  <details class="mock"><summary><span class="lvl h">Trade-off</span>Strong consistency chahiye ya eventual? Kaise decide karoge?</summary>
+    <div class="ans">
+      <span class="hi">Feature ke hisaab se decide hota hai, poore system ke hisaab se nahi. Ek hi app mein dono ho sakte hain.</span>
+      <span class="en">This is decided per feature, not per system. One product usually needs both.</span>
+      <ul>
+        <li>Strong: account balance, inventory count, permissions, anything where a wrong read costs money</li>
+        <li>Eventual: like counts, feeds, search results, recommendations, analytics</li>
+        <li>Ask "agar 2 second purana data dikhe to kya hoga?" If the answer is "nothing", eventual is fine</li>
+        <li>Strong consistency costs latency and availability during a partition — say that out loud</li>
+      </ul>
+    </div>
+  </details>
+
+  <details class="mock"><summary><span class="lvl">LLD</span>Retry with exponential backoff — jitter kyun chahiye?</summary>
+    <div class="ans">
+      <span class="hi">Bina jitter ke sab clients ek hi second pe wapas aayenge aur server dobara gir jayega.</span>
+      <span class="en">Without jitter every client retries at the same instant and the recovering server is knocked over again.</span>
+      <ul>
+        <li>Delay = min(cap, base × 2^attempt) then multiply by a random factor</li>
+        <li>Only retry idempotent operations, or pair retries with an idempotency key</li>
+        <li>Always set a maximum attempt count and a total deadline</li>
+        <li>Do not retry a 4xx — the request is wrong and will stay wrong</li>
+      </ul>
+    </div>
+  </details>
+
+  <details class="mock"><summary><span class="lvl h">HLD</span>System mein bottleneck kaise dhoondte ho?</summary>
+    <div class="ans">
+      <span class="hi">Har hop pe latency aur queue depth dekho. Bottleneck wahan hai jahan queue badh rahi hai.</span>
+      <span class="en">Measure latency and queue depth at every hop. The bottleneck is wherever work is piling up.</span>
+      <ul>
+        <li>Start from the user-facing p99, not the average — averages hide everything</li>
+        <li>Walk the trace hop by hop and find where the time actually goes</li>
+        <li>Common answers in order: an unindexed query, N+1 calls, a saturated connection pool, a single-threaded worker</li>
+        <li>Fix one thing, measure again. The bottleneck always moves somewhere new</li>
+      </ul>
+    </div>
+  </details>
+
+  <details class="mock"><summary><span class="lvl h">Trade-off</span>Interviewer bole "isko 10x scale karo". Pehla jawab kya?</summary>
+    <div class="ans">
+      <span class="hi">Pehla jawab hamesha ek sawaal hona chahiye: "10x reads, 10x writes, ya 10x data?" Teeno ka ilaaj alag hai.</span>
+      <span class="en">Your first answer should be a question: 10x reads, 10x writes, or 10x data? Each has a different fix.</span>
+      <ul>
+        <li>10x reads → cache, then read replicas, then a CDN</li>
+        <li>10x writes → batching, then async queues, then sharding by a key that spreads evenly</li>
+        <li>10x data → archival tiers and partitioning before anything clever</li>
+        <li>Then name what breaks first at that load. That sentence is what senior sounds like</li>
+      </ul>
+    </div>
+  </details>
+
+  <details class="mock"><summary><span class="lvl">LLD</span>Design a parking lot. Sabse pehla class kaunsa likhoge?</summary>
+    <div class="ans">
+      <span class="hi">Entities pehle, behaviour baad mein. Aur allocation strategy ko alag rakhna — yahi test hota hai.</span>
+      <span class="en">Entities first, behaviour second, and keep the allocation strategy separate — that is the part being tested.</span>
+      <ul>
+        <li><code>ParkingSpot</code>, <code>Vehicle</code>, <code>Ticket</code>, <code>ParkingFloor</code>, <code>ParkingLot</code></li>
+        <li><code>SpotAllocationStrategy</code> as an interface: nearest-first, level-first, EV-first are implementations</li>
+        <li><code>PricingPolicy</code> separate again — hourly, daily, and weekend rates change independently</li>
+        <li>Concurrency: two cars, one spot. Say how you claim a spot atomically before they ask</li>
+      </ul>
+    </div>
+  </details>
+
+  <details class="mock"><summary><span class="lvl h">Trade-off</span>Kab bolna chahiye "ye main nahi banaunga"?</summary>
+    <div class="ans">
+      <span class="hi">Jab cost benefit se zyada ho, aur tum wo cost naam le kar bata sako. "No" ke saath alternative dena zaroori hai.</span>
+      <span class="en">When you can name the cost and it exceeds the benefit. A no without an alternative is just an obstacle.</span>
+      <ul>
+        <li>"Multi-region abhi nahi — 99% users ek region mein hain, cost double hoga, aur conflict resolution ek quarter le lega"</li>
+        <li>"Instead I'd add a CDN for static assets, which gets most of the latency win this week"</li>
+        <li>Give the trigger that would change your mind: "if EU traffic crosses 20%, we revisit"</li>
+        <li>This answer scores higher than building it, because it shows you priced the thing</li>
+      </ul>
+    </div>
+  </details>
+
+  <details class="mock"><summary><span class="lvl">LLD</span>Cache mein update karein ya delete? Ek line mein kyun.</summary>
+    <div class="ans">
+      <span class="hi">Delete. Kyunki do concurrent writers ulte order mein cache likh sakte hain, aur purani value TTL tak atki reh jayegi.</span>
+      <span class="en">Delete, because two concurrent writers can land in the wrong order and leave the stale value cached until the TTL expires. A delete can only ever cause an extra read.</span>
+    </div>
+  </details>
+
+  <details class="mock"><summary><span class="lvl h">HLD</span>Queue laga di. Ab kya naye problems aa gaye?</summary>
+    <div class="ans">
+      <span class="hi">Queue ek problem solve karti hai aur teen naye leke aati hai. Interviewer yahi sunna chahta hai.</span>
+      <span class="en">A queue solves one problem and introduces three. Naming them unprompted is the whole point.</span>
+      <ul>
+        <li>Duplicates: at-least-once delivery means consumers must be idempotent</li>
+        <li>Ordering: usually not guaranteed across partitions, so design for out-of-order arrival</li>
+        <li>Poison messages: you need a dead letter queue and someone who reads it</li>
+        <li>Backlog: what is your alert when consumer lag grows, and who is paged?</li>
+      </ul>
+    </div>
+  </details>
+
+  <details class="mock"><summary><span class="lvl l">HLD</span>Estimation kaise karte ho? Ek quick method batao.</summary>
+    <div class="ans">
+      <span class="hi">Daily active users se shuru karo, phir per-user actions, phir 86,400 se divide. Peak ke liye 2–3x maar do.</span>
+      <span class="en">Start from daily active users, multiply by actions per user, divide by 86,400 seconds, then multiply by two or three for peak.</span>
+      <ul>
+        <li>1M DAU × 10 actions = 10M/day ≈ 116/s average, roughly 300/s at peak</li>
+        <li>Storage: rows per day × bytes per row × retention days, then double for indexes</li>
+        <li>Round aggressively. Nobody wants precision, they want the order of magnitude</li>
+        <li>Say the number out loud and write it on the board — it anchors the rest of the design</li>
+      </ul>
+    </div>
+  </details>
+
+  <details class="mock"><summary><span class="lvl h">Trade-off</span>Legacy system ko naye system mein migrate karna hai. Approach?</summary>
+    <div class="ans">
+      <span class="hi">Big bang kabhi nahi. Strangler pattern — naya system dheere dheere purane ke aage lagta jaata hai.</span>
+      <span class="en">Never a big bang rewrite. Put a routing layer in front and move one endpoint at a time.</span>
+      <ul>
+        <li>Route a small percentage of traffic to the new path behind a flag</li>
+        <li>Shadow writes first: write to both, compare, but serve only the old one</li>
+        <li>Keep a rollback that works in under a minute, and test it before you need it</li>
+        <li>Delete the old path deliberately — a migration that never finishes is worse than not starting</li>
+      </ul>
+    </div>
+  </details>
+</section>
+
+<footer>
+  <div class="bi">
+    <span class="hi">Ek practice routine: hafte mein do sawal. Pehla din bina dekhe 45 minute mein solve karo, dusre din apna hi answer padh kar 3 galtiyan dhoondo.</span>
+    <span class="en">A workable routine: two questions a week. Solve one cold in 45 minutes, then reread your own answer the next day and find three holes in it.</span>
+  </div>
+  <div class="bi">
+    <span class="hi">Aur har answer ke end mein ek line zaroor bolo — "ye design tab todega jab…"</span>
+    <span class="en">And end every answer with one sentence: "this design breaks when…" That single line is the clearest senior signal there is.</span>
+  </div>
+</footer>
+
+</div>
+
+<script>
+/* ---------- syntax highlight ---------- */
+(function(){
+  var KW = /\b(def|class|return|if|is|not|and|or|else|elif|None|True|False|import|from|raise|try|except|finally|self|for|in|while|with|as|pass|lambda)\b/;
+  var RE = /(#[^\n]*)|("(?:[^"\\]|\\.)*")|('(?:[^'\\]|\\.)*')|\b(def|class|return|if|is|not|and|or|else|elif|None|True|False|import|from|raise|try|except|finally|self|for|in|while|with|as|pass|lambda)\b|\b(\d+(?:\.\d+)?)\b/g;
+  var blocks = document.querySelectorAll("pre code.py");
+  for (var b = 0; b < blocks.length; b++) {
+    var raw = blocks[b].textContent.replace(/^\n+|\s+$/g, "");
+    var painted = raw.replace(RE, function(m, cm, dq, sq, kw, num){
+      if (cm)  return '<i class="c">' + cm + '</i>';
+      if (dq)  return '<i class="s">' + dq + '</i>';
+      if (sq)  return '<i class="s">' + sq + '</i>';
+      if (kw)  return '<i class="k">' + kw + '</i>';
+      if (num) return '<i class="n">' + num + '</i>';
+      return m;
+    });
+    var lines = painted.split("\n");
+    var out = "";
+    for (var i = 0; i < lines.length; i++) {
+      out += '<span class="ln">' + (lines[i] === "" ? " " : lines[i]) + '</span>';
+    }
+    blocks[b].innerHTML = out;
+  }
+})();
+
+/* ---------- animated flow ---------- */
+(function(){
+  var svg = document.getElementById("flow-svg");
+  if (!svg) return;
+
+  var pkt = document.getElementById("pkt");
+  var capStep = document.getElementById("capStep");
+  var capText = document.getElementById("capText");
+  var reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  var SCENES = {
+    write: [
+      { edge:"e-client-lb", to:"n-client", hi:"User ne Save dabaya. Request device se nikalti hai.",
+        en:"The user hits Save. A POST leaves the device." },
+      { edge:"e-client-lb", to:"n-lb", hi:"Load balancer ek healthy server chunta hai.",
+        en:"The load balancer picks a healthy app server." },
+      { edge:"e-lb-api", to:"n-api", hi:"API server validate karta hai aur idempotency key check karta hai.",
+        en:"The API server validates the payload and checks the idempotency key first." },
+      { edge:"e-api-db", to:"n-db", set:{"n-db":"fresh"},
+        hi:"Transaction mein primary DB pe likha gaya. Yahi sach hai.",
+        en:"Committed to the primary inside a transaction. This is the single source of truth." },
+      { edge:"e-api-cache", to:"n-cache", set:{"n-cache":"stale"},
+        hi:"Cache key delete ki gayi — update nahi ki gayi. Ab woh entry gayab hai.",
+        en:"The cache key is deleted, not overwritten. Writing the value in would risk two writers landing out of order." },
+      { edge:"e-db-replica", to:"n-replica", set:{"n-replica":"stale"},
+        hi:"Replica ko change pahunchne mein 50–500ms lagte hain. Yahan lag shuru hota hai.",
+        en:"The replica takes 50–500 ms to catch up. This is where replication lag begins." },
+      { edge:"e-db-queue", to:"n-queue",
+        hi:"Bhaari kaam ke liye ek event queue mein daala gaya.",
+        en:"An event is published for the slow work so it never blocks the response." },
+      { edge:"e-queue-worker", to:"n-worker",
+        hi:"Worker event uthata hai, request path se bilkul alag.",
+        en:"A worker picks the event up, entirely off the request path." },
+      { edge:"e-worker-search", to:"n-search", set:{"n-search":"fresh"},
+        hi:"Search index update hua — ye eventually consistent hai.",
+        en:"The search index is updated. It is eventually consistent by design." },
+      { edge:"e-lb-api", to:"n-api", reverse:true,
+        hi:"User ko 200 OK mil chuka tha step 4 ke baad hi. Baaki sab background mein hua.",
+        en:"The user already got a 200 back at step 4. Everything after that happened in the background." }
+    ],
+    read: [
+      { edge:"e-client-lb", to:"n-client", set:{"n-cache":"stale","n-replica":"stale"},
+        hi:"User ne turant refresh kiya — write ke sirf 20ms baad.",
+        en:"The user refreshes 20 ms after saving." },
+      { edge:"e-client-lb", to:"n-lb", hi:"Wahi load balancer, shayad koi dusra server.",
+        en:"Same load balancer, quite possibly a different server this time." },
+      { edge:"e-api-cache", to:"n-cache",
+        hi:"Cache miss. Humne abhi abhi to ye key delete ki thi.",
+        en:"Cache miss, because we deleted this key one step ago." },
+      { edge:"e-api-replica", to:"n-replica",
+        hi:"Replica se padha gaya — aur wahan purana row pada hai. Yahi bug hai.",
+        en:"The read falls through to a replica that has not caught up yet. The user sees their old name. This is the bug." },
+      { edge:"e-api-db", to:"n-db", set:{"n-db":"fresh"},
+        hi:"Fix: jis user ne abhi likha hai, use 10 second tak primary se padhao.",
+        en:"The fix: route users who wrote in the last ten seconds to the primary. Read-your-own-writes, and only for them." },
+      { edge:"e-api-cache", to:"n-cache", reverse:true, set:{"n-cache":"fresh"},
+        hi:"Fresh value cache mein bhari gayi, TTL ke saath.",
+        en:"The fresh value is written back into the cache with a TTL." },
+      { edge:"e-lb-api", to:"n-api", reverse:true,
+        hi:"Ab sahi data user tak. Baaki users abhi bhi replica se padh rahe hain — scale bacha rahega.",
+        en:"Correct data reaches the user, while everyone else still reads from replicas, so you keep the scaling win." }
+    ]
+  };
+
+  var scene = "write";
+  var index = -1;
+  var playing = false;
+  var raf = null;
+  var timer = null;
+
+  function clearMarks(){
+    var nodes = svg.querySelectorAll(".nd");
+    for (var i = 0; i < nodes.length; i++) nodes[i].setAttribute("class", "nd");
+    var edges = svg.querySelectorAll(".ed");
+    for (var j = 0; j < edges.length; j++) {
+      edges[j].setAttribute("class", edges[j].id === "e-api-replica" ? "ed dash" : "ed");
+    }
+  }
+
+  function applyStates(step){
+    if (!step.set) return;
+    for (var id in step.set) {
+      var el = document.getElementById(id);
+      if (el) el.setAttribute("class", "nd " + step.set[id]);
+    }
+  }
+
+  function setCaption(step, n, total){
+    capStep.textContent = "Step " + n + " of " + total;
+    capText.innerHTML = '<span class="hi"></span><span class="en"></span>';
+    capText.querySelector(".hi").textContent = step.hi;
+    capText.querySelector(".en").textContent = step.en;
+  }
+
+  function travel(step, done){
+    var path = document.getElementById(step.edge);
+    var target = document.getElementById(step.to);
+    var length = path.getTotalLength();
+
+    path.setAttribute("class", path.classList.contains("dash") ? "ed dash lit" : "ed lit");
+    pkt.setAttribute("opacity", "1");
+
+    var duration = reduced ? 0 : 950;
+    var startedAt = null;
+
+    function place(fraction){
+      var f = step.reverse ? (1 - fraction) : fraction;
+      var point = path.getPointAtLength(f * length);
+      pkt.setAttribute("cx", point.x);
+      pkt.setAttribute("cy", point.y);
+    }
+
+    function frame(now){
+      if (startedAt === null) startedAt = now;
+      var t = duration === 0 ? 1 : Math.min(1, (now - startedAt) / duration);
+      place(t);
+      if (t < 1) { raf = requestAnimationFrame(frame); return; }
+      if (target && !target.getAttribute("class").match(/stale|fresh/)) {
+        target.setAttribute("class", "nd on");
+      }
+      applyStates(step);
+      if (done) done();
+    }
+
+    place(0);
+    raf = requestAnimationFrame(frame);
+  }
+
+  function show(i, thenContinue){
+    var steps = SCENES[scene];
+    if (i < 0 || i >= steps.length) return;
+    if (raf) cancelAnimationFrame(raf);
+    if (timer) clearTimeout(timer);
+
+    index = i;
+    clearMarks();
+    for (var k = 0; k <= i; k++) applyStates(steps[k]);
+
+    var step = steps[i];
+    setCaption(step, i + 1, steps.length);
+    travel(step, function(){
+      if (!thenContinue || !playing) return;
+      timer = setTimeout(function(){
+        if (index + 1 < steps.length) { show(index + 1, true); }
+        else { playing = false; document.getElementById("bPlay").textContent = "Play"; }
+      }, reduced ? 900 : 550);
+    });
+  }
+
+  function resetScene(){
+    playing = false;
+    index = -1;
+    if (raf) cancelAnimationFrame(raf);
+    if (timer) clearTimeout(timer);
+    clearMarks();
+    pkt.setAttribute("opacity", "0");
+    document.getElementById("bPlay").textContent = "Play";
+    capStep.textContent = "Step 0 of " + SCENES[scene].length;
+    capText.innerHTML = '<span class="hi">Play dabao.</span><span class="en">Press play to walk through it.</span>';
+  }
+
+  document.getElementById("bPlay").addEventListener("click", function(){
+    playing = !playing;
+    this.textContent = playing ? "Pause" : "Play";
+    if (playing) show(index + 1 >= SCENES[scene].length ? 0 : index + 1, true);
+    else { if (raf) cancelAnimationFrame(raf); if (timer) clearTimeout(timer); }
+  });
+  document.getElementById("bNext").addEventListener("click", function(){
+    playing = false; document.getElementById("bPlay").textContent = "Play";
+    if (index + 1 < SCENES[scene].length) show(index + 1, false);
+  });
+  document.getElementById("bPrev").addEventListener("click", function(){
+    playing = false; document.getElementById("bPlay").textContent = "Play";
+    if (index - 1 >= 0) show(index - 1, false);
+  });
+  document.getElementById("bRestart").addEventListener("click", resetScene);
+
+  var tabs = document.querySelectorAll(".tabs button");
+  for (var t = 0; t < tabs.length; t++) {
+    tabs[t].addEventListener("click", function(){
+      for (var u = 0; u < tabs.length; u++) tabs[u].setAttribute("aria-selected", "false");
+      this.setAttribute("aria-selected", "true");
+      scene = this.dataset.scene;
+      resetScene();
+    });
+  }
+
+  resetScene();
+})();
+</script>
+</body>
+</html>

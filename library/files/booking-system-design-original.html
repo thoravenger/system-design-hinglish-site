@@ -1,0 +1,1403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Booking System Design — HLD + LLD Interview Sheet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Newsreader:ital,wght@1,400;1,500&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Palette = the seat-status legend. Har colour ka ek meaning hai. */
+  --paper:#EDF0F6;
+  --card:#FFFFFF;
+  --ink:#16213E;
+  --ink-soft:#53628A;
+  --ink-faint:#8892AC;
+  --rule:#C9D2E2;
+  --rule-soft:#DEE4EF;
+
+  --free:#0E7C66;      /* AVAILABLE  → solution, correct approach */
+  --free-bg:#E4F2ED;
+  --held:#B0700F;      /* HELD       → tradeoff, "depends" */
+  --held-bg:#FBF0DC;
+  --booked:#BC3560;    /* BOOKED     → problem, blocked, failure */
+  --booked-bg:#FBE6EC;
+  --blocked:#7C8599;   /* BLOCKED    → anti-pattern, don't do */
+
+  --term-bg:#131C31;
+  --term-line:#22304F;
+  --term-fg:#CDD9EE;
+  --term-key:#7FB2FF;
+  --term-str:#8FD8B4;
+  --term-com:#7183A8;
+  --term-ann:#E2A33F;
+
+  --w:1180px;
+  --r:3px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:96px}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font-family:'Archivo',system-ui,sans-serif;
+  font-size:16px;line-height:1.62;
+  -webkit-font-smoothing:antialiased;
+}
+.wrap{max-width:var(--w);margin:0 auto;padding:0 20px}
+h1,h2,h3,h4{line-height:1.15;margin:0;letter-spacing:-.02em;font-weight:700}
+p{margin:0 0 .85em}
+p:last-child{margin-bottom:0}
+a{color:var(--free)}
+
+/* ---------- HERO: printed like a ticket ---------- */
+.ticket{
+  background:var(--card);margin:22px auto 0;max-width:var(--w);
+  border:1px solid var(--rule);border-radius:var(--r);
+  box-shadow:0 1px 0 var(--rule-soft);
+  overflow:hidden;
+}
+.ticket-top{padding:30px 26px 22px;border-bottom:2px dashed var(--rule)}
+.ticket-meta{
+  font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--ink-faint);
+  display:flex;flex-wrap:wrap;gap:8px 22px;margin-bottom:16px;letter-spacing:.02em;
+}
+.ticket-meta b{color:var(--ink-soft);font-weight:500}
+h1{font-size:clamp(30px,6.4vw,58px);letter-spacing:-.035em}
+h1 .sub{display:block;font-size:.42em;font-weight:500;color:var(--ink-soft);letter-spacing:-.01em;margin-top:10px;line-height:1.35}
+.lede{max-width:62ch;margin-top:16px;color:var(--ink-soft);font-size:16.5px}
+.ticket-bottom{padding:20px 26px;display:flex;flex-wrap:wrap;gap:14px 30px;align-items:center;background:#F7F9FC}
+
+/* legend = palette key */
+.legend{display:flex;flex-wrap:wrap;gap:8px 16px;font-size:12.5px;font-family:'JetBrains Mono',monospace}
+.lg{display:flex;align-items:center;gap:7px;color:var(--ink-soft)}
+.sw{width:13px;height:13px;border-radius:2px;flex:none}
+.sw.f{background:var(--free)}.sw.h{background:var(--held)}
+.sw.b{background:var(--booked)}.sw.x{background:var(--blocked)}
+
+/* ---------- NAV ---------- */
+nav{
+  position:sticky;top:0;z-index:60;background:rgba(237,240,246,.94);
+  backdrop-filter:blur(8px);border-bottom:1px solid var(--rule);margin-top:26px;
+}
+.navrow{display:flex;gap:6px;overflow-x:auto;padding:9px 20px;max-width:var(--w);margin:0 auto;scrollbar-width:thin}
+.navrow a{
+  flex:none;font-size:12.5px;font-family:'JetBrains Mono',monospace;text-decoration:none;
+  color:var(--ink-soft);padding:5px 10px;border:1px solid var(--rule-soft);border-radius:2px;background:var(--card);
+}
+.navrow a:hover,.navrow a:focus-visible{border-color:var(--ink);color:var(--ink)}
+
+/* ---------- SECTION HEADS ---------- */
+.chapter{padding:56px 0 8px}
+.chapter .num{
+  font-family:'JetBrains Mono',monospace;font-size:12px;color:var(--booked);
+  border:1px solid currentColor;padding:2px 7px;border-radius:2px;display:inline-block;margin-bottom:12px;
+}
+.chapter h2{font-size:clamp(23px,4vw,34px)}
+.chapter .tag{margin-top:10px;color:var(--ink-soft);max-width:70ch}
+
+/* ---------- THE STUB: problem | perforation | solution ---------- */
+.stub{
+  display:grid;grid-template-columns:1fr 22px 1.12fr;
+  background:var(--card);border:1px solid var(--rule);border-radius:var(--r);
+  margin-top:20px;overflow:hidden;
+}
+.side{padding:22px 24px}
+.side.problem{background:#FDF7F9}
+.perf{position:relative}
+.perf::before{
+  content:"";position:absolute;left:50%;top:14px;bottom:14px;
+  border-left:2px dashed var(--rule);transform:translateX(-1px);
+}
+.perf::after{
+  content:"";position:absolute;left:50%;top:-9px;width:18px;height:18px;
+  background:var(--paper);border:1px solid var(--rule);border-radius:50%;transform:translateX(-50%);
+}
+.side h3{font-size:17.5px;display:flex;align-items:center;gap:9px;margin-bottom:12px}
+.dot{width:9px;height:9px;border-radius:50%;flex:none}
+.problem .dot{background:var(--booked)}
+.solution .dot{background:var(--free)}
+.side h3 span.role{
+  font-family:'JetBrains Mono',monospace;font-size:10.5px;font-weight:500;
+  padding:2px 6px;border-radius:2px;letter-spacing:.04em;
+}
+.problem h3 span.role{background:var(--booked-bg);color:var(--booked)}
+.solution h3 span.role{background:var(--free-bg);color:var(--free)}
+.side ul{margin:0 0 12px;padding-left:19px}
+.side li{margin-bottom:7px}
+.side li:last-child{margin-bottom:0}
+.side ul.tight li{margin-bottom:4px}
+
+/* interviewer voice */
+.quote{
+  font-family:'Newsreader',Georgia,serif;font-style:italic;font-size:18px;line-height:1.5;
+  color:var(--ink);border-left:3px solid var(--booked);padding:2px 0 2px 14px;margin:0 0 14px;
+}
+.quote cite{display:block;font-style:normal;font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-faint);margin-top:6px}
+
+/* small labelled facts */
+.kv{border-top:1px solid var(--rule-soft);margin-top:14px;padding-top:12px}
+.kv div{display:flex;gap:10px;font-size:14px;margin-bottom:5px}
+.kv dt,.kv b.k{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--ink-faint);min-width:104px;flex:none;padding-top:3px;font-weight:500}
+
+.callout{
+  border-left:3px solid var(--held);background:var(--held-bg);
+  padding:11px 14px;margin:14px 0;font-size:14.6px;border-radius:0 2px 2px 0;
+}
+.callout b{color:#7E4E06}
+.callout.win{border-color:var(--free);background:var(--free-bg)}
+.callout.win b{color:var(--free)}
+.callout.stop{border-color:var(--booked);background:var(--booked-bg)}
+.callout.stop b{color:var(--booked)}
+
+/* level chips */
+.lvl{display:inline-block;font-family:'JetBrains Mono',monospace;font-size:10px;font-weight:700;
+  padding:2px 6px;border-radius:2px;margin-left:6px;vertical-align:2px;letter-spacing:.03em}
+.l1{background:var(--free-bg);color:var(--free)}
+.l2{background:var(--held-bg);color:var(--held)}
+.l3{background:var(--booked-bg);color:var(--booked)}
+
+/* ---------- CODE ---------- */
+.code{
+  background:var(--term-bg);border-radius:var(--r);margin:16px 0;overflow:hidden;
+  border:1px solid #0B1120;
+}
+.code-head{
+  display:flex;justify-content:space-between;align-items:center;gap:12px;
+  padding:8px 13px;border-bottom:1px solid var(--term-line);
+  font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#8FA3C8;
+}
+.code-head .file{color:#C6D5EE}
+.code-head .badge{background:#1D2A47;color:#89A9E0;padding:2px 7px;border-radius:2px}
+pre{margin:0;overflow-x:auto;padding:13px 0}
+code{font-family:'JetBrains Mono',monospace;font-size:12.6px;line-height:1.72;color:var(--term-fg);display:block}
+.ln{display:block;padding:0 14px 0 0;white-space:pre}
+.ln::before{
+  content:attr(data-l);display:inline-block;width:34px;padding-right:12px;text-align:right;
+  color:#4C5F86;user-select:none;
+}
+.ln.hl{background:rgba(226,163,63,.11);box-shadow:inset 3px 0 0 var(--term-ann)}
+.k{color:var(--term-key)}.s{color:var(--term-str)}.c{color:var(--term-com)}.a{color:#E6B673}.t{color:#9FD5F5}
+
+/* line-by-line explanation */
+.explain{margin:14px 0 0;border:1px solid var(--rule);border-radius:var(--r);overflow:hidden;background:var(--card)}
+.explain-h{padding:8px 13px;background:#F3F6FB;border-bottom:1px solid var(--rule-soft);
+  font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--ink-soft)}
+.explain .row{display:grid;grid-template-columns:74px 1fr;gap:12px;padding:9px 13px;border-bottom:1px solid var(--rule-soft);font-size:14.4px}
+.explain .row:last-child{border-bottom:0}
+.explain .row b{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--booked);font-weight:500;padding-top:3px}
+.explain .row.good b{color:var(--free)}
+
+/* tables */
+.tbl{width:100%;border-collapse:collapse;margin:14px 0;font-size:14.3px;background:var(--card)}
+.tbl th{
+  text-align:left;font-family:'JetBrains Mono',monospace;font-size:11px;font-weight:500;
+  color:var(--ink-faint);border-bottom:1px solid var(--rule);padding:7px 10px;vertical-align:bottom;
+}
+.tbl td{border-bottom:1px solid var(--rule-soft);padding:8px 10px;vertical-align:top}
+.tbl tr:last-child td{border-bottom:0}
+.tbl code{display:inline;background:#EEF2F9;color:var(--ink);padding:1px 5px;border-radius:2px;font-size:12px}
+code.i{display:inline;background:#EEF2F9;color:#293A61;padding:1px 5px;border-radius:2px;font-size:12.4px;white-space:nowrap}
+.problem code.i{background:#F6E6EB}
+
+/* ---------- MOCK Q&A ---------- */
+.qbank{background:var(--card);border:1px solid var(--rule);border-radius:var(--r);margin-top:18px;overflow:hidden}
+.tabs{display:flex;border-bottom:1px solid var(--rule)}
+.tabs button{
+  flex:1;padding:13px 8px;background:#F5F7FB;border:0;border-right:1px solid var(--rule-soft);
+  font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--ink-soft);cursor:pointer;
+}
+.tabs button:last-child{border-right:0}
+.tabs button[aria-selected="true"]{background:var(--card);color:var(--ink);box-shadow:inset 0 -2px 0 var(--free)}
+details{border-bottom:1px solid var(--rule-soft)}
+details:last-child{border-bottom:0}
+summary{
+  padding:13px 16px;cursor:pointer;font-weight:500;display:flex;gap:11px;align-items:flex-start;
+  list-style:none;font-size:15.4px;
+}
+summary::-webkit-details-marker{display:none}
+summary .qn{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--ink-faint);flex:none;padding-top:4px}
+summary::after{content:"+";margin-left:auto;color:var(--ink-faint);font-family:'JetBrains Mono',monospace;flex:none}
+details[open] summary::after{content:"−"}
+details[open] summary{background:#F7F9FC}
+.ans{padding:2px 16px 17px 46px;font-size:15px;color:#22304F;border-left:2px solid var(--free);margin-left:16px}
+.ans p{margin-bottom:.7em}
+.ans .hin{color:var(--ink-soft)}
+
+/* ---------- ANIMATION STAGE ---------- */
+.stage-wrap{background:var(--term-bg);border-radius:var(--r);margin-top:20px;overflow:hidden;border:1px solid #0B1120}
+.stage-bar{display:flex;flex-wrap:wrap;gap:9px;align-items:center;padding:11px 14px;border-bottom:1px solid var(--term-line)}
+.btn{
+  font-family:'JetBrains Mono',monospace;font-size:12px;padding:7px 13px;border-radius:2px;cursor:pointer;
+  background:#1D2A47;color:#CCDCF5;border:1px solid #2C3E63;
+}
+.btn:hover{background:#25355A}
+.btn.go{background:var(--free);border-color:var(--free);color:#EAFBF5}
+.btn.race{background:var(--booked);border-color:var(--booked);color:#FDEFF3}
+.stage-bar .status{margin-left:auto;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:#7E93BC}
+.stage{display:grid;grid-template-columns:1.55fr 1fr;gap:0;min-height:330px}
+.track{position:relative;padding:20px 16px}
+.nodes{display:grid;grid-template-columns:repeat(4,1fr);gap:12px 10px;position:relative;z-index:2}
+.node{
+  border:1px solid #2A3A5E;border-radius:3px;padding:9px 8px;background:#182644;
+  text-align:center;transition:border-color .2s,background .2s,box-shadow .2s;
+}
+.node .nm{font-family:'JetBrains Mono',monospace;font-size:10.6px;color:#9DB4DC;display:block;line-height:1.3}
+.node .ic{font-size:17px;display:block;margin-bottom:3px}
+.node.on{background:#1B4A3E;border-color:var(--free);box-shadow:0 0 0 2px rgba(14,124,102,.28)}
+.node.err{background:#4A1E2E;border-color:var(--booked);box-shadow:0 0 0 2px rgba(188,53,96,.3)}
+.node.hold{background:#4A3714;border-color:var(--held)}
+.packet{
+  position:absolute;width:15px;height:15px;border-radius:50%;z-index:5;
+  background:#7FB2FF;box-shadow:0 0 12px #7FB2FF;opacity:0;
+  transition:left .55s cubic-bezier(.5,0,.3,1),top .55s cubic-bezier(.5,0,.3,1),opacity .2s,background .2s;
+  transform:translate(-50%,-50%);pointer-events:none;
+}
+.packet.b{background:#E2A33F;box-shadow:0 0 12px #E2A33F}
+.packet.dead{background:var(--booked);box-shadow:0 0 12px var(--booked)}
+.log{border-left:1px solid var(--term-line);padding:14px;overflow-y:auto;max-height:400px;background:#101827}
+.log h4{font-family:'JetBrains Mono',monospace;font-size:11px;color:#7E93BC;font-weight:500;margin-bottom:9px}
+.log .l{font-family:'JetBrains Mono',monospace;font-size:11.6px;line-height:1.62;color:#A9BDDF;margin-bottom:5px;word-break:break-word}
+.log .l .tm{color:#566B94}
+.log .l.ok{color:#8FD8B4}.log .l.warn{color:#E2A33F}.log .l.bad{color:#F08BAA}
+.seatmap{padding:14px 16px;border-top:1px solid var(--term-line)}
+.seatmap h4{font-family:'JetBrains Mono',monospace;font-size:11px;color:#7E93BC;font-weight:500;margin-bottom:9px}
+.seats{display:grid;grid-template-columns:repeat(8,1fr);gap:5px;max-width:330px}
+.seat{
+  aspect-ratio:1;border-radius:2px 2px 4px 4px;background:#1F2C4A;border:1px solid #2E4066;
+  font-family:'JetBrains Mono',monospace;font-size:9px;color:#6E85B0;
+  display:flex;align-items:center;justify-content:center;transition:background .25s,border-color .25s;
+}
+.seat.free{background:#14453A;border-color:var(--free);color:#7FD9BC}
+.seat.held{background:#4A3714;border-color:var(--held);color:#E9C078}
+.seat.booked{background:#4A1E2E;border-color:var(--booked);color:#F2A2BB}
+
+footer{padding:44px 0 60px;color:var(--ink-faint);font-size:13.5px;border-top:1px solid var(--rule);margin-top:56px}
+footer .wrap{display:flex;flex-wrap:wrap;gap:10px 26px;justify-content:space-between}
+
+:focus-visible{outline:2px solid var(--free);outline-offset:2px}
+
+@media (max-width:860px){
+  .stub{grid-template-columns:1fr}
+  .perf{height:22px}
+  .perf::before{left:14px;right:14px;top:50%;bottom:auto;border-left:0;border-top:2px dashed var(--rule)}
+  .perf::after{left:-9px;top:50%;transform:translateY(-50%)}
+  .stage{grid-template-columns:1fr}
+  .log{border-left:0;border-top:1px solid var(--term-line);max-height:210px}
+  .nodes{grid-template-columns:repeat(2,1fr)}
+  .explain .row{grid-template-columns:1fr;gap:2px}
+  .ans{padding-left:16px;margin-left:12px}
+  .side{padding:18px 17px}
+  .ticket-top{padding:24px 18px 18px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{transition-duration:.01ms !important;animation-duration:.01ms !important}
+  html{scroll-behavior:auto}
+}
+</style>
+</head>
+<body>
+<header class="wrap">
+  <div class="ticket">
+    <div class="ticket-top">
+      <div class="ticket-meta">
+        <span><b>ROUND</b> System Design</span>
+        <span><b>DURATION</b> 45–60 min</span>
+        <span><b>STACK</b> Java 21 · Spring Boot 3</span>
+        <span><b>DOMAINS</b> Movie · Hotel · Flight · Restaurant</span>
+        <span><b>LEVEL</b> SDE-1 → SDE-3</span>
+      </div>
+      <h1>Booking System
+        <span class="sub">Ek hi core problem, chaar domain: seat, room, flight aur table — sabka jawab
+        “finite resource + time window + no double booking” hai. Poori sheet topic-by-topic:
+        left me problem, right me solution.</span>
+      </h1>
+      <p class="lede">Har section me interviewer ka actual sawaal, uske peeche ka trap, working Spring Boot
+      code with line-by-line explanation, aur end me 24 mock questions plus ek live booking-flow animation.</p>
+    </div>
+    <div class="ticket-bottom">
+      <div class="legend">
+        <span class="lg"><i class="sw f"></i>AVAILABLE — correct approach</span>
+        <span class="lg"><i class="sw h"></i>HELD — tradeoff / “it depends”</span>
+        <span class="lg"><i class="sw b"></i>BOOKED — problem / failure</span>
+        <span class="lg"><i class="sw x"></i>BLOCKED — anti-pattern</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<nav aria-label="Topics">
+  <div class="navrow">
+    <a href="#t1">01 Requirements</a>
+    <a href="#t2">02 Estimation</a>
+    <a href="#t3">03 API</a>
+    <a href="#t4">04 HLD</a>
+    <a href="#t5">05 Schema</a>
+    <a href="#t6">06 Double booking</a>
+    <a href="#t7">07 Hold + TTL</a>
+    <a href="#t8">08 Idempotency</a>
+    <a href="#t9">09 Saga + Outbox</a>
+    <a href="#t10">10 LLD classes</a>
+    <a href="#t11">11 State machine</a>
+    <a href="#t12">12 Cache + Search</a>
+    <a href="#t13">13 Sharding</a>
+    <a href="#t14">14 Surge</a>
+    <a href="#mock">Mock Q&amp;A</a>
+    <a href="#flow">Live flow</a>
+  </div>
+</nav>
+
+<main class="wrap">
+
+<!-- ===================== 01 ===================== -->
+<section id="t1" class="chapter">
+  <span class="num">Topic 01</span>
+  <h2>Requirements clarify karo, model unify karo</h2>
+  <p class="tag">Yeh pehla 5 minute pura interview ka tone set karta hai. Yahin par candidate jeetta ya haarta hai.</p>
+</section>
+<div class="stub">
+  <div class="side problem">
+    <h3><i class="dot"></i>Problem <span class="role">TRAP</span></h3>
+    <p class="quote">“Design a booking system.”<cite>Interviewer, minute 0</cite></p>
+    <ul>
+      <li><b>Scope infinite hai.</b> Movie, hotel, flight, restaurant — candidate ko lagta hai chaaron alag systems hain, toh woh ek generic “sab kuch” design banane lagta hai jo kisi ke liye kaam nahi karta.</li>
+      <li><b>Seedha table banane lagna.</b> 90% log minute 1 par <code class="i">CREATE TABLE booking</code> likh dete hain. Interviewer ko lagta hai isne socha hi nahi.</li>
+      <li><b>NFR poochha hi nahi.</b> Agar “no double booking” ko hard constraint declare nahi kiya, toh baaki poora design bekaar hai — kyunki wahi is problem ka asli core hai.</li>
+      <li><b>Read vs write ratio ignore.</b> Booking system 100:1 read-heavy hai, par candidate pura design write path ke around banata hai.</li>
+    </ul>
+    <div class="callout stop"><b>Red flag:</b> “Main assume kar raha hoon…” bolke 4 assumption ek saath thok dena, bina interviewer se confirm kiye.</div>
+  </div>
+  <div class="perf"></div>
+  <div class="side solution">
+    <h3><i class="dot"></i>Solution <span class="role">FRAMEWORK</span></h3>
+    <p><b>Step 1 — Ek line me unify karo.</b> Chaaron domain ka core ek hi hai:</p>
+    <div class="callout win"><b>The one-liner:</b> “Ye ek <i>finite, exclusive, time-bound resource allocation</i> problem hai. Movie me resource = seat × show, hotel me = room × night, flight me = seat × leg, restaurant me = table × slot. Inventory model same rahega, sirf allocation rule alag hoga.”</div>
+    <table class="tbl">
+      <thead><tr><th>Domain</th><th>Resource</th><th>Time window</th><th>Allocation ka twist</th></tr></thead>
+      <tbody>
+        <tr><td>Movie</td><td>Seat</td><td>Show (fixed 3 hrs)</td><td>Contiguous seats, single-seat gap avoid</td></tr>
+        <tr><td>Hotel</td><td>Room</td><td>Date range (N nights)</td><td>Interval overlap — har night free honi chahiye</td></tr>
+        <tr><td>Flight</td><td>Seat</td><td>Leg (fixed)</td><td>Cabin class + deliberate overbooking</td></tr>
+        <tr><td>Restaurant</td><td>Table</td><td>Slot + turn time</td><td>Party size fit + table merging</td></tr>
+      </tbody>
+    </table>
+    <p><b>Step 2 — FR aur NFR alag likho.</b></p>
+    <div class="kv">
+      <div><b class="k">FUNCTIONAL</b><span>Search availability · Seat map dekho · Hold karo · Pay karo · Confirm · Cancel + refund · Booking history</span></div>
+      <div><b class="k">OUT OF SCOPE</b><span>Recommendations, reviews, loyalty points, dynamic ads — bol do ki skip kar rahe ho</span></div>
+      <div><b class="k">NFR — HARD</b><span><b>Zero double booking.</b> Ye correctness constraint hai, performance target nahi. Inventory path = <b>CP</b> (consistency &gt; availability)</span></div>
+      <div><b class="k">NFR — SOFT</b><span>Search p99 &lt; 300ms · Seat map &lt; 200ms · Booking confirm &lt; 3s · Search path = <b>AP</b>, stale data chalega</span></div>
+      <div><b class="k">SCALE</b><span>Read:Write ≈ 100:1 · Traffic spiky hai, uniform nahi (Friday 6PM release, IPL final)</span></div>
+    </div>
+    <div class="callout"><b>Yeh line bolo:</b> “Availability data ko main <i>advisory</i> maanunga — user ko jo seat map dikh raha hai woh stale ho sakta hai. Truth sirf booking commit ke time par decide hoti hai.” Isse tum poore caching design ko pehle hi justify kar dete ho. <span class="lvl l2">SDE-2</span></div>
+  </div>
+</div>
+
+<!-- ===================== 02 ===================== -->
+<section id="t2" class="chapter">
+  <span class="num">Topic 02</span>
+  <h2>Capacity estimation — numbers se design justify karo</h2>
+  <p class="tag">Estimation ka maqsad exact number nahi hai. Maqsad hai ek aisa number nikalna jo aage ka design decision drive kare.</p>
+</section>
+<div class="stub">
+  <div class="side problem">
+    <h3><i class="dot"></i>Problem <span class="role">TRAP</span></h3>
+    <ul>
+      <li><b>Average QPS nikaal ke ruk jaana.</b> “10M DAU / 86400 = 115 QPS, easy hai.” Ye galat picture deta hai — booking traffic <i>bursty</i> hoti hai.</li>
+      <li><b>Storage calculate karke chhod dena.</b> Number nikaala par usse koi decision nahi liya. Interviewer poochta hai “toh isse kya conclude hua?” aur candidate chup.</li>
+      <li><b>Hot partition miss karna.</b> Traffic uniform nahi hai — ek blockbuster release ka ek show poore system ka 30% traffic le sakta hai.</li>
+    </ul>
+    <div class="callout stop"><b>Red flag:</b> Peak factor apply na karna. Average par capacity plan karoge toh release day par system gir jaayega.</div>
+  </div>
+  <div class="perf"></div>
+  <div class="side solution">
+    <h3><i class="dot"></i>Solution <span class="role">MATH</span></h3>
+    <p>Round numbers lo, peak factor lagao, phir <b>har number se ek decision nikalo</b>.</p>
+    <table class="tbl">
+      <thead><tr><th>Metric</th><th>Calculation</th><th>Design decision</th></tr></thead>
+      <tbody>
+        <tr><td>DAU</td><td>10M</td><td>—</td></tr>
+        <tr><td>Search QPS (avg)</td><td>10M × 5 searches / 86400 ≈ <b>580</b></td><td>Elasticsearch cluster, read replicas</td></tr>
+        <tr><td>Search QPS (peak ×20)</td><td>≈ <b>12,000</b></td><td>CDN + Redis cache, cache hit ≥ 90% target</td></tr>
+        <tr><td>Bookings/day</td><td>10M × 2% ≈ <b>200K</b></td><td>Avg 2.3 writes/sec — <b>writes chhote hain</b></td></tr>
+        <tr><td>Booking peak (×50)</td><td>≈ <b>120 writes/sec</b></td><td>Single Postgres primary handle kar lega ✓</td></tr>
+        <tr><td>Hot show peak</td><td>1 show, 300 seats, 50K users</td><td><b>Yahi asli problem hai</b> → waiting room + Redis lock</td></tr>
+        <tr><td>Storage/yr</td><td>200K × 365 × 2KB ≈ <b>146 GB</b></td><td>Chhota hai. Sharding scale ke liye nahi, <b>isolation</b> ke liye</td></tr>
+      </tbody>
+    </table>
+    <div class="callout win"><b>Punchline jo interviewer sunna chahta hai:</b> “Aggregate write load trivial hai — 120 writes/sec koi bhi single DB kar legi. Asli challenge <b>contention</b> hai: ek hi show ki 300 rows par 50,000 log ek saath likhna chahte hain. Isliye main scale ke liye nahi, <b>contention ke liye</b> design karunga.” <span class="lvl l3">SDE-3</span></div>
+    <p>Yeh ek line poore interview ka rukh badal deti hai — ab tum sharding, Redis lock aur waiting room sab justify kar sakte ho.</p>
+  </div>
+</div>
+
+<!-- ===================== 03 ===================== -->
+<section id="t3" class="chapter">
+  <span class="num">Topic 03</span>
+  <h2>API design — hold aur book alag endpoints hain</h2>
+  <p class="tag">Sabse bada API-level insight: booking ek single call nahi hai. Ye do-phase protocol hai.</p>
+</section>
+<div class="stub">
+  <div class="side problem">
+    <h3><i class="dot"></i>Problem <span class="role">TRAP</span></h3>
+    <p class="quote">“Toh user seat select karega aur <code>POST /book</code> chalega?”<cite>Interviewer, testing your API sense</cite></p>
+    <ul>
+      <li><b>Single endpoint jisme payment bhi ho.</b> <code class="i">POST /book</code> jo seat lock kare, payment gateway call kare, aur confirm kare — matlab DB lock 30 second tak payment gateway ka wait karega. Ye system ko maar dega.</li>
+      <li><b>Idempotency nahi.</b> User ne double-tap kiya → 2 bookings, 2 charges. Mobile network flaky hai, retry hona hi hai.</li>
+      <li><b>GET par side-effect.</b> Kuch log <code class="i">GET /seats?lock=true</code> jaisa kuch bana dete hain. HTTP semantics tod diya.</li>
+      <li><b>Status code galat.</b> Seat already taken par <code class="i">200 OK</code> with <code class="i">{"success": false}</code>. Client retry logic likh hi nahi sakta.</li>
+    </ul>
+  </div>
+  <div class="perf"></div>
+  <div class="side solution">
+    <h3><i class="dot"></i>Solution <span class="role">CONTRACT</span></h3>
+    <p><b>Hold aur confirm ko alag karo.</b> Hold chhota aur transactional hai; payment lamba aur external hai.</p>
+    <div class="code">
+      <div class="code-head"><span class="file">booking-api.http</span><span class="badge">REST v1</span></div>
+<pre><code><span class="ln" data-l="1"><span class="c"># 1. Search — cacheable, AP path, stale chalega</span></span><span class="ln" data-l="2"><span class="k">GET</span>  /v1/events?domain=MOVIE&amp;city=BLR&amp;date=2026-09-12</span><span class="ln" data-l="3"><span class="c">#    → 200  Cache-Control: public, max-age=60</span></span><span class="ln" data-l="4"> </span><span class="ln" data-l="5"><span class="c"># 2. Seat map — short TTL, advisory only</span></span><span class="ln" data-l="6"><span class="k">GET</span>  /v1/events/{eventId}/inventory</span><span class="ln" data-l="7"><span class="c">#    → 200  { units:[{id, label, status, priceMinor}], version }</span></span><span class="ln" data-l="8"> </span><span class="ln" data-l="9"><span class="c"># 3. HOLD — CP path. Chhota txn. Payment yahan NAHI hota.</span></span><span class="ln hl" data-l="10"><span class="k">POST</span> /v1/holds</span><span class="ln hl" data-l="11">     Idempotency-Key: <span class="s">"c1f4-…-9ab2"</span></span><span class="ln" data-l="12">     { eventId, unitIds:[<span class="a">101</span>,<span class="a">102</span>], userId }</span><span class="ln" data-l="13"><span class="c">#    → 201 { holdId, expiresAt, amountMinor }</span></span><span class="ln" data-l="14"><span class="c">#    → 409 CONFLICT { code:"UNIT_NOT_AVAILABLE", unitIds:[102] }</span></span><span class="ln" data-l="15"> </span><span class="ln" data-l="16"><span class="c"># 4. Payment intent — external PG, koi DB lock nahi</span></span><span class="ln" data-l="17"><span class="k">POST</span> /v1/holds/{holdId}/payment-intent</span><span class="ln" data-l="18"><span class="c">#    → 200 { paymentIntentId, clientSecret }</span></span><span class="ln" data-l="19"> </span><span class="ln" data-l="20"><span class="c"># 5. CONFIRM — dusra chhota txn, hold ko booking bana do</span></span><span class="ln hl" data-l="21"><span class="k">POST</span> /v1/bookings</span><span class="ln hl" data-l="22">     Idempotency-Key: <span class="s">"c1f4-…-9ab2"</span></span><span class="ln" data-l="23">     { holdId, paymentIntentId }</span><span class="ln" data-l="24"><span class="c">#    → 201 { bookingId, status:"CONFIRMED", tickets:[…] }</span></span><span class="ln" data-l="25"><span class="c">#    → 410 GONE { code:"HOLD_EXPIRED" }   ← retry mat karo</span></span><span class="ln" data-l="26"> </span><span class="ln" data-l="27"><span class="c"># 6. Release / cancel</span></span><span class="ln" data-l="28"><span class="k">DELETE</span> /v1/holds/{holdId}          <span class="c">→ 204</span></span><span class="ln" data-l="29"><span class="k">POST</span>   /v1/bookings/{id}/cancel   <span class="c">→ 202 (async refund)</span></span><span class="ln" data-l="30"> </span><span class="ln" data-l="31"><span class="c"># 7. Webhook — PG se aayega, must be idempotent</span></span><span class="ln" data-l="32"><span class="k">POST</span> /v1/webhooks/payments      { pgEventId, status }</span></code></pre>
+    </div>
+    <div class="explain">
+      <div class="explain-h">Line-by-line — kya aur kyun</div>
+      <div class="row"><b>L10–L11</b><span><code class="i">POST /v1/holds</code> ek naya resource banata hai (hold), isliye POST hai GET nahi. <code class="i">Idempotency-Key</code> client-generated UUID hai — same key se dobara call aaya toh server naya hold nahi banayega, purana wahi return karega. <i>Double-tap se double hold nahi banega.</i></span></div>
+      <div class="row"><b>L14</b><span><code class="i">409 CONFLICT</code> — resource state ki wajah se request fail hui. Client ko exactly pata hai ki <code class="i">102</code> gaya, <code class="i">101</code> abhi bhi mil sakta hai. <code class="i">200 + success:false</code> se ye information kabhi nahi milti.</span></div>
+      <div class="row"><b>L17</b><span>Payment intent alag call hai kyunki PG round-trip 2–30 second le sakta hai. Is beech koi database row locked nahi honi chahiye — seat Redis+DB me <code class="i">HELD</code> hai, jo lock nahi <i>reservation</i> hai.</span></div>
+      <div class="row good"><b>L21–L23</b><span>Confirm request me <code class="i">unitIds</code> dobara nahi bheje — sirf <code class="i">holdId</code>. Server-side truth hi source of truth hai. Client kabhi bhi price ya seat list resend nahi karega (tampering surface hata diya).</span></div>
+      <div class="row"><b>L25</b><span><code class="i">410 GONE</code> vs <code class="i">404</code>: 410 ka matlab “ye tha, ab expire ho gaya, dobara mat maango”. Client retry loop turant band kar dega. Ye chhoti detail interviewer notice karta hai.</span></div>
+      <div class="row"><b>L29</b><span><code class="i">202 ACCEPTED</code> — refund synchronous nahi hai, bank 3–5 din leta hai. Isliye request accept karke async process karo.</span></div>
+      <div class="row"><b>L32</b><span>Webhook par <code class="i">pgEventId</code> ka unique index rakho. Payment gateways at-least-once deliver karte hain — same event 3 baar aa sakta hai.</span></div>
+    </div>
+    <div class="callout win"><b>English takeaway:</b> Split the write path into two short transactions with a long, lock-free gap in between. Hold is cheap and reversible; confirm is final. Never let an external network call sit inside a database transaction.</div>
+  </div>
+</div>
+
+<!-- ===================== 04 ===================== -->
+<section id="t4" class="chapter">
+  <span class="num">Topic 04</span>
+  <h2>HLD — services kaise cut karein</h2>
+  <p class="tag">Service boundary ka rule: jo cheez ek saath transactionally consistent honi chahiye, woh ek service me rahegi.</p>
+</section>
+<div class="stub">
+  <div class="side problem">
+    <h3><i class="dot"></i>Problem <span class="role">TRAP</span></h3>
+    <ul>
+      <li><b>Microservice ka over-split.</b> Candidate 12 boxes bana deta hai — SeatService, LockService, HoldService, ReservationService. Ab seat hold karne ke liye 4 network hops chahiye, aur distributed transaction ka narak khul gaya.</li>
+      <li><b>Inventory aur Booking alag services me.</b> Sunne me clean lagta hai, par ab “seat lock karo + booking row banao” atomic nahi ho sakta. 2PC lagana padega — jo interviewer ko dekh ke hi bura lagta hai.</li>
+      <li><b>Sirf boxes aur arrows, koi reasoning nahi.</b> Diagram bana diya, par “Kafka kyun?” ka jawab “because scalable” hai.</li>
+      <li><b>Payment gateway ko andar dikhana.</b> PG external hai, uski latency aur failure tumhare control me nahi — diagram me ye clearly boundary ke bahar hona chahiye.</li>
+    </ul>
+    <div class="callout stop"><b>Red flag:</b> Cache ko har box ke aage laga dena bina ye bataye ki kaun sa data cache ho raha hai aur invalidate kaise hoga.</div>
+  </div>
+  <div class="perf"></div>
+  <div class="side solution">
+    <h3><i class="dot"></i>Solution <span class="role">ARCHITECTURE</span></h3>
+    <p><b>Sirf 5 core services.</b> Inventory aur Booking <i>ek hi service</i> me — kyunki inhe atomic rehna hai.</p>
+    <div class="code">
+      <div class="code-head"><span class="file">architecture.txt</span><span class="badge">HLD</span></div>
+<pre><code><span class="ln" data-l="1">                          ┌──────────────┐</span><span class="ln" data-l="2">  Mobile / Web  ────────▶│  CDN + WAF   │  static, seat-map SVG</span><span class="ln" data-l="3">                          └──────┬───────┘</span><span class="ln" data-l="4">                                 ▼</span><span class="ln" data-l="5">                    ┌────────────────────────┐</span><span class="ln" data-l="6">                    │  API Gateway           │ authN/Z, rate-limit,</span><span class="ln" data-l="7">                    │                        │ idempotency-key check</span><span class="ln" data-l="8">                    └──┬──────────┬──────────┘</span><span class="ln" data-l="9">          ┌────────────┘          └────────────┐</span><span class="ln" data-l="10">          ▼                                     ▼</span><span class="ln" data-l="11">  ┌───────────────┐   AP path       ┌────────────────────────┐  CP path</span><span class="ln hl" data-l="12">  │ Search Svc    │                 │ Booking + Inventory Svc │</span><span class="ln" data-l="13">  │ Elasticsearch │                 │ ── acquireInventoryHold │</span><span class="ln" data-l="14">  │ Redis (60s)   │                 │ ── confirmBooking       │</span><span class="ln" data-l="15">  └───────────────┘                 │ ── releaseExpiredHolds  │</span><span class="ln" data-l="16">                                     └──┬──────────┬──────────┘</span><span class="ln" data-l="17">                        ┌───────────────┘          └────────────┐</span><span class="ln" data-l="18">                        ▼                                        ▼</span><span class="ln hl" data-l="19">              ┌──────────────────┐                    ┌──────────────────┐</span><span class="ln" data-l="20">              │ Redis Cluster    │ hold locks + TTL   │ PostgreSQL       │</span><span class="ln" data-l="21">              │ SET NX PX 420000 │  (fast reject)     │ sharded by       │</span><span class="ln" data-l="22">              └──────────────────┘                    │ event_id (truth) │</span><span class="ln" data-l="23">                                                       └────────┬─────────┘</span><span class="ln" data-l="24">                                                                │ outbox poll</span><span class="ln" data-l="25">                                                                ▼</span><span class="ln" data-l="26">   ┌────────────┐  webhook   ┌──────────────┐          ┌──────────────────┐</span><span class="ln" data-l="27">   │ Payment GW │◀──────────▶│ Payment Svc  │          │ Kafka            │</span><span class="ln" data-l="28">   │ (EXTERNAL) │            │ saga step    │          │ booking.events   │</span><span class="ln" data-l="29">   └────────────┘            └──────────────┘          └────────┬─────────┘</span><span class="ln" data-l="30">                                                     ┌───────────┼───────────┐</span><span class="ln" data-l="31">                                                     ▼           ▼           ▼</span><span class="ln" data-l="32">                                              Notification  Analytics   Search</span><span class="ln" data-l="33">                                              (SMS/mail)    (Flink)     reindex</span></code></pre>
+    </div>
+    <div class="explain">
+      <div class="explain-h">Har box ka justification</div>
+      <div class="row good"><b>L12</b><span><b>Booking + Inventory ek service.</b> Seat ko <code class="i">HELD</code> mark karna aur hold row insert karna — dono ek local ACID transaction me. Alag service karte toh 2PC ya saga chahiye hoti, sirf ek chhoti si write ke liye. <i>Boundary transaction ke around khinchi jaati hai, noun ke around nahi.</i></span></div>
+      <div class="row"><b>L11 vs L12</b><span>Search <b>AP</b> hai (stale data acceptable, hamesha available), Booking <b>CP</b> hai (galat data se zyada acha hai fail ho jaana). Do alag consistency models, isliye do alag services + do alag datastores. Ye CAP ko concretely apply karna hai. <span class="lvl l3">SDE-3</span></span></div>
+      <div class="row"><b>L20–L22</b><span><b>Redis = speed, Postgres = truth.</b> Redis 99% contending requests ko sub-millisecond me reject kar deta hai taaki DB par load hi na aaye. Par correctness Redis par depend nahi karti — agar Redis pura gir jaaye, system slow hoga par <i>galat nahi</i> hoga.</span></div>
+      <div class="row"><b>L24</b><span><b>Outbox pattern.</b> Booking DB me commit hui aur Kafka publish fail ho gaya — toh SMS kabhi nahi jaayega. Isliye event ko usi transaction me <code class="i">outbox</code> table me likho, ek poller usse Kafka par bhejta hai. Dual-write problem solved.</span></div>
+      <div class="row"><b>L27</b><span>Payment gateway <b>EXTERNAL</b> label ke saath. Iska matlab: timeout hoga, webhook late aayega, duplicate aayega. Design isse assume karke bana hai, isse ignore karke nahi.</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== 05 ===================== -->
+<section id="t5" class="chapter">
+  <span class="num">Topic 05</span>
+  <h2>Schema — jahan double booking rokni physically shuru hoti hai</h2>
+  <p class="tag">Sabse elegant trick yahi hai: hotel ka date-range problem ko discrete rows me tod do, taaki database ka unique constraint kaam kar sake.</p>
+</section>
+<div class="stub">
+  <div class="side problem">
+    <h3><i class="dot"></i>Problem <span class="role">TRAP</span></h3>
+    <ul>
+      <li><b>Counter-based inventory.</b> <code class="i">rooms_available INT</code> rakh ke <code class="i">available = available - 1</code>. Ab tum bata hi nahi sakte <i>kaunsa</i> room book hua. Aur lost-update race guaranteed hai.</li>
+      <li><b>Hotel ko range me store karna.</b> <code class="i">booking(room_id, check_in, check_out)</code>. Ab overlap check karne ke liye har baar query chalani padegi — aur do concurrent requests dono ko “no overlap” dikhega. <b>Classic double booking.</b></li>
+      <li><b>Seat status booking table se derive karna.</b> Availability nikaalne ke liye poori booking table scan. 300 seats ke liye 50K rows scan — har page load par.</li>
+      <li><b>Money ko <code class="i">FLOAT</code> me rakhna.</b> ₹0.01 ka rounding error audit me pakda jaayega.</li>
+    </ul>
+    <div class="callout stop"><b>Interviewer ka killer follow-up:</b> “Do request exact same microsecond par aayi. Tumhare schema me kaun sa constraint unhe rokega?” Agar jawab “application code check karega” hai — tum fail ho gaye.</div>
+  </div>
+  <div class="perf"></div>
+  <div class="side solution">
+    <h3><i class="dot"></i>Solution <span class="role">SCHEMA</span></h3>
+    <p><b>Ek row = ek bookable unit × ek time window.</b> Ye row hi truth hai, aur database ka unique constraint hi final referee hai.</p>
+    <div class="code">
+      <div class="code-head"><span class="file">V1__inventory.sql</span><span class="badge">PostgreSQL</span></div>
+<pre><code><span class="ln" data-l="1"><span class="c">-- Resource: seat / room / table / flight-seat</span></span><span class="ln" data-l="2"><span class="k">CREATE TABLE</span> resource (</span><span class="ln" data-l="3">  id           <span class="t">BIGSERIAL</span> <span class="k">PRIMARY KEY</span>,</span><span class="ln" data-l="4">  venue_id     <span class="t">BIGINT</span>  <span class="k">NOT NULL</span>,</span><span class="ln" data-l="5">  domain       <span class="t">TEXT</span>    <span class="k">NOT NULL</span>,  <span class="c">-- MOVIE|HOTEL|FLIGHT|RESTAURANT</span></span><span class="ln" data-l="6">  label        <span class="t">TEXT</span>    <span class="k">NOT NULL</span>,  <span class="c">-- 'H12' | 'Room 402' | 'T7'</span></span><span class="ln" data-l="7">  capacity     <span class="t">INT</span>     <span class="k">NOT NULL DEFAULT</span> <span class="a">1</span>, <span class="c">-- table ke liye 4</span></span><span class="ln" data-l="8">  attributes   <span class="t">JSONB</span>              <span class="c">-- {tier:'RECLINER', smoking:false}</span></span><span class="ln" data-l="9">);</span><span class="ln" data-l="10"> </span><span class="ln" data-l="11"><span class="c">-- Time window: show / flight-leg / stay-night / dining-slot</span></span><span class="ln" data-l="12"><span class="k">CREATE TABLE</span> booking_event (</span><span class="ln" data-l="13">  id           <span class="t">BIGSERIAL</span> <span class="k">PRIMARY KEY</span>,</span><span class="ln" data-l="14">  venue_id     <span class="t">BIGINT</span>      <span class="k">NOT NULL</span>,</span><span class="ln" data-l="15">  starts_at    <span class="t">TIMESTAMPTZ</span> <span class="k">NOT NULL</span>,</span><span class="ln" data-l="16">  ends_at      <span class="t">TIMESTAMPTZ</span> <span class="k">NOT NULL</span></span><span class="ln" data-l="17">);</span><span class="ln" data-l="18"> </span><span class="ln" data-l="19"><span class="c">-- ⭐ THE CORE TABLE. Har bookable cell ki apni row.</span></span><span class="ln hl" data-l="20"><span class="k">CREATE TABLE</span> inventory_unit (</span><span class="ln hl" data-l="21">  id            <span class="t">BIGSERIAL</span> <span class="k">PRIMARY KEY</span>,</span><span class="ln hl" data-l="22">  event_id      <span class="t">BIGINT</span> <span class="k">NOT NULL REFERENCES</span> booking_event(id),</span><span class="ln hl" data-l="23">  resource_id   <span class="t">BIGINT</span> <span class="k">NOT NULL REFERENCES</span> resource(id),</span><span class="ln" data-l="24">  status        <span class="t">TEXT</span>   <span class="k">NOT NULL DEFAULT</span> <span class="s">'AVAILABLE'</span>,</span><span class="ln" data-l="25">                <span class="c">-- AVAILABLE | HELD | BOOKED | BLOCKED</span></span><span class="ln" data-l="26">  hold_id        <span class="t">UUID</span>,</span><span class="ln" data-l="27">  hold_expires_at <span class="t">TIMESTAMPTZ</span>,</span><span class="ln" data-l="28">  booking_id     <span class="t">UUID</span>,</span><span class="ln" data-l="29">  price_minor    <span class="t">BIGINT</span> <span class="k">NOT NULL</span>,   <span class="c">-- paise me, kabhi FLOAT nahi</span></span><span class="ln" data-l="30">  version        <span class="t">BIGINT</span> <span class="k">NOT NULL DEFAULT</span> <span class="a">0</span>, <span class="c">-- optimistic lock</span></span><span class="ln hl" data-l="31">  <span class="k">CONSTRAINT</span> uq_unit <span class="k">UNIQUE</span> (event_id, resource_id)</span><span class="ln" data-l="32">);</span><span class="ln" data-l="33"> </span><span class="ln" data-l="34"><span class="c">-- Sirf AVAILABLE rows index karo → chhota, garam index</span></span><span class="ln" data-l="35"><span class="k">CREATE INDEX</span> idx_avail <span class="k">ON</span> inventory_unit (event_id)</span><span class="ln" data-l="36">  <span class="k">WHERE</span> status = <span class="s">'AVAILABLE'</span>;</span><span class="ln" data-l="37"> </span><span class="ln" data-l="38"><span class="c">-- Sweeper job ke liye</span></span><span class="ln" data-l="39"><span class="k">CREATE INDEX</span> idx_expiry <span class="k">ON</span> inventory_unit (hold_expires_at)</span><span class="ln" data-l="40">  <span class="k">WHERE</span> status = <span class="s">'HELD'</span>;</span><span class="ln" data-l="41"> </span><span class="ln" data-l="42"><span class="k">CREATE TABLE</span> booking (</span><span class="ln" data-l="43">  id               <span class="t">UUID</span> <span class="k">PRIMARY KEY</span>,</span><span class="ln" data-l="44">  user_id          <span class="t">BIGINT</span> <span class="k">NOT NULL</span>,</span><span class="ln" data-l="45">  status           <span class="t">TEXT</span>   <span class="k">NOT NULL</span>,  <span class="c">-- state machine ka state</span></span><span class="ln" data-l="46">  total_minor      <span class="t">BIGINT</span> <span class="k">NOT NULL</span>,</span><span class="ln hl" data-l="47">  idempotency_key  <span class="t">TEXT</span>   <span class="k">NOT NULL UNIQUE</span>,  <span class="c">-- ⭐ dedupe</span></span><span class="ln" data-l="48">  version          <span class="t">BIGINT</span> <span class="k">NOT NULL DEFAULT</span> <span class="a">0</span>,</span><span class="ln" data-l="49">  created_at       <span class="t">TIMESTAMPTZ</span> <span class="k">NOT NULL DEFAULT</span> now()</span><span class="ln" data-l="50">);</span></code></pre>
+    </div>
+    <div class="explain">
+      <div class="explain-h">Line-by-line</div>
+      <div class="row good"><b>L20–L23</b><span><code class="i">inventory_unit</code> = <b>materialised availability</b>. Availability booking table se derive nahi hoti, woh apni row me pehle se maujood hai. Seat map query = ek index scan, 300 rows. Booking table ko chhuna hi nahi padta.</span></div>
+      <div class="row good"><b>L31</b><span>Ye <b>ek line pura interview jeetati hai</b>. <code class="i">UNIQUE(event_id, resource_id)</code> ka matlab: database khud guarantee karta hai ki ek show ki ek seat ki sirf ek row exist kar sakti hai. Chahe application me kitne bhi bugs ho, chahe Redis mar jaaye, chahe do process ek saath likhein — <b>DB do bookings kabhi allow nahi karega</b>. Ye <i>last line of defense</i> hai.</span></div>
+      <div class="row"><b>L24–L28</b><span>Status + hold metadata usi row me. Alag <code class="i">hold</code> table banate toh “seat available hai kya” poochne ke liye join lagana padta — hot path par join mehnga hai.</span></div>
+      <div class="row"><b>L29</b><span><code class="i">price_minor BIGINT</code> — paise/cents me integer. ₹250.50 = <code class="i">25050</code>. <code class="i">FLOAT</code> me <code class="i">0.1 + 0.2 ≠ 0.3</code>, aur finance me ye audit fail hai.</span></div>
+      <div class="row"><b>L30</b><span><code class="i">version</code> column = optimistic locking ka engine. JPA me <code class="i">@Version</code> se ye automatic ho jaata hai (Topic 06 dekho).</span></div>
+      <div class="row"><b>L35–L36</b><span><b>Partial index.</b> Ek popular show me 300 me se 5 seats bachi hain — index me sirf 5 entries hongi, 300 nahi. Availability query dramatically fast, aur index BOOKED rows se bloat nahi hota.</span></div>
+      <div class="row good"><b>L47</b><span><code class="i">UNIQUE</code> on <code class="i">idempotency_key</code> — duplicate booking ka structural rok. Retry aayi toh insert <code class="i">23505</code> se fail hoga, aur hum purani booking return kar denge. Logic nahi, <b>constraint</b>.</span></div>
+    </div>
+    <p><b>Hotel ka special case — range ko rows me todo</b> <span class="lvl l2">SDE-2</span></p>
+    <div class="code">
+      <div class="code-head"><span class="file">V2__hotel.sql</span><span class="badge">interval → discrete</span></div>
+<pre><code><span class="ln" data-l="1"><span class="c">-- Galat: overlap check race condition deta hai</span></span><span class="ln" data-l="2"><span class="c">-- SELECT … WHERE room=402 AND check_in &lt; :out AND check_out &gt; :in</span></span><span class="ln" data-l="3"> </span><span class="ln" data-l="4"><span class="c">-- Sahi: har raat ki alag row. 3-night stay = 3 rows.</span></span><span class="ln hl" data-l="5"><span class="k">CREATE TABLE</span> room_night (</span><span class="ln hl" data-l="6">  room_id    <span class="t">BIGINT</span> <span class="k">NOT NULL</span>,</span><span class="ln hl" data-l="7">  stay_date  <span class="t">DATE</span>   <span class="k">NOT NULL</span>,</span><span class="ln" data-l="8">  status     <span class="t">TEXT</span>   <span class="k">NOT NULL DEFAULT</span> <span class="s">'AVAILABLE'</span>,</span><span class="ln" data-l="9">  booking_id <span class="t">UUID</span>,</span><span class="ln" data-l="10">  version    <span class="t">BIGINT</span> <span class="k">NOT NULL DEFAULT</span> <span class="a">0</span>,</span><span class="ln hl" data-l="11">  <span class="k">PRIMARY KEY</span> (room_id, stay_date)   <span class="c">-- ⭐ overlap ab impossible</span></span><span class="ln" data-l="12">);</span></code></pre>
+    </div>
+    <div class="callout win"><b>Kyun kaam karta hai:</b> Interval overlap ek <i>continuous</i> problem hai jise atomically check karna mushkil hai. Har night ko alag row bana ke tumne usse <i>discrete</i> bana diya — aur ab primary key hi guarantee de deti hai. 12–15 Sep ki booking = 3 rows (12,13,14). Koi doosra 13–16 book kare toh 13 aur 14 par PK clash hoga aur transaction fail. <b>Interval problem ko discrete banaao, database baaki kaam kar dega.</b></div>
+    <div class="callout"><b>Tradeoff jo tumhe khud bolna chahiye:</b> Ye storage badhata hai — 200 rooms × 365 din = 73K rows/hotel/saal. Par row chhoti hai (~50 bytes), aur correctness ke badle ye sasta sauda hai. 18 mahine se purani rows ko cold storage me archive kar do.</div>
+  </div>
+</div>
+
+<!-- ===================== 06 ===================== -->
+<section id="t6" class="chapter">
+  <span class="num">Topic 06</span>
+  <h2>Double booking — ye poore interview ka dil hai</h2>
+  <p class="tag">Baaki sab topics support hain. Agar tum sirf ek topic deeply jaante ho, toh ye hona chahiye.</p>
+</section>
+<div class="stub">
+  <div class="side problem">
+    <h3><i class="dot"></i>Problem <span class="role">THE RACE</span></h3>
+    <p class="quote">“Do users ne exact same millisecond par seat H12 pe click kiya. Kya hoga?”<cite>Interviewer, minute 22 — the real question</cite></p>
+    <div class="code">
+      <div class="code-head"><span class="file">BrokenBookingService.java</span><span class="badge">ANTI-PATTERN</span></div>
+<pre><code><span class="ln" data-l="1"><span class="c">// ❌ Ye code 99% baar sahi chalega. Aur wahi problem hai.</span></span><span class="ln" data-l="2"><span class="k">public</span> Booking bookSeat(<span class="t">Long</span> unitId, <span class="t">Long</span> userId) {</span><span class="ln hl" data-l="3">    InventoryUnit unit = repo.findById(unitId);      <span class="c">// ① READ</span></span><span class="ln hl" data-l="4">    <span class="k">if</span> (unit.getStatus() != AVAILABLE) {              <span class="c">// ② CHECK</span></span><span class="ln" data-l="5">        <span class="k">throw new</span> SeatTakenException();</span><span class="ln" data-l="6">    }</span><span class="ln hl" data-l="7">    unit.setStatus(BOOKED);                          <span class="c">// ③ WRITE</span></span><span class="ln" data-l="8">    repo.save(unit);</span><span class="ln" data-l="9">    <span class="k">return</span> bookingRepo.save(<span class="k">new</span> Booking(userId, unitId));</span><span class="ln" data-l="10">}</span></code></pre>
+    </div>
+    <p><b>Timeline jo isse todta hai:</b></p>
+    <div class="code">
+      <div class="code-head"><span class="file">race.log</span><span class="badge">TOCTOU</span></div>
+<pre><code><span class="ln" data-l="1">t=0ms   Thread A: READ  H12 → AVAILABLE  ✓</span><span class="ln" data-l="2">t=1ms   Thread B: READ  H12 → AVAILABLE  ✓  <span class="c">← A ne abhi likha nahi</span></span><span class="ln" data-l="3">t=2ms   Thread A: CHECK ok → WRITE BOOKED</span><span class="ln" data-l="4">t=3ms   Thread B: CHECK ok → WRITE BOOKED  <span class="c">← A ka write overwrite</span></span><span class="ln" data-l="5">t=4ms   Result: 2 tickets, 1 seat. 💥</span></code></pre>
+    </div>
+    <ul class="tight">
+      <li><b>Isse TOCTOU kehte hain</b> — Time-Of-Check to Time-Of-Use. Check aur use ke beech ka gap hi bug hai.</li>
+      <li>Load test me nahi pakda jaata. Production me release day par pakda jaata hai.</li>
+      <li><b>Aur bhi kharab:</b> <code class="i">@Transactional</code> lagane se ye <i>fix nahi</i> hota. Postgres ka default <code class="i">READ COMMITTED</code> isolation is race ko allow karta hai.</li>
+    </ul>
+  </div>
+  <div class="perf"></div>
+  <div class="side solution">
+    <h3><i class="dot"></i>Solution <span class="role">4 LAYERS</span></h3>
+    <p>Ek silver bullet nahi hai. <b>Defense in depth</b> — chaar layers, outermost sabse tez, innermost sabse sach.</p>
+    <table class="tbl">
+      <thead><tr><th>Layer</th><th>Mechanism</th><th>Kya deta hai</th><th>Cost</th></tr></thead>
+      <tbody>
+        <tr><td><b>1. Redis</b></td><td><code>SET NX PX</code></td><td>99% contention sub-ms me reject</td><td>Correctness guarantee nahi</td></tr>
+        <tr><td><b>2. Conditional UPDATE</b></td><td><code>WHERE status='AVAILABLE'</code></td><td>Atomic check+write, no lock wait</td><td>Retry chahiye</td></tr>
+        <tr><td><b>3. Row lock</b></td><td><code>SELECT … FOR UPDATE</code></td><td>Serialised access</td><td>Lock contention, deadlock risk</td></tr>
+        <tr><td><b>4. Constraint</b></td><td><code>UNIQUE</code> index</td><td><b>Absolute truth</b></td><td>Zero — ye free hai</td></tr>
+      </tbody>
+    </table>
+    <div class="callout win"><b>Ye line bolo:</b> “Redis mujhe <i>speed</i> deta hai, database constraint mujhe <i>correctness</i> deta hai. Main correctness kabhi Redis par nahi chhodta — agar poora Redis cluster gir jaaye toh mera system dheema hoga, par ek bhi double booking nahi hogi.”</div>
+    <p><b>Layer 2 — conditional UPDATE, sabse important pattern:</b></p>
+    <div class="code">
+      <div class="code-head"><span class="file">InventoryUnitRepository.java</span><span class="badge">Spring Data JPA</span></div>
+<pre><code><span class="ln" data-l="1"><span class="a">@Repository</span></span><span class="ln" data-l="2"><span class="k">public interface</span> <span class="t">InventoryUnitRepository</span></span><span class="ln" data-l="3">        <span class="k">extends</span> <span class="t">JpaRepository</span>&lt;<span class="t">InventoryUnit</span>, <span class="t">Long</span>&gt; {</span><span class="ln" data-l="4"> </span><span class="ln" data-l="5">    <span class="c">/**</span></span><span class="ln" data-l="6"><span class="c">     * Atomically flips AVAILABLE → HELD for the given units.</span></span><span class="ln" data-l="7"><span class="c">     * Returns how many rows it actually won. Caller MUST compare</span></span><span class="ln" data-l="8"><span class="c">     * that count against the requested size.</span></span><span class="ln" data-l="9"><span class="c">     */</span></span><span class="ln" data-l="10">    <span class="a">@Modifying</span>(clearAutomatically = <span class="k">true</span>, flushAutomatically = <span class="k">true</span>)</span><span class="ln" data-l="11">    <span class="a">@Query</span>(<span class="s">"""</span></span><span class="ln hl" data-l="12"><span class="s">        UPDATE inventory_unit</span></span><span class="ln hl" data-l="13"><span class="s">           SET status          = 'HELD',</span></span><span class="ln" data-l="14"><span class="s">               hold_id         = :holdId,</span></span><span class="ln" data-l="15"><span class="s">               hold_expires_at = :expiresAt,</span></span><span class="ln" data-l="16"><span class="s">               version         = version + 1</span></span><span class="ln" data-l="17"><span class="s">         WHERE id       IN (:unitIds)</span></span><span class="ln" data-l="18"><span class="s">           AND event_id  = :eventId</span></span><span class="ln hl" data-l="19"><span class="s">           AND status    = 'AVAILABLE'</span></span><span class="ln" data-l="20"><span class="s">        """</span>, nativeQuery = <span class="k">true</span>)</span><span class="ln hl" data-l="21">    <span class="t">int</span> markUnitsHeld(<span class="a">@Param</span>(<span class="s">"eventId"</span>)   <span class="t">Long</span> eventId,</span><span class="ln" data-l="22">                      <span class="a">@Param</span>(<span class="s">"unitIds"</span>)   <span class="t">List</span>&lt;<span class="t">Long</span>&gt; unitIds,</span><span class="ln" data-l="23">                      <span class="a">@Param</span>(<span class="s">"holdId"</span>)    <span class="t">UUID</span> holdId,</span><span class="ln" data-l="24">                      <span class="a">@Param</span>(<span class="s">"expiresAt"</span>) <span class="t">Instant</span> expiresAt);</span><span class="ln" data-l="25"> </span><span class="ln" data-l="26">    <span class="c">/** Pessimistic path — sirf tab jab business rule ko poori</span></span><span class="ln" data-l="27"><span class="c">     *  row read karke complex validation chahiye ho. */</span></span><span class="ln" data-l="28">    <span class="a">@Lock</span>(<span class="t">LockModeType</span>.PESSIMISTIC_WRITE)</span><span class="ln" data-l="29">    <span class="a">@Query</span>(<span class="s">"SELECT u FROM InventoryUnit u WHERE u.id IN :ids ORDER BY u.id"</span>)</span><span class="ln hl" data-l="30">    <span class="t">List</span>&lt;<span class="t">InventoryUnit</span>&gt; findAndLockUnitsInDeterministicOrder(</span><span class="ln" data-l="31">            <span class="a">@Param</span>(<span class="s">"ids"</span>) <span class="t">List</span>&lt;<span class="t">Long</span>&gt; ids);</span></code></pre>
+    </div>
+    <div class="explain">
+      <div class="explain-h">Line-by-line — ye samajh liya toh topic 06 khatam</div>
+      <div class="row good"><b>L12–L19</b><span>Poora check-and-set <b>ek hi SQL statement</b> me hai. Database har row par internally lock leta hai, isliye read aur write ke beech koi gap hi nahi bacha. TOCTOU window <b>zero</b> ho gayi. Ye pura Topic 06 ka jawab hai.</span></div>
+      <div class="row good"><b>L19</b><span><code class="i">AND status = 'AVAILABLE'</code> — <b>yahi ek line hai jo double booking rokti hai.</b> Agar B ki request A ke baad aayi, tab tak status <code class="i">HELD</code> ho chuka hai, toh <code class="i">WHERE</code> match nahi karega aur row update hi nahi hogi. B ko 0 rows milenge.</span></div>
+      <div class="row good"><b>L21</b><span>Return type <code class="i">int</code> hai — <b>kitni rows update hui</b>. Ye API ka sabse important part hai. Agar tumne 2 seats maange aur <code class="i">1</code> mila, matlab ek seat kisi aur ne le li → poore transaction ko rollback karo. <i>Silently 1 seat mat de dena.</i></span></div>
+      <div class="row"><b>L10</b><span><code class="i">clearAutomatically=true</code> — bulk update JPA persistence context ko bypass karta hai, toh cached entities stale ho jaate. Ye flag unhe clear kar deta hai. Ye chhoti detail production bug bachati hai.</span></div>
+      <div class="row"><b>L28</b><span><code class="i">PESSIMISTIC_WRITE</code> = SQL me <code class="i">SELECT … FOR UPDATE</code>. Ye row par exclusive lock leta hai jab tak transaction commit na ho. Zyada strong hai, isliye sirf tab use karo jab decision lene ke liye row ka data padhna zaroori ho.</span></div>
+      <div class="row good"><b>L29–L30</b><span><code class="i">ORDER BY u.id</code> aur method ka naam <code class="i">…InDeterministicOrder</code> — <b>deadlock prevention</b>. Agar A seats [5,9] lock kare aur B [9,5], dono ek dusre ka wait karenge → deadlock. Hamesha same order me lock lo (yahan ID ascending), deadlock structurally impossible ho jaata hai. <span class="lvl l3">SDE-3</span></span></div>
+    </div>
+    <div class="callout stop"><b>Golden rule — ise yaad rakho:</b> DB transaction ke andar kabhi bhi external network call mat karo. Payment gateway 30 second le sakta hai; agar us dauraan row lock hai toh 300-seat show ka poora inventory freeze ho jaayega. Isiliye hold aur confirm alag transactions hain.</div>
+  </div>
+</div>
+
+<!-- ===================== 07 ===================== -->
+<section id="t7" class="chapter">
+  <span class="num">Topic 07</span>
+  <h2>Seat hold aur expiry — “7 minutes remaining” ke peeche kya hai</h2>
+  <p class="tag">Hold ek reservation hai, lock nahi. Ye distinction interviewer ko bolna zaroori hai.</p>
+</section>
+<div class="stub">
+  <div class="side problem">
+    <h3><i class="dot"></i>Problem <span class="role">TRAP</span></h3>
+    <p class="quote">“User ne seat select ki, phir payment page par tab band kar diya. Seat kab wapas milegi?”<cite>Interviewer</cite></p>
+    <ul>
+      <li><b>Sirf Redis TTL par bharosa.</b> Redis restart hua, ya <code class="i">maxmemory-policy allkeys-lru</code> ne key evict kar di, ya failover me replica purana tha — DB me seat hamesha ke liye <code class="i">HELD</code> reh gayi. <b>Inventory leak.</b></li>
+      <li><b>Sirf DB sweeper par bharosa.</b> Sweeper har 30s chalta hai, par hot path par har request DB hit karegi. Redis ka fast-reject benefit gaya.</li>
+      <li><b>Lock kisi aur ka delete kar dena.</b> A ka hold expire hua, B ne seat li. Tabhi A ka slow release call aaya aur usne <b>B ka</b> lock delete kar diya. Ab seat do jagah available hai.</li>
+      <li><b>Hold TTL bahut chhota ya bahut bada.</b> 2 min → UPI OTP me hi nikal jaata hai, user frustrated. 30 min → scalper 300 seats block karke inventory maar dega.</li>
+    </ul>
+  </div>
+  <div class="perf"></div>
+  <div class="side solution">
+    <h3><i class="dot"></i>Solution <span class="role">BELT + BRACES</span></h3>
+    <p><b>Do independent expiry mechanisms.</b> Redis TTL fast path ke liye, DB sweeper safety net ke liye. Dono me se koi bhi mare, correctness bachi rahegi.</p>
+    <div class="code">
+      <div class="code-head"><span class="file">SeatHoldService.java</span><span class="badge">core service</span></div>
+<pre><code><span class="ln" data-l="1"><span class="a">@Service</span></span><span class="ln" data-l="2"><span class="a">@RequiredArgsConstructor</span></span><span class="ln" data-l="3"><span class="k">public class</span> <span class="t">SeatHoldService</span> {</span><span class="ln" data-l="4"> </span><span class="ln" data-l="5">    <span class="k">private static final</span> <span class="t">Duration</span> HOLD_TTL = <span class="t">Duration</span>.ofMinutes(<span class="a">7</span>);</span><span class="ln" data-l="6"> </span><span class="ln" data-l="7">    <span class="k">private final</span> <span class="t">StringRedisTemplate</span>        redis;</span><span class="ln" data-l="8">    <span class="k">private final</span> <span class="t">InventoryUnitRepository</span>   inventoryRepo;</span><span class="ln" data-l="9">    <span class="k">private final</span> <span class="t">HoldRepository</span>            holdRepo;</span><span class="ln" data-l="10">    <span class="k">private final</span> <span class="t">RedisScript</span>&lt;<span class="t">Long</span>&gt;        releaseIfOwnerScript;</span><span class="ln" data-l="11"> </span><span class="ln" data-l="12">    <span class="a">@Transactional</span></span><span class="ln hl" data-l="13">    <span class="k">public</span> <span class="t">HoldResult</span> acquireInventoryHold(<span class="t">HoldCommand</span> cmd) {</span><span class="ln" data-l="14"> </span><span class="ln hl" data-l="15">        <span class="t">List</span>&lt;<span class="t">Long</span>&gt; unitIds = cmd.unitIds().stream().sorted().toList();</span><span class="ln" data-l="16">        <span class="t">UUID</span> holdId   = <span class="t">UUID</span>.randomUUID();</span><span class="ln" data-l="17">        <span class="t">Instant</span> expiry = <span class="t">Instant</span>.now().plus(HOLD_TTL);</span><span class="ln" data-l="18">        <span class="t">List</span>&lt;<span class="t">String</span>&gt; acquiredKeys = <span class="k">new</span> <span class="t">ArrayList</span>&lt;&gt;();</span><span class="ln" data-l="19"> </span><span class="ln" data-l="20">        <span class="k">try</span> {</span><span class="ln" data-l="21">            <span class="c">// ── Layer 1: Redis fast-reject ──────────────────────</span></span><span class="ln" data-l="22">            <span class="k">for</span> (<span class="t">Long</span> unitId : unitIds) {</span><span class="ln" data-l="23">                <span class="t">String</span> key = buildHoldKey(cmd.eventId(), unitId);</span><span class="ln hl" data-l="24">                <span class="t">Boolean</span> won = redis.opsForValue()</span><span class="ln hl" data-l="25">                        .setIfAbsent(key, holdId.toString(), HOLD_TTL);</span><span class="ln" data-l="26">                <span class="k">if</span> (!<span class="t">Boolean</span>.TRUE.equals(won)) {</span><span class="ln" data-l="27">                    <span class="k">throw new</span> <span class="t">UnitNotAvailableException</span>(unitId);</span><span class="ln" data-l="28">                }</span><span class="ln" data-l="29">                acquiredKeys.add(key);</span><span class="ln" data-l="30">            }</span><span class="ln" data-l="31"> </span><span class="ln" data-l="32">            <span class="c">// ── Layer 2: DB conditional update = source of truth ─</span></span><span class="ln hl" data-l="33">            <span class="t">int</span> won = inventoryRepo.markUnitsHeld(</span><span class="ln" data-l="34">                    cmd.eventId(), unitIds, holdId, expiry);</span><span class="ln hl" data-l="35">            <span class="k">if</span> (won != unitIds.size()) {</span><span class="ln hl" data-l="36">                <span class="k">throw new</span> <span class="t">UnitNotAvailableException</span>(</span><span class="ln" data-l="37">                        <span class="s">"Requested %d, won %d"</span>.formatted(unitIds.size(), won));</span><span class="ln" data-l="38">            }</span><span class="ln" data-l="39"> </span><span class="ln" data-l="40">            <span class="t">Hold</span> hold = holdRepo.save(<span class="t">Hold</span>.pending(holdId, cmd, expiry));</span><span class="ln" data-l="41">            <span class="k">return new</span> <span class="t">HoldResult</span>(holdId, expiry, hold.totalMinor());</span><span class="ln" data-l="42"> </span><span class="ln" data-l="43">        } <span class="k">catch</span> (<span class="t">RuntimeException</span> ex) {</span><span class="ln hl" data-l="44">            releaseRedisLocks(acquiredKeys, holdId);   <span class="c">// leak mat karo</span></span><span class="ln" data-l="45">            <span class="k">throw</span> ex;   <span class="c">// rethrow → @Transactional DB rollback karega</span></span><span class="ln" data-l="46">        }</span><span class="ln" data-l="47">    }</span><span class="ln" data-l="48"> </span><span class="ln" data-l="49">    <span class="c">/** Sirf apna hi lock delete karo — compare-and-delete. */</span></span><span class="ln hl" data-l="50">    <span class="k">private void</span> releaseRedisLocks(<span class="t">List</span>&lt;<span class="t">String</span>&gt; keys, <span class="t">UUID</span> owner) {</span><span class="ln" data-l="51">        <span class="k">for</span> (<span class="t">String</span> key : keys) {</span><span class="ln hl" data-l="52">            redis.execute(releaseIfOwnerScript,</span><span class="ln" data-l="53">                          <span class="t">List</span>.of(key), owner.toString());</span><span class="ln" data-l="54">        }</span><span class="ln" data-l="55">    }</span><span class="ln" data-l="56"> </span><span class="ln" data-l="57">    <span class="k">private</span> <span class="t">String</span> buildHoldKey(<span class="t">Long</span> eventId, <span class="t">Long</span> unitId) {</span><span class="ln" data-l="58">        <span class="k">return</span> <span class="s">"hold:%d:%d"</span>.formatted(eventId, unitId);</span><span class="ln" data-l="59">    }</span><span class="ln" data-l="60">}</span></code></pre>
+    </div>
+    <div class="explain">
+      <div class="explain-h">Line-by-line</div>
+      <div class="row good"><b>L15</b><span><code class="i">.sorted()</code> — sab clients seats ko <b>same order</b> me lock karenge. Isse deadlock structurally impossible ho jaata hai. Ek chhota sa <code class="i">.sorted()</code> jo interviewer ko turant dikhta hai.</span></div>
+      <div class="row good"><b>L24–L25</b><span><code class="i">setIfAbsent(key, value, ttl)</code> = Redis ka <code class="i">SET key val NX PX 420000</code>. <b>NX</b> = only if not exists, <b>PX</b> = auto-expire. Atomic single command hai — do clients me se sirf ek ko <code class="i">true</code> milega. Value me <code class="i">holdId</code> daala hai, sirf flag nahi — ye ownership proof hai (L52 dekho).</span></div>
+      <div class="row good"><b>L33–L35</b><span>Redis jeeta iska matlab ye <b>nahi</b> ki seat mil gayi. DB ka conditional update hi asli faisla hai. <code class="i">won != unitIds.size()</code> — <b>partial success ko failure treat karo</b>. User ne 3 seats saath maangi thi, 2 dena useless hai.</span></div>
+      <div class="row good"><b>L43–L45</b><span>DB fail hua toh Redis keys <b>manually</b> release karni padengi — Redis <code class="i">@Transactional</code> me participate nahi karta. Ye na karo toh seat 7 min tak “phantom held” rahegi jabki DB me available hai.</span></div>
+      <div class="row good"><b>L50–L52</b><span><b>Compare-and-delete via Lua.</b> Simple <code class="i">DEL</code> se A dusre ka lock delete kar sakta hai. Lua script pehle check karta hai <code class="i">GET key == holdId</code>, tabhi delete karta hai — atomically. Ye <i>fencing</i> ka basic form hai. <span class="lvl l3">SDE-3</span></span></div>
+    </div>
+    <div class="code">
+      <div class="code-head"><span class="file">release_if_owner.lua</span><span class="badge">atomic CAD</span></div>
+<pre><code><span class="ln" data-l="1"><span class="k">if</span> redis.call(<span class="s">"GET"</span>, KEYS[<span class="a">1</span>]) == ARGV[<span class="a">1</span>] <span class="k">then</span></span><span class="ln" data-l="2">    <span class="k">return</span> redis.call(<span class="s">"DEL"</span>, KEYS[<span class="a">1</span>])</span><span class="ln" data-l="3"><span class="k">else</span></span><span class="ln" data-l="4">    <span class="k">return</span> <span class="a">0</span>   <span class="c">-- lock kisi aur ka hai, haath mat lagao</span></span><span class="ln" data-l="5"><span class="k">end</span></span></code></pre>
+    </div>
+    <p><b>Safety net — DB sweeper:</b></p>
+    <div class="code">
+      <div class="code-head"><span class="file">HoldExpiryWorker.java</span><span class="badge">scheduled</span></div>
+<pre><code><span class="ln" data-l="1"><span class="a">@Component</span></span><span class="ln" data-l="2"><span class="a">@RequiredArgsConstructor</span></span><span class="ln" data-l="3"><span class="k">public class</span> <span class="t">HoldExpiryWorker</span> {</span><span class="ln" data-l="4"> </span><span class="ln" data-l="5">    <span class="k">private final</span> <span class="t">InventoryUnitRepository</span> inventoryRepo;</span><span class="ln" data-l="6">    <span class="k">private final</span> <span class="t">MeterRegistry</span>           metrics;</span><span class="ln" data-l="7"> </span><span class="ln" data-l="8">    <span class="a">@Scheduled</span>(fixedDelay = <span class="a">30_000</span>)</span><span class="ln hl" data-l="9">    <span class="a">@SchedulerLock</span>(name = <span class="s">"releaseExpiredHolds"</span>,   <span class="c">// ShedLock</span></span><span class="ln" data-l="10">                    lockAtMostFor = <span class="s">"2m"</span>)</span><span class="ln" data-l="11">    <span class="a">@Transactional</span></span><span class="ln hl" data-l="12">    <span class="k">public void</span> releaseExpiredHolds() {</span><span class="ln hl" data-l="13">        <span class="t">int</span> released = inventoryRepo.releaseUnitsWithExpiredHold(</span><span class="ln" data-l="14">                <span class="t">Instant</span>.now(), <span class="a">500</span>);   <span class="c">// batch cap</span></span><span class="ln" data-l="15"> </span><span class="ln" data-l="16">        <span class="k">if</span> (released &gt; <span class="a">0</span>) {</span><span class="ln" data-l="17">            metrics.counter(<span class="s">"booking.holds.expired"</span>).increment(released);</span><span class="ln" data-l="18">            log.info(<span class="s">"Released {} expired holds"</span>, released);</span><span class="ln" data-l="19">        }</span><span class="ln" data-l="20">    }</span><span class="ln" data-l="21">}</span><span class="ln" data-l="22"> </span><span class="ln" data-l="23"><span class="c">// Repository me:</span></span><span class="ln" data-l="24"><span class="a">@Modifying</span></span><span class="ln" data-l="25"><span class="a">@Query</span>(<span class="s">"""</span></span><span class="ln" data-l="26"><span class="s">    UPDATE inventory_unit</span></span><span class="ln" data-l="27"><span class="s">       SET status='AVAILABLE', hold_id=NULL,</span></span><span class="ln" data-l="28"><span class="s">           hold_expires_at=NULL, version=version+1</span></span><span class="ln" data-l="29"><span class="s">     WHERE id IN (SELECT id FROM inventory_unit</span></span><span class="ln hl" data-l="30"><span class="s">                   WHERE status='HELD'</span></span><span class="ln hl" data-l="31"><span class="s">                     AND hold_expires_at &lt; :now</span></span><span class="ln hl" data-l="32"><span class="s">                   LIMIT :batch FOR UPDATE SKIP LOCKED)</span></span><span class="ln" data-l="33"><span class="s">    """</span>, nativeQuery = <span class="k">true</span>)</span><span class="ln" data-l="34"><span class="t">int</span> releaseUnitsWithExpiredHold(<span class="a">@Param</span>(<span class="s">"now"</span>) <span class="t">Instant</span> now,</span><span class="ln" data-l="35">                               <span class="a">@Param</span>(<span class="s">"batch"</span>) <span class="t">int</span> batch);</span></code></pre>
+    </div>
+    <div class="explain">
+      <div class="explain-h">Line-by-line</div>
+      <div class="row good"><b>L9</b><span><code class="i">@SchedulerLock</code> (ShedLock) — 6 pods chal rahe hain, sabme <code class="i">@Scheduled</code> hai. Iske bina 6 sweeper ek saath chalenge aur ek dusre se ladenge. Ye distributed cron ka classic bug hai. <span class="lvl l2">SDE-2</span></span></div>
+      <div class="row"><b>L13–L14</b><span><b>Batch cap 500.</b> Bina limit ke agar 50,000 holds ek saath expire hue toh ek hi transaction 50K rows lock kar legi — DB par spike. Chhote batches me karo, agli tick baaki utha legi.</span></div>
+      <div class="row good"><b>L32</b><span><code class="i">FOR UPDATE SKIP LOCKED</code> — agar koi row already kisi aur transaction ne lock ki hai toh <b>wait mat karo, skip kar do</b>. Ye worker ko lock-free banata hai aur concurrent booking traffic ko block nahi karta. Postgres ka underrated feature. <span class="lvl l3">SDE-3</span></span></div>
+      <div class="row"><b>L30–L31</b><span>Condition <code class="i">status='HELD' AND expired</code> — sirf held rows chhuo. Agar user ne is beech confirm kar liya toh status <code class="i">BOOKED</code> ho gaya hoga, aur sweeper usse touch hi nahi karega. <b>Race safe.</b></span></div>
+    </div>
+    <div class="callout"><b>TTL kaise choose karein:</b> Actual payment funnel ke p95 se lo. UPI+OTP India me ~90–150s leta hai, isliye 7 minute comfortable buffer hai. Interviewer ko bolo: “Main TTL guess nahi karunga, main <code class="i">payment_completion_duration</code> ka p95 dekh ke ×2 rakhunga, aur high-demand shows ke liye ise 4 min tak ghata dunga.”</div>
+  </div>
+</div>
+
+<!-- ===================== 08 ===================== -->
+<section id="t8" class="chapter">
+  <span class="num">Topic 08</span>
+  <h2>Idempotency — “user ka paisa do baar mat kaato”</h2>
+  <p class="tag">Distributed system me network retry guaranteed hai. Sawaal ye nahi ki retry hogi ya nahi — sawaal ye hai ki tum uske liye taiyaar ho ya nahi.</p>
+</section>
+<div class="stub">
+  <div class="side problem">
+    <h3><i class="dot"></i>Problem <span class="role">TRAP</span></h3>
+    <p class="quote">“Booking confirm hui, response bhejte waqt network toot gaya. Client retry karega. Ab?”<cite>Interviewer</cite></p>
+    <ul>
+      <li><b>Do bookings, do charges.</b> Server ne kaam kar liya tha, sirf response nahi pahuncha. Retry ne dobara sab kar diya.</li>
+      <li><b>Payment webhook duplicate.</b> Razorpay/Stripe <i>at-least-once</i> deliver karte hain. Same <code class="i">payment.captured</code> event 3 baar aa sakta hai — 3 confirmation SMS chale gaye.</li>
+      <li><b>“Existing check kar lenge” wala fix.</b> <code class="i">if (bookingRepo.existsByUserAndUnit(...))</code> — ye khud TOCTOU hai. Do concurrent retries dono ko “exists = false” dikhega.</li>
+      <li><b>Idempotency key server-side generate karna.</b> Toh har retry par nayi key banegi — poora point hi khatam.</li>
+    </ul>
+  </div>
+  <div class="perf"></div>
+  <div class="side solution">
+    <h3><i class="dot"></i>Solution <span class="role">KEY + CONSTRAINT</span></h3>
+    <p>Client key banata hai, database unique constraint enforce karta hai, server pehla response replay karta hai.</p>
+    <div class="code">
+      <div class="code-head"><span class="file">IdempotencyGuard.java</span><span class="badge">generic wrapper</span></div>
+<pre><code><span class="ln" data-l="1"><span class="a">@Service</span></span><span class="ln" data-l="2"><span class="a">@RequiredArgsConstructor</span></span><span class="ln" data-l="3"><span class="k">public class</span> <span class="t">IdempotencyGuard</span> {</span><span class="ln" data-l="4"> </span><span class="ln" data-l="5">    <span class="k">private final</span> <span class="t">IdempotencyRecordRepository</span> records;</span><span class="ln" data-l="6">    <span class="k">private final</span> <span class="t">ObjectMapper</span>                json;</span><span class="ln" data-l="7"> </span><span class="ln" data-l="8">    <span class="c">/**</span></span><span class="ln" data-l="9"><span class="c">     * Runs {@code action} at most once per idempotencyKey.</span></span><span class="ln" data-l="10"><span class="c">     * Replays the stored response for any later retry.</span></span><span class="ln" data-l="11"><span class="c">     */</span></span><span class="ln hl" data-l="12">    <span class="k">public</span> &lt;<span class="t">T</span>&gt; <span class="t">T</span> executeExactlyOnce(<span class="t">String</span> idempotencyKey,</span><span class="ln" data-l="13">                                   <span class="t">Object</span> requestBody,</span><span class="ln" data-l="14">                                   <span class="t">Class</span>&lt;<span class="t">T</span>&gt; responseType,</span><span class="ln" data-l="15">                                   <span class="t">Supplier</span>&lt;<span class="t">T</span>&gt; action) {</span><span class="ln" data-l="16"> </span><span class="ln hl" data-l="17">        <span class="t">String</span> fingerprint = sha256(json.writeValueAsString(requestBody));</span><span class="ln" data-l="18"> </span><span class="ln" data-l="19">        <span class="t">Optional</span>&lt;<span class="t">IdempotencyRecord</span>&gt; existing = records.findById(idempotencyKey);</span><span class="ln" data-l="20">        <span class="k">if</span> (existing.isPresent()) {</span><span class="ln" data-l="21">            <span class="t">IdempotencyRecord</span> rec = existing.get();</span><span class="ln hl" data-l="22">            <span class="k">if</span> (!rec.getFingerprint().equals(fingerprint)) {</span><span class="ln hl" data-l="23">                <span class="k">throw new</span> <span class="t">IdempotencyKeyReusedException</span>(idempotencyKey);</span><span class="ln" data-l="24">            }</span><span class="ln hl" data-l="25">            <span class="k">if</span> (rec.getStatus() == IN_PROGRESS) {</span><span class="ln" data-l="26">                <span class="k">throw new</span> <span class="t">RequestInFlightException</span>();   <span class="c">// → 409, retry-after</span></span><span class="ln" data-l="27">            }</span><span class="ln hl" data-l="28">            <span class="k">return</span> json.readValue(rec.getResponseBody(), responseType);</span><span class="ln" data-l="29">        }</span><span class="ln" data-l="30"> </span><span class="ln" data-l="31">        <span class="k">try</span> {</span><span class="ln hl" data-l="32">            records.saveAndFlush(<span class="t">IdempotencyRecord</span>.inProgress(</span><span class="ln" data-l="33">                    idempotencyKey, fingerprint));</span><span class="ln" data-l="34">        } <span class="k">catch</span> (<span class="t">DataIntegrityViolationException</span> race) {</span><span class="ln hl" data-l="35">            <span class="k">throw new</span> <span class="t">RequestInFlightException</span>();   <span class="c">// koi aur jeet gaya</span></span><span class="ln" data-l="36">        }</span><span class="ln" data-l="37"> </span><span class="ln hl" data-l="38">        <span class="t">T</span> response = action.get();          <span class="c">// asli kaam yahan hota hai</span></span><span class="ln" data-l="39"> </span><span class="ln" data-l="40">        records.markCompleted(idempotencyKey,</span><span class="ln" data-l="41">                              json.writeValueAsString(response));</span><span class="ln" data-l="42">        <span class="k">return</span> response;</span><span class="ln" data-l="43">    }</span><span class="ln" data-l="44">}</span><span class="ln" data-l="45"> </span><span class="ln" data-l="46"><span class="c">// ── Controller me use ────────────────────────────────────</span></span><span class="ln" data-l="47"><span class="a">@PostMapping</span>(<span class="s">"/v1/bookings"</span>)</span><span class="ln" data-l="48"><span class="k">public</span> <span class="t">ResponseEntity</span>&lt;<span class="t">BookingResponse</span>&gt; createBooking(</span><span class="ln hl" data-l="49">        <span class="a">@RequestHeader</span>(<span class="s">"Idempotency-Key"</span>) <span class="t">String</span> key,</span><span class="ln" data-l="50">        <span class="a">@Valid @RequestBody</span> <span class="t">CreateBookingRequest</span> req) {</span><span class="ln" data-l="51"> </span><span class="ln" data-l="52">    <span class="t">BookingResponse</span> body = idempotencyGuard.executeExactlyOnce(</span><span class="ln" data-l="53">            key, req, <span class="t">BookingResponse</span>.class,</span><span class="ln hl" data-l="54">            () -&gt; bookingSaga.executeBookingSaga(req));</span><span class="ln" data-l="55"> </span><span class="ln" data-l="56">    <span class="k">return</span> <span class="t">ResponseEntity</span>.status(HttpStatus.CREATED).body(body);</span><span class="ln" data-l="57">}</span></code></pre>
+    </div>
+    <div class="explain">
+      <div class="explain-h">Line-by-line</div>
+      <div class="row good"><b>L12</b><span>Method ka naam <code class="i">executeExactlyOnce</code> — intent naam me hi hai. Ye generic hai, sirf booking ke liye nahi: refund, cancel, kisi bhi mutating call par lag sakta hai.</span></div>
+      <div class="row good"><b>L17, L22–L23</b><span><b>Fingerprint check.</b> Same key par <i>alag body</i> aayi — iska matlab client me bug hai ya koi attack hai. Chupchaap purana response mat do, saaf <code class="i">422</code> throw karo. Ye detail 90% candidates miss karte hain. <span class="lvl l3">SDE-3</span></span></div>
+      <div class="row good"><b>L25–L26</b><span><code class="i">IN_PROGRESS</code> state — pehli request abhi chal rahi hai aur user ne dobara tap kar diya. Naya kaam mat shuru karo, <code class="i">409</code> with <code class="i">Retry-After</code> bhejo. Ye <b>concurrent</b> duplicates handle karta hai, sirf sequential nahi.</span></div>
+      <div class="row good"><b>L28</b><span><b>Stored response replay.</b> Ye idempotency ka asli matlab hai — retry ko wahi response milna chahiye jo pehli baar mila tha, sirf “already done” error nahi. Client ko booking ID chahiye.</span></div>
+      <div class="row good"><b>L32–L35</b><span><code class="i">saveAndFlush</code> + <code class="i">DataIntegrityViolationException</code> catch. Do requests exact same instant par aayi — dono ne <code class="i">findById</code> me kuch nahi paaya. Par insert sirf ek jeetega, kyunki PK unique hai. <b>Race ko application logic se nahi, constraint se solve kiya.</b></span></div>
+      <div class="row"><b>L49</b><span>Key <b>header</b> me hai, body me nahi — proxies aur gateways isse bina body parse kiye padh sakte hain. Stripe/Razorpay isi convention ko follow karte hain.</span></div>
+    </div>
+    <div class="callout win"><b>Payment webhook bhi same treatment:</b> <code class="i">UNIQUE(pg_event_id)</code> on <code class="i">payment_event</code> table. Insert fail = duplicate = <code class="i">200 OK</code> return karo bina kuch kiye. Gateway ko 200 chahiye, warna woh 24 ghante tak retry karta rahega.</div>
+    <div class="callout"><b>Retention:</b> Idempotency records ko hamesha mat rakho — 24–48 ghante ka TTL kaafi hai (client retries itni der me khatam ho jaati hain). Purani rows ko partition drop se hatao, <code class="i">DELETE</code> se nahi.</div>
+  </div>
+</div>
+
+<!-- ===================== 09 ===================== -->
+<section id="t9" class="chapter">
+  <span class="num">Topic 09</span>
+  <h2>Saga + Outbox — jab paisa kat gaya par seat nahi mili</h2>
+  <p class="tag">Yahi woh sawaal hai jahan SDE-2 aur SDE-3 alag hote hain.</p>
+</section>
+<div class="stub">
+  <div class="side problem">
+    <h3><i class="dot"></i>Problem <span class="role">TRAP</span></h3>
+    <p class="quote">“Payment success ho gaya, par booking confirm karte waqt DB crash ho gaya. User ka paisa kahan hai?”<cite>Interviewer, the nightmare scenario</cite></p>
+    <ul>
+      <li><b>2PC / XA transaction suggest karna.</b> Payment gateway external hai — usme tum coordinator nahi ban sakte. Aur 2PC coordinator failure par sab kuch block kar deta hai.</li>
+      <li><b>Dual write problem.</b> <code class="i">bookingRepo.save()</code> phir <code class="i">kafka.send()</code>. DB commit hua, Kafka publish fail — SMS kabhi nahi jaayega, analytics me booking miss.</li>
+      <li><b>Compensation nahi socha.</b> Step 3 fail hua toh step 1 aur 2 kaise undo honge? Bina iske design incomplete hai.</li>
+      <li><b>Refund ko instant maan lena.</b> Refund bank par depend karta hai, 3–5 working days. Isse synchronous nahi bana sakte.</li>
+    </ul>
+  </div>
+  <div class="perf"></div>
+  <div class="side solution">
+    <h3><i class="dot"></i>Solution <span class="role">SAGA</span></h3>
+    <p><b>Orchestrated saga</b> — ek central coordinator jo steps chalata hai aur failure par ulta compensation stack chalata hai.</p>
+    <div class="code">
+      <div class="code-head"><span class="file">saga.txt</span><span class="badge">forward + compensate</span></div>
+<pre><code><span class="ln" data-l="1">FORWARD                          COMPENSATION (ulta chalti hai)</span><span class="ln" data-l="2">─────────────────────────        ─────────────────────────────</span><span class="ln" data-l="3">1. acquireInventoryHold    ⟶     releaseInventoryHold</span><span class="ln" data-l="4">2. capturePayment          ⟶     refundPayment  (async, 3-5d)</span><span class="ln" data-l="5">3. confirmBooking          ⟶     cancelBooking</span><span class="ln" data-l="6">4. publishBookingEvent     ⟶     (koi compensation nahi —</span><span class="ln" data-l="7">                                  consumers idempotent hain)</span></code></pre>
+    </div>
+    <div class="code">
+      <div class="code-head"><span class="file">BookingSagaOrchestrator.java</span><span class="badge">orchestration</span></div>
+<pre><code><span class="ln" data-l="1"><span class="a">@Service</span></span><span class="ln" data-l="2"><span class="a">@RequiredArgsConstructor</span></span><span class="ln" data-l="3"><span class="k">public class</span> <span class="t">BookingSagaOrchestrator</span> {</span><span class="ln" data-l="4"> </span><span class="ln" data-l="5">    <span class="k">private final</span> <span class="t">SeatHoldService</span>     holdService;</span><span class="ln" data-l="6">    <span class="k">private final</span> <span class="t">PaymentClient</span>      paymentClient;</span><span class="ln" data-l="7">    <span class="k">private final</span> <span class="t">BookingWriteService</span> bookingWriter;</span><span class="ln" data-l="8">    <span class="k">private final</span> <span class="t">SagaLogRepository</span>   sagaLog;</span><span class="ln" data-l="9"> </span><span class="ln hl" data-l="10">    <span class="k">public</span> <span class="t">BookingResponse</span> executeBookingSaga(<span class="t">CreateBookingRequest</span> req) {</span><span class="ln" data-l="11"> </span><span class="ln hl" data-l="12">        <span class="t">Deque</span>&lt;<span class="t">Runnable</span>&gt; compensations = <span class="k">new</span> <span class="t">ArrayDeque</span>&lt;&gt;();</span><span class="ln" data-l="13">        <span class="t">SagaLog</span> saga = sagaLog.start(req.holdId());</span><span class="ln" data-l="14"> </span><span class="ln" data-l="15">        <span class="k">try</span> {</span><span class="ln" data-l="16">            <span class="c">// STEP 1 ── hold verify (already acquired, ab bhi valid?)</span></span><span class="ln hl" data-l="17">            <span class="t">Hold</span> hold = holdService.requireLiveHold(req.holdId());</span><span class="ln" data-l="18">            compensations.push(() -&gt;</span><span class="ln" data-l="19">                    holdService.releaseInventoryHold(hold.id()));</span><span class="ln" data-l="20">            saga.mark(HOLD_VERIFIED);</span><span class="ln" data-l="21"> </span><span class="ln" data-l="22">            <span class="c">// STEP 2 ── paisa lo. Yahan koi DB lock NAHI hai.</span></span><span class="ln hl" data-l="23">            <span class="t">PaymentReceipt</span> receipt = paymentClient.capturePayment(</span><span class="ln" data-l="24">                    req.paymentIntentId(), hold.totalMinor(),</span><span class="ln hl" data-l="25">                    <span class="c">/* idempotencyKey */</span> hold.id().toString());</span><span class="ln" data-l="26">            compensations.push(() -&gt;</span><span class="ln" data-l="27">                    paymentClient.refundPaymentAsync(receipt.paymentId()));</span><span class="ln" data-l="28">            saga.mark(PAYMENT_CAPTURED);</span><span class="ln" data-l="29"> </span><span class="ln" data-l="30">            <span class="c">// STEP 3 ── HELD → BOOKED + outbox event, ek hi txn me</span></span><span class="ln hl" data-l="31">            <span class="t">Booking</span> booking = bookingWriter</span><span class="ln hl" data-l="32">                    .confirmBookingAndEnqueueEvent(hold, receipt);</span><span class="ln" data-l="33">            saga.mark(CONFIRMED);</span><span class="ln" data-l="34"> </span><span class="ln" data-l="35">            <span class="k">return</span> <span class="t">BookingResponse</span>.from(booking);</span><span class="ln" data-l="36"> </span><span class="ln" data-l="37">        } <span class="k">catch</span> (<span class="t">Exception</span> failure) {</span><span class="ln hl" data-l="38">            runCompensations(compensations, saga, failure);</span><span class="ln" data-l="39">            <span class="k">throw new</span> <span class="t">BookingFailedException</span>(saga.id(), failure);</span><span class="ln" data-l="40">        }</span><span class="ln" data-l="41">    }</span><span class="ln" data-l="42"> </span><span class="ln hl" data-l="43">    <span class="k">private void</span> runCompensations(<span class="t">Deque</span>&lt;<span class="t">Runnable</span>&gt; stack,</span><span class="ln" data-l="44">                                  <span class="t">SagaLog</span> saga, <span class="t">Exception</span> cause) {</span><span class="ln hl" data-l="45">        <span class="k">while</span> (!stack.isEmpty()) {</span><span class="ln" data-l="46">            <span class="t">Runnable</span> undo = stack.pop();   <span class="c">// LIFO = reverse order</span></span><span class="ln" data-l="47">            <span class="k">try</span> {</span><span class="ln" data-l="48">                undo.run();</span><span class="ln" data-l="49">            } <span class="k">catch</span> (<span class="t">Exception</span> compFailure) {</span><span class="ln hl" data-l="50">                saga.markCompensationFailed(compFailure);</span><span class="ln hl" data-l="51">                deadLetter.publish(saga);   <span class="c">// human intervention</span></span><span class="ln" data-l="52">            }</span><span class="ln" data-l="53">        }</span><span class="ln" data-l="54">    }</span><span class="ln" data-l="55">}</span></code></pre>
+    </div>
+    <div class="explain">
+      <div class="explain-h">Line-by-line</div>
+      <div class="row good"><b>L12, L46</b><span><code class="i">Deque</code> ko <b>stack</b> ki tarah use kiya. <code class="i">push</code> forward me, <code class="i">pop</code> failure me — automatic <b>reverse order</b> compensation. Step 3 fail hua toh pehle payment refund, phir hold release. Ye order matter karta hai.</span></div>
+      <div class="row good"><b>L23–L25</b><span>Payment gateway ko bhi <b>apni idempotency key</b> di gayi (<code class="i">hold.id()</code>). Agar saga retry hui toh PG dobara charge nahi karega, wahi purana receipt dega. <i>Idempotency har layer par chahiye, sirf tumhare API par nahi.</i></span></div>
+      <div class="row good"><b>L31–L32</b><span>Method ka naam khud bata raha hai: <code class="i">confirmBookingAndEnqueueEvent</code> — <b>dono kaam ek transaction me</b>. Booking row aur outbox row saath commit hote hain. Dual-write problem yahin solve hui.</span></div>
+      <div class="row"><b>L13, L20, L28</b><span><code class="i">SagaLog</code> = <b>durable state</b>. Agar service beech me crash ho jaaye toh recovery job DB se padh ke pata laga sakta hai ki kaunsa step tak pahunche the aur wahin se compensate kare. In-memory stack crash-safe nahi hai.</span></div>
+      <div class="row good"><b>L49–L51</b><span><b>Compensation bhi fail ho sakti hai.</b> Refund API down hai. Chupchaap swallow mat karo — saga ko dead-letter queue me daalo aur alert bhejo. <i>Kisi ka paisa phansa hua hai, silence sabse bura outcome hai.</i> <span class="lvl l3">SDE-3</span></span></div>
+    </div>
+    <p><b>Outbox — dual write ka ilaaj:</b></p>
+    <div class="code">
+      <div class="code-head"><span class="file">BookingWriteService.java</span><span class="badge">transactional outbox</span></div>
+<pre><code><span class="ln" data-l="1"><span class="a">@Transactional</span>   <span class="c">// ⭐ dono writes ek hi ACID txn me</span></span><span class="ln hl" data-l="2"><span class="k">public</span> <span class="t">Booking</span> confirmBookingAndEnqueueEvent(<span class="t">Hold</span> hold,</span><span class="ln" data-l="3">                                             <span class="t">PaymentReceipt</span> receipt) {</span><span class="ln" data-l="4"> </span><span class="ln hl" data-l="5">    <span class="t">int</span> flipped = inventoryRepo.markHeldUnitsBooked(</span><span class="ln" data-l="6">            hold.id(), hold.bookingId());</span><span class="ln hl" data-l="7">    <span class="k">if</span> (flipped != hold.unitCount()) {</span><span class="ln" data-l="8">        <span class="k">throw new</span> <span class="t">HoldExpiredException</span>(hold.id());  <span class="c">// → 410 GONE</span></span><span class="ln" data-l="9">    }</span><span class="ln" data-l="10"> </span><span class="ln" data-l="11">    <span class="t">Booking</span> booking = bookingRepo.save(<span class="t">Booking</span>.confirmed(hold, receipt));</span><span class="ln" data-l="12"> </span><span class="ln hl" data-l="13">    outboxRepo.save(<span class="t">OutboxEvent</span>.of(</span><span class="ln" data-l="14">            <span class="s">"booking.confirmed"</span>, booking.getId(), toJson(booking)));</span><span class="ln" data-l="15"> </span><span class="ln" data-l="16">    <span class="k">return</span> booking;   <span class="c">// commit yahan → dono ya koi nahi</span></span><span class="ln" data-l="17">}</span><span class="ln" data-l="18"> </span><span class="ln" data-l="19"><span class="c">// Alag process: outbox → Kafka</span></span><span class="ln" data-l="20"><span class="a">@Scheduled</span>(fixedDelay = <span class="a">500</span>)</span><span class="ln" data-l="21"><span class="k">public void</span> publishPendingOutboxEvents() {</span><span class="ln hl" data-l="22">    <span class="t">List</span>&lt;<span class="t">OutboxEvent</span>&gt; batch = outboxRepo.claimUnpublished(<span class="a">200</span>);</span><span class="ln" data-l="23">    <span class="k">for</span> (<span class="t">OutboxEvent</span> e : batch) {</span><span class="ln hl" data-l="24">        kafka.send(e.topic(), e.aggregateId(), e.payload());</span><span class="ln" data-l="25">        outboxRepo.markPublished(e.id());</span><span class="ln" data-l="26">    }</span><span class="ln" data-l="27">}</span></code></pre>
+    </div>
+    <div class="explain">
+      <div class="explain-h">Line-by-line</div>
+      <div class="row good"><b>L1, L13</b><span>Booking row aur outbox row <b>same database, same transaction</b>. Isliye ye atomic hai — ya dono likhe jaayenge ya koi nahi. Kafka down ho tab bhi event DB me safe hai, poller baad me bhej dega.</span></div>
+      <div class="row good"><b>L5–L8</b><span>Confirm ke waqt bhi <b>conditional update</b>. Hold expire ho chuka aur seat kisi aur ko chali gayi — toh <code class="i">flipped == 0</code> milega aur hum <code class="i">410 GONE</code> bhej denge. Payment already ho chuka hai, isliye saga refund compensation chala dega.</span></div>
+      <div class="row"><b>L24</b><span>Kafka key = <code class="i">bookingId</code>. Same booking ke saare events ek hi partition me → <b>per-booking ordering guaranteed</b>. <code class="i">confirmed</code> ke baad hi <code class="i">cancelled</code> process hoga.</span></div>
+      <div class="row"><b>L21–L25</b><span>Delivery <b>at-least-once</b> hai — publish ke baad, <code class="i">markPublished</code> se pehle crash hua toh event dobara jaayega. Isliye <b>consumers ko idempotent banana</b> mandatory hai (event ID par dedupe). Exactly-once ek myth hai; at-least-once + idempotent consumer = practical exactly-once. <span class="lvl l3">SDE-3</span></span></div>
+    </div>
+    <div class="callout win"><b>English takeaway:</b> Two short ACID transactions with a compensating saga between them beats one long distributed transaction. You trade atomicity for availability, and you pay for it with compensations, a durable saga log, and idempotent consumers.</div>
+  </div>
+</div>
+
+<!-- ===================== 10 ===================== -->
+<section id="t10" class="chapter">
+  <span class="num">Topic 10</span>
+  <h2>LLD — chaaron domains ko ek hi service se chalao</h2>
+  <p class="tag">Yahi woh jagah hai jahan “all four booking types” ka answer code me dikhta hai: ek interface, chaar implementations.</p>
+</section>
+<div class="stub">
+  <div class="side problem">
+    <h3><i class="dot"></i>Problem <span class="role">TRAP</span></h3>
+    <p class="quote">“Ab agar hume hotel bookings bhi support karni ho toh code kitna badlega?”<cite>Interviewer, extensibility test</cite></p>
+    <div class="code">
+      <div class="code-head"><span class="file">GodService.java</span><span class="badge">ANTI-PATTERN</span></div>
+<pre><code><span class="ln" data-l="1"><span class="c">// ❌ Naya domain = is method me naya if-block</span></span><span class="ln" data-l="2"><span class="k">public void</span> validate(<span class="t">String</span> type, <span class="t">Request</span> r) {</span><span class="ln hl" data-l="3">    <span class="k">if</span> (type.equals(<span class="s">"MOVIE"</span>)) {</span><span class="ln" data-l="4">        checkContiguousSeats(r);</span><span class="ln" data-l="5">    } <span class="k">else if</span> (type.equals(<span class="s">"HOTEL"</span>)) {</span><span class="ln" data-l="6">        checkAllNightsFree(r);</span><span class="ln" data-l="7">    } <span class="k">else if</span> (type.equals(<span class="s">"FLIGHT"</span>)) {</span><span class="ln" data-l="8">        checkCabinAndOverbooking(r);</span><span class="ln" data-l="9">    } <span class="c">// ... RESTAURANT, EVENT, BUS, TRAIN ...</span></span><span class="ln" data-l="10">}</span></code></pre>
+    </div>
+    <ul class="tight">
+      <li><b>Open/Closed violate</b> — extend karne ke liye purani class modify karni padti hai.</li>
+      <li><b>Testing nightmare</b> — hotel ka test likhne ke liye poora god-object mock karo.</li>
+      <li><b>Merge conflicts</b> — 4 teams ek hi file me kaam kar rahi hain.</li>
+      <li><b>Regression risk</b> — flight ka change movie ko tod sakta hai.</li>
+    </ul>
+    <div class="callout stop"><b>Interviewer ka signal:</b> Agar tumhara answer “ek naya <code class="i">else if</code> add karunga” hai, toh tumne LLD round mostly haar diya.</div>
+  </div>
+  <div class="perf"></div>
+  <div class="side solution">
+    <h3><i class="dot"></i>Solution <span class="role">STRATEGY + FACTORY</span></h3>
+    <p><b>Jo alag hai use interface ke peeche daalo.</b> Alag sirf <i>allocation rule</i> hai — locking, payment, saga sab common hai.</p>
+    <div class="code">
+      <div class="code-head"><span class="file">InventoryAllocator.java</span><span class="badge">Strategy</span></div>
+<pre><code><span class="ln" data-l="1"><span class="c">/** Har domain apna allocation rule laata hai. */</span></span><span class="ln hl" data-l="2"><span class="k">public interface</span> <span class="t">InventoryAllocator</span> {</span><span class="ln" data-l="3"> </span><span class="ln hl" data-l="4">    <span class="t">BookingDomain</span> supportedDomain();</span><span class="ln" data-l="5"> </span><span class="ln" data-l="6">    <span class="c">/** Query ko concrete inventory_unit IDs me badalta hai. */</span></span><span class="ln hl" data-l="7">    <span class="t">List</span>&lt;<span class="t">Long</span>&gt; resolveUnitIds(<span class="t">AllocationQuery</span> query);</span><span class="ln" data-l="8"> </span><span class="ln" data-l="9">    <span class="c">/** Domain-specific business rules. Fail fast. */</span></span><span class="ln hl" data-l="10">    <span class="k">void</span> validateAllocation(<span class="t">List</span>&lt;<span class="t">InventoryUnit</span>&gt; units,</span><span class="ln" data-l="11">                            <span class="t">AllocationQuery</span> query);</span><span class="ln" data-l="12">}</span><span class="ln" data-l="13"> </span><span class="ln" data-l="14"><span class="c">// ── 1. MOVIE ────────────────────────────────────────────</span></span><span class="ln" data-l="15"><span class="a">@Component</span></span><span class="ln" data-l="16"><span class="k">public class</span> <span class="t">ShowSeatAllocator</span> <span class="k">implements</span> <span class="t">InventoryAllocator</span> {</span><span class="ln" data-l="17"> </span><span class="ln" data-l="18">    <span class="a">@Override</span> <span class="k">public</span> <span class="t">BookingDomain</span> supportedDomain() { <span class="k">return</span> MOVIE; }</span><span class="ln" data-l="19"> </span><span class="ln" data-l="20">    <span class="a">@Override</span></span><span class="ln" data-l="21">    <span class="k">public void</span> validateAllocation(<span class="t">List</span>&lt;<span class="t">InventoryUnit</span>&gt; units,</span><span class="ln" data-l="22">                                   <span class="t">AllocationQuery</span> q) {</span><span class="ln hl" data-l="23">        rejectIfSeatsNotContiguous(units);</span><span class="ln hl" data-l="24">        rejectIfSingleSeatGapCreated(units, q.eventId());</span><span class="ln" data-l="25">    }</span><span class="ln" data-l="26"> </span><span class="ln" data-l="27">    <span class="c">/** Ek akeli seat beech me chhodna revenue loss hai —</span></span><span class="ln" data-l="28"><span class="c">     *  woh seat kabhi bikti nahi. */</span></span><span class="ln" data-l="29">    <span class="k">private void</span> rejectIfSingleSeatGapCreated(...) { ... }</span><span class="ln" data-l="30">}</span><span class="ln" data-l="31"> </span><span class="ln" data-l="32"><span class="c">// ── 2. HOTEL ────────────────────────────────────────────</span></span><span class="ln" data-l="33"><span class="a">@Component</span></span><span class="ln" data-l="34"><span class="k">public class</span> <span class="t">HotelStayAllocator</span> <span class="k">implements</span> <span class="t">InventoryAllocator</span> {</span><span class="ln" data-l="35"> </span><span class="ln" data-l="36">    <span class="a">@Override</span> <span class="k">public</span> <span class="t">BookingDomain</span> supportedDomain() { <span class="k">return</span> HOTEL; }</span><span class="ln" data-l="37"> </span><span class="ln" data-l="38">    <span class="a">@Override</span></span><span class="ln" data-l="39">    <span class="k">public</span> <span class="t">List</span>&lt;<span class="t">Long</span>&gt; resolveUnitIds(<span class="t">AllocationQuery</span> q) {</span><span class="ln hl" data-l="40">        <span class="c">// Date range ko nights me todo: 12–15 Sep → 12,13,14</span></span><span class="ln hl" data-l="41">        <span class="k">return</span> q.checkIn().datesUntil(q.checkOut())</span><span class="ln" data-l="42">                .map(night -&gt; roomNightRepo.idFor(q.roomId(), night))</span><span class="ln" data-l="43">                .toList();</span><span class="ln" data-l="44">    }</span><span class="ln" data-l="45">}</span><span class="ln" data-l="46"> </span><span class="ln" data-l="47"><span class="c">// ── 3. FLIGHT ───────────────────────────────────────────</span></span><span class="ln" data-l="48"><span class="a">@Component</span></span><span class="ln" data-l="49"><span class="k">public class</span> <span class="t">FlightSeatAllocator</span> <span class="k">implements</span> <span class="t">InventoryAllocator</span> {</span><span class="ln" data-l="50">    <span class="a">@Override</span></span><span class="ln" data-l="51">    <span class="k">public void</span> validateAllocation(<span class="t">List</span>&lt;<span class="t">InventoryUnit</span>&gt; units,</span><span class="ln" data-l="52">                                   <span class="t">AllocationQuery</span> q) {</span><span class="ln" data-l="53">        rejectIfCabinClassMismatch(units, q.cabin());</span><span class="ln hl" data-l="54">        rejectIfBeyondOverbookingCeiling(q.legId());  <span class="c">// 105% allowed</span></span><span class="ln" data-l="55">        rejectIfExitRowAndPassengerIneligible(units, q.passengers());</span><span class="ln" data-l="56">    }</span><span class="ln" data-l="57">}</span><span class="ln" data-l="58"> </span><span class="ln" data-l="59"><span class="c">// ── 4. RESTAURANT ───────────────────────────────────────</span></span><span class="ln" data-l="60"><span class="a">@Component</span></span><span class="ln" data-l="61"><span class="k">public class</span> <span class="t">RestaurantTableAllocator</span> <span class="k">implements</span> <span class="t">InventoryAllocator</span> {</span><span class="ln" data-l="62">    <span class="a">@Override</span></span><span class="ln" data-l="63">    <span class="k">public</span> <span class="t">List</span>&lt;<span class="t">Long</span>&gt; resolveUnitIds(<span class="t">AllocationQuery</span> q) {</span><span class="ln hl" data-l="64">        <span class="c">// 2 ghante ka turn time = kai consecutive slots block</span></span><span class="ln" data-l="65">        <span class="k">return</span> slotRepo.findSlotsCovering(</span><span class="ln" data-l="66">                q.tableId(), q.startsAt(), TURN_TIME);</span><span class="ln" data-l="67">    }</span><span class="ln" data-l="68"> </span><span class="ln" data-l="69">    <span class="a">@Override</span></span><span class="ln" data-l="70">    <span class="k">public void</span> validateAllocation(...) {</span><span class="ln hl" data-l="71">        rejectIfPartySizeExceedsCapacity(units, q.partySize());</span><span class="ln" data-l="72">    }</span><span class="ln" data-l="73">}</span></code></pre>
+    </div>
+    <div class="code">
+      <div class="code-head"><span class="file">AllocatorRegistry.java</span><span class="badge">Factory — Spring way</span></div>
+<pre><code><span class="ln" data-l="1"><span class="a">@Component</span></span><span class="ln" data-l="2"><span class="k">public class</span> <span class="t">AllocatorRegistry</span> {</span><span class="ln" data-l="3"> </span><span class="ln" data-l="4">    <span class="k">private final</span> <span class="t">Map</span>&lt;<span class="t">BookingDomain</span>, <span class="t">InventoryAllocator</span>&gt; byDomain;</span><span class="ln" data-l="5"> </span><span class="ln hl" data-l="6">    <span class="k">public</span> <span class="t">AllocatorRegistry</span>(<span class="t">List</span>&lt;<span class="t">InventoryAllocator</span>&gt; allocators) {</span><span class="ln hl" data-l="7">        <span class="k">this</span>.byDomain = allocators.stream().collect(</span><span class="ln" data-l="8">                <span class="t">Collectors</span>.toMap(<span class="t">InventoryAllocator</span>::supportedDomain,</span><span class="ln" data-l="9">                                  <span class="t">Function</span>.identity()));</span><span class="ln" data-l="10">    }</span><span class="ln" data-l="11"> </span><span class="ln" data-l="12">    <span class="k">public</span> <span class="t">InventoryAllocator</span> allocatorFor(<span class="t">BookingDomain</span> domain) {</span><span class="ln" data-l="13">        <span class="k">return</span> <span class="t">Optional</span>.ofNullable(byDomain.get(domain))</span><span class="ln" data-l="14">                <span class="c">// Empty screen is an invitation to fix config, not crash</span></span><span class="ln" data-l="15">                .orElseThrow(() -&gt; <span class="k">new</span> <span class="t">UnsupportedDomainException</span>(domain));</span><span class="ln" data-l="16">    }</span><span class="ln" data-l="17">}</span></code></pre>
+    </div>
+    <div class="explain">
+      <div class="explain-h">Line-by-line</div>
+      <div class="row good"><b>L2–L10 (interface)</b><span>Interface me sirf <b>3 methods</b> — jo genuinely alag hai. Locking, payment, saga, idempotency <i>interface me nahi hai</i>, kyunki woh chaaron domain me identical hai. <b>Sirf variation ko abstract karo, sab kuch nahi.</b></span></div>
+      <div class="row good"><b>L4 (interface)</b><span><code class="i">supportedDomain()</code> — har strategy khud declare karti hai ki woh kiske liye hai. Isse registry auto-build ho jaati hai, koi manual mapping nahi.</span></div>
+      <div class="row good"><b>L40–L43</b><span><code class="i">datesUntil()</code> (Java 9+) date range ko nights ke stream me todta hai. <code class="i">checkOut</code> exclusive hai — 12–15 Sep = 3 nights (12,13,14), 4 nahi. Ye classic off-by-one interview me pakda jaata hai.</span></div>
+      <div class="row"><b>L54</b><span>Airlines <b>jaan-boojh ke</b> 105% bechti hain kyunki no-show ka rate ~5% hota hai. Ye business rule flight allocator me hai, core booking engine me nahi — perfect separation.</span></div>
+      <div class="row good"><b>L6–L9 (registry)</b><span>Spring constructor me <code class="i">List&lt;InventoryAllocator&gt;</code> maangne par <b>saare implementations automatically inject</b> kar deta hai. Naya domain add karna = ek nayi <code class="i">@Component</code> class banana. <b>Zero existing code changed.</b> Open/Closed ka live demo — yahi answer interviewer sunna chahta hai.</span></div>
+    </div>
+    <table class="tbl">
+      <thead><tr><th>Pattern</th><th>Kahan</th><th>Kyun</th></tr></thead>
+      <tbody>
+        <tr><td>Strategy</td><td><code>InventoryAllocator</code>, <code>PricingPolicy</code>, <code>LockStrategy</code></td><td>Runtime par behaviour swap</td></tr>
+        <tr><td>Factory / Registry</td><td><code>AllocatorRegistry</code></td><td>Strategy selection ek jagah</td></tr>
+        <tr><td>State</td><td><code>BookingState</code> enum</td><td>Illegal transitions compile/run time par rok</td></tr>
+        <tr><td>Observer</td><td>Kafka <code>booking.events</code></td><td>Notification, analytics decoupled</td></tr>
+        <tr><td>Template Method</td><td><code>BookingSagaOrchestrator</code></td><td>Steps fixed, implementations vary</td></tr>
+        <tr><td>Command</td><td>Compensation <code>Deque&lt;Runnable&gt;</code></td><td>Undo ko object banaya</td></tr>
+      </tbody>
+    </table>
+    <div class="callout"><b>Pattern-dropping se bacho:</b> Naam mat ginwao. Bolo “yahan Strategy use kiya <b>kyunki</b> naya domain add karte waqt purani class chhune ki zarurat nahi padegi.” Reason pattern se zyada important hai.</div>
+  </div>
+</div>
+
+<!-- ===================== 11 ===================== -->
+<section id="t11" class="chapter">
+  <span class="num">Topic 11</span>
+  <h2>State machine — booking ki zindagi</h2>
+  <p class="tag">Har production booking bug ka root cause: koi illegal state transition jo kisi ne roka nahi.</p>
+</section>
+<div class="stub">
+  <div class="side problem">
+    <h3><i class="dot"></i>Problem <span class="role">TRAP</span></h3>
+    <ul>
+      <li><b>Status ek plain string hai.</b> <code class="i">booking.setStatus("CONFIRMED")</code> kahin se bhi call ho sakta hai. Ek jagah typo <code class="i">"CONFIRMD"</code> — silently corrupt data.</li>
+      <li><b>Cancelled booking dobara confirm ho gayi.</b> Late webhook aaya aur usne cancelled booking ko CONFIRMED kar diya. User ko ticket mil gaya, refund bhi.</li>
+      <li><b>Terminal state ka concept nahi.</b> <code class="i">REFUNDED</code> ke baad bhi transitions allowed hain.</li>
+      <li><b>Transition logic 8 files me bikhri hui.</b> Naya developer bata hi nahi sakta ki valid flows kya hain.</li>
+    </ul>
+  </div>
+  <div class="perf"></div>
+  <div class="side solution">
+    <h3><i class="dot"></i>Solution <span class="role">STATE PATTERN</span></h3>
+    <p>Legal transitions ko <b>enum me hi encode karo</b>, taaki illegal transition likhna hi mushkil ho jaaye.</p>
+    <div class="code">
+      <div class="code-head"><span class="file">BookingState.java</span><span class="badge">self-validating enum</span></div>
+<pre><code><span class="ln" data-l="1"><span class="k">public enum</span> <span class="t">BookingState</span> {</span><span class="ln" data-l="2"> </span><span class="ln hl" data-l="3">    HOLD_PENDING   { <span class="k">public</span> <span class="t">Set</span>&lt;<span class="t">BookingState</span>&gt; nextStates() {</span><span class="ln" data-l="4">        <span class="k">return</span> <span class="t">EnumSet</span>.of(PAYMENT_PENDING, EXPIRED, CANCELLED); } },</span><span class="ln" data-l="5"> </span><span class="ln" data-l="6">    PAYMENT_PENDING{ <span class="k">public</span> <span class="t">Set</span>&lt;<span class="t">BookingState</span>&gt; nextStates() {</span><span class="ln" data-l="7">        <span class="k">return</span> <span class="t">EnumSet</span>.of(CONFIRMED, PAYMENT_FAILED, EXPIRED); } },</span><span class="ln" data-l="8"> </span><span class="ln" data-l="9">    CONFIRMED      { <span class="k">public</span> <span class="t">Set</span>&lt;<span class="t">BookingState</span>&gt; nextStates() {</span><span class="ln" data-l="10">        <span class="k">return</span> <span class="t">EnumSet</span>.of(CANCELLED, COMPLETED); } },</span><span class="ln" data-l="11"> </span><span class="ln" data-l="12">    CANCELLED      { <span class="k">public</span> <span class="t">Set</span>&lt;<span class="t">BookingState</span>&gt; nextStates() {</span><span class="ln" data-l="13">        <span class="k">return</span> <span class="t">EnumSet</span>.of(REFUNDED); } },</span><span class="ln" data-l="14"> </span><span class="ln hl" data-l="15">    <span class="c">// ── Terminal states: yahan se koi raasta nahi ──</span></span><span class="ln hl" data-l="16">    EXPIRED        { <span class="k">public</span> <span class="t">Set</span>&lt;<span class="t">BookingState</span>&gt; nextStates() {</span><span class="ln" data-l="17">        <span class="k">return</span> <span class="t">EnumSet</span>.noneOf(<span class="t">BookingState</span>.class); } },</span><span class="ln" data-l="18">    PAYMENT_FAILED { <span class="k">public</span> <span class="t">Set</span>&lt;<span class="t">BookingState</span>&gt; nextStates() {</span><span class="ln" data-l="19">        <span class="k">return</span> <span class="t">EnumSet</span>.noneOf(<span class="t">BookingState</span>.class); } },</span><span class="ln" data-l="20">    COMPLETED      { <span class="k">public</span> <span class="t">Set</span>&lt;<span class="t">BookingState</span>&gt; nextStates() {</span><span class="ln" data-l="21">        <span class="k">return</span> <span class="t">EnumSet</span>.noneOf(<span class="t">BookingState</span>.class); } },</span><span class="ln" data-l="22">    REFUNDED       { <span class="k">public</span> <span class="t">Set</span>&lt;<span class="t">BookingState</span>&gt; nextStates() {</span><span class="ln" data-l="23">        <span class="k">return</span> <span class="t">EnumSet</span>.noneOf(<span class="t">BookingState</span>.class); } };</span><span class="ln" data-l="24"> </span><span class="ln" data-l="25">    <span class="k">public abstract</span> <span class="t">Set</span>&lt;<span class="t">BookingState</span>&gt; nextStates();</span><span class="ln" data-l="26"> </span><span class="ln hl" data-l="27">    <span class="k">public boolean</span> canTransitionTo(<span class="t">BookingState</span> target) {</span><span class="ln" data-l="28">        <span class="k">return</span> nextStates().contains(target);</span><span class="ln" data-l="29">    }</span><span class="ln" data-l="30">}</span><span class="ln" data-l="31"> </span><span class="ln" data-l="32"><span class="c">// ── Entity me single guarded mutator ──────────────────────</span></span><span class="ln" data-l="33"><span class="a">@Entity</span></span><span class="ln" data-l="34"><span class="k">public class</span> <span class="t">Booking</span> {</span><span class="ln" data-l="35"> </span><span class="ln hl" data-l="36">    <span class="a">@Version</span> <span class="k">private</span> <span class="t">Long</span> version;   <span class="c">// optimistic lock</span></span><span class="ln" data-l="37">    <span class="a">@Enumerated</span>(EnumType.STRING)</span><span class="ln" data-l="38">    <span class="k">private</span> <span class="t">BookingState</span> state;</span><span class="ln" data-l="39"> </span><span class="ln hl" data-l="40">    <span class="k">public void</span> transitionTo(<span class="t">BookingState</span> target, <span class="t">String</span> reason) {</span><span class="ln hl" data-l="41">        <span class="k">if</span> (!state.canTransitionTo(target)) {</span><span class="ln hl" data-l="42">            <span class="k">throw new</span> <span class="t">IllegalStateTransitionException</span>(state, target);</span><span class="ln" data-l="43">        }</span><span class="ln" data-l="44">        <span class="k">this</span>.stateHistory.add(<span class="k">new</span> <span class="t">StateChange</span>(state, target, reason));</span><span class="ln" data-l="45">        <span class="k">this</span>.state = target;</span><span class="ln" data-l="46">    }</span><span class="ln" data-l="47">}</span></code></pre>
+    </div>
+    <div class="explain">
+      <div class="explain-h">Line-by-line</div>
+      <div class="row good"><b>L3–L23</b><span>Har enum constant apne valid successors khud declare karta hai. <b>Poora state machine ek file me, ek nazar me</b> — 8 files me bikhra hua nahi. Naya joiner 30 second me poora lifecycle samajh sakta hai.</span></div>
+      <div class="row good"><b>L16–L23</b><span><code class="i">EnumSet.noneOf(...)</code> = terminal state. <code class="i">REFUNDED</code> ke baad kuch nahi. Late webhook aaya toh <code class="i">canTransitionTo</code> <code class="i">false</code> dega aur transition reject ho jaayegi. <b>“Cancelled booking phir se confirm ho gayi” wala bug structurally impossible.</b></span></div>
+      <div class="row good"><b>L36</b><span><code class="i">@Version</code> — JPA automatically <code class="i">WHERE version = ?</code> lagata hai har update par, aur mismatch par <code class="i">OptimisticLockException</code> throw karta hai. Do concurrent updates me se ek fail hogi. <b>Lost update prevented, bina kisi explicit lock ke.</b></span></div>
+      <div class="row good"><b>L40–L45</b><span>State badalne ka <b>sirf ek raasta</b>. Koi public <code class="i">setState()</code> nahi hai. Har change validate hota hai <i>aur</i> <code class="i">stateHistory</code> me audit trail chhodta hai — customer support ke liye ye lifesaver hai. <span class="lvl l2">SDE-2</span></span></div>
+      <div class="row"><b>L37</b><span><code class="i">EnumType.STRING</code>, <code class="i">ORDINAL</code> nahi. Ordinal me agar koi beech me naya enum constant daal de toh <b>purana data silently corrupt</b> ho jaata hai — <code class="i">CONFIRMED</code> ban jaayega <code class="i">CANCELLED</code>. Ye real production incident hai.</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== 12 ===================== -->
+<section id="t12" class="chapter">
+  <span class="num">Topic 12</span>
+  <h2>Cache aur search — 100:1 read ratio ka jawab</h2>
+  <p class="tag">Yahan tension simple hai: cache chahiye speed ke liye, par stale seat map dikhana user ko dhokha hai.</p>
+</section>
+<div class="stub">
+  <div class="side problem">
+    <h3><i class="dot"></i>Problem <span class="role">TRAP</span></h3>
+    <ul>
+      <li><b>Seat map ko lambe TTL se cache karna.</b> User ko green seat dikhi, click kiya, 409 mila. Har baar. Trust khatam.</li>
+      <li><b>Cache stampede.</b> Popular show ka cache entry expire hua, us instant 50,000 requests seedha DB par. DB gir gayi, sab cache miss, aur bura. <b>Thundering herd.</b></li>
+      <li><b>Har booking par poora cache flush.</b> Ek seat book hui aur tumne poore city ka cache invalidate kar diya — cache hit rate 0%.</li>
+      <li><b>Search ko primary DB se chalana.</b> “Bangalore me kal ke sab shows with 3+ seats” — ye query Postgres par p99 kill kar degi.</li>
+    </ul>
+  </div>
+  <div class="perf"></div>
+  <div class="side solution">
+    <h3><i class="dot"></i>Solution <span class="role">TIERED + HONEST</span></h3>
+    <table class="tbl">
+      <thead><tr><th>Data</th><th>Kahan</th><th>TTL</th><th>Invalidation</th></tr></thead>
+      <tbody>
+        <tr><td>Movie/hotel metadata, images</td><td>CDN</td><td>24h</td><td>Versioned URL</td></tr>
+        <tr><td>Show/flight list per city+date</td><td>Redis</td><td>5 min</td><td>TTL kaafi hai</td></tr>
+        <tr><td>Availability <i>count</i> (“18 left”)</td><td>Redis</td><td>10 s</td><td>TTL</td></tr>
+        <tr><td>Exact seat map</td><td>Redis</td><td><b>2 s</b></td><td>Booking event par delete</td></tr>
+        <tr><td>Booking truth</td><td><b>Kabhi cache nahi</b></td><td>—</td><td>Hamesha primary DB</td></tr>
+        <tr><td>Search index</td><td>Elasticsearch</td><td>near-real-time</td><td>Kafka se reindex</td></tr>
+      </tbody>
+    </table>
+    <div class="callout win"><b>UX me honesty:</b> Seat map ko <i>advisory</i> label do. UI par likho “Seats update in real time — final availability is confirmed at checkout.” Ab 2-second staleness bug nahi, <b>documented behaviour</b> hai. Interviewer ko ye product-thinking dikhti hai. <span class="lvl l2">SDE-2</span></div>
+    <div class="code">
+      <div class="code-head"><span class="file">SeatMapCacheService.java</span><span class="badge">stampede-safe</span></div>
+<pre><code><span class="ln" data-l="1"><span class="a">@Service</span></span><span class="ln" data-l="2"><span class="k">public class</span> <span class="t">SeatMapCacheService</span> {</span><span class="ln" data-l="3"> </span><span class="ln" data-l="4">    <span class="k">private static final</span> <span class="t">Duration</span> TTL       = <span class="t">Duration</span>.ofSeconds(<span class="a">2</span>);</span><span class="ln" data-l="5">    <span class="k">private static final</span> <span class="t">Duration</span> LOAD_LOCK = <span class="t">Duration</span>.ofMillis(<span class="a">300</span>);</span><span class="ln" data-l="6"> </span><span class="ln hl" data-l="7">    <span class="k">public</span> <span class="t">SeatMapView</span> getSeatMapWithStampedeGuard(<span class="t">Long</span> eventId) {</span><span class="ln" data-l="8"> </span><span class="ln" data-l="9">        <span class="t">String</span> key = <span class="s">"seatmap:"</span> + eventId;</span><span class="ln" data-l="10">        <span class="t">SeatMapView</span> cached = readFromCache(key);</span><span class="ln" data-l="11">        <span class="k">if</span> (cached != <span class="k">null</span> && !cached.isStale()) <span class="k">return</span> cached;</span><span class="ln" data-l="12"> </span><span class="ln" data-l="13">        <span class="c">// Sirf EK thread DB jaayega, baaki stale serve karenge</span></span><span class="ln hl" data-l="14">        <span class="t">Boolean</span> iAmTheLoader = redis.opsForValue()</span><span class="ln hl" data-l="15">                .setIfAbsent(key + <span class="s">":load"</span>, <span class="s">"1"</span>, LOAD_LOCK);</span><span class="ln" data-l="16"> </span><span class="ln" data-l="17">        <span class="k">if</span> (!<span class="t">Boolean</span>.TRUE.equals(iAmTheLoader)) {</span><span class="ln hl" data-l="18">            <span class="k">return</span> cached != <span class="k">null</span> ? cached          <span class="c">// stale-while-revalidate</span></span><span class="ln" data-l="19">                                 : loadFromDatabase(eventId);</span><span class="ln" data-l="20">        }</span><span class="ln" data-l="21"> </span><span class="ln" data-l="22">        <span class="t">SeatMapView</span> fresh = loadFromDatabase(eventId);</span><span class="ln hl" data-l="23">        writeToCache(key, fresh, jitter(TTL));   <span class="c">// ± 20% randomness</span></span><span class="ln" data-l="24">        <span class="k">return</span> fresh;</span><span class="ln" data-l="25">    }</span><span class="ln" data-l="26">}</span></code></pre>
+    </div>
+    <div class="explain">
+      <div class="explain-h">Line-by-line</div>
+      <div class="row good"><b>L14–L15</b><span><b>Request coalescing.</b> Cache miss par 50,000 threads me se sirf <i>ek</i> Redis lock jeetega aur DB jaayega. Baaki 49,999 stale data serve karenge. DB par load 50,000× se ghat ke 1× ho gaya.</span></div>
+      <div class="row good"><b>L18</b><span><b>Stale-while-revalidate.</b> 2 second purana seat map dikhana, 5 second DB wait karne se behtar hai. Availability advisory hai — thoda purana hona acceptable hai, slow hona nahi.</span></div>
+      <div class="row good"><b>L23</b><span><b>TTL jitter.</b> Sab keys same second par expire hui toh sab ek saath DB par giren. ±20% random jitter unhe time me spread kar deta hai. Ek line, bada impact. <span class="lvl l3">SDE-3</span></span></div>
+      <div class="row"><b>L5</b><span>Load lock ka TTL sirf 300ms — agar loader thread crash ho gaya toh lock 300ms me apne aap chhoot jaayega, permanently stuck nahi rahega.</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== 13 ===================== -->
+<section id="t13" class="chapter">
+  <span class="num">Topic 13</span>
+  <h2>Sharding — shard key hi sabse bada decision hai</h2>
+  <p class="tag">Ek galat shard key aur tumhara har booking distributed transaction ban jaata hai.</p>
+</section>
+<div class="stub">
+  <div class="side problem">
+    <h3><i class="dot"></i>Problem <span class="role">TRAP</span></h3>
+    <ul>
+      <li><b><code class="i">user_id</code> par inventory shard karna.</b> Ek show ki seats 50 shards par bikhri hui. Ab 3 seats ek saath book karne ke liye 3 shards par atomic write chahiye → <b>2PC</b>. Design mar gaya.</li>
+      <li><b>Auto-increment ID par shard karna.</b> Naya data hamesha aakhri shard par — <b>write hotspot</b>. Baaki shards idle.</li>
+      <li><b>Hot shard ignore karna.</b> Ek blockbuster release ke saare shows ek hi venue ke hain → ek shard par 40% traffic.</li>
+      <li><b>Din 1 se shard karna.</b> 146 GB/year ke liye sharding? Premature. Ye complexity bina zarurat ke add karna hai.</li>
+    </ul>
+  </div>
+  <div class="perf"></div>
+  <div class="side solution">
+    <h3><i class="dot"></i>Solution <span class="role">CO-LOCATE</span></h3>
+    <div class="callout win"><b>The rule:</b> Shard key aisi choose karo ki <b>ek transaction ka saara data ek hi shard par ho</b>. Booking ke liye woh key hai <code class="i">event_id</code> — ek show/flight/night ki saari seats ek shard par. Har hold ek <b>single-shard local transaction</b> ban jaata hai. 2PC ki zarurat hi nahi padti.</div>
+    <table class="tbl">
+      <thead><tr><th>Table</th><th>Shard key</th><th>Kyun</th></tr></thead>
+      <tbody>
+        <tr><td><code>inventory_unit</code></td><td><code>event_id</code></td><td>Ek show ki saari seats saath → single-shard txn</td></tr>
+        <tr><td><code>booking</code></td><td><code>user_id</code></td><td>“Meri bookings” ek shard se</td></tr>
+        <tr><td><code>booking_item</code></td><td><code>user_id</code></td><td>Booking ke saath co-located</td></tr>
+      </tbody>
+    </table>
+    <div class="callout"><b>Tradeoff jo tum khud uthao:</b> <code class="i">booking</code> aur <code class="i">inventory_unit</code> ab alag shards par ho sakte hain — isliye inhe atomically likhne ke liye saga chahiye (Topic 09). <b>Ye deliberate choice hai</b>: booking-history read path fast rakhna vs write path me saga complexity. Interviewer ko bolo ki tumne dono trade offs dekhe hain. <span class="lvl l3">SDE-3</span></div>
+    <p><b>Hot shard ka ilaaj:</b></p>
+    <ul>
+      <li><b>Virtual buckets.</b> <code class="i">event_id</code> ko direct shard par map mat karo — 4096 virtual buckets par map karo, phir buckets ko shards par. Hot bucket ko rebalance karna ab bina resharding possible hai.</li>
+      <li><b>Isolation, scale nahi.</b> Blockbuster shows ko dedicated shard par pin kar do. Woh gire toh baaki system chalta rahega — <b>blast radius kam</b>.</li>
+      <li><b>Read replicas</b> seat-map reads ke liye. Writes hamesha primary par (CP path).</li>
+    </ul>
+    <div class="callout"><b>Honest answer jo interviewer ko impress karta hai:</b> “146 GB/year par mujhe sharding ki technically zarurat nahi hai — ek Postgres primary aur do replicas kaafi hain. Main sharding <b>failure isolation</b> aur <b>contention</b> ke liye karunga, storage ke liye nahi. Aur jab tak zarurat na ho, main isse day 1 par nahi karunga.”</div>
+  </div>
+</div>
+
+<!-- ===================== 14 ===================== -->
+<section id="t14" class="chapter">
+  <span class="num">Topic 14</span>
+  <h2>Surge — jab 5 lakh log 300 seats ke liye aate hain</h2>
+  <p class="tag">IPL final, Coldplay tickets, Tatkal. Yahi sabse acha follow-up question hai.</p>
+</section>
+<div class="stub">
+  <div class="side problem">
+    <h3><i class="dot"></i>Problem <span class="role">TRAP</span></h3>
+    <ul>
+      <li><b>“Auto-scale kar denge” bol dena.</b> Pods scale ho jaayenge, par database primary scale nahi hota. Aur 300 seats ke liye 500K requests — 99.94% ko toh fail hi hona hai.</li>
+      <li><b>Sabko andar aane dena.</b> Har request DB tak jaayegi, connection pool khatam, aur <b>jo log genuinely book kar sakte the woh bhi fail honge</b>.</li>
+      <li><b>Retry storm.</b> Sab fail hue, sabne retry kiya, load double. Classic congestive collapse.</li>
+      <li><b>Bots ignore karna.</b> Scalers 10,000 requests/sec maar rahe hain aur asli user pehunch hi nahi pa raha.</li>
+    </ul>
+  </div>
+  <div class="perf"></div>
+  <div class="side solution">
+    <h3><i class="dot"></i>Solution <span class="role">ADMISSION CONTROL</span></h3>
+    <p><b>Core idea:</b> Backend ko utni hi traffic do jitni woh handle kar sakta hai. Baaki ko honestly queue me rakho.</p>
+    <ul>
+      <li><b>Virtual waiting room.</b> Sale khulne se pehle users ko ek queue me daalo, signed token do jisme position ho. Har second sirf N tokens ko booking service tak jaane do (N = measured capacity). Baaki ko live position aur ETA dikhao — <i>blank error page se hazaar guna behtar</i>.</li>
+      <li><b>Rate limit multi-layer:</b> per-IP (bots), per-user (fairness), per-event (backend protection). Token bucket at gateway.</li>
+      <li><b>Queue-based booking.</b> Peak par requests ko Kafka par daalo, worker unhe controlled rate par process kare. Sync response ki jagah polling ya WebSocket se status do.</li>
+      <li><b>Load shedding.</b> Overload par <b>naye</b> users ko reject karo, jo already funnel me hain unhe nahi. Ek adha-poora booking flow todna sabse bura outcome hai.</li>
+      <li><b>Exponential backoff + jitter</b> client par mandatory. <code class="i">Retry-After</code> header bhejo aur client usse honor kare.</li>
+      <li><b>Cache warming.</b> Sale se 10 min pehle seat map aur metadata pre-load kar do — cold cache par surge sabse zyada khatarnak hoti hai.</li>
+    </ul>
+    <div class="callout win"><b>Punchline:</b> “500K users aur 300 seats me, 99.94% ko fail hona hi hai. Mera kaam unhe <i>fail hone se bachana</i> nahi hai — mera kaam unhe <b>jaldi, saaf aur imaandari se</b> bataana hai ki woh line me kahan hain. Yeh engineering problem se zyada UX problem hai, aur design dono ko address karna chahiye.”</div>
+    <div class="kv">
+      <div><b class="k">MONITOR</b><span>Double-booking count (<b>must be 0</b>, page immediately) · hold→confirm conversion · p99 hold latency · Redis-vs-DB rejection ratio · expired holds/min · saga compensation rate</span></div>
+      <div><b class="k">ALERT ON</b><span>Compensation failures (kisi ka paisa phansa hai) · outbox lag &gt; 30s · hold TTL expiry spike (payment gateway down ka signal)</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== MOCK Q&A ===================== -->
+<section id="mock" class="chapter">
+  <span class="num">Mock round</span>
+  <h2>24 questions jo actually poochhe jaate hain</h2>
+  <p class="tag">Pehle khud jawab socho, phir kholo. Har answer me pehle short Hinglish reasoning hai, phir ek English line jo tum interview me bol sakte ho.</p>
+</section>
+
+<div class="qbank">
+  <div class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" data-panel="sde1">SDE-1 · fundamentals</button>
+    <button role="tab" aria-selected="false" data-panel="sde2">SDE-2 · design</button>
+    <button role="tab" aria-selected="false" data-panel="sde3">SDE-3 · depth</button>
+  </div>
+
+  <!-- ---------- SDE 1 ---------- -->
+  <div id="sde1" class="panel">
+    <details><summary><span class="qn">Q1</span>Double booking kya hai aur ye kyun hoti hai?</summary>
+      <div class="ans">
+        <p class="hin">Jab do requests ek hi seat ko <i>read</i> karti hain, dono ko “AVAILABLE” dikhta hai, aur dono <i>write</i> kar deti hain. Beech me koi atomicity nahi hai. Isse <b>TOCTOU</b> (Time-Of-Check to Time-Of-Use) race kehte hain. <code class="i">@Transactional</code> lagane se ye theek nahi hota, kyunki Postgres ka default <code class="i">READ COMMITTED</code> isolation is pattern ko allow karta hai.</p>
+        <p><b>Say this:</b> “It's a lost-update race. The fix is to collapse check and write into one atomic operation — a conditional <code class="i">UPDATE … WHERE status = 'AVAILABLE'</code> — and back it with a unique constraint as the final guarantee.”</p>
+      </div>
+    </details>
+    <details><summary><span class="qn">Q2</span>Optimistic aur pessimistic locking me kya farak hai? Kab kya use karoge?</summary>
+      <div class="ans">
+        <p class="hin"><b>Pessimistic:</b> pehle lock lo, phir kaam karo (<code class="i">SELECT … FOR UPDATE</code>). Doosre wait karte hain. <b>Optimistic:</b> bina lock kaam karo, likhte waqt <code class="i">version</code> check karo; mismatch hua toh fail karke retry karo.</p>
+        <p class="hin">Rule of thumb: <b>low contention → optimistic</b> (kyunki conflict kam hai, lock ki cost bekaar hai). <b>High contention → pessimistic</b> (kyunki optimistic me har baar retry karoge, jo aur mehnga hai).</p>
+        <p><b>Say this:</b> “For a normal Tuesday show, optimistic. For the front row of an opening-night blockbuster, pessimistic — retry storms cost more than lock waits when conflict probability is high.”</p>
+      </div>
+    </details>
+    <details><summary><span class="qn">Q3</span>Idempotency kya hai? Ek booking example do.</summary>
+      <div class="ans">
+        <p class="hin">Same operation kitni bhi baar chalao, result wahi rahe. User ne “Pay” do baar tap kiya — dono requests me same <code class="i">Idempotency-Key</code> hoga, isliye server sirf ek booking banayega aur doosri baar wahi purana response replay karega.</p>
+        <p class="hin">Implementation: key ko database me <b>unique constraint</b> ke saath store karo. Duplicate insert fail hoga, aur tum stored response return kar doge.</p>
+        <p><b>Say this:</b> “Client generates the key, the database enforces it, the server replays the original response — not an error.”</p>
+      </div>
+    </details>
+    <details><summary><span class="qn">Q4</span>Seat book na ho paane par kaun sa HTTP status code?</summary>
+      <div class="ans">
+        <p class="hin"><code class="i">409 CONFLICT</code> — resource ki current state ki wajah se request fail hui. Response body me batao <i>kaun si</i> seat gayi, taaki client sirf usi ko re-select karwa sake.</p>
+        <p class="hin">Aur agar hold expire ho gaya hai toh <code class="i">410 GONE</code> — matlab “ye tha, ab nahi hai, retry mat karo”. <code class="i">200 OK</code> with <code class="i">success:false</code> sabse kharab hai, kyunki client retry logic likh hi nahi sakta.</p>
+      </div>
+    </details>
+    <details><summary><span class="qn">Q5</span>Availability ke liye counter (<code class="i">seats_left</code>) rakhna sahi hai?</summary>
+      <div class="ans">
+        <p class="hin">Nahi. Do problems: (1) counter batata hi nahi ki <i>kaunsi</i> seat book hui — seat map dikhana impossible. (2) <code class="i">seats_left = seats_left - 1</code> classic lost update hai.</p>
+        <p class="hin">Sahi tareeka: har bookable unit ki apni row (<code class="i">inventory_unit</code>), aur count usi se derive karo (ya cache karo 10s TTL par).</p>
+        <p><b>Say this:</b> “Model the units, derive the count. Never model the count and try to derive the units.”</p>
+      </div>
+    </details>
+    <details><summary><span class="qn">Q6</span>Paise ko database me kaise store karoge?</summary>
+      <div class="ans">
+        <p class="hin"><code class="i">BIGINT</code> me smallest unit (paise/cents) — ₹250.50 → <code class="i">25050</code>. Kabhi <code class="i">FLOAT</code>/<code class="i">DOUBLE</code> nahi, kyunki <code class="i">0.1 + 0.2 ≠ 0.3</code> aur finance me ye audit failure hai. <code class="i">DECIMAL</code> bhi chalega par integer arithmetic tez aur simple hai. Currency code alag column me rakho.</p>
+      </div>
+    </details>
+    <details><summary><span class="qn">Q7</span>Booking ke liye kaunse indexes banaoge?</summary>
+      <div class="ans">
+        <p class="hin">(1) <code class="i">UNIQUE(event_id, resource_id)</code> — correctness ka index. (2) Partial index <code class="i">ON inventory_unit(event_id) WHERE status='AVAILABLE'</code> — seat map query ke liye, aur ye chhota rehta hai. (3) <code class="i">(hold_expires_at) WHERE status='HELD'</code> — sweeper ke liye. (4) <code class="i">booking(user_id, created_at DESC)</code> — “meri bookings”. (5) <code class="i">UNIQUE(idempotency_key)</code>.</p>
+        <p class="hin">Har extra index write ko slow karta hai — sirf woh banao jinke liye actual query hai.</p>
+      </div>
+    </details>
+    <details><summary><span class="qn">Q8</span>User payment page par tab band kar de toh seat ka kya hoga?</summary>
+      <div class="ans">
+        <p class="hin">Hold ka TTL hai (~7 min). Do mechanisms use hote hain: Redis key apne aap expire ho jaati hai (fast path), aur ek DB sweeper har 30s expired holds ko <code class="i">AVAILABLE</code> kar deta hai (safety net). Dono isliye kyunki Redis eviction guaranteed nahi hai — key evict ho gayi toh DB me seat hamesha ke liye <code class="i">HELD</code> reh jaati.</p>
+      </div>
+    </details>
+  </div>
+
+  <!-- ---------- SDE 2 ---------- -->
+  <div id="sde2" class="panel" hidden>
+    <details><summary><span class="qn">Q9</span>Booking ko ek hi API call me kyun nahi kar dete?</summary>
+      <div class="ans">
+        <p class="hin">Kyunki us call ke andar payment gateway ka network call aayega, jo 2–30 second le sakta hai. Agar us dauraan DB row lock hai toh poora show freeze — 300 seats ka inventory ek slow payment ki wajah se blocked.</p>
+        <p class="hin">Isliye do chhote transactions: <b>hold</b> (fast, reversible) aur <b>confirm</b> (fast, final), beech me ek lock-free gap jisme payment hota hai.</p>
+        <p><b>Say this:</b> “Never hold a database lock across an external network call. That single rule shapes the entire API.”</p>
+      </div>
+    </details>
+    <details><summary><span class="qn">Q10</span>Hotel booking me date-range overlap kaise handle karoge?</summary>
+      <div class="ans">
+        <p class="hin">Range ko store mat karo — usse <b>discrete rows me todo</b>. <code class="i">room_night(room_id, stay_date)</code> with composite primary key. 12–15 Sep ki booking = 3 rows (12, 13, 14). Ab agar koi 13–16 book kare toh 13 aur 14 par PK clash hoga aur transaction fail ho jaayegi.</p>
+        <p class="hin">Alternative (Postgres-specific): <code class="i">EXCLUDE USING gist (room_id WITH =, daterange WITH &amp;&amp;)</code> — ye bhi correct hai par portable nahi.</p>
+        <p><b>Say this:</b> “Turn the interval problem into a discrete-key problem and let the primary key do the concurrency control.”</p>
+      </div>
+    </details>
+    <details><summary><span class="qn">Q11</span>Payment ke baad booking confirm karte waqt service crash ho gayi. Recovery?</summary>
+      <div class="ans">
+        <p class="hin">Isiliye <b>saga log</b> durable hota hai. Har step ke baad DB me state likhi jaati hai. Ek recovery worker un sagas ko dhoondhta hai jo N minute se <code class="i">PAYMENT_CAPTURED</code> par atke hain, aur do me se ek karta hai: aage badha ke confirm kar deta hai (agar hold abhi valid hai), ya refund compensation chala deta hai.</p>
+        <p class="hin">In-memory compensation stack crash-safe nahi hai — isliye saga state <b>database me</b> honi chahiye.</p>
+      </div>
+    </details>
+    <details><summary><span class="qn">Q12</span>Outbox pattern kya solve karta hai?</summary>
+      <div class="ans">
+        <p class="hin"><b>Dual-write problem.</b> <code class="i">db.save()</code> ke baad <code class="i">kafka.send()</code> — dono alag systems hain, atomically nahi ho sakte. DB commit hua aur Kafka publish fail — SMS kabhi nahi jaayega.</p>
+        <p class="hin">Fix: event ko <b>usi transaction me</b> <code class="i">outbox</code> table me likho. Ek alag poller usse padh ke Kafka par bhejta hai. Ab ya dono likhe jaate hain ya koi nahi. Delivery <i>at-least-once</i> hai, isliye consumers ko idempotent banana zaroori hai.</p>
+      </div>
+    </details>
+    <details><summary><span class="qn">Q13</span>Seat map cache karoge? Stale data ka kya?</summary>
+      <div class="ans">
+        <p class="hin">Haan, par sirf <b>2 second TTL</b> ke saath, aur booking event par explicit invalidation. Aur sabse important — UI par honestly likho “final availability is confirmed at checkout”. Isse staleness bug nahi, documented behaviour ban jaata hai.</p>
+        <p class="hin">Stampede se bachne ke liye <b>request coalescing</b>: cache miss par Redis lock se sirf ek thread DB jaaye, baaki stale serve karein. Plus TTL par ±20% jitter.</p>
+      </div>
+    </details>
+    <details><summary><span class="qn">Q14</span>Multiple pods par <code class="i">@Scheduled</code> sweeper — problem?</summary>
+      <div class="ans">
+        <p class="hin">6 pods = 6 sweepers ek saath chalenge, ek dusre se ladenge, DB par bekaar load. Fix: <b>ShedLock</b> (<code class="i">@SchedulerLock</code>) — ek shared lock jo ensure karta hai ki har tick par sirf ek instance chale.</p>
+        <p class="hin">Plus query me <code class="i">FOR UPDATE SKIP LOCKED</code> lagao taaki agar do workers overlap bhi kar jaayein toh ek dusre ka wait na karein, bas alag rows utha lein.</p>
+      </div>
+    </details>
+    <details><summary><span class="qn">Q15</span>Hold TTL 7 minute hi kyun? 2 ya 30 kyun nahi?</summary>
+      <div class="ans">
+        <p class="hin">Guess se nahi, <b>data se</b>. <code class="i">payment_completion_duration</code> ka p95 dekho aur usse ~2× rakho. India me UPI + OTP typically 90–150s leta hai, toh 7 min comfortable buffer hai.</p>
+        <p class="hin">Bahut chhota (2 min) → genuine users OTP me hi fail ho jaate hain. Bahut bada (30 min) → scalpers inventory block karke resale karte hain. High-demand shows par TTL ghata ke 4 min kar do, aur ye <b>config</b> hona chahiye, hardcoded nahi.</p>
+      </div>
+    </details>
+    <details><summary><span class="qn">Q16</span>Naya domain (bus booking) add karna ho toh kitna code badlega?</summary>
+      <div class="ans">
+        <p class="hin">Ek nayi class: <code class="i">BusSeatAllocator implements InventoryAllocator</code>, <code class="i">@Component</code> annotation ke saath. Bas. Spring usse automatically <code class="i">List&lt;InventoryAllocator&gt;</code> me inject kar dega aur registry khud build ho jaayegi.</p>
+        <p class="hin"><b>Zero existing files modified.</b> Ye Open/Closed principle ka live proof hai — aur yahi jawab interviewer sunna chahta hai.</p>
+      </div>
+    </details>
+  </div>
+
+  <!-- ---------- SDE 3 ---------- -->
+  <div id="sde3" class="panel" hidden>
+    <details><summary><span class="qn">Q17</span>Redis lock lene ke baad process GC pause me chala gaya, lock expire ho gaya, aur doosre ne le liya. Ab?</summary>
+      <div class="ans">
+        <p class="hin">Ye Redlock ki classic criticism hai (Martin Kleppmann). Distributed lock <b>akela correctness guarantee nahi de sakta</b> — kyunki lock hone aur kaam karne ke beech unbounded pause aa sakta hai.</p>
+        <p class="hin">Do fixes: (1) <b>Fencing token</b> — har lock ke saath monotonically increasing number do, aur storage layer purane token wali writes reject kare. (2) Behtar: <b>correctness ke liye lock par depend hi mat karo</b> — Redis sirf fast-reject ke liye rakho, aur asli guarantee database ke conditional update + unique constraint se lo.</p>
+        <p><b>Say this:</b> “I treat Redis as an optimisation, not a correctness mechanism. If Redis is completely wrong, my system gets slower, never incorrect.”</p>
+      </div>
+    </details>
+    <details><summary><span class="qn">Q18</span>Booking system me CAP kahan apply hota hai?</summary>
+      <div class="ans">
+        <p class="hin">Ek hi jawab poore system par nahi lagta — <b>path ke hisaab se alag</b> hai:</p>
+        <p class="hin"><b>Inventory/booking = CP.</b> Partition me availability sacrifice karo. Booking fail hona acceptable hai; double booking nahi. Isliye single-region writes with synchronous replication.</p>
+        <p class="hin"><b>Search/browse = AP.</b> Stale results dikhana blank page se behtar hai. Async replication, eventual consistency.</p>
+        <p><b>Say this:</b> “CAP is a per-operation choice, not a per-system one. Search is AP, inventory is CP, and I'll pay the latency cost only where correctness demands it.”</p>
+      </div>
+    </details>
+    <details><summary><span class="qn">Q19</span>Multi-region deployment — inventory ka kya karoge?</summary>
+      <div class="ans">
+        <p class="hin">Inventory par multi-master <b>mat</b> karo — cross-region consensus par har booking me 100ms+ lagega, aur conflict resolution me double booking ka risk hai.</p>
+        <p class="hin">Sahi approach: <b>inventory ko geographically partition karo</b>. Har event ka ek “home region” ho (jahan venue hai), aur us event ke saare writes wahin jaayein. Reads har region me replicate ho. Ye natural hai — Bangalore ka movie show mostly Bangalore se book hota hai.</p>
+        <p class="hin">Region failure par: read-only degraded mode, ya failover ke saath explicit RPO/RTO acceptance. Split-brain se bachne ke liye manual/quorum-based failover.</p>
+      </div>
+    </details>
+    <details><summary><span class="qn">Q20</span>Exactly-once delivery guarantee karoge?</summary>
+      <div class="ans">
+        <p class="hin">Exactly-once <i>delivery</i> distributed systems me possible nahi hai — ye Two Generals problem hai. Jo possible hai woh hai <b>at-least-once delivery + idempotent consumer = effectively-once processing</b>.</p>
+        <p class="hin">Practically: har event me unique <code class="i">eventId</code>, consumer usse ek dedupe store (Redis SETNX ya DB unique constraint) me check kare. Kafka ka transactional producer + <code class="i">read_committed</code> isolation broker ke andar exactly-once deta hai, par jaise hi tum external system (SMS gateway) chhute ho, guarantee toot jaati hai.</p>
+      </div>
+    </details>
+    <details><summary><span class="qn">Q21</span>Deadlock kaise rokoge jab user multiple seats ek saath book kare?</summary>
+      <div class="ans">
+        <p class="hin"><b>Deterministic lock ordering.</b> Sab clients seats ko hamesha same order me lock karein — ID ascending. Code me bas <code class="i">unitIds.stream().sorted()</code>.</p>
+        <p class="hin">Bina iske: A locks [5,9], B locks [9,5] — dono ek dusre ka wait karenge. Sorting ke baad dono 5 pehle lenge, ek jeetega, doosra wait karega, deadlock <b>structurally impossible</b>.</p>
+        <p class="hin">Backup: DB me <code class="i">lock_timeout</code> set karo, aur deadlock victim ko retry with jittered backoff.</p>
+      </div>
+    </details>
+    <details><summary><span class="qn">Q22</span>Ek show ka shard 40% traffic le raha hai. Kya karoge?</summary>
+      <div class="ans">
+        <p class="hin">Pehle accept karo ki ye <b>logically unavoidable</b> hai — ek show ki seats ek jagah honi hi chahiye, warna har booking distributed transaction ban jaayega.</p>
+        <p class="hin">Toh optimize karo: (1) <b>Virtual buckets</b> — event ko 4096 buckets par map karo, buckets ko shards par; hot bucket ko bina resharding move kar sakte ho. (2) <b>Dedicated shard</b> blockbuster events ke liye — blast radius contain. (3) Us shard ke aage aggressive Redis fast-reject taaki 99% requests DB tak pahunche hi na. (4) <b>Admission control</b> — waiting room se traffic ko backend capacity par cap kar do.</p>
+        <p><b>Say this:</b> “I'd contain it rather than eliminate it. Isolation beats redistribution when the hotspot is inherent to the domain.”</p>
+      </div>
+    </details>
+    <details><summary><span class="qn">Q23</span>Payment ho gaya par confirm fail. Compensation (refund) bhi fail. Ab?</summary>
+      <div class="ans">
+        <p class="hin">Saga ko <b>dead-letter queue</b> me daalo aur turant alert karo — kisi ka asli paisa phansa hai, ye chupchaap swallow karne wali cheez nahi hai.</p>
+        <p class="hin">Phir: bounded retries with exponential backoff (refund APIs aksar transiently down hote hain), ek reconciliation job jo daily PG statements ko internal bookings se match kare, aur ops team ke liye manual resolution console. Customer ko proactively inform karo — usse support ticket khulne se pehle.</p>
+        <p><b>Say this:</b> “Every saga needs a terminal manual-intervention path. Silence is the worst possible outcome when money is stuck.”</p>
+      </div>
+    </details>
+    <details><summary><span class="qn">Q24</span>Kaise prove karoge ki tumhara system double-book nahi karta?</summary>
+      <div class="ans">
+        <p class="hin">Assertion se nahi, <b>evidence</b> se — teen layers:</p>
+        <p class="hin"><b>1. Structural:</b> <code class="i">UNIQUE(event_id, resource_id)</code>. Database physically do bookings allow hi nahi kar sakta, chahe application me kitne bhi bugs hon.</p>
+        <p class="hin"><b>2. Test:</b> Jepsen-style concurrency test — 1000 threads, ek hi seat, assert karo ki exactly ek success mila. Ye CI me chale, har commit par.</p>
+        <p class="hin"><b>3. Runtime:</b> Ek continuous invariant checker jo periodically <code class="i">GROUP BY (event_id, resource_id) HAVING count(*) &gt; 1</code> chalaye. Ye counter hamesha <b>zero</b> hona chahiye — non-zero par immediate page.</p>
+        <p><b>Say this:</b> “Constraint for prevention, chaos test for confidence, invariant monitor for proof. I don't trust code review to guarantee correctness.”</p>
+      </div>
+    </details>
+  </div>
+</div>
+
+<!-- ===================== LIVE FLOW ===================== -->
+<section id="flow" class="chapter">
+  <span class="num">Live</span>
+  <h2>Ek booking request ka safar — chalake dekho</h2>
+  <p class="tag">Upar jo bhi padha, ye uska ek animation hai. <b>Play booking</b> se happy path chalega. <b>Race two users</b> se do log ek hi seat par ladenge aur dekhoge ki double booking exactly kahan ruk jaati hai.</p>
+</section>
+
+<div class="stage-wrap">
+  <div class="stage-bar">
+    <button class="btn go" id="btnPlay">▶ Play booking</button>
+    <button class="btn race" id="btnRace">⚔ Race two users</button>
+    <button class="btn" id="btnReset">↺ Reset</button>
+    <span class="status" id="stageStatus">idle · seat B3 is AVAILABLE</span>
+  </div>
+
+  <div class="stage">
+    <div class="track" id="track">
+      <div class="nodes">
+        <div class="node" id="n-client"><span class="ic">📱</span><span class="nm">Client</span></div>
+        <div class="node" id="n-gateway"><span class="ic">🛡</span><span class="nm">API Gateway</span></div>
+        <div class="node" id="n-booking"><span class="ic">⚙</span><span class="nm">Booking Svc</span></div>
+        <div class="node" id="n-redis"><span class="ic">⚡</span><span class="nm">Redis lock</span></div>
+        <div class="node" id="n-db"><span class="ic">🗄</span><span class="nm">PostgreSQL</span></div>
+        <div class="node" id="n-pay"><span class="ic">💳</span><span class="nm">Payment GW</span></div>
+        <div class="node" id="n-kafka"><span class="ic">📨</span><span class="nm">Kafka outbox</span></div>
+        <div class="node" id="n-notify"><span class="ic">✉</span><span class="nm">Notifier</span></div>
+      </div>
+
+      <div class="seatmap">
+        <h4>Screen this way — show #4412</h4>
+        <div class="seats" id="seats"></div>
+      </div>
+
+      <div class="packet" id="pkA"></div>
+      <div class="packet b" id="pkB"></div>
+    </div>
+
+    <div class="log">
+      <h4>Request log</h4>
+      <div id="logBody"></div>
+    </div>
+  </div>
+</div>
+
+<div class="stub" style="margin-top:20px">
+  <div class="side problem">
+    <h3><i class="dot"></i>Race mode me kya dekhna hai <span class="role">WATCH</span></h3>
+    <ul class="tight">
+      <li>Dono users gateway aur booking service tak <b>saath</b> pahunchte hain — koi rukawat nahi.</li>
+      <li>Divergence <b>Redis par</b> hoti hai: <code class="i">SET NX</code> me se sirf ek ko <code class="i">true</code> milta hai.</li>
+      <li>User B ko <code class="i">409</code> milta hai <b>bina database ko chhue</b> — yahi Redis ka asli faayda hai.</li>
+      <li>Agar Redis fail bhi ho jaata aur dono DB tak pahunchte, tab bhi <code class="i">UPDATE … WHERE status='AVAILABLE'</code> me se ek ko <code class="i">0 rows</code> milta.</li>
+    </ul>
+  </div>
+  <div class="perf"></div>
+  <div class="side solution">
+    <h3><i class="dot"></i>Seat ke teen rang <span class="role">STATE</span></h3>
+    <ul class="tight">
+      <li><b style="color:var(--free)">Green — AVAILABLE.</b> Row exist karti hai, status <code class="i">AVAILABLE</code>, koi hold nahi.</li>
+      <li><b style="color:var(--held)">Amber — HELD.</b> Redis key set hai (7 min TTL) aur DB row par <code class="i">hold_id</code> + <code class="i">hold_expires_at</code>. Reversible hai.</li>
+      <li><b style="color:var(--booked)">Rose — BOOKED.</b> Payment capture ho chuka, DB me <code class="i">BOOKED</code>, outbox event likha ja chuka. Ab sirf cancel + refund ka raasta hai.</li>
+      <li>Amber par timer chal raha hai. User ne pay nahi kiya toh sweeper isse wapas green kar dega — <b>inventory kabhi leak nahi hoti</b>.</li>
+    </ul>
+  </div>
+</div>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Booking system design sheet — HLD + LLD, Java 21 / Spring Boot 3</span>
+    <span>14 topics · 24 mock questions · movie, hotel, flight, restaurant</span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------- Mock Q&A tabs ---------- */
+  var tabs = document.querySelectorAll('.tabs button');
+  tabs.forEach(function (tab) {
+    tab.addEventListener('click', function () {
+      tabs.forEach(function (t) {
+        t.setAttribute('aria-selected', 'false');
+        document.getElementById(t.dataset.panel).hidden = true;
+      });
+      tab.setAttribute('aria-selected', 'true');
+      document.getElementById(tab.dataset.panel).hidden = false;
+    });
+  });
+
+  /* ---------- Seat map ---------- */
+  var SEAT_ROWS = ['A', 'B', 'C'];
+  var TARGET = 'B3';
+  var seatsEl = document.getElementById('seats');
+  var preBooked = ['A2', 'A6', 'B7', 'C1', 'C2', 'C8'];
+
+  function renderSeats() {
+    seatsEl.innerHTML = '';
+    SEAT_ROWS.forEach(function (row) {
+      for (var i = 1; i <= 8; i++) {
+        var label = row + i;
+        var el = document.createElement('div');
+        el.className = 'seat ' + (preBooked.indexOf(label) >= 0 ? 'booked' : 'free');
+        el.id = 'seat-' + label;
+        el.textContent = label;
+        seatsEl.appendChild(el);
+      }
+    });
+  }
+
+  function setSeatState(label, state) {
+    var el = document.getElementById('seat-' + label);
+    if (el) el.className = 'seat ' + state;
+  }
+
+  /* ---------- Log ---------- */
+  var logBody = document.getElementById('logBody');
+  var clock = 0;
+
+  function writeLog(text, kind) {
+    clock += Math.floor(Math.random() * 28) + 9;
+    var line = document.createElement('div');
+    line.className = 'l' + (kind ? ' ' + kind : '');
+    line.innerHTML = '<span class="tm">t+' + String(clock).padStart(4, '0') + 'ms</span>  ' + text;
+    logBody.appendChild(line);
+    logBody.parentElement.scrollTop = logBody.parentElement.scrollHeight;
+  }
+
+  /* ---------- Packet movement ---------- */
+  var track = document.getElementById('track');
+  var packets = { A: document.getElementById('pkA'), B: document.getElementById('pkB') };
+
+  function centerOf(nodeId) {
+    var node = document.getElementById(nodeId).getBoundingClientRect();
+    var base = track.getBoundingClientRect();
+    return {
+      x: node.left - base.left + node.width / 2,
+      y: node.top - base.top + node.height / 2
+    };
+  }
+
+  function movePacket(who, nodeId, dead) {
+    var p = packets[who];
+    var c = centerOf(nodeId);
+    p.style.opacity = '1';
+    p.style.left = c.x + 'px';
+    p.style.top = c.y + 'px';
+    p.classList.toggle('dead', !!dead);
+  }
+
+  function lightNode(nodeId, mode) {
+    var el = document.getElementById(nodeId);
+    el.classList.remove('on', 'err', 'hold');
+    if (mode) el.classList.add(mode);
+  }
+
+  /* ---------- Scenarios ---------- */
+  // step = { who, node, log, kind, nodeMode, seat, status }
+  var HAPPY = [
+    { who: 'A', node: 'n-client', nodeMode: 'on', log: 'User taps seat <b>B3</b> — POST /v1/holds', status: 'holding…' },
+    { who: 'A', node: 'n-gateway', nodeMode: 'on', log: 'Gateway: authN ok · rate-limit ok · Idempotency-Key c1f4…9ab2' },
+    { who: 'A', node: 'n-booking', nodeMode: 'on', log: 'acquireInventoryHold(eventId=4412, unitIds=[B3])' },
+    { who: 'A', node: 'n-redis', nodeMode: 'on', log: 'SET hold:4412:B3 &lt;holdId&gt; NX PX 420000 → <b>OK</b>', kind: 'ok' },
+    { who: 'A', node: 'n-db', nodeMode: 'on', log: "UPDATE inventory_unit SET status='HELD' … WHERE status='AVAILABLE'" },
+    { who: 'A', node: 'n-db', nodeMode: 'on', log: '<b>1 row updated</b> — requested 1, won 1 ✓', kind: 'ok', seat: ['B3', 'held'], status: 'B3 is HELD · expires in 7:00' },
+    { who: 'A', node: 'n-client', nodeMode: 'on', log: '201 Created { holdId, expiresAt, amountMinor: 45000 }', kind: 'ok' },
+    { who: 'A', node: 'n-pay', nodeMode: 'hold', log: 'capturePayment ₹450.00 — <b>no DB lock held here</b>', kind: 'warn' },
+    { who: 'A', node: 'n-pay', nodeMode: 'on', log: 'Payment captured · receipt pay_R7k2 · 2,140ms', kind: 'ok' },
+    { who: 'A', node: 'n-booking', nodeMode: 'on', log: 'confirmBookingAndEnqueueEvent(hold, receipt)' },
+    { who: 'A', node: 'n-db', nodeMode: 'on', log: "HELD → BOOKED  +  outbox row — <b>same transaction</b>", kind: 'ok', seat: ['B3', 'booked'], status: 'B3 is BOOKED' },
+    { who: 'A', node: 'n-kafka', nodeMode: 'on', log: 'Outbox poller → booking.confirmed (key = bookingId)' },
+    { who: 'A', node: 'n-notify', nodeMode: 'on', log: 'SMS + email sent · ticket BK-88301', kind: 'ok' },
+    { who: 'A', node: 'n-client', nodeMode: 'on', log: '201 { status: "CONFIRMED" } — <b>1 seat, 1 ticket</b> ✓', kind: 'ok', status: 'done · 1 booking, 0 double bookings' }
+  ];
+
+  var RACE = [
+    { who: 'A', node: 'n-client', nodeMode: 'on', log: '<b>User A</b> taps seat B3', status: 'two users, one seat…' },
+    { who: 'B', node: 'n-client', nodeMode: 'on', log: '<b>User B</b> taps seat B3 — same millisecond', kind: 'warn' },
+    { who: 'A', node: 'n-gateway', nodeMode: 'on', log: 'A → gateway ok' },
+    { who: 'B', node: 'n-gateway', nodeMode: 'on', log: 'B → gateway ok — dono andar aa gaye' },
+    { who: 'A', node: 'n-booking', nodeMode: 'on', log: 'A: acquireInventoryHold([B3])' },
+    { who: 'B', node: 'n-booking', nodeMode: 'on', log: 'B: acquireInventoryHold([B3]) — <b>parallel thread</b>', kind: 'warn' },
+    { who: 'A', node: 'n-redis', nodeMode: 'on', log: 'A: SET hold:4412:B3 NX → <b>true</b> (jeet gaya)', kind: 'ok' },
+    { who: 'B', node: 'n-redis', nodeMode: 'err', log: 'B: SET hold:4412:B3 NX → <b>false</b> (key exists)', kind: 'bad' },
+    { who: 'B', node: 'n-client', nodeMode: 'err', log: 'B: <b>409 UNIT_NOT_AVAILABLE</b> — DB tak gaya hi nahi', kind: 'bad', dead: true },
+    { who: 'A', node: 'n-db', nodeMode: 'on', log: "A: UPDATE … WHERE status='AVAILABLE' → 1 row", kind: 'ok', seat: ['B3', 'held'], status: 'A holds B3 · B rejected in 0.4ms' },
+    { who: 'A', node: 'n-db', nodeMode: 'on', log: 'Agar Redis down hota: B ko yahan <b>0 rows</b> milte', kind: 'warn' },
+    { who: 'A', node: 'n-db', nodeMode: 'on', log: 'Aur agar wo bhi bypass hota: <b>UNIQUE(event_id, resource_id)</b> rokta', kind: 'warn' },
+    { who: 'A', node: 'n-booking', nodeMode: 'on', log: 'A: payment → confirm', seat: ['B3', 'booked'] },
+    { who: 'A', node: 'n-client', nodeMode: 'on', log: '<b>Result: 1 seat, 1 ticket, 1 charge.</b> Zero double booking ✓', kind: 'ok', status: 'done · defense in depth worked' }
+  ];
+
+  /* ---------- Runner ---------- */
+  var timers = [];
+  var running = false;
+  var statusEl = document.getElementById('stageStatus');
+  var reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var STEP_MS = reduced ? 420 : 780;
+
+  function clearAll() {
+    timers.forEach(clearTimeout);
+    timers = [];
+    running = false;
+    clock = 0;
+    logBody.innerHTML = '';
+    ['n-client', 'n-gateway', 'n-booking', 'n-redis', 'n-db', 'n-pay', 'n-kafka', 'n-notify']
+      .forEach(function (id) { lightNode(id, null); });
+    packets.A.style.opacity = '0';
+    packets.B.style.opacity = '0';
+    packets.A.classList.remove('dead');
+    packets.B.classList.remove('dead');
+    renderSeats();
+    statusEl.textContent = 'idle · seat B3 is AVAILABLE';
+  }
+
+  function run(steps, label) {
+    clearAll();
+    running = true;
+    statusEl.textContent = label;
+
+    steps.forEach(function (step, i) {
+      timers.push(setTimeout(function () {
+        // purani lights bujha do, sirf current node jalao
+        ['n-client', 'n-gateway', 'n-booking', 'n-redis', 'n-db', 'n-pay', 'n-kafka', 'n-notify']
+          .forEach(function (id) { if (id !== step.node) lightNode(id, null); });
+
+        lightNode(step.node, step.nodeMode || 'on');
+        movePacket(step.who, step.node, step.dead);
+        writeLog(step.log, step.kind);
+        if (step.seat) setSeatState(step.seat[0], step.seat[1]);
+        if (step.status) statusEl.textContent = step.status;
+
+        if (i === steps.length - 1) running = false;
+      }, i * STEP_MS));
+    });
+  }
+
+  document.getElementById('btnPlay').addEventListener('click', function () {
+    run(HAPPY, 'running · happy path');
+  });
+  document.getElementById('btnRace').addEventListener('click', function () {
+    run(RACE, 'running · race condition');
+  });
+  document.getElementById('btnReset').addEventListener('click', clearAll);
+
+  renderSeats();
+})();
+</script>
+</body>
+</html>

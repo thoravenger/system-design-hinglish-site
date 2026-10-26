@@ -1,0 +1,1102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLM Evaluation and Prompt Platform: HLD and LLD</title>
+
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/themes/prism-tomorrow.min.css">
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-core.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-clike.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-java.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-sql.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-json.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/prismjs@1.29.0/components/prism-bash.min.js"></script>
+
+<style>
+  :root{--bg:#fff;--fg:#1c1e21;--muted:#5a6472;--line:#d8dee6;--accent:#0e7490;--code-bg:#1e2430;--th-bg:#eef2f7;--note-bg:#f0fdfa;--diagram-bg:#fbfcfe;}
+  *{box-sizing:border-box;}html{-webkit-text-size-adjust:100%;}
+  body{margin:0;background:var(--bg);color:var(--fg);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;font-size:16px;line-height:1.6;}
+  .page{max-width:1080px;margin:0 auto;padding:32px 20px 96px;}
+  header.doc-header{border-bottom:3px solid var(--fg);padding-bottom:16px;margin-bottom:32px;}
+  header.doc-header h1{font-size:2rem;line-height:1.25;margin:0 0 8px;letter-spacing:-0.01em;}
+  .doc-meta{color:var(--muted);font-size:0.95rem;margin:0;}
+  h2{font-size:1.5rem;margin:48px 0 12px;padding-bottom:6px;border-bottom:1px solid var(--line);scroll-margin-top:16px;}
+  h3{font-size:1.18rem;margin:32px 0 10px;}
+  h4{font-size:1.02rem;margin:24px 0 8px;}
+  p{margin:10px 0;}ul,ol{margin:10px 0 10px 22px;padding:0;}li{margin:6px 0;}a{color:var(--accent);}
+  code{font-family:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,"Liberation Mono",monospace;font-size:0.88em;background:#eef2f7;color:#b3005e;padding:1px 5px;border-radius:4px;}
+  pre[class*="language-"]{background:var(--code-bg)!important;border-radius:8px;padding:14px 16px;font-size:0.82rem;line-height:1.55;margin:14px 0;overflow-x:auto;border:1px solid #0f141c;}
+  pre[class*="language-"] code{background:none;color:inherit;padding:0;font-size:inherit;border-radius:0;}
+  .table-wrap{overflow-x:auto;margin:16px 0;border:1px solid var(--line);border-radius:8px;}
+  table{border-collapse:collapse;width:100%;font-size:0.92rem;}
+  th,td{border:1px solid var(--line);padding:8px 11px;text-align:left;vertical-align:top;}
+  thead th{background:var(--th-bg);font-weight:600;white-space:nowrap;}
+  tbody tr:nth-child(even){background:#fafbfd;}
+  td code{white-space:nowrap;}
+  .note{background:var(--note-bg);border-left:4px solid var(--accent);border-radius:0 8px 8px 0;padding:10px 16px;margin:16px 0;}
+  .toc{background:var(--note-bg);border:1px solid var(--line);border-radius:8px;padding:16px 20px;margin:0 0 24px;}
+  .toc h2{margin:0 0 8px;font-size:1.05rem;border:none;padding:0;}
+  .toc ol{margin:0 0 0 20px;}.toc a{text-decoration:none;}.toc a:hover{text-decoration:underline;}
+  hr{border:none;border-top:1px solid var(--line);margin:40px 0;}
+  .qa{border-top:1px solid var(--line);padding-top:14px;margin-top:14px;}
+  .qa:first-of-type{border-top:none;padding-top:0;margin-top:0;}.qa h3{margin-top:0;}
+  .diagram-label{font-size:0.8rem;text-transform:uppercase;letter-spacing:0.06em;color:var(--muted);margin:18px 0 6px;font-weight:600;}
+  .mermaid{background:var(--diagram-bg);border:1px solid var(--line);border-radius:8px;padding:16px;margin:14px 0;text-align:center;overflow-x:auto;}
+  pre[class*="language-java"] .token.keyword,pre[class*="language-sql"] .token.keyword{color:#c792ea;}
+  pre[class*="language-java"] .token.string,pre[class*="language-sql"] .token.string{color:#c3e88d;}
+  pre[class*="language-java"] .token.comment,pre[class*="language-sql"] .token.comment{color:#7c8a9c;font-style:italic;}
+  pre[class*="language-java"] .token.function{color:#82aaff;}
+  pre[class*="language-java"] .token.class-name{color:#ffcb6b;}
+  pre[class*="language-java"] .token.number{color:#f78c6c;}
+  pre[class*="language-java"] .token.annotation{color:#ffcb6b;}
+</style>
+</head>
+<body>
+<div id="sdh-libbar" style="position:relative;z-index:2147483000;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0;padding:8px 16px;background:#0f172a;color:#cbd5e1;font:600 13px/1.5 Inter,'Segoe UI',system-ui,-apple-system,sans-serif;border-bottom:2px solid #4f46e5;box-sizing:border-box;width:100%;text-align:left;letter-spacing:0"><a href="../../index.html" style="color:#fff;text-decoration:none;font-weight:800">SystemDesign<span style="color:#8b8cff">.hinglish</span></a><span style="opacity:.45">/</span><a href="../index.html" style="color:#fff;text-decoration:none">📚 Library</a><span style="opacity:.45">/</span><a href="../index.html#genai" style="color:#cbd5e1;text-decoration:none">GenAI &amp; AI</a><a href="../files/llm-evaluation-prompt-platform-hld-lld-original.html" download style="color:#a5b4fc;text-decoration:none;font-size:12px">⬇ Original</a><span style="margin-left:auto;font-size:11px;padding:2px 9px;border-radius:999px;border:1px solid #6366f1;color:#c7d2fe">📘 HTML ebook</span></div>
+<div class="page">
+
+<header class="doc-header">
+  <h1>LLM Evaluation and Prompt Platform: HLD and LLD</h1>
+  <p class="doc-meta">17 Sept 2026 · @Vv</p>
+</header>
+
+<nav class="toc">
+  <h2>Contents</h2>
+  <ol>
+    <li><a href="#s1">Context and requirements</a></li>
+    <li><a href="#s2">High-level design</a></li>
+    <li><a href="#s3">Prompt versioning and release gating</a></li>
+    <li><a href="#s4">Core flows</a></li>
+    <li><a href="#s5">Correctness and statistics of scoring</a></li>
+    <li><a href="#s6">Low-level design</a></li>
+    <li><a href="#s7">State machines</a></li>
+    <li><a href="#s8">Data model</a></li>
+    <li><a href="#s9">API design</a></li>
+    <li><a href="#s10">Judge model and scoring design</a></li>
+    <li><a href="#s11">Architecture decision records</a></li>
+    <li><a href="#s12">Scaling, failure modes, security and observability</a></li>
+    <li><a href="#s13">Interview questions and model answers</a></li>
+  </ol>
+</nav>
+
+<h2 id="s1">1. Context and requirements</h2>
+
+<p>The platform lets a team version prompts, run them against fixed test datasets, score the outputs automatically with a judge model, and block a release when answer quality drops. It is the safety net around an LLM feature, not the feature itself.</p>
+
+<p>Stack: Java 25 with Spring Boot 4.1 for the control plane, PostgreSQL for prompts, datasets and scores, Kafka for evaluation jobs, Redis for rate limits and short-lived cache, object storage for raw outputs, and an LLM provider behind an interface for the judge.</p>
+
+<h3>Functional requirements</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>ID</th><th>Requirement</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>F1</td><td>Store prompts as immutable versions</td><td>Every edit creates a new version</td></tr>
+    <tr><td>F2</td><td>Tag a version as candidate, stable or retired</td><td>One stable per prompt at a time</td></tr>
+    <tr><td>F3</td><td>Run a prompt version against a dataset</td><td>Async job with progress and results</td></tr>
+    <tr><td>F4</td><td>Score outputs automatically with a judge model</td><td>Rubric per dataset</td></tr>
+    <tr><td>F5</td><td>Compare two versions side by side</td><td>Per-case and aggregate</td></tr>
+    <tr><td>F6</td><td>Block a release when quality drops</td><td>CI gate with a stable policy</td></tr>
+    <tr><td>F7</td><td>Human review of a sample</td><td>Calibrate the judge</td></tr>
+    <tr><td>F8</td><td>Full audit of who changed what and when</td><td>Immutable history</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Non-functional requirements</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Quality</th><th>Target</th><th>Why it matters</th></tr></thead>
+  <tbody>
+    <tr><td>Reproducibility</td><td>Same prompt, dataset and judge model gives the same scores</td><td>A gate you cannot reproduce is not a gate</td></tr>
+    <tr><td>Immutability</td><td>Prompt versions and scores are append-only</td><td>Audit and rollback</td></tr>
+    <tr><td>Availability</td><td>99.9% for the read API and the gate check</td><td>The gate must not block releases on a flaky platform</td></tr>
+    <tr><td>Latency</td><td>Gate check p99 &lt; 2 minutes for a 200-case dataset</td><td>Developers run it on every push</td></tr>
+    <tr><td>Judge quality</td><td>Agreement with human labels &gt; 0.8 (Cohen's kappa)</td><td>A noisy judge is worse than no judge</td></tr>
+    <tr><td>Cost</td><td>&lt; $0.50 per full evaluation run</td><td>Runs on every change</td></tr>
+    <tr><td>Auditability</td><td>Every score traceable to a prompt version and judge run</td><td>Disputes and debugging</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Scale assumptions and capacity estimates</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Quantity</th><th>Value</th><th>How it is derived</th></tr></thead>
+  <tbody>
+    <tr><td>Prompts under management</td><td>5,000</td><td>Assumption</td></tr>
+    <tr><td>Versions per prompt</td><td>~50</td><td>Assumption</td></tr>
+    <tr><td>Datasets</td><td>500</td><td>Assumption</td></tr>
+    <tr><td>Cases per dataset</td><td>200–2,000</td><td>Assumption</td></tr>
+    <tr><td>Evaluation runs per day</td><td>~2,000</td><td>CI + manual + nightly</td></tr>
+    <tr><td>Judge calls per run</td><td>200–2,000</td><td>One per case</td></tr>
+    <tr><td>Judge calls per day</td><td>~1.5 million</td><td>Assumption</td></tr>
+    <tr><td>Average judge calls per second</td><td>~17</td><td>1,500,000 / 86,400 s</td></tr>
+    <tr><td>Peak judge calls per second</td><td>~200</td><td>10x average during CI bursts</td></tr>
+    <tr><td>Raw outputs stored per day</td><td>~40 GB</td><td>1.5M outputs x ~25 KB</td></tr>
+    <tr><td>Score rows per day</td><td>~9 million</td><td>~6 metrics per case</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>The control plane is small. The load is on the judge calls and on storing raw outputs cheaply. The design keeps judge calls batchable, retryable, and cacheable by content hash.</p>
+
+<h2 id="s2">2. High-level design</h2>
+
+<p>The platform is a control plane plus a set of async workers. The control plane owns prompts, datasets, runs and scores. Workers pull evaluation jobs from Kafka, call the LLM under test and the judge model, and write scores back. A gate service exposes one endpoint the CI pipeline calls; it returns PASS, FAIL, or NEEDS_REVIEW with the reason.</p>
+
+<div class="diagram-label">Architecture flow</div>
+<div class="mermaid">
+flowchart LR
+    DEV["Developer / CI"] --> GW["API gateway<br/>auth, rate limits"]
+    GW --> CP["Control plane<br/>prompts, datasets, runs"]
+    CP --> PDB[("PostgreSQL<br/>prompts, datasets, scores")]
+    CP --> S3[("Object storage<br/>raw outputs")]
+    CP --> KF[["Kafka<br/>evaluation jobs"]]
+    KF --> W1["Runner worker<br/>calls model under test"]
+    W1 --> TGT["Target LLM"]
+    W1 --> OUT["Store outputs"]
+    OUT --> S3
+    W1 --> KF2[["Kafka<br/>scoring jobs"]]
+    KF2 --> W2["Judge worker<br/>scores with judge model"]
+    W2 --> JUDGE["Judge LLM"]
+    W2 --> PDB
+    CP --> CACHE[("Redis<br/>judge cache")]
+    W2 --> CACHE
+    CP --> DASH["Dashboard<br/>trends and diffs"]
+    GATE["Gate service"] --> CP
+    CI["CI pipeline"] --> GATE
+    CP --> NOT["Slack / email<br/>alerts"]
+</div>
+
+<p>The target model and the judge model are separate deployments with separate quotas, so a slow target does not starve the judge. A run is a state machine: QUEUED → RUNNING → SCORED → GATED. Each transition writes an event so the dashboard can stream progress.</p>
+
+<h3>Components</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Component</th><th>Responsibility</th><th>Talks to</th></tr></thead>
+  <tbody>
+    <tr><td>API gateway</td><td>TLS, OAuth2, rate limits, tenant isolation</td><td>Control plane</td></tr>
+    <tr><td>Control plane</td><td>Prompts, versions, datasets, runs, comparisons</td><td>PostgreSQL, Kafka, storage</td></tr>
+    <tr><td>Prompt registry</td><td>Immutable versions, tags, aliases, rollback</td><td>PostgreSQL</td></tr>
+    <tr><td>Dataset service</td><td>Cases, splits, tags, rubric binding</td><td>PostgreSQL</td></tr>
+    <tr><td>Runner worker</td><td>Calls the model under test, stores raw outputs</td><td>Target LLM, storage, Kafka</td></tr>
+    <tr><td>Judge worker</td><td>Scores outputs with the judge model, caches by hash</td><td>Judge LLM, PostgreSQL, Redis</td></tr>
+    <tr><td>Gate service</td><td>Evaluates thresholds and returns a release decision</td><td>PostgreSQL</td></tr>
+    <tr><td>Human review UI</td><td>Blind review of a sample to calibrate the judge</td><td>PostgreSQL</td></tr>
+    <tr><td>Dashboard</td><td>Trends, diffs, per-case drill-down</td><td>PostgreSQL, object storage</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Technology choices</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Concern</th><th>Choice</th><th>Reason</th></tr></thead>
+  <tbody>
+    <tr><td>Control plane</td><td>Java 25, Spring Boot 4.1</td><td>Typed APIs, mature transaction management</td></tr>
+    <tr><td>Store</td><td>PostgreSQL</td><td>ACID for versions and scores; JSONB for flexible payloads</td></tr>
+    <tr><td>Raw outputs</td><td>Object storage (S3-compatible)</td><td>Cheap, versioned, one object per run</td></tr>
+    <tr><td>Jobs</td><td>Kafka with per-run partitions</td><td>Ordered per run, replayable, backpressure-aware</td></tr>
+    <tr><td>Judge cache</td><td>Redis keyed by SHA-256 of prompt+output+rubric</td><td>Cuts cost on repeated runs</td></tr>
+    <tr><td>Judge model</td><td>Stronger model than the target, pinned by version</td><td>Reproducibility across releases</td></tr>
+    <tr><td>Gate</td><td>Policy as code, versioned with the prompt</td><td>Reviewable and diffable</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="s3">3. Prompt versioning and release gating</h2>
+
+<p>A prompt is a named object. Each save creates an immutable version with a content hash. Versions are tagged with an environment: <code>candidate</code>, <code>stable</code> or <code>retired</code>. Exactly one version per prompt is <code>stable</code> at a time, enforced by a partial unique index.</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Concept</th><th>Meaning</th><th>Enforced by</th></tr></thead>
+  <tbody>
+    <tr><td>Prompt</td><td>Named container with an owner and a description</td><td>Unique name per tenant</td></tr>
+    <tr><td>Version</td><td>Immutable content plus parameters (model, temperature, max tokens)</td><td>Unique (prompt_id, content_hash)</td></tr>
+    <tr><td>Tag</td><td>Environment pointer: candidate, stable, retired</td><td>Partial unique index on (prompt_id, tag) where tag = 'stable'</td></tr>
+    <tr><td>Dataset</td><td>Cases plus a rubric and a split (dev, test, holdout)</td><td>Immutable once published</td></tr>
+    <tr><td>Run</td><td>One evaluation of a version against a dataset</td><td>Unique (version_id, dataset_id, judge_version)</td></tr>
+    <tr><td>Gate policy</td><td>Thresholds per metric, per dataset</td><td>Versioned in git and stored</td></tr>
+  </tbody>
+</table>
+</div>
+
+<div class="note">The holdout split is never used during development. It is scored only by the gate, once per release, so the score is not overfit to the prompt.</div>
+
+<h3>Default gate policy</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Metric</th><th>Baseline</th><th>Block if</th><th>Warn if</th></tr></thead>
+  <tbody>
+    <tr><td>Weighted score</td><td>stable version's score</td><td>drops &gt; 2%</td><td>drops &gt; 1%</td></tr>
+    <tr><td>Groundedness</td><td>4.60 / 5</td><td>below 4.50</td><td>below 4.55</td></tr>
+    <tr><td>Safety</td><td>4.90 / 5</td><td>any case below 4</td><td>any case below 4.5</td></tr>
+    <tr><td>Format validity</td><td>99.5%</td><td>below 99%</td><td>below 99.3%</td></tr>
+    <tr><td>Refusal rate on benign set</td><td>≤ 1%</td><td>above 2%</td><td>above 1.5%</td></tr>
+    <tr><td>Judge agreement</td><td>0.85 kappa</td><td>below 0.80</td><td>below 0.83</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Version pins for reproducibility</h3>
+
+<pre><code class="language-json">{
+  "promptVersionId": "p_9f2c1a-3b7d-4c9e-8f2a-1d6b0c7a4e33",
+  "contentHash": "sha256:5f4dcc3b5aa765d61d8327deb882cf99",
+  "model": { "name": "gpt-4.1-mini", "version": "2026-08-01" },
+  "temperature": 0.0,
+  "maxTokens": 1024,
+  "judgeVersionId": "j_1a2b3c-4d5e-6f70-8a9b-0c1d2e3f4051",
+  "judgeModel": { "name": "claude-sonnet-4.5", "version": "2026-07-15" },
+  "rubricId": "r_llm_support_v3"
+}</code></pre>
+
+<h2 id="s4">4. Core flows</h2>
+
+<h3>Run an evaluation</h3>
+
+<div class="mermaid">
+sequenceDiagram
+    actor D as Developer
+    participant API as Control plane
+    participant K as Kafka
+    participant R as Runner worker
+    participant TGT as Target LLM
+    participant J as Judge worker
+    participant JDG as Judge LLM
+    participant G as Gate service
+    D->>API: POST /v1/runs (version, dataset)
+    API->>API: persist run in QUEUED, snapshot pins
+    API->>K: emit RunQueued
+    K->>R: consume RunQueued
+    R->>TGT: call model per case (bounded concurrency)
+    TGT-->>R: outputs
+    R->>API: store raw outputs to object storage
+    R->>K: emit CaseScoredReady per case
+    K->>J: consume CaseScoredReady
+    J->>JDG: score output with rubric
+    JDG-->>J: structured score
+    J->>API: write scores
+    J->>K: emit CaseScored
+    K->>G: consume RunScored
+    G->>API: evaluate policy, set decision
+    API-->>D: GET /v1/runs/{id} returns decision
+</div>
+
+<h3>Gate check from CI</h3>
+
+<div class="mermaid">
+sequenceDiagram
+    participant CI as CI pipeline
+    participant GATE as Gate service
+    participant DB as PostgreSQL
+    participant NOT as Slack
+    CI->>GATE: POST /v1/gate/check (promptId, candidateVersionId)
+    GATE->>DB: load stable run and candidate run for holdout
+    GATE->>DB: read per-metric deltas
+    alt all thresholds met
+        GATE-->>CI: 200 PASS with score delta
+    else any blocker tripped
+        GATE-->>CI: 409 FAIL with reasons
+        GATE->>NOT: alert prompt owner
+    else judge agreement low or run missing
+        GATE-->>CI: 202 NEEDS_REVIEW
+    end
+</div>
+
+<h3>Human calibration of the judge</h3>
+
+<div class="mermaid">
+flowchart TD
+    A["Run Scored"] --> B["Sample N cases stratified by score"]
+    B --> C["Blind review UI shows case, output, rubric"]
+    C --> D["Reviewer labels 1-5 and flags"]
+    D --> E["Compute Cohen's kappa vs judge"]
+    E --> F{"kappa >= 0.8?"}
+    F -->|yes| G["Publish judge version as trusted"]
+    F -->|no| H["Inspect disagreements, refine rubric"]
+    H --> I["New judge version, re-score holdout"]
+    I --> F
+</div>
+
+<h2 id="s5">5. Correctness and statistics of scoring</h2>
+
+<p>A release gate is a measurement, so it must be reproducible and statistically meaningful. Three rules keep it honest: pins are frozen per run, judge output is structured, and the holdout score is reported with a confidence interval.</p>
+
+<h3>Reproducibility</h3>
+
+<ul>
+  <li>Every run pins the prompt content hash, model name and version, temperature, max tokens, judge version, and rubric.</li>
+  <li>Raw model outputs are stored verbatim, so scores can be recomputed without re-calling the target.</li>
+  <li>Judge calls are cached by <code>sha256(prompt + output + rubric + judgeVersion)</code>, so re-runs are cheaper and identical.</li>
+  <li>Structured output from the judge is validated against a JSON schema; a malformed score is retried once, then marked <code>UNSCORED</code> and excluded from aggregates with a visible count.</li>
+</ul>
+
+<h3>Confidence and noise</h3>
+
+<p>LLM judges are noisy. The gate uses a paired comparison on the same cases: candidate and stable are scored on the identical case set, and the decision uses a paired bootstrap over 1,000 resamples.</p>
+
+<pre><code class="language-java">public record GateDecision(boolean pass, boolean needsReview,
+                           double delta, double lowerBound, double upperBound,
+                           List&lt;String&gt; reasons) { }
+
+@Service
+public class PairedGate {
+
+    private final Random random = new Random(42); // seeded for reproducibility
+
+    public GateDecision decide(List&lt;Double&gt; candidate, List&lt;Double&gt; baseline,
+                               Policy policy) {
+        if (candidate.size() != baseline.size()) {
+            throw new IllegalArgumentException("paired sets must be equal size");
+        }
+        int n = candidate.size();
+        List&lt;Double&gt; deltas = new ArrayList&lt;&gt;(n);
+        for (int i = 0; i &lt; n; i++) {
+            deltas.add(candidate.get(i) - baseline.get(i));
+        }
+        double observed = mean(deltas);
+
+        List&lt;Double&gt; bootstrapped = new ArrayList&lt;&gt;(1000);
+        for (int b = 0; b &lt; 1000; b++) {
+            double sum = 0;
+            for (int i = 0; i &lt; n; i++) {
+                sum += deltas.get(random.nextInt(n));
+            }
+            bootstrapped.add(sum / n);
+        }
+        Collections.sort(bootstrapped);
+        double lower = bootstrapped.get(25);   // 2.5th percentile
+        double upper = bootstrapped.get(975);  // 97.5th percentile
+
+        List&lt;String&gt; reasons = new ArrayList&lt;&gt;();
+        if (observed &lt; -policy.maxDrop()) {
+            reasons.add("weighted score dropped %.2f%%".formatted(observed * 100));
+        }
+        if (lower &lt; -policy.maxDropWithConfidence()) {
+            reasons.add("lower bound of the drop is %.2f%%".formatted(lower * 100));
+        }
+        boolean pass = reasons.isEmpty();
+        return new GateDecision(pass, false, observed, lower, upper, reasons);
+    }
+
+    private double mean(List&lt;Double&gt; xs) {
+        return xs.stream().mapToDouble(Double::doubleValue).average().orElse(0);
+    }
+}</code></pre>
+
+<h3>Handling unscored cases</h3>
+
+<p>If more than 2% of cases fail to score, the run is marked <code>PARTIAL</code> and the gate returns NEEDS_REVIEW instead of PASS. This prevents a release passing on a run where the judge silently failed on the hard cases.</p>
+
+<h2 id="s6">6. Low-level design</h2>
+
+<h3>Package structure</h3>
+
+<pre><code class="language-bash">com.example.llmops
+├── api             PromptController, DatasetController, RunController,
+│                   GateController, DTOs, problem-detail errors
+├── prompt          PromptRegistry, PromptVersion, TagService, ContentHash
+├── dataset         DatasetService, Case, Split, Rubric
+├── run             RunOrchestrator, RunState, Pin, RunRepository
+├── runner          TargetClient (port), OpenAiTarget, AnthropicTarget,
+│                   RunnerWorker, OutputStore
+├── judge           JudgeClient (port), JudgeWorker, JudgeCache,
+│                   ScoreSchema, ScoreValidator
+├── gate            GateService, PairedGate, Policy, PolicyLoader
+├── review          ReviewSampler, ReviewController, KappaCalculator
+├── events          RunEventsPublisher, RunEventsConsumer
+└── stats           Bootstrap, ConfidenceInterval, StratifiedSampler</code></pre>
+
+<h3>Key classes</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Class</th><th>Responsibility</th><th>Key methods</th></tr></thead>
+  <tbody>
+    <tr><td>PromptRegistry</td><td>Creates immutable versions, moves tags</td><td>create, tag, stable</td></tr>
+    <tr><td>RunOrchestrator</td><td>Creates a run, snapshots pins, emits jobs</td><td>start, cancel, status</td></tr>
+    <tr><td>TargetClient (port)</td><td>One interface over model providers</td><td>complete, stream, cost</td></tr>
+    <tr><td>JudgeWorker</td><td>Scores one case with the judge, caches by hash</td><td>score, cacheKey</td></tr>
+    <tr><td>ScoreValidator</td><td>Validates judge JSON against schema</td><td>validate</td></tr>
+    <tr><td>PairedGate</td><td>Paired bootstrap gate decision</td><td>decide</td></tr>
+    <tr><td>Policy</td><td>Thresholds per metric and dataset</td><td>maxDrop, maxDropWithConfidence</td></tr>
+    <tr><td>ReviewSampler</td><td>Stratified sample for human calibration</td><td>sample</td></tr>
+    <tr><td>KappaCalculator</td><td>Cohen's kappa between judge and human</td><td>kappa</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Judge worker</h3>
+
+<pre><code class="language-java">@Service
+public class JudgeWorker {
+
+    private final JudgeClient judge;
+    private final JudgeCache cache;
+    private final ScoreValidator validator;
+    private final ScoreRepository scores;
+    private final ObjectMapper json;
+
+    public JudgeWorker(JudgeClient judge, JudgeCache cache, ScoreValidator validator,
+                       ScoreRepository scores, ObjectMapper json) {
+        this.judge = judge;
+        this.cache = cache;
+        this.validator = validator;
+        this.scores = scores;
+        this.json = json;
+    }
+
+    @Transactional
+    public void score(ScoringJob job) {
+        String key = cacheKey(job);
+        Optional&lt;JudgeScore&gt; hit = cache.get(key);
+        JudgeScore score = hit.orElseGet(() -&gt; {
+            String prompt = Rubric.render(job.rubric(), job.caseInput(), job.output());
+            String raw = judge.complete(prompt, job.judgeVersion()).text();
+            JudgeScore parsed = validator.validateOrThrow(raw);
+            cache.put(key, parsed, Duration.ofDays(30));
+            return parsed;
+        });
+        scores.insert(new ScoreRow(job.runId(), job.caseId(), job.judgeVersionId(),
+                                    score, job.outputHash(), Instant.now()));
+    }
+
+    private String cacheKey(ScoringJob job) {
+        String material = job.rubric().id() + "|" + job.outputHash() + "|"
+                        + job.judgeVersionId() + "|" + job.caseInputHash();
+        return "judge:" + Hashing.sha256Hex(material);
+    }
+}</code></pre>
+
+<h3>Gate service</h3>
+
+<pre><code class="language-java">@Service
+public class GateService {
+
+    private final RunRepository runs;
+    private final ScoreRepository scores;
+    private final PolicyLoader policies;
+    private final PairedGate gate;
+
+    public GateService(RunRepository runs, ScoreRepository scores,
+                       PolicyLoader policies, PairedGate gate) {
+        this.runs = runs;
+        this.scores = scores;
+        this.policies = policies;
+        this.gate = gate;
+    }
+
+    public GateDecision check(UUID promptId, UUID candidateVersionId) {
+        Run stable = runs.latestStableOnHoldout(promptId)
+                .orElseThrow(() -&gt; new NoStableBaselineException(promptId));
+        Run candidate = runs.latestOnHoldout(candidateVersionId)
+                .orElseThrow(() -&gt; new RunNotScoredException(candidateVersionId));
+
+        if (candidate.partialFraction() &gt; 0.02) {
+            return GateDecision.needsReview("more than 2% of cases unscored");
+        }
+
+        List&lt;Double&gt; a = scores.weightedByCase(candidate.id());
+        List&lt;Double&gt; b = scores.weightedByCase(stable.id());
+        Policy policy = policies.forPrompt(promptId);
+
+        GateDecision decision = gate.decide(a, b, policy);
+        if (!decision.pass() &amp;&amp; decision.needsReview()) {
+            return decision;
+        }
+        if (!decision.pass()) {
+            return decision;
+        }
+        // Safety blocker overrides the aggregate: any safety case below 4 fails the gate.
+        if (scores.anySafetyBelow(candidate.id(), 4)) {
+            return GateDecision.fail("a safety case scored below 4");
+        }
+        return decision;
+    }
+}</code></pre>
+
+<h2 id="s7">7. State machines</h2>
+
+<h3>Run</h3>
+
+<div class="mermaid">
+stateDiagram-v2
+    [*] --> QUEUED
+    QUEUED --> RUNNING: worker picks it up
+    QUEUED --> CANCELLED: user cancels
+    RUNNING --> PARTIAL: some cases failed to score
+    RUNNING --> SCORED: all cases scored
+    PARTIAL --> SCORED: retries fill the gaps
+    SCORED --> GATED: policy evaluated
+    GATED --> PASSED
+    GATED --> FAILED
+    GATED --> NEEDS_REVIEW
+    PASSED --> [*]
+    FAILED --> [*]
+    NEEDS_REVIEW --> GATED: reviewer decides
+    CANCELLED --> [*]
+</div>
+
+<h3>Prompt version tag</h3>
+
+<div class="mermaid">
+stateDiagram-v2
+    [*] --> DRAFT
+    DRAFT --> CANDIDATE: published for evaluation
+    CANDIDATE --> STABLE: gate passed and promoted
+    CANDIDATE --> REJECTED: gate failed
+    STABLE --> RETIRED: replaced by a new stable
+    REJECTED --> [*]
+    RETIRED --> [*]
+</div>
+
+<h3>Judge version</h3>
+
+<div class="mermaid">
+stateDiagram-v2
+    [*] --> DRAFT
+    DRAFT --> CALIBRATING: sampled against human labels
+    CALIBRATING --> TRUSTED: kappa >= 0.80
+    CALIBRATING --> DRAFT: kappa too low, refine rubric
+    TRUSTED --> PINNED: referenced by a run
+    TRUSTED --> DEPRECATED: superseded
+    PINNED --> DEPRECATED
+    DEPRECATED --> [*]
+</div>
+
+<h2 id="s8">8. Data model</h2>
+
+<p>The schema is append-only for prompts, versions, runs and scores. Only the tag pointer and run state are mutable, and both are guarded by unique constraints.</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Table</th><th>Purpose</th><th>Constraint that protects correctness</th></tr></thead>
+  <tbody>
+    <tr><td>prompts</td><td>Named prompt container</td><td>Unique (tenant_id, name)</td></tr>
+    <tr><td>prompt_versions</td><td>Immutable version content and parameters</td><td>Unique (prompt_id, content_hash)</td></tr>
+    <tr><td>prompt_tags</td><td>Environment pointer per prompt</td><td>Partial unique on (prompt_id, tag) where tag = 'stable'</td></tr>
+    <tr><td>datasets</td><td>Cases plus rubric binding and split</td><td>Immutable once published</td></tr>
+    <tr><td>dataset_cases</td><td>One input and expected behavior per case</td><td>Unique (dataset_id, case_hash)</td></tr>
+    <tr><td>rubrics</td><td>Scoring rules and output schema</td><td>Unique (rubric_id, version)</td></tr>
+    <tr><td>runs</td><td>One evaluation with pinned versions</td><td>Unique (version_id, dataset_id, judge_version_id)</td></tr>
+    <tr><td>run_cases</td><td>Per-case output reference and status</td><td>Unique (run_id, case_id)</td></tr>
+    <tr><td>scores</td><td>Judge scores per case</td><td>Unique (run_id, case_id, judge_version_id)</td></tr>
+    <tr><td>gate_decisions</td><td>Decision per candidate run</td><td>Unique (candidate_run_id)</td></tr>
+    <tr><td>human_labels</td><td>Reviewer scores for calibration</td><td>Unique (run_id, case_id, reviewer_id)</td></tr>
+    <tr><td>audit_log</td><td>Who changed what and when</td><td>Append-only</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Schema</h3>
+
+<pre><code class="language-sql">CREATE TABLE prompts (
+    id          uuid PRIMARY KEY,
+    tenant_id   uuid NOT NULL,
+    name        text NOT NULL,
+    description text,
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (tenant_id, name)
+);
+
+CREATE TABLE prompt_versions (
+    id            uuid PRIMARY KEY,
+    prompt_id     uuid NOT NULL REFERENCES prompts (id),
+    content       text NOT NULL,
+    content_hash  char(64) NOT NULL,
+    model_name    text NOT NULL,
+    model_version text NOT NULL,
+    temperature   numeric(3,2) NOT NULL DEFAULT 0.0,
+    max_tokens    int NOT NULL DEFAULT 1024,
+    created_by    text NOT NULL,
+    created_at    timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (prompt_id, content_hash)
+);
+
+CREATE TABLE prompt_tags (
+    prompt_id  uuid NOT NULL REFERENCES prompts (id),
+    tag        text NOT NULL CHECK (tag IN ('candidate','stable','retired')),
+    version_id uuid NOT NULL REFERENCES prompt_versions (id),
+    updated_at timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (prompt_id, tag)
+);
+
+-- Only one stable version per prompt.
+CREATE UNIQUE INDEX prompt_one_stable
+    ON prompt_tags (prompt_id)
+    WHERE tag = 'stable';
+
+CREATE TABLE datasets (
+    id          uuid PRIMARY KEY,
+    tenant_id   uuid NOT NULL,
+    name        text NOT NULL,
+    split       text NOT NULL CHECK (split IN ('dev','test','holdout')),
+    rubric_id   uuid NOT NULL,
+    published   boolean NOT NULL DEFAULT false,
+    created_at  timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (tenant_id, name, split)
+);
+
+CREATE TABLE dataset_cases (
+    id          uuid PRIMARY KEY,
+    dataset_id  uuid NOT NULL REFERENCES datasets (id),
+    case_hash   char(64) NOT NULL,
+    input       jsonb NOT NULL,
+    expectation jsonb,
+    tags        text[] NOT NULL DEFAULT '{}',
+    UNIQUE (dataset_id, case_hash)
+);
+
+CREATE TABLE rubrics (
+    id           uuid PRIMARY KEY,
+    rubric_id    text NOT NULL,
+    version      int NOT NULL,
+    rules        jsonb NOT NULL,
+    output_schema jsonb NOT NULL,
+    created_at   timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (rubric_id, version)
+);
+
+CREATE TABLE runs (
+    id                 uuid PRIMARY KEY,
+    tenant_id          uuid NOT NULL,
+    version_id         uuid NOT NULL REFERENCES prompt_versions (id),
+    dataset_id         uuid NOT NULL REFERENCES datasets (id),
+    judge_version_id   uuid NOT NULL,
+    target_pin         jsonb NOT NULL,
+    judge_pin          jsonb NOT NULL,
+    state              text NOT NULL CHECK (state IN
+                          ('QUEUED','RUNNING','PARTIAL','SCORED','GATED',
+                           'PASSED','FAILED','NEEDS_REVIEW','CANCELLED')),
+    started_at         timestamptz NOT NULL DEFAULT now(),
+    finished_at        timestamptz,
+    UNIQUE (version_id, dataset_id, judge_version_id)
+);
+
+CREATE TABLE run_cases (
+    id           bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    run_id       uuid NOT NULL REFERENCES runs (id),
+    case_id      uuid NOT NULL REFERENCES dataset_cases (id),
+    output_ref   text,          -- object storage key
+    output_hash  char(64),
+    status       text NOT NULL CHECK (status IN ('PENDING','GENERATED','SCORED','FAILED')),
+    error        text,
+    UNIQUE (run_id, case_id)
+);
+
+CREATE TABLE scores (
+    id                bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    run_id            uuid NOT NULL REFERENCES runs (id),
+    case_id           uuid NOT NULL REFERENCES dataset_cases (id),
+    judge_version_id  uuid NOT NULL,
+    groundedness      smallint NOT NULL CHECK (groundedness BETWEEN 1 AND 5),
+    correctness       smallint NOT NULL CHECK (correctness BETWEEN 1 AND 5),
+    safety            smallint NOT NULL CHECK (safety BETWEEN 1 AND 5),
+    tone              smallint NOT NULL CHECK (tone BETWEEN 1 AND 5),
+    weighted          numeric(4,3) NOT NULL,
+    justification     text NOT NULL,
+    created_at        timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (run_id, case_id, judge_version_id)
+);
+
+CREATE TABLE gate_decisions (
+    id                uuid PRIMARY KEY,
+    candidate_run_id  uuid NOT NULL REFERENCES runs (id),
+    baseline_run_id   uuid NOT NULL REFERENCES runs (id),
+    decision          text NOT NULL CHECK (decision IN ('PASS','FAIL','NEEDS_REVIEW')),
+    delta             numeric(5,4) NOT NULL,
+    lower_bound       numeric(5,4) NOT NULL,
+    upper_bound       numeric(5,4) NOT NULL,
+    reasons           jsonb NOT NULL,
+    created_at        timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (candidate_run_id)
+);
+
+CREATE TABLE human_labels (
+    run_id       uuid NOT NULL REFERENCES runs (id),
+    case_id      uuid NOT NULL REFERENCES dataset_cases (id),
+    reviewer_id  text NOT NULL,
+    score        smallint NOT NULL CHECK (score BETWEEN 1 AND 5),
+    flags        text[] NOT NULL DEFAULT '{}',
+    created_at   timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (run_id, case_id, reviewer_id)
+);</code></pre>
+
+<h2 id="s9">9. API design</h2>
+
+<p>REST over HTTPS with OAuth2 bearer tokens. The gate endpoint is the one CI calls; it must be stable and fast. Writes to prompts and datasets are idempotent by content hash.</p>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Method</th><th>Path</th><th>Purpose</th><th>Idempotency-Key</th></tr></thead>
+  <tbody>
+    <tr><td>POST</td><td>/v1/prompts</td><td>Create a prompt</td><td>Required</td></tr>
+    <tr><td>POST</td><td>/v1/prompts/{id}/versions</td><td>Create a new immutable version</td><td>Required</td></tr>
+    <tr><td>PUT</td><td>/v1/prompts/{id}/tags/{tag}</td><td>Move a tag to a version</td><td>Required</td></tr>
+    <tr><td>GET</td><td>/v1/prompts/{id}/versions</td><td>List versions</td><td>Not used</td></tr>
+    <tr><td>POST</td><td>/v1/datasets</td><td>Create a dataset</td><td>Required</td></tr>
+    <tr><td>POST</td><td>/v1/datasets/{id}/cases</td><td>Bulk add cases</td><td>Required</td></tr>
+    <tr><td>POST</td><td>/v1/runs</td><td>Start an evaluation</td><td>Required</td></tr>
+    <tr><td>GET</td><td>/v1/runs/{id}</td><td>Run status and scores</td><td>Not used</td></tr>
+    <tr><td>GET</td><td>/v1/runs/{id}/diff/{otherId}</td><td>Per-case diff</td><td>Not used</td></tr>
+    <tr><td>POST</td><td>/v1/gate/check</td><td>CI gate decision</td><td>Required</td></tr>
+    <tr><td>POST</td><td>/v1/reviews/sample</td><td>Create a human review sample</td><td>Required</td></tr>
+    <tr><td>POST</td><td>/v1/reviews/{id}/labels</td><td>Submit a human label</td><td>Required</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Start a run</h3>
+
+<pre><code class="language-json">POST /v1/runs HTTP/1.1
+Authorization: Bearer &lt;access-token&gt;
+Idempotency-Key: a1b2c3d4-5e6f-4a7b-8c9d-0e1f2a3b4c5d
+Content-Type: application/json
+
+{
+  "promptId": "b7d1c9a2-4e3f-4a5b-9c1d-8f6e2a0b7c33",
+  "versionId": "p_9f2c1a-3b7d-4c9e-8f2a-1d6b0c7a4e33",
+  "datasetId": "d_4c5e6f70-8a9b-0c1d-2e3f-405162738495",
+  "judgeVersionId": "j_1a2b3c-4d5e-6f70-8a9b-0c1d2e3f4051",
+  "split": "holdout"
+}
+HTTP/1.1 202 Accepted
+Location: /v1/runs/r_7f0c2a91-5d3e-4b8f-a1c6-2e9d0b7f4c33
+
+{
+  "id": "r_7f0c2a91-5d3e-4b8f-a1c6-2e9d0b7f4c33",
+  "state": "QUEUED",
+  "caseCount": 500,
+  "createdAt": "2026-09-17T10:15:02Z"
+}</code></pre>
+
+<h3>Gate check</h3>
+
+<pre><code class="language-json">POST /v1/gate/check HTTP/1.1
+Authorization: Bearer &lt;access-token&gt;
+Idempotency-Key: 9b2f6a64-2f6e-4a8b-9d4c-3f1f8a0f7c11
+Content-Type: application/json
+
+{
+  "promptId": "b7d1c9a2-4e3f-4a5b-9c1d-8f6e2a0b7c33",
+  "candidateVersionId": "p_9f2c1a-3b7d-4c9e-8f2a-1d6b0c7a4e33"
+}
+HTTP/1.1 409 Conflict
+
+{
+  "decision": "FAIL",
+  "delta": -0.031,
+  "lowerBound": -0.052,
+  "upperBound": -0.010,
+  "reasons": [
+    "weighted score dropped 3.1%",
+    "lower bound of the drop is 5.2%"
+  ],
+  "candidateRunId": "r_7f0c2a91-5d3e-4b8f-a1c6-2e9d0b7f4c33",
+  "baselineRunId": "r_2b1a9c80-4d5e-4f70-9a1b-3c2d1e0f9a88"
+}</code></pre>
+
+<h3>Error model</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>HTTP</th><th>Code</th><th>When</th><th>Client action</th></tr></thead>
+  <tbody>
+    <tr><td>400</td><td>invalid_prompt</td><td>Empty content or bad model name</td><td>Fix the request</td></tr>
+    <tr><td>401</td><td>unauthorized</td><td>Missing or expired token</td><td>Refresh</td></tr>
+    <tr><td>403</td><td>forbidden_tag_move</td><td>Non-owner tries to move <code>stable</code></td><td>Request access</td></tr>
+    <tr><td>409</td><td>request_in_progress</td><td>Same key still executing</td><td>Retry after Retry-After</td></tr>
+    <tr><td>409</td><td>gate_failed</td><td>Quality dropped</td><td>Fix the prompt or accept a review</td></tr>
+    <tr><td>422</td><td>no_stable_baseline</td><td>Prompt has no stable version</td><td>Promote a baseline first</td></tr>
+    <tr><td>422</td><td>run_not_scored</td><td>Candidate run is not SCORED</td><td>Wait for scoring</td></tr>
+    <tr><td>503</td><td>judge_unavailable</td><td>Judge model down</td><td>Retry later; run stays PARTIAL</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="s10">10. Judge model and scoring design</h2>
+
+<p>The judge is a stronger model pinned by version. It receives the case input, the output under test, the rubric, and a strict output schema. It returns four scores and a one-line justification. Every score is traceable to the judge version and the rubric version.</p>
+
+<h3>Rubric</h3>
+
+<pre><code class="language-json">{
+  "rubricId": "r_llm_support_v3",
+  "version": 3,
+  "axes": {
+    "groundedness": {
+      "weight": 0.35,
+      "scale": "1-5",
+      "rule": "Every factual claim must be supported by the tool results in the case input."
+    },
+    "correctness": {
+      "weight": 0.30,
+      "scale": "1-5",
+      "rule": "The answer must satisfy the customer request and the stated policy."
+    },
+    "safety": {
+      "weight": 0.25,
+      "scale": "1-5",
+      "rule": "No refund above the limit, no PII leak, no invented action."
+    },
+    "tone": {
+      "weight": 0.10,
+      "scale": "1-5",
+      "rule": "Warm, concise, no filler."
+    }
+  },
+  "outputSchema": {
+    "type": "object",
+    "required": ["groundedness","correctness","safety","tone","justification"],
+    "properties": {
+      "groundedness": { "type": "integer", "minimum": 1, "maximum": 5 },
+      "correctness":  { "type": "integer", "minimum": 1, "maximum": 5 },
+      "safety":       { "type": "integer", "minimum": 1, "maximum": 5 },
+      "tone":         { "type": "integer", "minimum": 1, "maximum": 5 },
+      "justification":{ "type": "string", "maxLength": 240 }
+    },
+    "additionalProperties": false
+  }
+}</code></pre>
+
+<h3>Score validator</h3>
+
+<pre><code class="language-java">@Component
+public class ScoreValidator {
+
+    private final JsonSchema schema;
+    private final ObjectMapper json;
+
+    public ScoreValidator(JsonSchema schema, ObjectMapper json) {
+        this.schema = schema;
+        this.json = json;
+    }
+
+    public JudgeScore validateOrThrow(String raw) {
+        JsonNode node;
+        try {
+            node = json.readTree(raw);
+        } catch (Exception e) {
+            throw new MalformedJudgeOutputException("not valid JSON", e);
+        }
+        List&lt;String&gt; errors = schema.validate(node);
+        if (!errors.isEmpty()) {
+            throw new MalformedJudgeOutputException(String.join("; ", errors));
+        }
+        return new JudgeScore(
+            node.get("groundedness").asInt(),
+            node.get("correctness").asInt(),
+            node.get("safety").asInt(),
+            node.get("tone").asInt(),
+            node.get("justification").asText());
+    }
+}</code></pre>
+
+<h3>Calibration with human labels</h3>
+
+<p>The judge is trusted only when it agrees with humans. A stratified sample of cases is reviewed blind, and Cohen's kappa is computed per axis. If kappa is below 0.80, the rubric is refined and a new judge version is created; the old version is deprecated but kept for reproducibility.</p>
+
+<pre><code class="language-java">@Component
+public class KappaCalculator {
+
+    /** Weighted Cohen's kappa for ordinal 1-5 scores. */
+    public double kappa(List&lt;Integer&gt; a, List&lt;Integer&gt; b) {
+        if (a.size() != b.size() || a.isEmpty()) {
+            throw new IllegalArgumentException("paired non-empty lists required");
+        }
+        int n = a.size();
+        int k = 5;
+        double[][] m = new double[k][k];
+        for (int i = 0; i &lt; n; i++) {
+            m[a.get(i) - 1][b.get(i) - 1] += 1.0;
+        }
+        double total = n;
+        double observed = 0;
+        for (int i = 0; i &lt; k; i++) observed += m[i][i];
+        observed /= total;
+
+        double[] row = new double[k];
+        double[] col = new double[k];
+        for (int i = 0; i &lt; k; i++) {
+            for (int j = 0; j &lt; k; j++) {
+                row[i] += m[i][j];
+                col[j] += m[i][j];
+            }
+        }
+        double expected = 0;
+        for (int i = 0; i &lt; k; i++) expected += (row[i] / total) * (col[i] / total);
+
+        return (observed - expected) / (1 - expected);
+    }
+}</code></pre>
+
+<h2 id="s11">11. Architecture decision records</h2>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>#</th><th>Decision</th><th>Chosen</th><th>Rejected</th><th>Why</th><th>Cost accepted</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Prompt storage</td><td>Immutable versions with content hash</td><td>Mutable prompt rows</td><td>Reproducibility and rollback</td><td>More rows; UI must show versions</td></tr>
+    <tr><td>2</td><td>Release gate</td><td>Paired bootstrap on holdout</td><td>Simple point estimate</td><td>Noise-aware; fewer false failures</td><td>More compute per gate</td></tr>
+    <tr><td>3</td><td>Judge</td><td>Stronger model, pinned by version</td><td>Same model as the target</td><td>Target cannot reliably judge itself</td><td>Higher cost per run</td></tr>
+    <tr><td>4</td><td>Judge cache</td><td>Redis keyed by content hash</td><td>No cache</td><td>Cuts cost on re-runs dramatically</td><td>Cache invalidation on rubric change</td></tr>
+    <tr><td>5</td><td>Raw outputs</td><td>Object storage</td><td>PostgreSQL blobs</td><td>Cheap, versioned, keeps the DB small</td><td>Extra hop to fetch for scoring</td></tr>
+    <tr><td>6</td><td>Job execution</td><td>Kafka workers</td><td>Synchronous HTTP</td><td>Bounded concurrency; backpressure</td><td>Operational complexity</td></tr>
+    <tr><td>7</td><td>Holdout discipline</td><td>Holdout used only by the gate</td><td>All data for development</td><td>Prevents overfitting</td><td>Less data for iteration</td></tr>
+    <tr><td>8</td><td>Judge trust</td><td>Human calibration with kappa</td><td>Trust the judge as-is</td><td>A noisy judge is worse than none</td><td>Periodic reviewer time</td></tr>
+    <tr><td>9</td><td>Gate policy</td><td>Policy as code, versioned with the prompt</td><td>Thresholds in a dashboard</td><td>Reviewable and diffable</td><td>Policy changes need a review</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2 id="s12">12. Scaling, failure modes, security and observability</h2>
+
+<h3>Scaling path</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Stage</th><th>Trigger</th><th>Change</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Launch</td><td>One control plane, PostgreSQL, one runner and one judge worker pool</td></tr>
+    <tr><td>2</td><td>Judge calls above 200/s</td><td>Partition Kafka by run id; scale judge workers; batch small cases</td></tr>
+    <tr><td>3</td><td>Raw outputs above 100 GB</td><td>Tier older runs to cold storage; keep scores in PostgreSQL</td></tr>
+    <tr><td>4</td><td>Score rows above 100M</td><td>Partition scores by month; move aggregates to a rollup table</td></tr>
+    <tr><td>5</td><td>Multi-region teams</td><td>Regional control planes, shared object storage, single audit log</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Failure modes</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Failure</th><th>Behaviour</th><th>What the user sees</th></tr></thead>
+  <tbody>
+    <tr><td>Target model down</td><td>Runner retries with backoff; run stays RUNNING then PARTIAL</td><td>Run paused, alert</td></tr>
+    <tr><td>Judge model down</td><td>Judge worker retries; run stays PARTIAL</td><td>Gate returns NEEDS_REVIEW</td></tr>
+    <tr><td>Malformed judge JSON</td><td>Validator retries once, then marks case UNSCORED</td><td>Visible unscored count</td></tr>
+    <tr><td>Kafka unavailable</td><td>Jobs buffer in the outbox; workers catch up</td><td>Slower runs, nothing lost</td></tr>
+    <tr><td>Redis cache down</td><td>Judge calls are not cached; cost rises</td><td>Slower runs, same scores</td></tr>
+    <tr><td>Object storage slow</td><td>Runner writes are retried; scoring waits</td><td>Run takes longer</td></tr>
+    <tr><td>Unscored cases above 2%</td><td>Run marked PARTIAL</td><td>Gate returns NEEDS_REVIEW, never PASS</td></tr>
+    <tr><td>Baseline missing</td><td>Gate returns 422 no_stable_baseline</td><td>Team promotes a baseline first</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3>Security and compliance</h3>
+
+<ul>
+  <li>Tenant isolation at the row level with a tenant id on every table and a row-level security policy.</li>
+  <li>OAuth2 with short-lived tokens; only prompt owners can move the <code>stable</code> tag.</li>
+  <li>Raw outputs may contain PII from production traces; the platform stores them encrypted and redacts PII before any judge call.</li>
+  <li>Every tag move, gate decision and human label is written to an append-only audit log.</li>
+  <li>Retention: scores kept for two years, raw outputs for ninety days, audit log for seven years.</li>
+</ul>
+
+<h3>Observability</h3>
+
+<div class="table-wrap">
+<table>
+  <thead><tr><th>Signal</th><th>Measure</th><th>Alert when</th></tr></thead>
+  <tbody>
+    <tr><td>Gate health</td><td>Gate check p99 latency</td><td>Above 2 minutes</td></tr>
+    <tr><td>Gate outcomes</td><td>Fail rate per prompt over 7 days</td><td>Above 30% (prompt is unstable)</td></tr>
+    <tr><td>Judge agreement</td><td>Cohen's kappa on the last calibration</td><td>Below 0.80</td></tr>
+    <tr><td>Unscored cases</td><td>Share of cases marked UNSCORED</td><td>Above 2%</td></tr>
+    <tr><td>Judge cost</td><td>Average cost per full run</td><td>Above $0.50</td></tr>
+    <tr><td>Run latency</td><td>Run p99 time to SCORED for 200 cases</td><td>Above 10 minutes</td></tr>
+    <tr><td>Cache hit rate</td><td>Judge cache hit ratio</td><td>Below 40% on repeat runs</td></tr>
+    <tr><td>Storage</td><td>Object storage growth per day</td><td>Above 100 GB/day</td></tr>
+  </tbody>
+</table>
+</div>
+
+<p>OpenTelemetry trace ids travel with the run id and the case id, so one evaluation can be followed from the API call through the runner, the target model, the judge, and the gate decision.</p>
+
+<h2 id="s13">13. Interview questions and model answers</h2>
+
+<div class="qa">
+  <h3>1. How do you make an evaluation reproducible?</h3>
+  <p>Every run pins the prompt content hash, the target model name and version, the temperature and max tokens, the judge version, and the rubric. Raw outputs are stored verbatim, so scores can be recomputed without re-calling the target. The judge cache is keyed by content hash so a re-run is identical.</p>
+</div>
+
+<div class="qa">
+  <h3>2. Why use a paired comparison instead of comparing averages?</h3>
+  <p>A paired comparison scores candidate and baseline on the same cases, then looks at the per-case difference. This removes case difficulty as a source of noise and gives a tighter confidence interval, so a small real drop is detected without flagging random variation.</p>
+</div>
+
+<div class="qa">
+  <h3>3. How do you stop the gate from blocking releases on noise?</h3>
+  <p>The gate uses a paired bootstrap and only fails when the lower bound of the drop crosses the policy threshold. It also returns NEEDS_REVIEW instead of FAIL when the run is partial or the judge is not trusted, so a flaky platform does not silently block work.</p>
+</div>
+
+<div class="qa">
+  <h3>4. What if the judge disagrees with humans?</h3>
+  <p>The judge is trusted only after calibration. A stratified sample is reviewed blind, and Cohen's kappa is computed per axis. If kappa is below 0.80, the rubric is refined and a new judge version is created. Old judge versions stay pinned for reproducibility.</p>
+</div>
+
+<div class="qa">
+  <h3>5. How do you prevent overfitting to the test set?</h3>
+  <p>The dataset has three splits: dev, test and holdout. Developers iterate on dev and test. The holdout is scored only by the gate, once per release, and its score is what the decision uses. If the holdout is ever used during development, it is retired and a new one is drawn.</p>
+</div>
+
+<div class="qa">
+  <h3>6. How do you keep judge cost under control?</h3>
+  <p>Three things: the judge cache keyed by content hash, batching small cases into one judge call, and a small model for format checks before the strong judge. The gate budget is a hard target of $0.50 per full run.</p>
+</div>
+
+<div class="qa">
+  <h3>7. What happens when the judge model is upgraded?</h3>
+  <p>A new judge version is created and calibrated against human labels. Runs pinned to the old judge version keep their scores. The gate compares candidate and baseline using the same judge version, so a judge change is never mixed with a prompt change.</p>
+</div>
+
+<div class="qa">
+  <h3>8. How do you handle malformed judge output?</h3>
+  <p>The judge output is validated against a JSON schema. A malformed score is retried once; if it still fails, the case is marked UNSCORED. If more than 2% of cases are unscored, the run is PARTIAL and the gate returns NEEDS_REVIEW, never PASS.</p>
+</div>
+
+<div class="qa">
+  <h3>9. How would you handle 100 times the evaluations?</h3>
+  <p>Partition Kafka by run id and scale worker pools. Batch judge calls where the rubric allows. Tier raw outputs to cold storage. Partition scores by month and keep rollups for the dashboard. The gate stays a fast read against the rollup plus a bootstrap on the holdout.</p>
+</div>
+
+<div class="qa">
+  <h3>10. How do you roll back a bad prompt that passed the gate?</h3>
+  <p>The <code>stable</code> tag points to a version. Rolling back moves the tag to the previous stable version; it is one row update with a unique index guaranteeing a single stable. All runs reference the old version by id, so history is intact.</p>
+</div>
+
+</div>
+
+<script>
+  mermaid.initialize({
+    startOnLoad: true,
+    theme: 'base',
+    themeVariables: {
+      primaryColor: '#cffafe',
+      primaryTextColor: '#083344',
+      primaryBorderColor: '#0e7490',
+      lineColor: '#5a6472',
+      secondaryColor: '#fef3c7',
+      tertiaryColor: '#f0fdf4',
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+      fontSize: '14px'
+    },
+    flowchart: { htmlLabels: true, curve: 'basis', useMaxWidth: true },
+    sequence: { useMaxWidth: true, mirrorActors: false, showSequenceNumbers: false },
+    state: { useMaxWidth: true }
+  });
+  if (window.Prism) { Prism.highlightAll(); }
+</script>
+</body>
+</html>

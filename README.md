@@ -6,8 +6,8 @@ Live: https://thoravenger.github.io/system-design-hinglish-site/
 
 ## 📚 Study Library
 
-`/library/` — 44 de-duplicated study books & guides, grouped by category:
-System Design & Architecture · Java Core & DSA · Java Streams & Bug-Fix · Spring Boot & Microservices ·
+`/library/` — 79 de-duplicated study books & guides, grouped by category:
+System Design & Architecture · Java Core & DSA · Java Streams & Bug-Fix · Java Internals, Concurrency & Versions · Spring Boot & Microservices ·
 Kafka/Redis/Cassandra & Databases · GenAI & AI · Payments & Interview Prep · Karat Rounds (HSBC GCB-4).
 
 - HTML ebooks are kept as-is (original styling) with a small top bar back to the site and a download link for the original file (`/library/files/*-original.html`).

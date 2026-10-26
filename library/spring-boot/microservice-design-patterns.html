@@ -1,0 +1,3177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Microservice Design Patterns — Fault &amp; Fix Docket (HLD · LLD · Tradeoffs)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,700;12..96,800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;1,6..72,400&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   TOKENS — "maintenance docket" palette: cold pressed paper,
+   oxide-red fault ink, deep teal fix ink, ochre for judgement.
+   ============================================================ */
+:root{
+  --paper:#EDEFF2;
+  --paper-2:#E4E8ED;
+  --paper-3:#F7F8FA;
+  --ink:#16202B;
+  --ink-soft:#4C596A;
+  --ink-faint:#7B8798;
+  --rule:#C4CBD4;
+  --rule-soft:#D8DDE4;
+
+  --fault:#A33A2C;
+  --fault-wash:rgba(163,58,44,.055);
+  --fault-rule:rgba(163,58,44,.28);
+
+  --fix:#12615E;
+  --fix-wash:rgba(18,97,94,.06);
+  --fix-rule:rgba(18,97,94,.28);
+
+  --note:#8A6212;
+  --note-wash:rgba(138,98,18,.07);
+  --note-rule:rgba(138,98,18,.3);
+
+  --stage:#131B25;
+  --stage-2:#1C2733;
+  --stage-3:#28343F;
+  --code-fg:#D5DCE5;
+
+  --kw:#8FB4FF;
+  --ann:#E3A94F;
+  --str:#7FC79E;
+  --com:#78859A;
+  --num:#E58C79;
+  --typ:#C8A6E8;
+
+  --sans:"Bricolage Grotesque","Segoe UI",system-ui,sans-serif;
+  --serif:"Newsreader",Georgia,"Times New Roman",serif;
+  --mono:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace;
+
+  --maxw:1240px;
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:20px}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font-family:var(--serif);font-size:17px;line-height:1.62;
+  font-optical-sizing:auto;
+  -webkit-font-smoothing:antialiased;
+}
+h1,h2,h3,h4,.ui{font-family:var(--sans);font-weight:600;letter-spacing:-.012em}
+p{margin:0 0 .85em}
+a{color:var(--fix);text-decoration:underline;text-underline-offset:3px;text-decoration-thickness:1px}
+a:hover{color:var(--ink)}
+:focus-visible{outline:2.5px solid var(--fix);outline-offset:3px;border-radius:2px}
+
+/* ============================ MASTHEAD ============================ */
+.masthead{
+  border-bottom:1px solid var(--rule);
+  background:linear-gradient(180deg,#F3F5F8 0%,var(--paper) 100%);
+}
+.masthead-in{max-width:var(--maxw);margin:0 auto;padding:26px 28px 0}
+.mast-top{display:grid;grid-template-columns:1.15fr 1fr;gap:0 56px;align-items:end}
+@media (max-width:900px){.mast-top{grid-template-columns:1fr;gap:0}}
+.stamp{
+  display:inline-flex;align-items:center;gap:10px;
+  font-family:var(--mono);font-size:11.5px;color:var(--ink-faint);
+  letter-spacing:.06em;
+}
+.stamp b{color:var(--fault);font-weight:700}
+h1{
+  font-size:clamp(34px,6.2vw,68px);line-height:1.02;margin:14px 0 0;
+  font-weight:800;letter-spacing:-.03em;max-width:15ch;
+}
+.deck{
+  font-size:clamp(17px,2vw,20px);color:var(--ink-soft);max-width:60ch;
+  margin:16px 0 0;line-height:1.5;
+}
+
+/* hero schematic */
+.hero-svg{display:block;width:100%;height:auto;max-width:980px;margin:26px auto 0}
+.hero-svg .hl{stroke:var(--rule);stroke-width:1.2;fill:none}
+.hero-svg .hbox{fill:#fff;stroke:var(--ink);stroke-width:1.3}
+.hero-svg .hbox.mono{fill:var(--fault-wash);stroke:var(--fault)}
+.hero-svg .hbox.svc{fill:var(--fix-wash);stroke:var(--fix)}
+.hero-svg text{font-family:var(--sans);font-size:12px;fill:var(--ink)}
+.hero-svg .cap{font-family:var(--mono);font-size:9.5px;fill:var(--ink-faint);letter-spacing:.05em}
+.hero-svg .draw{stroke-dasharray:var(--len);stroke-dashoffset:var(--len);animation:draw 1.1s .25s ease-out forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+
+.legend{
+  max-width:var(--maxw);margin:0 auto;padding:20px 28px 24px;
+  display:flex;flex-wrap:wrap;gap:8px 22px;align-items:center;
+  font-family:var(--sans);font-size:13.5px;color:var(--ink-soft);
+}
+.swatch{display:inline-flex;align-items:center;gap:7px}
+.swatch i{width:11px;height:11px;border-radius:2px;display:inline-block}
+.sw-f{background:var(--fault)}.sw-s{background:var(--fix)}.sw-t{background:var(--note)}
+
+/* ============================ SHELL ============================ */
+.shell{
+  max-width:var(--maxw);margin:0 auto;padding:0 28px 80px;
+  display:grid;grid-template-columns:216px minmax(0,1fr);gap:0 52px;
+  align-items:start;
+}
+.rail{position:sticky;top:22px;padding-top:34px}
+.rail h4{
+  font-size:12px;font-family:var(--mono);font-weight:500;color:var(--ink-faint);
+  letter-spacing:.07em;margin:0 0 10px;
+}
+.rail ol{list-style:none;margin:0 0 22px;padding:0}
+.rail li{margin:0}
+.rail a{
+  display:block;padding:4px 0 4px 12px;border-left:2px solid var(--rule-soft);
+  font-family:var(--sans);font-size:13.5px;line-height:1.35;color:var(--ink-soft);
+  text-decoration:none;transition:border-color .15s,color .15s;
+}
+.rail a:hover{color:var(--ink);border-left-color:var(--ink-faint)}
+.rail a.on{color:var(--fix);border-left-color:var(--fix);font-weight:600}
+.rail-toggle{display:none}
+
+.main{padding-top:34px;min-width:0}
+
+/* ============================ SECTIONS ============================ */
+.pattern{padding:0 0 12px;margin:0 0 54px;border-bottom:1px solid var(--rule)}
+.pattern:last-of-type{border-bottom:none}
+.p-head{margin:0 0 18px}
+.tagrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:9px}
+.tag{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.05em;
+  padding:3px 8px;border:1px solid var(--rule);border-radius:2px;
+  color:var(--ink-soft);background:var(--paper-3);
+}
+.tag.g-decomp{border-color:#8A6FB0;color:#5C4382}
+.tag.g-comm{border-color:#2F7FA8;color:#1F5D7D}
+.tag.g-res{border-color:var(--fault-rule);color:var(--fault)}
+.tag.g-del{border-color:var(--fix-rule);color:var(--fix)}
+.tag.g-hard{background:rgba(163,58,44,.08);border-color:var(--fault-rule);color:var(--fault)}
+
+.pattern h2{font-size:clamp(25px,3.6vw,36px);line-height:1.12;margin:0;font-weight:700;letter-spacing:-.025em}
+.verdict{
+  margin:10px 0 0;font-size:17.5px;color:var(--ink-soft);max-width:68ch;
+  border-left:3px solid var(--note-rule);padding-left:14px;
+}
+
+/* ---- Hinglish gloss ---- */
+.hi{
+  display:block;margin:.55em 0 0;padding:.5em .8em .5em .85em;
+  background:var(--fix-wash);border-left:2px solid var(--fix-rule);
+  color:#123F3E;font-size:16px;line-height:1.55;border-radius:0 3px 3px 0;
+}
+.hi::before{
+  content:"हिं";font-family:system-ui,"Nirmala UI",sans-serif;font-size:11px;
+  color:var(--fix);opacity:.8;margin-right:9px;vertical-align:1px;
+}
+.fault .hi{background:rgba(163,58,44,.06);border-left-color:var(--fault-rule);color:#6E2A20}
+.fault .hi::before{color:var(--fault)}
+
+/* ---- Problem | Solution split ---- */
+.split{display:grid;grid-template-columns:1fr 1fr;gap:0;border:1px solid var(--rule);border-radius:4px;overflow:hidden;background:#fff}
+.col{padding:20px 22px 22px}
+.fault{background:var(--fault-wash);border-right:1px solid var(--rule)}
+.fix{background:var(--fix-wash)}
+.col h3{
+  font-size:13px;font-family:var(--mono);font-weight:500;letter-spacing:.06em;
+  margin:0 0 12px;display:flex;align-items:center;gap:8px;
+}
+.fault h3{color:var(--fault)}
+.fix h3{color:var(--fix)}
+.col h3 span{
+  width:20px;height:20px;border-radius:50%;display:grid;place-items:center;
+  font-size:12px;font-family:var(--sans);color:#fff;
+}
+.fault h3 span{background:var(--fault)}
+.fix h3 span{background:var(--fix)}
+.col ul{margin:0;padding-left:19px}
+.col li{margin:0 0 .5em;font-size:16.5px;line-height:1.55}
+.col li:last-child{margin-bottom:0}
+.col li::marker{color:var(--ink-faint)}
+
+/* ---- sub blocks ---- */
+.block{margin:26px 0 0}
+.block-hd{
+  display:flex;align-items:baseline;gap:4px 12px;flex-wrap:wrap;margin:0 0 12px;
+  border-bottom:1px solid var(--rule-soft);padding-bottom:7px;
+}
+.block-hd h3{font-size:19px;margin:0;font-weight:700;flex:0 0 auto}
+.block-hd em{font-family:var(--mono);font-style:normal;font-size:11px;color:var(--ink-faint);letter-spacing:.05em}
+
+/* ---- topology diagram ---- */
+.topo{
+  display:flex;align-items:center;gap:0;flex-wrap:nowrap;overflow-x:auto;
+  padding:38px 16px 16px;background:var(--paper-3);border:1px solid var(--rule);
+  border-radius:4px;margin:0 0 6px;
+}
+.topo::-webkit-scrollbar{height:7px}
+.topo::-webkit-scrollbar-thumb{background:var(--rule);border-radius:4px}
+.node{
+  flex:0 0 auto;padding:8px 12px;border:1.4px solid var(--ink);background:#fff;
+  border-radius:3px;font-family:var(--sans);font-size:13px;font-weight:500;
+  text-align:center;line-height:1.25;min-width:82px;
+}
+.node small{display:block;font-family:var(--mono);font-size:9.5px;color:var(--ink-faint);font-weight:400;margin-top:2px}
+.node.bad{border-color:var(--fault);background:var(--fault-wash);color:var(--fault)}
+.node.good{border-color:var(--fix);background:var(--fix-wash);color:var(--fix)}
+.node.store{border-radius:3px 3px 12px 12px;border-style:solid;background:var(--paper-2)}
+.node.bus{border-style:dashed;background:var(--note-wash);border-color:var(--note);color:var(--note)}
+.stack{display:flex;flex-direction:column;gap:8px;flex:0 0 auto}
+.link{
+  flex:1 1 98px;min-width:98px;height:1px;background:var(--rule);position:relative;align-self:center;
+}
+.link::after{
+  content:attr(data-label);position:absolute;left:2px;right:8px;transform:translateY(-100%);
+  top:-5px;font-family:var(--mono);font-size:9.5px;line-height:1.25;color:var(--ink-faint);
+  text-align:center;white-space:normal;
+}
+.link::before{
+  content:"";position:absolute;right:0;top:-3px;border-left:6px solid var(--rule);
+  border-top:3.5px solid transparent;border-bottom:3.5px solid transparent;
+}
+.link.dash{background:none;border-top:1px dashed var(--note)}
+.link.dash::before{border-left-color:var(--note)}
+.link.cut{background:var(--fault)}
+.link.cut::before{border-left-color:var(--fault)}
+.topo-note{font-family:var(--mono);font-size:11.5px;color:var(--ink-faint);margin:8px 0 0}
+
+/* ---- code ---- */
+.codewrap{border-radius:4px;overflow:hidden;border:1px solid var(--stage-3);background:var(--stage)}
+.codebar{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:8px 12px;background:var(--stage-2);border-bottom:1px solid var(--stage-3);
+}
+.codebar span{font-family:var(--mono);font-size:11px;color:#93A0AF;letter-spacing:.04em}
+.notes-btn{
+  font-family:var(--mono);font-size:10.5px;letter-spacing:.04em;color:#B9C6D4;
+  background:transparent;border:1px solid #3B4855;border-radius:3px;padding:3px 9px;cursor:pointer;
+}
+.notes-btn:hover{background:#2C3947;color:#fff}
+pre.code{
+  margin:0;padding:14px 14px 16px 0;overflow-x:auto;counter-reset:ln;
+  font-family:var(--mono);font-size:13px;line-height:1.72;color:var(--code-fg);
+}
+pre.code .cl{display:block;white-space:pre;padding-left:56px;position:relative}
+pre.code .cl::before{
+  content:counter(ln);counter-increment:ln;position:absolute;left:0;width:38px;
+  text-align:right;color:#4E5C6B;font-size:11.5px;user-select:none;
+}
+pre.code .nt{
+  display:block;white-space:pre-wrap;padding:2px 16px 6px 56px;color:#93C6BE;
+  font-size:12px;line-height:1.55;border-left:2px solid #2E4A48;margin:1px 0 4px 0;
+  background:rgba(46,74,72,.16);
+}
+pre.code.hide-notes .nt{display:none}
+pre.code .k{color:var(--kw)}
+pre.code .a{color:var(--ann)}
+pre.code .s{color:var(--str)}
+pre.code .c{color:var(--com);font-style:italic}
+pre.code .n{color:var(--num)}
+pre.code .t{color:var(--typ)}
+
+/* ---- tradeoff docket ---- */
+.docket{
+  margin:26px 0 0;border:1px solid var(--note-rule);border-left:4px solid var(--note);
+  border-radius:0 4px 4px 0;background:var(--note-wash);
+}
+.docket-hd{
+  padding:11px 18px;border-bottom:1px solid var(--note-rule);
+  font-family:var(--sans);font-weight:700;font-size:15px;color:#6B4B0D;
+}
+.docket-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:0}
+.dcell{padding:15px 18px 17px;border-right:1px solid var(--note-rule)}
+.dcell:last-child{border-right:none}
+.dcell h4{
+  margin:0 0 8px;font-size:12px;font-family:var(--mono);font-weight:500;
+  letter-spacing:.05em;color:#7A5610;
+}
+.dcell ul{margin:0;padding-left:17px}
+.dcell li{font-size:15.5px;line-height:1.5;margin:0 0 .45em}
+.dcell li:last-child{margin-bottom:0}
+.dcell.skip h4{color:var(--fault)}
+.dcell.skip li::marker{color:var(--fault)}
+.dcell.apply h4{color:var(--fix)}
+.dcell.apply li::marker{color:var(--fix)}
+
+/* ============================ TABLES ============================ */
+.tablewrap{overflow-x:auto;border:1px solid var(--rule);border-radius:4px;background:#fff}
+table{border-collapse:collapse;width:100%;min-width:720px;font-size:15px}
+th,td{padding:11px 14px;text-align:left;vertical-align:top;border-bottom:1px solid var(--rule-soft)}
+th{
+  font-family:var(--mono);font-size:11px;letter-spacing:.05em;color:var(--ink-soft);
+  background:var(--paper-2);font-weight:500;position:sticky;top:0;
+}
+tbody tr:last-child td{border-bottom:none}
+td b{font-family:var(--sans);font-weight:600}
+.pill{font-family:var(--mono);font-size:10.5px;padding:2px 7px;border-radius:2px;white-space:nowrap}
+.pill.hi3{background:rgba(163,58,44,.1);color:var(--fault)}
+.pill.md{background:var(--note-wash);color:var(--note)}
+.pill.lo{background:var(--fix-wash);color:var(--fix)}
+
+/* ============================ Q&A ============================ */
+.qa{border-top:1px solid var(--rule);margin-top:8px}
+details.q{border-bottom:1px solid var(--rule-soft);padding:0}
+details.q summary{
+  cursor:pointer;list-style:none;padding:14px 34px 14px 0;position:relative;
+  font-family:var(--sans);font-size:17px;font-weight:500;line-height:1.4;
+}
+details.q summary::-webkit-details-marker{display:none}
+details.q summary::after{
+  content:"+";position:absolute;right:6px;top:12px;font-family:var(--mono);
+  font-size:19px;color:var(--ink-faint);transition:transform .18s;
+}
+details.q[open] summary::after{content:"–"}
+details.q summary:hover{color:var(--fix)}
+details.q .ans{padding:0 0 20px;font-size:16.5px;max-width:74ch}
+details.q .ans ul{padding-left:20px;margin:.4em 0 .8em}
+details.q .ans li{margin:0 0 .4em}
+.qtag{
+  font-family:var(--mono);font-size:10px;letter-spacing:.05em;padding:2px 6px;
+  border:1px solid var(--rule);border-radius:2px;color:var(--ink-faint);
+  margin-right:9px;vertical-align:2px;
+}
+.qtag.hld{border-color:#2F7FA8;color:#1F5D7D}
+.qtag.lld{border-color:#8A6FB0;color:#5C4382}
+.qtag.tro{border-color:var(--note-rule);color:var(--note)}
+
+/* ============================ ANIMATION STAGE ============================ */
+.stage-sec{background:var(--stage);color:var(--code-fg);padding:56px 0 64px;margin-top:20px}
+.stage-in{max-width:1180px;margin:0 auto;padding:0 28px}
+.stage-sec h2{color:#fff;font-size:clamp(26px,4vw,40px);margin:0 0 10px;font-weight:700;letter-spacing:-.025em}
+.stage-sec .deck{color:#9DACBC;max-width:66ch}
+.stage-sec .hi{background:rgba(127,199,158,.08);border-left-color:#3E6B5C;color:#BFE0CD}
+.stage-sec .hi::before{color:#7FC79E}
+.viz{
+  margin:26px 0 0;border:1px solid var(--stage-3);border-radius:6px;
+  background:linear-gradient(180deg,#182230,#131B25);overflow:hidden;
+}
+.viz svg{display:block;width:100%;height:auto}
+.vz-box{fill:#1E2A38;stroke:#3D4C5C;stroke-width:1.4;transition:fill .3s,stroke .3s}
+.vz-box.act{fill:#123F3E;stroke:#3FA697}
+.vz-box.err{fill:#3A1D19;stroke:#C0584A}
+.vz-box.warn{fill:#3A2E12;stroke:#D0A24C}
+.vz-box.dim{opacity:.35}
+.vz-t{font-family:var(--sans);font-size:12.5px;fill:#D6DEE7;font-weight:500}
+.vz-s{font-family:var(--mono);font-size:9px;fill:#8494A5;letter-spacing:.04em}
+.vz-p{stroke:#3D4C5C;stroke-width:1.4;fill:none;transition:stroke .3s,opacity .3s}
+.vz-p.act{stroke:#3FA697;stroke-width:2.2}
+.vz-p.err{stroke:#C0584A;stroke-width:2.2;stroke-dasharray:5 4}
+.vz-p.comp{stroke:#D0A24C;stroke-width:2.2;stroke-dasharray:6 4}
+.packet{fill:#7FC79E;stroke:#0E1620;stroke-width:1.2}
+.packet.err{fill:#E07B6A}
+.packet.comp{fill:#E3B45F}
+.badge{font-family:var(--mono);font-size:9.5px;fill:#0E1620;font-weight:700}
+.controls{display:flex;flex-wrap:wrap;gap:9px;align-items:center;padding:13px 16px;background:#0F1721;border-top:1px solid var(--stage-3)}
+.ctl{
+  font-family:var(--sans);font-size:13.5px;font-weight:500;color:#D6DEE7;
+  background:#243140;border:1px solid #384657;border-radius:3px;padding:7px 15px;cursor:pointer;
+}
+.ctl:hover{background:#2E3D4E}
+.ctl.primary{background:#12615E;border-color:#2C8079;color:#EAF6F3}
+.ctl.primary:hover{background:#177A76}
+.dots{display:flex;gap:5px;margin-left:auto;flex-wrap:wrap}
+.dot{width:9px;height:9px;border-radius:50%;background:#38465A;border:none;padding:0;cursor:pointer}
+.dot.on{background:#7FC79E;transform:scale(1.25)}
+.caption{padding:18px 20px 22px;background:#0F1721;border-top:1px solid var(--stage-3);min-height:132px}
+.cap-step{font-family:var(--mono);font-size:11px;color:#7D8B9C;letter-spacing:.06em;margin:0 0 6px}
+.caption h4{margin:0 0 7px;font-size:18px;color:#fff;font-weight:600}
+.caption p{margin:0;color:#B5C2D0;font-size:16px;max-width:78ch}
+.caption .hi{margin-top:9px;max-width:78ch}
+.cap-chip{
+  display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.05em;
+  padding:3px 8px;border:1px solid #3FA697;color:#7FC79E;border-radius:2px;margin-left:9px;vertical-align:2px;
+}
+
+/* ============================ MISC ============================ */
+.wide{max-width:var(--maxw);margin:0 auto;padding:0 28px}
+.sec{padding-top:44px;margin-bottom:46px}
+.sec > h2{font-size:clamp(26px,4vw,40px);margin:0 0 10px;font-weight:700;letter-spacing:-.025em}
+.sec > .deck{margin-bottom:22px}
+.gates{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:22px 0 0}
+.gate{border:1px solid var(--rule);background:#fff;border-radius:4px;padding:17px 19px}
+.gate .num{font-family:var(--mono);font-size:11px;color:var(--fix);letter-spacing:.06em;margin-bottom:7px}
+.gate h4{margin:0 0 7px;font-size:17px}
+.gate p{margin:0;font-size:15.5px;color:var(--ink-soft)}
+.footer{border-top:1px solid var(--rule);padding:26px 0 60px;font-family:var(--mono);font-size:12px;color:var(--ink-faint)}
+
+@media (max-width:1000px){
+  .shell{grid-template-columns:1fr;gap:0}
+  .rail{position:static;padding-top:26px}
+  .rail-toggle{display:block;font-family:var(--sans);font-weight:600;font-size:15px;cursor:pointer;padding:10px 0;border-bottom:1px solid var(--rule)}
+  .rail ol,.rail h4{max-height:0;overflow:hidden;margin-bottom:0;transition:max-height .25s}
+  .rail.open ol{max-height:1400px}
+  .rail.open h4{max-height:40px;margin-top:14px}
+  .main{padding-top:22px}
+}
+@media (max-width:760px){
+  body{font-size:16px}
+  .masthead-in,.legend,.shell,.wide,.stage-in{padding-left:18px;padding-right:18px}
+  .split{grid-template-columns:1fr}
+  .fault{border-right:none;border-bottom:1px solid var(--rule)}
+  .docket-grid,.gates{grid-template-columns:1fr}
+  .dcell{border-right:none;border-bottom:1px solid var(--note-rule)}
+  .dcell:last-child{border-bottom:none}
+  pre.code{font-size:12px}
+  pre.code .cl{padding-left:44px}
+  pre.code .nt{padding-left:44px}
+}
+@media (prefers-reduced-motion:reduce){
+  *{animation-duration:.001ms !important;transition-duration:.001ms !important}
+  html{scroll-behavior:auto}
+}
+</style>
+</head>
+<body>
+<div id="sdh-libbar" style="position:relative;z-index:2147483000;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0;padding:8px 16px;background:#0f172a;color:#cbd5e1;font:600 13px/1.5 Inter,'Segoe UI',system-ui,-apple-system,sans-serif;border-bottom:2px solid #4f46e5;box-sizing:border-box;width:100%;text-align:left;letter-spacing:0"><a href="../../index.html" style="color:#fff;text-decoration:none;font-weight:800">SystemDesign<span style="color:#8b8cff">.hinglish</span></a><span style="opacity:.45">/</span><a href="../index.html" style="color:#fff;text-decoration:none">📚 Library</a><span style="opacity:.45">/</span><a href="../index.html#spring-boot" style="color:#cbd5e1;text-decoration:none">Spring Boot &amp; Microservices</a><a href="../files/microservice-design-patterns-original.html" download style="color:#a5b4fc;text-decoration:none;font-size:12px">⬇ Original</a><span style="margin-left:auto;font-size:11px;padding:2px 9px;border-radius:999px;border:1px solid #6366f1;color:#c7d2fe">📘 HTML ebook</span></div>
+
+<!-- ==================== MASTHEAD ==================== -->
+<header class="masthead">
+  <div class="masthead-in">
+    <div class="stamp">Docket <b>MSA-2026</b> · Java 21 · Spring Boot 3.x · HLD + LLD + tradeoffs</div>
+    <div class="mast-top">
+    <h1>Microservice patterns, read as faults and fixes</h1>
+    <p class="deck">Har pattern ek problem ka jawab hai — pehle dard, phir dawai. Left column mein the failure you actually feel in production, right column mein the pattern that removes it. Neeche har topic ka HLD, Spring Boot LLD with line-by-line notes, aur sabse important cheez: kab is pattern ko <em>ignore</em> karna hai.</p>
+    </div>
+
+    <svg class="hero-svg" viewBox="0 0 960 200" role="img" aria-label="One monolithic deployable splitting into five independently deployable services">
+      <text class="cap" x="0" y="14">before · one deployable, one release train</text>
+      <text class="cap" x="560" y="14">after · five deployables, five release trains</text>
+      <rect class="hbox mono" x="0" y="34" width="180" height="132" rx="3"/>
+      <text x="90" y="94" text-anchor="middle" font-weight="600">shop-backend.jar</text>
+      <text class="cap" x="90" y="112" text-anchor="middle">catalog · order · payment</text>
+      <text class="cap" x="90" y="126" text-anchor="middle">shipping · notification</text>
+      <path class="hl draw" style="--len:120" d="M180 100 L300 100"/>
+      <path class="hl draw" style="--len:230" d="M300 100 L360 100 L360 46 L560 46"/>
+      <path class="hl draw" style="--len:210" d="M300 100 L360 100 L360 73 L560 73"/>
+      <path class="hl draw" style="--len:200" d="M300 100 L560 100"/>
+      <path class="hl draw" style="--len:210" d="M300 100 L360 100 L360 127 L560 127"/>
+      <path class="hl draw" style="--len:230" d="M300 100 L360 100 L360 154 L560 154"/>
+      <text class="cap" x="240" y="92" text-anchor="middle">bounded contexts</text>
+      <g>
+        <rect class="hbox svc" x="560" y="32" width="150" height="28" rx="3"/><text x="572" y="51">catalog</text>
+        <rect class="hbox svc" x="560" y="59" width="150" height="28" rx="3"/><text x="572" y="78">order</text>
+        <rect class="hbox svc" x="560" y="86" width="150" height="28" rx="3"/><text x="572" y="105">payment</text>
+        <rect class="hbox svc" x="560" y="113" width="150" height="28" rx="3"/><text x="572" y="132">shipping</text>
+        <rect class="hbox svc" x="560" y="140" width="150" height="28" rx="3"/><text x="572" y="159">notification</text>
+      </g>
+      <text class="cap" x="730" y="86">own DB · own team · own deploy</text>
+      <text class="cap" x="730" y="102">talk over API and events only</text>
+    </svg>
+  </div>
+  <div class="legend">
+    <span class="swatch"><i class="sw-f"></i>Problem — jo production mein todta hai</span>
+    <span class="swatch"><i class="sw-s"></i>Solution — pattern jo isko fix karta hai</span>
+    <span class="swatch"><i class="sw-t"></i>Tradeoff — apply karein ya chhod dein</span>
+    <span class="swatch">हिं Hinglish restatement of the line above it</span>
+  </div>
+</header>
+
+<!-- ==================== SHELL ==================== -->
+<div class="shell">
+<nav class="rail" id="rail" aria-label="Patterns">
+  <div class="rail-toggle" id="railToggle" role="button" tabindex="0" aria-expanded="false">Jump to a pattern</div>
+  <h4>decomposition</h4>
+  <ol>
+    <li><a href="#decompose">Service decomposition</a></li>
+    <li><a href="#db-per-service">Database per service</a></li>
+  </ol>
+  <h4>communication</h4>
+  <ol>
+    <li><a href="#api-gateway">API gateway &amp; BFF</a></li>
+    <li><a href="#discovery">Service discovery</a></li>
+    <li><a href="#saga-orch">Saga: orchestration</a></li>
+    <li><a href="#outbox">Outbox &amp; choreography</a></li>
+    <li><a href="#cqrs">CQRS</a></li>
+    <li><a href="#event-sourcing">Event sourcing</a></li>
+  </ol>
+  <h4>resilience</h4>
+  <ol>
+    <li><a href="#circuit-breaker">Circuit breaker</a></li>
+    <li><a href="#retry">Retry &amp; idempotency</a></li>
+    <li><a href="#bulkhead">Bulkhead &amp; rate limit</a></li>
+  </ol>
+  <h4>delivery &amp; ops</h4>
+  <ol>
+    <li><a href="#sidecar">Sidecar</a></li>
+    <li><a href="#mesh">Service mesh</a></li>
+    <li><a href="#strangler">Strangler fig</a></li>
+    <li><a href="#observability">Tracing &amp; correlation</a></li>
+  </ol>
+  <h4>judgement</h4>
+  <ol>
+    <li><a href="#tradeoffs">How to decide</a></li>
+    <li><a href="#matrix">Cost matrix</a></li>
+    <li><a href="#mock">Mock interview Q&amp;A</a></li>
+    <li><a href="#anime">Animated walkthrough</a></li>
+  </ol>
+</nav>
+
+<main class="main">
+
+<!-- ============ 1. DECOMPOSITION ============ -->
+<section class="pattern" id="decompose">
+  <div class="p-head">
+    <div class="tagrow"><span class="tag g-decomp">decomposition</span><span class="tag">DDD bounded context</span><span class="tag">start here</span></div>
+    <h2>Service decomposition by business capability</h2>
+    <p class="verdict">Cut along business capabilities, never along technical layers. Agar aapne <em>controller-service, business-service, data-service</em> banaya hai, toh aapne monolith ko teen network hops mein tod diya hai — that is a distributed monolith, not microservices.</p>
+  </div>
+
+  <div class="split">
+    <div class="col fault">
+      <h3><span>!</span>Problem</h3>
+      <ul>
+        <li>Invoice PDF ka ek chhota change bhi poore checkout ka regression suite chalata hai. One release train, 40 engineers waiting.</li>
+        <li>Search endpoint gets 80% of traffic, but you must scale the entire 900&nbsp;MB JAR to serve it. Baaki sab modules bekaar mein RAM kha rahe hain.</li>
+        <li>A god class <code>OrderService</code> is edited by four teams. Merge conflicts daily, ownership zero.</li>
+        <li>One memory leak in the reporting module takes down payments. Blast radius = whole product.</li>
+      </ul>
+    </div>
+    <div class="col fix">
+      <h3><span>✓</span>Solution</h3>
+      <ul>
+        <li>Identify bounded contexts: Catalog, Order, Payment, Inventory, Shipping. Har context ka apna language hai — "Order" ka product aur "Catalog" ka product same cheez nahi hai.</li>
+        <li>Boundary test: can this team ship on Friday evening without asking any other team? Agar haan, boundary sahi hai.</li>
+        <li>Talk across boundaries only through an explicit port (API or event). No shared entity classes, no shared JAR of domain models.</li>
+        <li>Translate foreign models at the edge with an anti-corruption layer, so other teams' schema changes don't leak into your domain.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-hd"><h3>HLD view</h3><em>what the architecture diagram shows</em></div>
+    <div class="topo">
+      <div class="node bad">shop-backend<small>1 jar · 1 db</small></div>
+      <span class="link" data-label="split by capability"></span>
+      <div class="stack">
+        <div class="node good">catalog<small>team A</small></div>
+        <div class="node good">order<small>team B</small></div>
+        <div class="node good">payment<small>team C</small></div>
+      </div>
+      <span class="link dash" data-label="events"></span>
+      <div class="node bus">kafka<small>domain events</small></div>
+    </div>
+    <p class="topo-note">Rule of thumb: service boundary = team boundary = data ownership boundary. Teeno line up nahi ho rahi toh boundary galat hai.</p>
+  </div>
+
+  <div class="block">
+    <div class="block-hd"><h3>LLD view</h3><em>anti-corruption layer + price snapshot</em></div>
+    <div class="codewrap">
+      <div class="codebar"><span>order-service · com.shop.order.application</span><button class="notes-btn" type="button">Hide line notes</button></div>
+<pre class="code">package com.shop.order.application;
+
+/** Port owned by the ORDER context, not by catalog. */
+public interface CatalogPort {                                //» Interface Order ke andar rehta hai — dependency inversion. Catalog team ka DTO seedha andar nahi aayega.
+    CatalogProductView fetchProduct(ProductId productId);
+}
+
+@Service
+@RequiredArgsConstructor
+public class OrderPlacementService {
+
+    private final CatalogPort catalogPort;                     //» Port ka reference — implementation REST, gRPC ya local cache kuch bhi ho sakta hai.
+    private final OrderRepository orderRepository;
+
+    @Transactional
+    public OrderId placeOrder(PlaceOrderCommand command) {     //» Method naam business intent bolta hai, "saveOrderData" jaisa CRUD naam nahi.
+        List&lt;OrderLine&gt; lines = command.items().stream()
+                .map(this::toOrderLineWithPriceSnapshot)        //» Har item ko Order ki apni bhasha mein translate karte hain — this is the anti-corruption step.
+                .toList();
+
+        Order order = Order.draftFor(command.customerId(), lines);
+        order.rejectIfBelowMinimumValue();                     //» Business rule aggregate ke andar, service ke andar nahi — LLD interviewers yahi dekhte hain.
+        return orderRepository.save(order).id();
+    }
+
+    private OrderLine toOrderLineWithPriceSnapshot(RequestedItem item) {
+        CatalogProductView product = catalogPort.fetchProduct(item.productId());
+        return new OrderLine(
+                item.productId(),
+                product.name(),                                //» Naam aur price ko copy kar rahe hain, reference nahi rakh rahe.
+                product.price(),                               //» Kal catalog price badle toh purana order badalna nahi chahiye — immutability of history.
+                item.quantity());
+    }
+}</pre>
+    </div>
+  </div>
+
+  <div class="docket">
+    <div class="docket-hd">Tradeoff docket — when, why, and when to ignore</div>
+    <div class="docket-grid">
+      <div class="dcell apply">
+        <h4>apply when</h4>
+        <ul>
+          <li>3+ teams blocking each other on one release train.</li>
+          <li>Different modules need wildly different scaling or SLAs.</li>
+          <li>Domain is understood well enough to name stable boundaries.</li>
+        </ul>
+      </div>
+      <div class="dcell skip">
+        <h4>ignore when</h4>
+        <ul>
+          <li>Team under ~8 engineers. Ek modular monolith zyada tez chalega.</li>
+          <li>Product still pivoting — boundaries roz badlengi, har boundary change ab ek migration hai.</li>
+          <li>You have no CI/CD, no on-call rota, no centralised logging. Pehle woh banao.</li>
+        </ul>
+      </div>
+      <div class="dcell">
+        <h4>what it costs</h4>
+        <ul>
+          <li>Every in-process call becomes a network call that can fail, retry and duplicate.</li>
+          <li>Refactoring across a boundary now needs two deploys and a compatibility window.</li>
+          <li>Local dev, testing and debugging get materially harder.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 2. DATABASE PER SERVICE ============ -->
+<section class="pattern" id="db-per-service">
+  <div class="p-head">
+    <div class="tagrow"><span class="tag g-decomp">decomposition</span><span class="tag">data ownership</span><span class="tag g-hard">non-negotiable</span></div>
+    <h2>Database per service</h2>
+    <p class="verdict">Shared database ke saath aap microservices nahi, sirf multiple deployables chala rahe ho. Schema is the real API — jab tak DB shared hai, coupling zinda hai.</p>
+  </div>
+
+  <div class="split">
+    <div class="col fault">
+      <h3><span>!</span>Problem</h3>
+      <ul>
+        <li>Payment team adds <code>NOT NULL</code> to a shared table; order-service crashes at 2&nbsp;am. Kisi ne bataya bhi nahi.</li>
+        <li>Foreign keys create invisible coupling: you cannot delete or move a row without knowing every reader.</li>
+        <li>One hot table lock (e.g. <code>inventory</code>) becomes a global bottleneck for unrelated flows.</li>
+        <li>Everyone is stuck on the same engine. Search chahiye Elasticsearch, ledger chahiye Postgres, cart chahiye Redis — sab Postgres mein ghuse hain.</li>
+      </ul>
+    </div>
+    <div class="col fix">
+      <h3><span>✓</span>Solution</h3>
+      <ul>
+        <li>Each service owns its schema. Bahar se koi direct SQL nahi maar sakta — only API or events.</li>
+        <li>Replace foreign keys with IDs plus a denormalised snapshot of the fields you actually need.</li>
+        <li>Cross-service reads: API composition for small joins, an event-fed read model for big ones.</li>
+        <li>Analytics ko production DB se mat jodo — events ko warehouse (BigQuery / Snowflake) mein bhejo.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-hd"><h3>HLD view</h3><em>ownership boundary, not just deployment boundary</em></div>
+    <div class="topo">
+      <div class="node good">order-svc</div>
+      <span class="link" data-label="owns"></span>
+      <div class="node store">orders_db<small>postgres</small></div>
+      <span class="link cut" data-label="no direct read"></span>
+      <div class="node good">payment-svc</div>
+      <span class="link" data-label="owns"></span>
+      <div class="node store">payments_db<small>postgres</small></div>
+      <span class="link dash" data-label="OrderPlaced"></span>
+      <div class="node bus">kafka</div>
+      <span class="link dash" data-label="CDC sink"></span>
+      <div class="node store">warehouse<small>reporting</small></div>
+    </div>
+    <p class="topo-note">Reporting ke liye production DB mat kholo — analytics ki query patterns tumhare OLTP indexes ko barbaad kar dengi.</p>
+  </div>
+
+  <div class="block">
+    <div class="block-hd"><h3>LLD view</h3><em>no FK, snapshot the facts you must keep</em></div>
+    <div class="codewrap">
+      <div class="codebar"><span>order-service · domain entity + composition read</span><button class="notes-btn" type="button">Hide line notes</button></div>
+<pre class="code">@Entity
+@Table(name = "order_line")
+public class OrderLine {
+
+    @Id private UUID id;
+
+    @Column(name = "product_id", nullable = false)
+    private UUID productId;                                    //» Sirf ID rakhi hai — koi @ManyToOne Product mapping nahi, kyunki Product doosre DB mein hai.
+
+    @Column(name = "product_name_at_purchase")
+    private String productNameAtPurchase;                      //» Snapshot: order ke time ka naam. Catalog rename kare toh invoice history nahi badalti.
+
+    @Column(name = "unit_price_at_purchase")
+    private Money unitPriceAtPurchase;                         //» Price bhi freeze — legal aur accounting dono isko demand karte hain.
+
+    private int quantity;
+}
+
+@Service
+@RequiredArgsConstructor
+public class OrderDetailAssembler {                            //» API composition: do services ka data ek response mein jodna.
+
+    private final OrderRepository orderRepository;
+    private final ShipmentPort shipmentPort;
+
+    public OrderDetailView assembleOrderDetail(OrderId orderId) {
+        Order order = orderRepository.findByIdOrThrow(orderId);
+        ShipmentView shipment = shipmentPort
+                .findLatestShipmentOrUnknown(orderId);          //» "OrUnknown" naam batata hai ki shipping down hone par bhi page render hoga.
+        return OrderDetailView.of(order, shipment);            //» Partial degradation &gt; full failure. Shipping 500 de toh sirf tracking block khali dikhega.
+    }
+}</pre>
+    </div>
+  </div>
+
+  <div class="docket">
+    <div class="docket-hd">Tradeoff docket — when, why, and when to ignore</div>
+    <div class="docket-grid">
+      <div class="dcell apply">
+        <h4>apply when</h4>
+        <ul>
+          <li>Always, if you claim to run microservices. Yeh optional nahi hai.</li>
+          <li>Teams need to run migrations independently.</li>
+          <li>Different storage engines genuinely fit different workloads.</li>
+        </ul>
+      </div>
+      <div class="dcell skip">
+        <h4>ignore when</h4>
+        <ul>
+          <li>Mid-migration from a monolith — a shared DB with strict schema ownership per table is an acceptable interim, with a deadline.</li>
+          <li>Reporting that truly needs 8-table joins: use a read replica or warehouse instead of forcing per-service joins.</li>
+          <li>Two "services" that always change together — merge them, don't split the data.</li>
+        </ul>
+      </div>
+      <div class="dcell">
+        <h4>what it costs</h4>
+        <ul>
+          <li>No cross-service JOIN and no cross-service ACID transaction — you now need Saga.</li>
+          <li>Data duplication, and the job of keeping copies fresh.</li>
+          <li>Eventual consistency becomes a product decision, not just a technical one.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 3. API GATEWAY ============ -->
+<section class="pattern" id="api-gateway">
+  <div class="p-head">
+    <div class="tagrow"><span class="tag g-comm">communication</span><span class="tag">edge</span><span class="tag">BFF</span></div>
+    <h2>API gateway and backend-for-frontend</h2>
+    <p class="verdict">Gateway ek single front door hai: routing, auth, rate limit, TLS. BFF usse aage jaata hai — har client type ke liye ek alag response shape. Gateway ko patla rakho; business logic wahan gaya toh naya monolith ban jaayega.</p>
+  </div>
+
+  <div class="split">
+    <div class="col fault">
+      <h3><span>!</span>Problem</h3>
+      <ul>
+        <li>Mobile home screen needs data from 7 services. On a 3G connection that is 7 round trips — 4 seconds before anything paints.</li>
+        <li>JWT validation, rate limiting, CORS and TLS termination copy-pasted into every service, each with its own bug.</li>
+        <li>Internal topology leaks to clients. Ek service ka naam badla toh Android app ka purana version toot gaya.</li>
+        <li>Web needs 40 fields, mobile needs 6 — dono ko same fat payload mil raha hai.</li>
+      </ul>
+    </div>
+    <div class="col fix">
+      <h3><span>✓</span>Solution</h3>
+      <ul>
+        <li>One edge entry point handles cross-cutting concerns once: authN, rate limit, request ID, TLS, routing.</li>
+        <li>Aggregate fan-out calls in parallel at the edge and return one payload.</li>
+        <li>Give each client family its own BFF so payload shape can evolve at client speed.</li>
+        <li>Keep it stateless and horizontally scaled, so the "single door" is not a single machine.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-hd"><h3>HLD view</h3><em>one hop for the client, parallel fan-out inside</em></div>
+    <div class="topo">
+      <div class="node">mobile app</div>
+      <span class="link" data-label="1 request"></span>
+      <div class="node good">BFF-mobile<small>aggregation</small></div>
+      <span class="link" data-label="parallel"></span>
+      <div class="stack">
+        <div class="node">catalog</div>
+        <div class="node">order</div>
+        <div class="node">offers</div>
+      </div>
+      <span class="link" data-label="fallbacks"></span>
+      <div class="node bus">degraded response<small>partial data ok</small></div>
+    </div>
+    <p class="topo-note">Aggregation ka rule: ek bhi upstream fail ho toh poora screen mat girao — us section ko empty/cached dikhao.</p>
+  </div>
+
+  <div class="block">
+    <div class="block-hd"><h3>LLD view</h3><em>parallel aggregation with per-section fallback</em></div>
+    <div class="codewrap">
+      <div class="codebar"><span>bff-mobile · HomeScreenAggregator</span><button class="notes-btn" type="button">Hide line notes</button></div>
+<pre class="code">@Service
+@RequiredArgsConstructor
+public class HomeScreenAggregator {
+
+    private final CatalogClient catalogClient;
+    private final OrderClient orderClient;
+    private final OfferClient offerClient;
+    private final Executor edgeExecutor;                        //» Dedicated pool — request threads ko block nahi karna. Yeh bulkhead ka hi ek roop hai.
+
+    public HomeScreenView buildHomeScreen(UserId userId) {
+        var trending = supplyOrFallback(
+                () -&gt; catalogClient.fetchTrending(12), List.of());   //» Har section apne fallback ke saath — catalog gir gaya toh khali list, exception nahi.
+        var recentOrders = supplyOrFallback(
+                () -&gt; orderClient.fetchRecentOrders(userId, 3), List.of());
+        var offers = supplyOrFallback(
+                () -&gt; offerClient.fetchOffers(userId), List.of());
+
+        CompletableFuture.allOf(trending, recentOrders, offers)
+                .orTimeout(800, TimeUnit.MILLISECONDS)          //» Poore screen ka ek hard budget. Slow section ko chhodo, page bhejo.
+                .exceptionally(ignored -&gt; null);                //» Timeout ko swallow karte hain kyunki har future ke paas already fallback hai.
+
+        return new HomeScreenView(
+                trending.getNow(List.of()),                     //» getNow = jo ready hai wahi lo, warna default. Yahi partial rendering ko enable karta hai.
+                recentOrders.getNow(List.of()),
+                offers.getNow(List.of()));
+    }
+
+    private &lt;T&gt; CompletableFuture&lt;T&gt; supplyOrFallback(Supplier&lt;T&gt; call, T fallback) {
+        return CompletableFuture
+                .supplyAsync(call, edgeExecutor)
+                .exceptionally(ex -&gt; {
+                    log.warn("home section degraded", ex);      //» Degradation ko log + metric karo, warna silent data loss ban jaayega.
+                    return fallback;
+                });
+    }
+}</pre>
+    </div>
+  </div>
+
+  <div class="docket">
+    <div class="docket-hd">Tradeoff docket — when, why, and when to ignore</div>
+    <div class="docket-grid">
+      <div class="dcell apply">
+        <h4>apply when</h4>
+        <ul>
+          <li>More than one client type, or more than ~5 public services.</li>
+          <li>Chatty mobile clients on poor networks.</li>
+          <li>You need one place for auth, throttling and audit.</li>
+        </ul>
+      </div>
+      <div class="dcell skip">
+        <h4>ignore when</h4>
+        <ul>
+          <li>Single web client, 2–3 services: ek reverse proxy (nginx) kaafi hai, poora gateway stack overkill hai.</li>
+          <li>Purely internal service-to-service traffic — mesh or direct calls are better than routing everything through the edge.</li>
+          <li>Team ke paas gateway ko 24×7 own karne ki capacity nahi hai.</li>
+        </ul>
+      </div>
+      <div class="dcell">
+        <h4>what it costs</h4>
+        <ul>
+          <li>Extra hop of latency and one more thing to scale and patch.</li>
+          <li>Becomes a deployment bottleneck if every team must edit the same route file.</li>
+          <li>Logic creep: today a field mapping, in a year the gateway holds business rules.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 4. SERVICE DISCOVERY ============ -->
+<section class="pattern" id="discovery">
+  <div class="p-head">
+    <div class="tagrow"><span class="tag g-comm">communication</span><span class="tag">routing</span><span class="tag">platform-dependent</span></div>
+    <h2>Service discovery and client-side load balancing</h2>
+    <p class="verdict">Autoscaling ke saath IP addresses har deploy par badalte hain. Discovery iska jawab hai — lekin Kubernetes par aksar yeh pattern already built-in hai, aur Eureka add karna ek extra failure domain hai.</p>
+  </div>
+
+  <div class="split">
+    <div class="col fault">
+      <h3><span>!</span>Problem</h3>
+      <ul>
+        <li>Hardcoded IPs and ports in config. Har scale-out ke baad manual update, aur ek stale IP = 100% failure.</li>
+        <li>A central hardware load balancer per service pair is slow to change and expensive.</li>
+        <li>Instance dies but keeps receiving traffic because nothing removed it from rotation.</li>
+        <li>Rolling deploys create a window where half the callers hold dead endpoints.</li>
+      </ul>
+    </div>
+    <div class="col fix">
+      <h3><span>✓</span>Solution</h3>
+      <ul>
+        <li>Instances register themselves with a registry (Eureka / Consul) and send heartbeats; unhealthy ones are evicted.</li>
+        <li>Callers resolve by logical name, then pick an instance client-side — no extra network hop.</li>
+        <li>On Kubernetes, the platform already does this: a Service name resolves through DNS to healthy pod endpoints.</li>
+        <li>Combine with readiness probes so a booting pod never gets traffic.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-hd"><h3>HLD view</h3><em>logical name in, healthy instance out</em></div>
+    <div class="topo">
+      <div class="node good">order-svc<small>caller</small></div>
+      <span class="link dash" data-label="resolve name"></span>
+      <div class="node bus">registry / k8s DNS<small>heartbeat + health</small></div>
+      <span class="link" data-label="instance list"></span>
+      <div class="stack">
+        <div class="node">payment-1</div>
+        <div class="node">payment-2</div>
+        <div class="node bad">payment-3<small>evicted</small></div>
+      </div>
+    </div>
+    <p class="topo-note">Registry khud ek dependency hai. Cache the last known good list, taki registry down hone par traffic chalu rahe.</p>
+  </div>
+
+  <div class="block">
+    <div class="block-hd"><h3>LLD view</h3><em>logical host name, timeouts, and a resolved-instance guard</em></div>
+    <div class="codewrap">
+      <div class="codebar"><span>order-service · outbound client config</span><button class="notes-btn" type="button">Hide line notes</button></div>
+<pre class="code">@Configuration
+public class PaymentClientConfig {
+
+    @Bean
+    @LoadBalanced                                              //» Yeh annotation RestClient ko batata hai ki host name logical hai, real DNS nahi.
+    public RestClient.Builder loadBalancedRestClientBuilder() {
+        return RestClient.builder();
+    }
+
+    @Bean
+    public RestClient paymentRestClient(RestClient.Builder builder) {
+        return builder
+                .baseUrl("http://payment-service")             //» "payment-service" registry ka logical id hai — koi IP kabhi code mein nahi.
+                .requestFactory(clientFactoryWithTimeouts())   //» Timeout ke bina discovery bekaar hai: dead instance par thread hamesha ke liye atak jaayega.
+                .build();
+    }
+
+    private ClientHttpRequestFactory clientFactoryWithTimeouts() {
+        var factory = new SimpleClientHttpRequestFactory();
+        factory.setConnectTimeout(Duration.ofMillis(300));     //» Connect timeout chhota — dead pod turant detect ho.
+        factory.setReadTimeout(Duration.ofSeconds(2));         //» Read timeout downstream ke p99 se thoda upar rakho, usse bahut zyada nahi.
+        return factory;
+    }
+}
+
+@Component
+@RequiredArgsConstructor
+public class PaymentInstanceInspector {                        //» Debugging helper: production incident mein "kaunsa pod hit hua" turant pata chale.
+
+    private final DiscoveryClient discoveryClient;
+
+    public List&lt;String&gt; listHealthyPaymentInstances() {
+        return discoveryClient.getInstances("payment-service").stream()
+                .map(instance -&gt; instance.getHost() + ":" + instance.getPort())
+                .toList();
+    }
+}</pre>
+    </div>
+  </div>
+
+  <div class="docket">
+    <div class="docket-hd">Tradeoff docket — when, why, and when to ignore</div>
+    <div class="docket-grid">
+      <div class="dcell apply">
+        <h4>apply when</h4>
+        <ul>
+          <li>VM or bare-metal deployments where instances come and go.</li>
+          <li>Multi-region or multi-datacentre routing with locality preference.</li>
+          <li>You need weighted or zone-aware balancing your LB cannot express.</li>
+        </ul>
+      </div>
+      <div class="dcell skip">
+        <h4>ignore when</h4>
+        <ul>
+          <li>You already run on Kubernetes. K8s Service + DNS + kube-proxy is discovery — Eureka bas duplicate kaam aur ek aur outage source hai.</li>
+          <li>You run a service mesh; the sidecar handles resolution.</li>
+          <li>Two or three fixed services behind a managed LB.</li>
+        </ul>
+      </div>
+      <div class="dcell">
+        <h4>what it costs</h4>
+        <ul>
+          <li>The registry itself must be HA — its outage can be worse than a service outage.</li>
+          <li>Registration lag means stale entries for a few seconds after a crash.</li>
+          <li>Client-side balancing puts routing logic in every language you run.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 5. SAGA ORCHESTRATION ============ -->
+<section class="pattern" id="saga-orch">
+  <div class="p-head">
+    <div class="tagrow"><span class="tag g-comm">communication</span><span class="tag">consistency</span><span class="tag g-hard">interview favourite</span></div>
+    <h2>Saga — orchestration</h2>
+    <p class="verdict">Ek business transaction jo 4 services ko chhuti hai, usme 2PC/XA mat lagao — woh locks pakadta hai, availability girata hai aur Kafka/HTTP par kaam hi nahi karta. Saga usko chhote local transactions + compensations mein todta hai.</p>
+  </div>
+
+  <div class="split">
+    <div class="col fault">
+      <h3><span>!</span>Problem</h3>
+      <ul>
+        <li>Order placed, inventory reserved, but payment fails. Stock 30 minute tak block pada hai aur customer ko kuch pata nahi.</li>
+        <li>Two-phase commit holds locks across services for the whole round trip — throughput collapses and one slow participant freezes everyone.</li>
+        <li>Retry logic scattered in five places; nobody can answer "abhi order kis step par hai?".</li>
+        <li>Partial failure leaves no audit trail, so support has to fix rows by hand.</li>
+      </ul>
+    </div>
+    <div class="col fix">
+      <h3><span>✓</span>Solution</h3>
+      <ul>
+        <li>Split into local ACID transactions, one per service, each with an explicit compensating action.</li>
+        <li>An orchestrator holds the state machine and decides the next step. State DB mein persist hota hai, memory mein nahi.</li>
+        <li>Failure ke baad backwards chalo: <code>releaseInventory</code>, <code>refundPayment</code>, <code>markOrderFailed</code>.</li>
+        <li>Every step is idempotent and carries a saga id, so replays and duplicates are safe.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-hd"><h3>HLD view</h3><em>forward path, then compensation path</em></div>
+    <div class="topo">
+      <div class="node good">order<small>saga start</small></div>
+      <span class="link" data-label="reserve"></span>
+      <div class="node">inventory<small>ok</small></div>
+      <span class="link" data-label="charge"></span>
+      <div class="node bad">payment<small>declined</small></div>
+      <span class="link cut" data-label="compensate"></span>
+      <div class="node">release stock</div>
+      <span class="link cut" data-label="then"></span>
+      <div class="node bad">order = FAILED</div>
+    </div>
+    <p class="topo-note">Compensation "undo" nahi hai — yeh ek naya business fact hai. Refund ek transaction hai, delete nahi.</p>
+  </div>
+
+  <div class="block">
+    <div class="block-hd"><h3>LLD view</h3><em>persisted state machine with named compensations</em></div>
+    <div class="codewrap">
+      <div class="codebar"><span>order-service · OrderSagaOrchestrator</span><button class="notes-btn" type="button">Hide line notes</button></div>
+<pre class="code">@Service
+@RequiredArgsConstructor
+public class OrderSagaOrchestrator {
+
+    private final SagaInstanceRepository sagaRepository;        //» Saga ka state DB mein — pod restart hone par bhi flow resume ho sake.
+    private final InventoryCommandGateway inventoryGateway;
+    private final PaymentCommandGateway paymentGateway;
+
+    @Transactional
+    public SagaId startOrderSaga(Order order) {
+        SagaInstance saga = SagaInstance.startedFor(order.id(), SagaStep.RESERVE_INVENTORY);
+        sagaRepository.save(saga);                              //» Pehle state likho, phir command bhejo. Ulta karoge toh "bheja par yaad nahi" wala bug aayega.
+        inventoryGateway.requestReservation(saga.id(), order.lines());
+        return saga.id();
+    }
+
+    @EventListener
+    @Transactional
+    public void onInventoryReserved(InventoryReserved event) {
+        SagaInstance saga = sagaRepository.lockById(event.sagaId());  //» Row lock — do parallel events ek hi saga ko aage badha kar race na kar dein.
+        if (!saga.isAwaiting(SagaStep.RESERVE_INVENTORY)) return;     //» Idempotency guard: duplicate event chup-chaap ignore, error nahi.
+
+        saga.advanceTo(SagaStep.CHARGE_PAYMENT);
+        paymentGateway.requestCharge(saga.id(), saga.orderId(), saga.amount());
+    }
+
+    @EventListener
+    @Transactional
+    public void onPaymentDeclined(PaymentDeclined event) {
+        SagaInstance saga = sagaRepository.lockById(event.sagaId());
+        saga.beginCompensation(event.reason());                 //» Yahin se direction ulta ho jaata hai — forward steps band, compensations chalu.
+        compensateReservedInventory(saga);
+    }
+
+    private void compensateReservedInventory(SagaInstance saga) {
+        inventoryGateway.requestRelease(saga.id(), saga.orderId());  //» Compensation bhi ek command hai, saga id ke saath — receiver isko dedupe kar sake.
+        saga.advanceTo(SagaStep.RELEASE_INVENTORY);
+    }
+
+    @Scheduled(fixedDelay = 30_000)
+    public void retryStuckSagas() {                             //» Timeout sweeper: koi reply hi na aaye toh saga hamesha ke liye atka rahega.
+        sagaRepository.findStalledOlderThan(Duration.ofMinutes(2))
+                .forEach(saga -&gt; saga.resendCurrentStepCommand(inventoryGateway, paymentGateway));
+    }
+}</pre>
+    </div>
+  </div>
+
+  <div class="docket">
+    <div class="docket-hd">Tradeoff docket — orchestration vs choreography vs neither</div>
+    <div class="docket-grid">
+      <div class="dcell apply">
+        <h4>apply when</h4>
+        <ul>
+          <li>4+ steps, conditional branches, or a flow the business wants to see and audit.</li>
+          <li>You need a single place to answer "where is this order stuck?".</li>
+          <li>Compensations are genuinely business-meaningful (refund, release, cancel).</li>
+        </ul>
+      </div>
+      <div class="dcell skip">
+        <h4>ignore when</h4>
+        <ul>
+          <li>2–3 simple steps with no branching — choreography (plain events) is lighter.</li>
+          <li>All steps live in one service: just use a local <code>@Transactional</code>. Saga ki zaroorat hi nahi.</li>
+          <li>Steps cannot be compensated at all (email already sent) — redesign the order of steps instead.</li>
+        </ul>
+      </div>
+      <div class="dcell">
+        <h4>what it costs</h4>
+        <ul>
+          <li>Orchestrator is a coupling point and can drift toward god-service.</li>
+          <li>No isolation: other reads see intermediate states. Semantic locks or a PENDING status are needed.</li>
+          <li>You must write, test and monitor every compensation — that is roughly double the paths.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 6. OUTBOX ============ -->
+<section class="pattern" id="outbox">
+  <div class="p-head">
+    <div class="tagrow"><span class="tag g-comm">communication</span><span class="tag">choreography</span><span class="tag g-hard">the dual-write fix</span></div>
+    <h2>Transactional outbox and choreography</h2>
+    <p class="verdict">DB commit ho gaya lekin Kafka publish fail — event hamesha ke liye gum. Yeh dual-write problem hai, aur iska ek hi saaf jawab hai: event ko usi transaction mein ek outbox table mein likho.</p>
+  </div>
+
+  <div class="split">
+    <div class="col fault">
+      <h3><span>!</span>Problem</h3>
+      <ul>
+        <li><code>save(order)</code> succeeds, then <code>kafkaTemplate.send()</code> throws. Order exists but nobody downstream knows — invisible inconsistency.</li>
+        <li>Reverse order is no better: publish succeeds, DB rollback happens, and you have announced an order that does not exist.</li>
+        <li>Wrapping Kafka and JDBC in one XA transaction is slow, fragile and often unsupported.</li>
+        <li>Consumers receive events out of order or twice and blindly apply them twice.</li>
+      </ul>
+    </div>
+    <div class="col fix">
+      <h3><span>✓</span>Solution</h3>
+      <ul>
+        <li>Insert the event row into an <code>outbox</code> table inside the same local transaction as the business write. Ek hi commit, ek hi truth.</li>
+        <li>A relay (poller or Debezium CDC on the WAL) reads unpublished rows and pushes them to the broker.</li>
+        <li>Delivery is at-least-once, so every consumer must be idempotent — dedupe by event id.</li>
+        <li>Choreography: consumers react to events and emit their own, with no central orchestrator.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-hd"><h3>HLD view</h3><em>one commit, then an independent relay</em></div>
+    <div class="topo">
+      <div class="node good">order-svc</div>
+      <span class="link" data-label="1 tx: order + event"></span>
+      <div class="node store">orders_db<small>+ outbox table</small></div>
+      <span class="link dash" data-label="poll / CDC"></span>
+      <div class="node good">outbox relay</div>
+      <span class="link dash" data-label="publish"></span>
+      <div class="node bus">kafka</div>
+      <span class="link dash" data-label="at-least-once"></span>
+      <div class="node">inventory<small>idempotent consumer</small></div>
+    </div>
+    <p class="topo-note">Relay crash ho jaaye toh bhi event table mein safe hai — restart par phir se publish ho jaayega.</p>
+  </div>
+
+  <div class="block">
+    <div class="block-hd"><h3>LLD view</h3><em>atomic write, SKIP LOCKED relay, idempotent consumer</em></div>
+    <div class="codewrap">
+      <div class="codebar"><span>order-service · outbox write + relay + consumer</span><button class="notes-btn" type="button">Hide line notes</button></div>
+<pre class="code">@Service
+@RequiredArgsConstructor
+public class OrderService {
+
+    private final OrderRepository orderRepository;
+    private final OutboxRepository outboxRepository;
+
+    @Transactional
+    public OrderId placeOrderAndRecordEvent(PlaceOrderCommand command) {
+        Order order = orderRepository.save(Order.from(command));
+        outboxRepository.save(OutboxRecord.of(                  //» Business row aur event row — dono ek hi transaction mein. Yahi poora trick hai.
+                "Order", order.id().value(),
+                "OrderPlaced", toJson(OrderPlaced.from(order))));
+        return order.id();                                      //» Kafka ko yahan touch bhi nahi kiya, isliye broker down hone par bhi order safe hai.
+    }
+}
+
+@Component
+@RequiredArgsConstructor
+public class OutboxRelay {
+
+    private final OutboxRepository outboxRepository;
+    private final KafkaTemplate&lt;String, String&gt; kafkaTemplate;
+
+    @Scheduled(fixedDelay = 500)
+    @Transactional
+    public void publishPendingEvents() {
+        List&lt;OutboxRecord&gt; batch = outboxRepository
+                .lockNextUnpublishedBatch(100);                 //» SELECT ... FOR UPDATE SKIP LOCKED — multiple relay pods same row par nahi ladenge.
+
+        for (OutboxRecord record : batch) {
+            kafkaTemplate.send(record.topic(), record.aggregateId(), record.payload());
+            record.markPublished(Instant.now());                //» Publish ke baad mark. Crash yahan hua toh dobara publish hoga = at-least-once, at-most-once nahi.
+        }
+    }
+}
+
+@Component
+@RequiredArgsConstructor
+public class InventoryEventConsumer {
+
+    private final ProcessedEventRepository processedEvents;
+
+    @KafkaListener(topics = "order.events")
+    @Transactional
+    public void onOrderPlaced(OrderPlaced event) {
+        if (!processedEvents.registerIfNew(event.eventId())) {  //» Unique index par insert — agar pehle se hai toh false, matlab duplicate. Idempotency ka sabse sasta tareeka.
+            return;                                             //» Duplicate ko silently drop karo; exception phenkne se consumer loop mein phas jaayega.
+        }
+        reserveStockFor(event.orderId(), event.lines());
+    }
+}</pre>
+    </div>
+  </div>
+
+  <div class="docket">
+    <div class="docket-hd">Tradeoff docket — when, why, and when to ignore</div>
+    <div class="docket-grid">
+      <div class="dcell apply">
+        <h4>apply when</h4>
+        <ul>
+          <li>Any time a DB write and an event publish must both happen. Yeh money flows ke liye must hai.</li>
+          <li>Choreographed flows with 2–4 steps and no branching.</li>
+          <li>You already run Debezium or can afford a small poller.</li>
+        </ul>
+      </div>
+      <div class="dcell skip">
+        <h4>ignore when</h4>
+        <ul>
+          <li>The event is genuinely disposable — a "nice to have" analytics ping. Losing it costs nothing.</li>
+          <li>You use event sourcing: the event store <em>is</em> the write model, so there is no dual write to fix.</li>
+          <li>Flow has 6+ steps and branches — choreography becomes untraceable; switch to orchestration.</li>
+        </ul>
+      </div>
+      <div class="dcell">
+        <h4>what it costs</h4>
+        <ul>
+          <li>An extra table, a relay process and its lag monitoring.</li>
+          <li>Duplicates are now guaranteed, so every consumer needs a dedupe store.</li>
+          <li>Choreography spreads the flow across services — "who does what next" ka koi single diagram nahi bachta.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 7. CQRS ============ -->
+<section class="pattern" id="cqrs">
+  <div class="p-head">
+    <div class="tagrow"><span class="tag g-comm">communication</span><span class="tag">read/write split</span><span class="tag">often overused</span></div>
+    <h2>CQRS — command query responsibility segregation</h2>
+    <p class="verdict">Ek hi model se likhna aur padhna dono karoge toh dono taraf compromise hoga. CQRS write model ko normalized aur rules-heavy rakhta hai, read model ko flat aur fast. Lekin isko default mat banao — 80% screens ke liye simple CRUD hi sahi hai.</p>
+  </div>
+
+  <div class="split">
+    <div class="col fault">
+      <h3><span>!</span>Problem</h3>
+      <ul>
+        <li>The seller dashboard needs a 6-table join with aggregates; the query takes 4 seconds and locks rows that checkout needs.</li>
+        <li>Write path chahta hai normalization aur constraints, read path chahta hai denormalized rows aur bade indexes — ek hi table dono nahi de sakti.</li>
+        <li>Adding read indexes slows down every insert on the hot path.</li>
+        <li>Search needs full-text ranking that a relational table cannot deliver.</li>
+      </ul>
+    </div>
+    <div class="col fix">
+      <h3><span>✓</span>Solution</h3>
+      <ul>
+        <li>Commands go through the aggregate and enforce invariants; queries bypass it entirely and hit a purpose-built read model.</li>
+        <li>Read models are projected from domain events, and can live in Postgres, Elasticsearch or Redis — jo bhi query pattern ko suit kare.</li>
+        <li>You can rebuild a read model from scratch by replaying events, so schema changes stop being scary migrations.</li>
+        <li>Scale read and write sides independently.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-hd"><h3>HLD view</h3><em>two models, one event stream between them</em></div>
+    <div class="topo">
+      <div class="node">client</div>
+      <span class="link" data-label="command"></span>
+      <div class="node good">write model<small>aggregate + rules</small></div>
+      <span class="link dash" data-label="OrderPlaced"></span>
+      <div class="node good">projector</div>
+      <span class="link" data-label="upsert"></span>
+      <div class="node store">read model<small>flat rows</small></div>
+      <span class="link" data-label="query"></span>
+      <div class="node">dashboard<small>&lt;50 ms</small></div>
+    </div>
+    <p class="topo-note">Projection lag = user ko apni hi likhi hui cheez turant nahi dikhegi. Iska product-level jawab pehle se socho.</p>
+  </div>
+
+  <div class="block">
+    <div class="block-hd"><h3>LLD view</h3><em>command handler, projector, and read-your-own-write handling</em></div>
+    <div class="codewrap">
+      <div class="codebar"><span>order-service · command / projection / query</span><button class="notes-btn" type="button">Hide line notes</button></div>
+<pre class="code">@Service
+@RequiredArgsConstructor
+public class PlaceOrderCommandHandler {                         //» Naam se hi pata chalta hai yeh write side hai. Read side kabhi is class ko nahi chhuyega.
+
+    private final OrderRepository orderRepository;
+    private final DomainEventPublisher eventPublisher;
+
+    @Transactional
+    public OrderId handle(PlaceOrderCommand command) {
+        Order order = Order.draftFor(command.customerId(), command.lines());
+        order.rejectIfBelowMinimumValue();                      //» Saare invariants sirf yahan. Read model mein koi validation nahi hoti.
+        orderRepository.save(order);
+        eventPublisher.publish(OrderPlaced.from(order));        //» Event hi write aur read side ke beech ka contract hai.
+        return order.id();
+    }
+}
+
+@Component
+@RequiredArgsConstructor
+public class OrderSummaryProjector {                            //» Projector ka ek hi kaam: event ko flat read row mein badalna.
+
+    private final OrderSummaryRepository summaries;
+
+    @KafkaListener(topics = "order.events")
+    public void projectOrderPlaced(OrderPlaced event) {
+        summaries.upsert(new OrderSummaryRow(                   //» upsert, insert nahi — replay aur duplicate dono safe ho jaate hain.
+                event.orderId(),
+                event.customerName(),                           //» Customer ka naam yahan copy — dashboard ko ab koi join nahi karna padta.
+                event.totalAmount(),
+                event.status(),
+                event.placedAt()));
+    }
+}
+
+@Service
+@RequiredArgsConstructor
+public class OrderSummaryQueryService {
+
+    private final OrderSummaryRepository summaries;
+    private final OrderRepository writeModel;
+
+    public Page&lt;OrderSummaryRow&gt; findOrderSummaryPage(SellerId sellerId, Pageable page) {
+        return summaries.findBySeller(sellerId, page);          //» Ek table, ek index, koi domain object hydrate nahi. Yahi speed ka source hai.
+    }
+
+    public OrderSummaryRow findJustPlacedOrder(OrderId id) {
+        return summaries.findById(id)
+                .orElseGet(() -&gt; OrderSummaryRow.from(writeModel.findByIdOrThrow(id)));  //» Read-your-own-write fix: projection lag ho toh write model se seedha padho.
+    }
+}</pre>
+    </div>
+  </div>
+
+  <div class="docket">
+    <div class="docket-hd">Tradeoff docket — when, why, and when to ignore</div>
+    <div class="docket-grid">
+      <div class="dcell apply">
+        <h4>apply when</h4>
+        <ul>
+          <li>Read:write ratio is extreme (100:1) and read queries are complex.</li>
+          <li>Reads need a different engine — search, geo, timeseries.</li>
+          <li>Reporting queries are hurting transactional latency today, with numbers to prove it.</li>
+        </ul>
+      </div>
+      <div class="dcell skip">
+        <h4>ignore when</h4>
+        <ul>
+          <li>Plain CRUD admin screens. Ek repository, ek DTO — bas. CQRS yahan sirf code doubling hai.</li>
+          <li>Users must see their own change immediately and you cannot fake it.</li>
+          <li>A materialised view or a read replica already solves the problem for a tenth of the effort.</li>
+        </ul>
+      </div>
+      <div class="dcell">
+        <h4>what it costs</h4>
+        <ul>
+          <li>Two models, two test suites, projection code and its lag monitoring.</li>
+          <li>Eventual consistency becomes visible in the UI.</li>
+          <li>Bugs in a projector silently corrupt reads until someone notices.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 8. EVENT SOURCING ============ -->
+<section class="pattern" id="event-sourcing">
+  <div class="p-head">
+    <div class="tagrow"><span class="tag g-comm">communication</span><span class="tag">state as a log</span><span class="tag g-hard">highest cost</span></div>
+    <h2>Event sourcing</h2>
+    <p class="verdict">State ko store karne ke bajaye state ko badalne wale events ko store karo; current state = events ka fold. Powerful hai, par yeh is list ka sabse mehnga pattern hai — bina strong audit/temporal requirement ke isko mat chuno.</p>
+  </div>
+
+  <div class="split">
+    <div class="col fault">
+      <h3><span>!</span>Problem</h3>
+      <ul>
+        <li><code>UPDATE order SET status='CANCELLED'</code> destroys history. Kisne, kab, kyun cancel kiya — kuch nahi bacha.</li>
+        <li>Regulator asks for the exact state of an account on 3 March last year. You cannot reconstruct it.</li>
+        <li>A production bug corrupted 8,000 rows; without the input sequence you cannot replay and repair.</li>
+        <li>A new read model needs history that was never captured, so backfill is guesswork.</li>
+      </ul>
+    </div>
+    <div class="col fix">
+      <h3><span>✓</span>Solution</h3>
+      <ul>
+        <li>Append immutable events to a stream per aggregate: <code>OrderPlaced</code>, <code>ItemAdded</code>, <code>PaymentCaptured</code>.</li>
+        <li>Rebuild current state by replaying the stream; snapshot every N events so replay stays cheap.</li>
+        <li>Optimistic concurrency by expected version — do parallel writers mein se ek fail hoga, silently overwrite nahi hoga.</li>
+        <li>Any number of read models can be built later from the same history.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-hd"><h3>HLD view</h3><em>the log is the source of truth</em></div>
+    <div class="topo">
+      <div class="node">command</div>
+      <span class="link" data-label="decide"></span>
+      <div class="node good">aggregate<small>rehydrated</small></div>
+      <span class="link" data-label="append"></span>
+      <div class="node store">event store<small>append-only</small></div>
+      <span class="link dash" data-label="subscribe"></span>
+      <div class="stack">
+        <div class="node">read model A</div>
+        <div class="node">read model B</div>
+        <div class="node">audit view</div>
+      </div>
+    </div>
+    <p class="topo-note">Snapshot sirf optimization hai, truth nahi. Snapshot delete karke bhi state exactly wapas aana chahiye.</p>
+  </div>
+
+  <div class="block">
+    <div class="block-hd"><h3>LLD view</h3><em>rehydrate, decide, append with version check</em></div>
+    <div class="codewrap">
+      <div class="codebar"><span>order-service · OrderAggregate + repository</span><button class="notes-btn" type="button">Hide line notes</button></div>
+<pre class="code">public class OrderAggregate {
+
+    private OrderId id;
+    private OrderStatus status;
+    private long version;                                       //» Version = kitne events apply hue. Optimistic locking isi par chalta hai.
+    private final List&lt;DomainEvent&gt; uncommittedEvents = new ArrayList&lt;&gt;();
+
+    public static OrderAggregate rehydrateFromEventStream(List&lt;DomainEvent&gt; history) {
+        OrderAggregate aggregate = new OrderAggregate();
+        history.forEach(aggregate::applyEvent);                 //» Fold: har event ko kramsh apply karke current state banate hain.
+        return aggregate;
+    }
+
+    public void cancel(String reason) {
+        if (status == OrderStatus.SHIPPED) {
+            throw new OrderAlreadyShippedException(id);         //» Decision current state par — jo state events se aayi hai.
+        }
+        recordEvent(new OrderCancelled(id, reason, Instant.now()));  //» Command state ko seedha nahi badalta; woh ek event record karta hai.
+    }
+
+    private void recordEvent(DomainEvent event) {
+        applyEvent(event);                                      //» Pehle apply, taki agla decision naye state par ho.
+        uncommittedEvents.add(event);                           //» Phir uncommitted list mein — repository isko persist karega.
+    }
+
+    private void applyEvent(DomainEvent event) {
+        if (event instanceof OrderCancelled) status = OrderStatus.CANCELLED;
+        if (event instanceof OrderPlaced placed) { id = placed.orderId(); status = OrderStatus.PLACED; }
+        version++;                                              //» applyEvent mein koi validation nahi — purane events hamesha replay honge, chahe rules badal jaayein.
+    }
+}
+
+@Repository
+@RequiredArgsConstructor
+public class EventSourcedOrderRepository {
+
+    private final EventStore eventStore;
+
+    public OrderAggregate loadOrder(OrderId id) {
+        Snapshot snapshot = eventStore.latestSnapshot(id);      //» Snapshot se shuru karo, warna 50,000 events replay karne padenge.
+        List&lt;DomainEvent&gt; tail = eventStore.readEventsAfter(id, snapshot.version());
+        return OrderAggregate.rehydrateFrom(snapshot, tail);
+    }
+
+    public void appendEventsWithOptimisticLock(OrderAggregate aggregate, long expectedVersion) {
+        eventStore.append(aggregate.id(), aggregate.uncommittedEvents(), expectedVersion);  //» Store version match kare tabhi likhega, warna ConcurrencyException.
+    }
+}</pre>
+    </div>
+  </div>
+
+  <div class="docket">
+    <div class="docket-hd">Tradeoff docket — when, why, and when to ignore</div>
+    <div class="docket-grid">
+      <div class="dcell apply">
+        <h4>apply when</h4>
+        <ul>
+          <li>Audit is a legal requirement — banking, ledgers, insurance, trading.</li>
+          <li>The business genuinely asks temporal questions: "what did it look like then?"</li>
+          <li>You need to replay history into new read models repeatedly.</li>
+        </ul>
+      </div>
+      <div class="dcell skip">
+        <h4>ignore when</h4>
+        <ul>
+          <li>You only wanted an audit trail. Ek <code>order_history</code> table 5% cost mein 90% value de degi.</li>
+          <li>GDPR-style hard deletion is required and you have no crypto-shredding plan — immutable log delete nahi hota.</li>
+          <li>Team ne pehle kabhi event sourcing production mein nahi chalaya. Learning curve incident ke beech mein mat lo.</li>
+        </ul>
+      </div>
+      <div class="dcell">
+        <h4>what it costs</h4>
+        <ul>
+          <li>Event schema versioning forever — a 2019 event must still deserialize in 2026.</li>
+          <li>Debugging, tooling and onboarding all get harder; every query needs a projection.</li>
+          <li>Snapshotting, stream compaction and storage growth become ongoing ops work.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 9. CIRCUIT BREAKER ============ -->
+<section class="pattern" id="circuit-breaker">
+  <div class="p-head">
+    <div class="tagrow"><span class="tag g-res">resilience</span><span class="tag">fail fast</span><span class="tag">Resilience4j</span></div>
+    <h2>Circuit breaker</h2>
+    <p class="verdict">Ek slow dependency poore system ko le doobti hai: threads block hote hain, pool khatam hota hai, aur callers ke callers bhi girte hain. Breaker kehta hai — jab dependency clearly beemar hai, toh usse poochho hi mat, turant fallback do.</p>
+  </div>
+
+  <div class="split">
+    <div class="col fault">
+      <h3><span>!</span>Problem</h3>
+      <ul>
+        <li>Payment provider p99 goes from 200&nbsp;ms to 30&nbsp;s. Har request ek thread 30 second tak pakadti hai.</li>
+        <li>Tomcat's 200 threads are all parked. Health endpoint bhi respond nahi kar raha, so Kubernetes restarts a healthy pod.</li>
+        <li>Callers retry, which multiplies load on a dependency that is already drowning.</li>
+        <li>Failure spreads upstream — checkout, cart and home page sab down, jabki galti sirf ek provider ki thi.</li>
+      </ul>
+    </div>
+    <div class="col fix">
+      <h3><span>✓</span>Solution</h3>
+      <ul>
+        <li>Track the failure rate over a sliding window. Threshold cross hote hi breaker OPEN — calls fail instantly, no thread parked.</li>
+        <li>After a wait duration, allow a few trial calls (HALF_OPEN). Succeed → CLOSED, fail → OPEN again.</li>
+        <li>Every breaker needs a meaningful fallback: queue the request, serve cached data, or return a clear degraded response.</li>
+        <li>Always pair with a timeout — bina timeout ke breaker kabhi trip hi nahi karega, kyunki call kabhi khatam hi nahi hoti.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-hd"><h3>HLD view</h3><em>three states, one wait window</em></div>
+    <div class="topo">
+      <div class="node good">CLOSED<small>traffic flows</small></div>
+      <span class="link cut" data-label="50% failures"></span>
+      <div class="node bad">OPEN<small>fail fast + fallback</small></div>
+      <span class="link" data-label="after 20 s"></span>
+      <div class="node">HALF_OPEN<small>3 trial calls</small></div>
+      <span class="link" data-label="all pass"></span>
+      <div class="node good">CLOSED</div>
+    </div>
+    <p class="topo-note">Threshold bahut sensitive rakha toh breaker flap karega; bahut loose rakha toh trip hi nahi hoga. Real p99 data se tune karo, guess se nahi.</p>
+  </div>
+
+  <div class="block">
+    <div class="block-hd"><h3>LLD view</h3><em>annotation, config, and a fallback that is actually useful</em></div>
+    <div class="codewrap">
+      <div class="codebar"><span>order-service · PaymentGatewayClient + application.yml</span><button class="notes-btn" type="button">Hide line notes</button></div>
+<pre class="code">@Component
+@RequiredArgsConstructor
+public class PaymentGatewayClient {
+
+    private final RestClient paymentRestClient;
+    private final DeferredPaymentQueue deferredPaymentQueue;
+
+    @CircuitBreaker(name = "paymentProvider", fallbackMethod = "queuePaymentForLaterAttempt")
+    @TimeLimiter(name = "paymentProvider")                       //» Timeout pehle, breaker baad mein. Timeout hi failure signal generate karta hai.
+    public PaymentResult chargeCard(ChargeRequest request) {
+        return paymentRestClient.post()
+                .uri("/v1/charges")
+                .header("Idempotency-Key", request.idempotencyKey())  //» Retry ke baad double charge na ho — breaker aur idempotency saath chalte hain.
+                .body(request)
+                .retrieve()
+                .body(PaymentResult.class);
+    }
+
+    private PaymentResult queuePaymentForLaterAttempt(ChargeRequest request, Throwable cause) {
+        deferredPaymentQueue.enqueue(request);                   //» Fallback ka matlab "null return karo" nahi — order ko bachao, baad mein charge karo.
+        log.warn("payment breaker open, deferred order={}", request.orderId(), cause);
+        return PaymentResult.deferred(request.orderId());        //» Caller ko saaf status milta hai, exception nahi — UI "processing" dikha sakta hai.
+    }
+}
+
+/* application.yml
+resilience4j.circuitbreaker.instances.paymentProvider:
+  slidingWindowType: COUNT_BASED
+  slidingWindowSize: 50                 # last 50 calls ka window        //» Bahut chhota window = shor par trip; bahut bada = late reaction.
+  minimumNumberOfCalls: 20              # 20 se pehle koi faisla nahi     //» Warm-up par 2 failures se breaker trip nahi hona chahiye.
+  failureRateThreshold: 50              # 50% fail = OPEN
+  slowCallDurationThreshold: 2s         # 2s se slow = failure gina jaayega  //» Slow call bhi failure hai — sirf exceptions par mat jao.
+  waitDurationInOpenState: 20s
+  permittedNumberOfCallsInHalfOpenState: 3
+*/</pre>
+    </div>
+  </div>
+
+  <div class="docket">
+    <div class="docket-hd">Tradeoff docket — when, why, and when to ignore</div>
+    <div class="docket-grid">
+      <div class="dcell apply">
+        <h4>apply when</h4>
+        <ul>
+          <li>Calls cross a trust or network boundary — third-party APIs, other teams' services.</li>
+          <li>The dependency has a history of latency spikes.</li>
+          <li>A sensible degraded response exists.</li>
+        </ul>
+      </div>
+      <div class="dcell skip">
+        <h4>ignore when</h4>
+        <ul>
+          <li>In-process or same-pod calls with sub-millisecond latency.</li>
+          <li>The dependency is strictly mandatory and has no fallback — ek breaker sirf error ko jaldi dikhayega, resilience nahi degi. Wahan queue + async design chahiye.</li>
+          <li>You already run a mesh that applies outlier ejection — do jagah breaker ka double effect confusing hota hai.</li>
+        </ul>
+      </div>
+      <div class="dcell">
+        <h4>what it costs</h4>
+        <ul>
+          <li>Badly tuned thresholds cause flapping and false outages.</li>
+          <li>Fallback paths are rarely exercised, so they rot — test them with fault injection.</li>
+          <li>One more state to reason about during an incident.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 10. RETRY ============ -->
+<section class="pattern" id="retry">
+  <div class="p-head">
+    <div class="tagrow"><span class="tag g-res">resilience</span><span class="tag">backoff + jitter</span><span class="tag g-hard">double-charge risk</span></div>
+    <h2>Retry, backoff and idempotency</h2>
+    <p class="verdict">Retry sabse aasan pattern lagta hai aur sabse zyada nuksan yahi karta hai. Bina backoff ke retry ek DDoS hai, aur bina idempotency key ke retry customer ko do baar charge kar deta hai.</p>
+  </div>
+
+  <div class="split">
+    <div class="col fault">
+      <h3><span>!</span>Problem</h3>
+      <ul>
+        <li>A one-off 503 or TCP reset fails a checkout that would have worked on the second attempt.</li>
+        <li>Naive <code>for(int i=0;i&lt;5;i++)</code> retry: 1,000 clients retry at the same instant and finish off a recovering service — the retry storm.</li>
+        <li>Timeout after the server already committed. Client retries, and the customer is charged twice.</li>
+        <li>Retries at three layers (client, gateway, service) multiply: 3 × 3 × 3 = 27 real calls for one request.</li>
+      </ul>
+    </div>
+    <div class="col fix">
+      <h3><span>✓</span>Solution</h3>
+      <ul>
+        <li>Retry only safe or idempotent operations, and only on transient errors — never on 400/422.</li>
+        <li>Exponential backoff plus jitter, so clients don't synchronise into a thundering herd.</li>
+        <li>Server-side idempotency key with a unique index: the second attempt returns the first result instead of doing the work again.</li>
+        <li>Retry at exactly one layer, cap total attempts, and always combine with timeout + circuit breaker.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-hd"><h3>HLD view</h3><em>attempt, wait, jitter, give up to the breaker</em></div>
+    <div class="topo">
+      <div class="node">attempt 1<small>timeout</small></div>
+      <span class="link" data-label="wait 200ms ± jitter"></span>
+      <div class="node">attempt 2<small>503</small></div>
+      <span class="link" data-label="wait 400ms ± jitter"></span>
+      <div class="node good">attempt 3<small>200 OK</small></div>
+      <span class="link cut" data-label="if all fail"></span>
+      <div class="node bad">breaker records failure</div>
+    </div>
+    <p class="topo-note">Retries ko ek "budget" do: agar traffic ka 10% se zyada retry hai, toh problem dependency ki hai — aur retry usse aur maar raha hai.</p>
+  </div>
+
+  <div class="block">
+    <div class="block-hd"><h3>LLD view</h3><em>client-side retry + server-side idempotency guard</em></div>
+    <div class="codewrap">
+      <div class="codebar"><span>order-service · retry policy + IdempotencyGuard</span><button class="notes-btn" type="button">Hide line notes</button></div>
+<pre class="code">@Component
+@RequiredArgsConstructor
+public class InventoryClient {
+
+    private final RestClient inventoryRestClient;
+
+    @Retry(name = "inventoryService")
+    @CircuitBreaker(name = "inventoryService")                  //» Order zaroori hai: retry andar, breaker bahar. Breaker retries ke baad wale final result ko dekhta hai.
+    public ReservationResult reserveStock(ReserveStockRequest request) {
+        return inventoryRestClient.post()
+                .uri("/reservations")
+                .header("Idempotency-Key", request.reservationId().toString())  //» Har logical operation ki ek hi key — retry par key badalni nahi chahiye.
+                .body(request)
+                .retrieve()
+                .body(ReservationResult.class);
+    }
+}
+
+/* application.yml
+resilience4j.retry.instances.inventoryService:
+  maxAttempts: 3                          # total 3, yaani 2 retries      //» 3 se zyada attempts almost hamesha galat hote hain.
+  waitDuration: 200ms
+  enableExponentialBackoff: true
+  exponentialBackoffMultiplier: 2         # 200ms, 400ms, 800ms
+  enableRandomizedWait: true              # jitter                        //» Jitter ke bina saare clients ek hi millisecond par wapas aayenge.
+  retryExceptions: [java.io.IOException, org.springframework.web.client.HttpServerErrorException]
+  ignoreExceptions: [com.shop.order.error.BusinessRuleViolation]          //» Business errors kabhi retry nahi — woh dobara bhi fail hi honge.
+*/
+
+@Service
+@RequiredArgsConstructor
+public class IdempotencyGuard {                                 //» Server side ka aadha hissa. Client ki retry safe tabhi hai jab server dedupe kare.
+
+    private final IdempotencyRecordRepository records;
+
+    @Transactional
+    public &lt;T&gt; T executeOnce(String idempotencyKey, Supplier&lt;T&gt; operation, Class&lt;T&gt; type) {
+        Optional&lt;IdempotencyRecord&gt; existing = records.findByKey(idempotencyKey);
+        if (existing.isPresent()) {
+            return deserialize(existing.get().responseBody(), type);  //» Pehla response wapas do — kaam dobara mat karo. Yahi "exactly once effect" hai.
+        }
+        T result = operation.get();
+        records.insertOrThrowOnDuplicate(                       //» Unique index on idempotency_key — do parallel retries mein se ek hi jeetega.
+                new IdempotencyRecord(idempotencyKey, serialize(result), Instant.now()));
+        return result;
+    }
+}</pre>
+    </div>
+  </div>
+
+  <div class="docket">
+    <div class="docket-hd">Tradeoff docket — when, why, and when to ignore</div>
+    <div class="docket-grid">
+      <div class="dcell apply">
+        <h4>apply when</h4>
+        <ul>
+          <li>Transient network errors are common and the operation is idempotent.</li>
+          <li>Async consumers reading from a queue, where a retry costs nothing extra.</li>
+          <li>Read calls — GETs are the safest retry target.</li>
+        </ul>
+      </div>
+      <div class="dcell skip">
+        <h4>ignore when</h4>
+        <ul>
+          <li>Non-idempotent writes with no idempotency key. Payment ko blindly retry karna = double charge.</li>
+          <li>Errors are deterministic (validation, auth) — retry sirf latency badhayegi.</li>
+          <li>An upstream layer already retries; do layers mein retry multiply hoti hai.</li>
+        </ul>
+      </div>
+      <div class="dcell">
+        <h4>what it costs</h4>
+        <ul>
+          <li>Amplified load exactly when the dependency is weakest.</li>
+          <li>User-facing latency becomes attempts × timeout in the worst case.</li>
+          <li>An idempotency store to write, index, and expire.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 11. BULKHEAD ============ -->
+<section class="pattern" id="bulkhead">
+  <div class="p-head">
+    <div class="tagrow"><span class="tag g-res">resilience</span><span class="tag">isolation</span><span class="tag">rate limit</span></div>
+    <h2>Bulkhead and rate limiting</h2>
+    <p class="verdict">Jahaz mein bulkhead ka kaam hai: ek compartment mein paani bhare toh poora jahaz na doobe. Software mein wahi — ek slow dependency sirf apna pool khaaye, sabka nahi.</p>
+  </div>
+
+  <div class="split">
+    <div class="col fault">
+      <h3><span>!</span>Problem</h3>
+      <ul>
+        <li>The slow recommendation API consumes all 200 Tomcat threads. Checkout, jo recommendations use hi nahi karta, woh bhi mar gaya.</li>
+        <li>One tenant runs a 50,000-row export and exhausts the shared DB connection pool for everyone.</li>
+        <li>A batch job and live traffic share the same pool; the batch always wins because it never sleeps.</li>
+        <li>A buggy client hammers one endpoint at 5,000 rps and takes down the whole service.</li>
+      </ul>
+    </div>
+    <div class="col fix">
+      <h3><span>✓</span>Solution</h3>
+      <ul>
+        <li>Give each dependency or workload class its own bounded pool — separate thread pools, connection pools, or semaphore limits.</li>
+        <li>When the pool is full, reject fast with a clear error instead of queueing forever.</li>
+        <li>Add a rate limiter per client or per tenant so a single caller cannot consume all capacity.</li>
+        <li>Separate critical from non-critical traffic even at the pod level — alag deployment, alag scaling.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-hd"><h3>HLD view</h3><em>partitioned capacity, contained failure</em></div>
+    <div class="topo">
+      <div class="node">incoming traffic</div>
+      <span class="link" data-label="classify"></span>
+      <div class="stack">
+        <div class="node good">checkout pool<small>60 threads</small></div>
+        <div class="node bad">recommendations pool<small>15 threads · full</small></div>
+        <div class="node good">reporting pool<small>10 threads</small></div>
+      </div>
+      <span class="link cut" data-label="reject fast"></span>
+      <div class="node">429 / fallback<small>only that section</small></div>
+    </div>
+    <p class="topo-note">Bulkhead ka cost: peak utilization girta hai. Har pool ke paas idle capacity hoti hai — yeh insurance ka premium hai.</p>
+  </div>
+
+  <div class="block">
+    <div class="block-hd"><h3>LLD view</h3><em>thread-pool bulkhead, isolated datasource, per-tenant limiter</em></div>
+    <div class="codewrap">
+      <div class="codebar"><span>order-service · isolation config</span><button class="notes-btn" type="button">Hide line notes</button></div>
+<pre class="code">@Service
+@RequiredArgsConstructor
+public class RecommendationService {
+
+    private final RecommendationClient client;
+
+    @Bulkhead(name = "recommendations", type = Bulkhead.Type.THREADPOOL,
+              fallbackMethod = "returnPopularItemsInstead")     //» Alag pool: yeh call kabhi bhi request-handling threads ko nahi kha sakti.
+    public CompletableFuture&lt;List&lt;Item&gt;&gt; fetchPersonalisedItems(UserId userId) {
+        return CompletableFuture.completedFuture(client.recommend(userId));
+    }
+
+    private CompletableFuture&lt;List&lt;Item&gt;&gt; returnPopularItemsInstead(UserId userId, Throwable cause) {
+        return CompletableFuture.completedFuture(popularItemsCache.get());  //» Pool bhar gaya toh cached popular list — user ko page phir bhi milta hai.
+    }
+}
+
+@Configuration
+public class DataSourceIsolationConfig {
+
+    @Bean
+    @Primary
+    public DataSource transactionalDataSource(HikariConfig base) {
+        base.setMaximumPoolSize(30);                            //» Live checkout traffic ka apna pool.
+        base.setPoolName("txn-pool");
+        return new HikariDataSource(base);
+    }
+
+    @Bean
+    public DataSource reportingDataSource(HikariConfig base) {
+        base.setMaximumPoolSize(4);                             //» Reporting ko jaan-boojh kar chhota pool — heavy query poore DB ko nahi rok sakti.
+        base.setPoolName("reporting-pool");
+        base.setConnectionTimeout(1_000);                       //» Connection na mile toh 1 second mein fail — queue mein infinite wait nahi.
+        return new HikariDataSource(base);
+    }
+}
+
+@RestController
+@RequiredArgsConstructor
+public class ExportController {
+
+    @RateLimiter(name = "exportPerTenant", fallbackMethod = "tooManyExportsResponse")
+    @GetMapping("/exports/orders")
+    public ResponseEntity&lt;StreamingResponseBody&gt; exportOrders(@RequestHeader("X-Tenant") String tenantId) {
+        return ResponseEntity.ok(exportService.streamOrdersFor(tenantId));
+    }
+
+    private ResponseEntity&lt;StreamingResponseBody&gt; tooManyExportsResponse(String tenantId, Throwable cause) {
+        return ResponseEntity.status(429)
+                .header("Retry-After", "60")                    //» Client ko batao kab wapas aana hai — warna woh turant retry karke aur load daalega.
+                .build();
+    }
+}</pre>
+    </div>
+  </div>
+
+  <div class="docket">
+    <div class="docket-hd">Tradeoff docket — when, why, and when to ignore</div>
+    <div class="docket-grid">
+      <div class="dcell apply">
+        <h4>apply when</h4>
+        <ul>
+          <li>A service calls several dependencies with very different latency profiles.</li>
+          <li>Multi-tenant systems where one tenant can starve others.</li>
+          <li>Critical and best-effort traffic share one runtime.</li>
+        </ul>
+      </div>
+      <div class="dcell skip">
+        <h4>ignore when</h4>
+        <ul>
+          <li>Service ke paas sirf ek downstream dependency hai — pool partition karne ka koi matlab nahi.</li>
+          <li>Fully reactive, non-blocking stack with no thread-per-request model (still bound concurrency, but not with thread pools).</li>
+          <li>Traffic is uniform and low; extra pools just fragment capacity.</li>
+        </ul>
+      </div>
+      <div class="dcell">
+        <h4>what it costs</h4>
+        <ul>
+          <li>Lower peak utilisation — you pay for idle headroom in every pool.</li>
+          <li>Many small pools cause queueing and hard-to-tune sizing.</li>
+          <li>More configuration to keep in sync with real traffic shape.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 12. SIDECAR ============ -->
+<section class="pattern" id="sidecar">
+  <div class="p-head">
+    <div class="tagrow"><span class="tag g-del">delivery</span><span class="tag">cross-cutting</span><span class="tag">polyglot</span></div>
+    <h2>Sidecar</h2>
+    <p class="verdict">Cross-cutting concern ko har service mein dobara likhne ke bajaye usse ek alag container mein rakho, jo same pod mein chalta hai — same network, same volumes. Language-agnostic upgrade path mil jaata hai.</p>
+  </div>
+
+  <div class="split">
+    <div class="col fault">
+      <h3><span>!</span>Problem</h3>
+      <ul>
+        <li>Log shipping, metrics, TLS certs and config reload are re-implemented in Java, Go and Python — teen implementations, teen bug sets.</li>
+        <li>A security patch in the shared logging library needs 60 services to rebuild and redeploy. Ek quarter nikal jaata hai.</li>
+        <li>The library version drifts: half the fleet emits v1 log format, half emits v2, and dashboards break.</li>
+        <li>Legacy services cannot take a new library at all.</li>
+      </ul>
+    </div>
+    <div class="col fix">
+      <h3><span>✓</span>Solution</h3>
+      <ul>
+        <li>Run the concern as a second container in the same pod: log shipper, secret refresher, proxy, or metrics agent.</li>
+        <li>Application writes plain stdout or a shared volume and knows nothing about the destination.</li>
+        <li>Upgrading the sidecar image upgrades the behaviour for every language at once.</li>
+        <li>Use init containers for one-shot setup and sidecars for long-running concerns.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-hd"><h3>HLD view</h3><em>one pod, two containers, shared localhost</em></div>
+    <div class="topo">
+      <div class="node good">app container<small>order-service.jar</small></div>
+      <span class="link" data-label="stdout / volume"></span>
+      <div class="node bus">sidecar<small>fluent-bit</small></div>
+      <span class="link dash" data-label="ship"></span>
+      <div class="node store">log backend<small>loki / elastic</small></div>
+      <span class="link" data-label="same pod"></span>
+      <div class="node">localhost:4317<small>otel collector</small></div>
+    </div>
+    <p class="topo-note">1,000 pods × 100&nbsp;MB sidecar = 100&nbsp;GB RAM sirf sidecars ke liye. Yeh cost real hai, ise capacity planning mein rakho.</p>
+  </div>
+
+  <div class="block">
+    <div class="block-hd"><h3>LLD view</h3><em>the app stays dumb; the pod spec does the work</em></div>
+    <div class="codewrap">
+      <div class="codebar"><span>order-service · structured logging + pod spec</span><button class="notes-btn" type="button">Hide line notes</button></div>
+<pre class="code">@Component
+@RequiredArgsConstructor
+public class AuditTrailWriter {                                 //» App sirf likhta hai. Kahan jaayega, kaise ship hoga — usse koi matlab nahi.
+
+    private static final Logger AUDIT = LoggerFactory.getLogger("AUDIT");
+
+    public void writeStructuredAuditLine(AuditEvent event) {
+        AUDIT.info("{}", StructuredArguments.entries(Map.of(    //» JSON structured log — sidecar isko bina parse-guess kiye forward kar sakta hai.
+                "type",       event.type(),
+                "actorId",    event.actorId(),
+                "resourceId", event.resourceId(),
+                "traceId",    MDC.get("traceId"),               //» traceId yahan daalna zaroori hai — sidecar ke paas request context nahi hota.
+                "at",         event.occurredAt().toString())));
+    }
+}
+
+# k8s/order-deployment.yaml
+spec:
+  containers:
+    - name: order-service                                       #» Container 1: sirf business code. Koi log-shipping dependency nahi.
+      image: registry/order-service:2.14.0
+      volumeMounts:
+        - name: varlog
+          mountPath: /var/log/app
+    - name: log-shipper                                         #» Container 2: sidecar. Iska upgrade app ke deploy se poori tarah alag hai.
+      image: registry/fluent-bit:3.1.4
+      resources:
+        limits: { memory: "120Mi", cpu: "100m" }                #» Sidecar par limit lagao, warna woh app ki hi RAM kha jaayega.
+      volumeMounts:
+        - name: varlog
+          mountPath: /var/log/app
+          readOnly: true                                        #» Sidecar sirf padhta hai — galti se app ke logs corrupt nahi kar sakta.
+  volumes:
+    - name: varlog
+      emptyDir: {}                                              #» Pod-scoped shared volume: dono containers ka common ground.</pre>
+    </div>
+  </div>
+
+  <div class="docket">
+    <div class="docket-hd">Tradeoff docket — when, why, and when to ignore</div>
+    <div class="docket-grid">
+      <div class="dcell apply">
+        <h4>apply when</h4>
+        <ul>
+          <li>Polyglot fleet — same concern needed in 3+ languages.</li>
+          <li>You want to upgrade cross-cutting behaviour without touching app code.</li>
+          <li>Legacy services that cannot adopt a new library.</li>
+        </ul>
+      </div>
+      <div class="dcell skip">
+        <h4>ignore when</h4>
+        <ul>
+          <li>Single-language shop with a well-maintained shared starter library — ek Spring Boot starter zyada simple aur sasta hai.</li>
+          <li>Very small pods where the sidecar doubles resource cost.</li>
+          <li>The concern needs deep in-process context (stack traces, request scope) that a separate container cannot see.</li>
+        </ul>
+      </div>
+      <div class="dcell">
+        <h4>what it costs</h4>
+        <ul>
+          <li>CPU and memory per pod, multiplied across the fleet.</li>
+          <li>Startup and shutdown ordering issues — app can start before the sidecar is ready.</li>
+          <li>Two containers to debug when something goes missing.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 13. SERVICE MESH ============ -->
+<section class="pattern" id="mesh">
+  <div class="p-head">
+    <div class="tagrow"><span class="tag g-del">delivery</span><span class="tag">platform</span><span class="tag g-hard">needs a platform team</span></div>
+    <h2>Service mesh</h2>
+    <p class="verdict">Mesh sidecar pattern ka network version hai: mTLS, retries, timeouts, traffic splitting aur telemetry code se nikal kar config mein aa jaate hain. Powerful — lekin agar aapke paas mesh ko chalane wali team nahi hai, toh yeh ek naya outage source hai.</p>
+  </div>
+
+  <div class="split">
+    <div class="col fault">
+      <h3><span>!</span>Problem</h3>
+      <ul>
+        <li>Retry, timeout and mTLS logic lives in a shared library. Ek policy change = 60 services ka rebuild aur redeploy.</li>
+        <li>Canary release needs "5% traffic to v2", but your load balancer only understands round robin.</li>
+        <li>Service-to-service traffic is plaintext inside the cluster; a compliance audit fails.</li>
+        <li>No consistent per-hop latency data because every team instrumented differently.</li>
+      </ul>
+    </div>
+    <div class="col fix">
+      <h3><span>✓</span>Solution</h3>
+      <ul>
+        <li>A data plane proxy next to every workload intercepts all traffic; a control plane pushes policy to all of them.</li>
+        <li>mTLS, retries, timeouts, outlier ejection and traffic splitting become declarative config — no application redeploy.</li>
+        <li>Uniform golden metrics for every hop, without asking teams to instrument anything.</li>
+        <li>Ambient / sidecar-less modes cut the per-pod cost significantly.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-hd"><h3>HLD view</h3><em>control plane writes policy, data plane enforces it</em></div>
+    <div class="topo">
+      <div class="node bus">control plane<small>istiod</small></div>
+      <span class="link dash" data-label="push config"></span>
+      <div class="node good">proxy A<small>envoy</small></div>
+      <span class="link" data-label="mTLS"></span>
+      <div class="node good">proxy B<small>envoy</small></div>
+      <span class="link" data-label="localhost"></span>
+      <div class="node">payment v1<small>90%</small></div>
+      <span class="link cut" data-label="canary 10%"></span>
+      <div class="node">payment v2</div>
+    </div>
+    <p class="topo-note">Mesh L7 concerns solve karta hai, business fallback nahi. Fallback logic hamesha code mein rehna chahiye.</p>
+  </div>
+
+  <div class="block">
+    <div class="block-hd"><h3>LLD view</h3><em>what moves to YAML, and what must stay in Java</em></div>
+    <div class="codewrap">
+      <div class="codebar"><span>mesh config + the Java that survives</span><button class="notes-btn" type="button">Hide line notes</button></div>
+<pre class="code"># istio/payment-virtualservice.yaml
+apiVersion: networking.istio.io/v1
+kind: VirtualService
+metadata: { name: payment-service }
+spec:
+  hosts: [payment-service]
+  http:
+    - route:
+        - destination: { host: payment-service, subset: v1 }
+          weight: 90                                            #» Canary ab config hai, code nahi. Rollback ek YAML apply jitna sasta ho gaya.
+        - destination: { host: payment-service, subset: v2 }
+          weight: 10
+      timeout: 2s                                               #» Timeout mesh mein — har language ke liye ek jaisa, bina library ke.
+      retries:
+        attempts: 2
+        perTryTimeout: 800ms
+        retryOn: 5xx,reset,connect-failure                      #» Sirf transient conditions. Mesh ko 4xx retry karne mat do.
+---
+# istio/payment-destinationrule.yaml
+spec:
+  trafficPolicy:
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 10s
+      baseEjectionTime: 30s                                     #» Yeh mesh ka circuit breaker hai — kharab pod ko pool se nikal deta hai.
+
+/* Java side — after adopting the mesh */
+@Service
+@RequiredArgsConstructor
+public class CheckoutService {
+
+    private final PaymentGatewayClient paymentClient;           //» @Retry aur @LoadBalanced hata diye — woh ab mesh ka kaam hai.
+
+    public CheckoutResult checkout(Order order) {
+        try {
+            PaymentResult result = paymentClient.chargeCard(ChargeRequest.from(order));
+            return CheckoutResult.paid(result.transactionId());
+        } catch (PaymentUnavailableException ex) {              //» Business fallback code mein hi rehta hai — mesh ko nahi pata ki "order ko deferred karo".
+            return CheckoutResult.deferredForManualRetry(order.id());
+        }
+    }
+}</pre>
+    </div>
+  </div>
+
+  <div class="docket">
+    <div class="docket-hd">Tradeoff docket — when, why, and when to ignore</div>
+    <div class="docket-grid">
+      <div class="dcell apply">
+        <h4>apply when</h4>
+        <ul>
+          <li>Roughly 20+ services, several languages, and a platform team to own it.</li>
+          <li>mTLS everywhere is a compliance requirement.</li>
+          <li>You need progressive delivery — canary, mirroring, fault injection — as a routine capability.</li>
+        </ul>
+      </div>
+      <div class="dcell skip">
+        <h4>ignore when</h4>
+        <ul>
+          <li>Under ~15 services in one language. Resilience4j + k8s Services 90% value 5% cost mein de dete hain.</li>
+          <li>No dedicated platform capacity — mesh ka debugging surface bahut bada hai.</li>
+          <li>Latency budget is extremely tight; every hop through a proxy adds a little.</li>
+        </ul>
+      </div>
+      <div class="dcell">
+        <h4>what it costs</h4>
+        <ul>
+          <li>Steep learning curve and a genuinely complex failure surface.</li>
+          <li>Proxy CPU/memory per pod, plus control-plane availability as a new dependency.</li>
+          <li>Config drift: policy in YAML and fallback in code must stay consistent.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 14. STRANGLER FIG ============ -->
+<section class="pattern" id="strangler">
+  <div class="p-head">
+    <div class="tagrow"><span class="tag g-del">delivery</span><span class="tag">migration</span><span class="tag">low risk</span></div>
+    <h2>Strangler fig</h2>
+    <p class="verdict">Big-bang rewrite 18 mahine leta hai, feature freeze maangta hai aur aksar cancel ho jaata hai. Strangler fig kehta hai: ek facade lagao, ek-ek route naye system par le jao, aur purana code tab delete karo jab uspar traffic zero ho.</p>
+  </div>
+
+  <div class="split">
+    <div class="col fault">
+      <h3><span>!</span>Problem</h3>
+      <ul>
+        <li>Rewrite branch lives for a year, diverges from production, and merges into a nightmare.</li>
+        <li>Business must freeze features during the migration — jo kabhi accept nahi hota.</li>
+        <li>Cutover night is all-or-nothing: one bug means a full rollback of everything.</li>
+        <li>No way to compare old and new behaviour before committing customers to it.</li>
+      </ul>
+    </div>
+    <div class="col fix">
+      <h3><span>✓</span>Solution</h3>
+      <ul>
+        <li>Put a facade (gateway or proxy) in front of the legacy system so clients never see the migration.</li>
+        <li>Move one route or capability at a time behind a flag, with percentage rollout per route.</li>
+        <li>Shadow-run: send traffic to both, compare responses, log differences — production data par verify karo, staging par nahi.</li>
+        <li>Delete the legacy path as soon as its traffic hits zero, and put a date on it.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-hd"><h3>HLD view</h3><em>the facade decides, route by route</em></div>
+    <div class="topo">
+      <div class="node">client</div>
+      <span class="link" data-label="unchanged URL"></span>
+      <div class="node good">facade / gateway<small>flag + %</small></div>
+      <span class="link" data-label="/orders 100%"></span>
+      <div class="node good">new order-service</div>
+      <span class="link cut" data-label="/invoices 0%"></span>
+      <div class="node bad">legacy monolith<small>shrinking</small></div>
+    </div>
+    <p class="topo-note">Migration ka sabse mushkil hissa data hai, code nahi. Dual-write ya CDC sync ka plan pehle likho.</p>
+  </div>
+
+  <div class="block">
+    <div class="block-hd"><h3>LLD view</h3><em>routing decision + shadow comparison</em></div>
+    <div class="codewrap">
+      <div class="codebar"><span>gateway · MigrationRouter + ShadowComparisonRunner</span><button class="notes-btn" type="button">Hide line notes</button></div>
+<pre class="code">@Component
+@RequiredArgsConstructor
+public class MigrationRouter {
+
+    private final FeatureFlagClient featureFlags;
+
+    public RouteTarget resolveTargetFor(HttpRequest request, String customerId) {
+        String capability = capabilityOf(request.path());       //» Route ka faisla capability par, URL string par nahi — flags readable rehte hain.
+        if (!featureFlags.isEnabled("migrate." + capability)) {
+            return RouteTarget.LEGACY;                          //» Default hamesha legacy — flag missing ho toh purana, surakshit raasta.
+        }
+        int rolloutPercent = featureFlags.percentage("migrate." + capability);
+        return isWithinRollout(customerId, rolloutPercent)
+                ? RouteTarget.NEW_SERVICE
+                : RouteTarget.LEGACY;
+    }
+
+    private boolean isWithinRollout(String customerId, int percent) {
+        int bucket = Math.floorMod(customerId.hashCode(), 100); //» Customer id ka stable hash — ek user hamesha ek hi side par rahega, flip-flop nahi karega.
+        return bucket &lt; percent;
+    }
+}
+
+@Component
+@RequiredArgsConstructor
+public class ShadowComparisonRunner {                           //» Cutover se pehle sach jaanne ka tareeka: dono ko chalao, jawab milao.
+
+    private final LegacyOrderClient legacy;
+    private final NewOrderClient newService;
+    private final MeterRegistry meters;
+
+    public OrderView readOrderWithShadowCompare(OrderId id) {
+        OrderView authoritative = legacy.fetchOrder(id);        //» Legacy ka jawab hi customer ko jaata hai — shadow phase mein risk zero.
+        CompletableFuture.runAsync(() -&gt; compareQuietly(id, authoritative));  //» Comparison async — naya system slow ho toh user ko farak na pade.
+        return authoritative;
+    }
+
+    private void compareQuietly(OrderId id, OrderView expected) {
+        try {
+            OrderView actual = newService.fetchOrder(id);
+            String outcome = expected.equalsIgnoringVolatileFields(actual) ? "match" : "mismatch";
+            meters.counter("strangler.compare", "capability", "orders", "outcome", outcome).increment();  //» Mismatch rate hi cutover ka green signal hai — gut feeling nahi.
+        } catch (Exception ex) {
+            meters.counter("strangler.compare", "outcome", "error").increment();  //» Shadow ki koi bhi failure customer tak nahi pahunchni chahiye.
+        }
+    }
+}</pre>
+    </div>
+  </div>
+
+  <div class="docket">
+    <div class="docket-hd">Tradeoff docket — when, why, and when to ignore</div>
+    <div class="docket-grid">
+      <div class="dcell apply">
+        <h4>apply when</h4>
+        <ul>
+          <li>A large legacy system must keep shipping features during migration.</li>
+          <li>Risk tolerance is low and rollback must be instant.</li>
+          <li>Capabilities can be separated behind stable URLs.</li>
+        </ul>
+      </div>
+      <div class="dcell skip">
+        <h4>ignore when</h4>
+        <ul>
+          <li>The system is small enough to rewrite in a few weeks — facade ka overhead faayde se zyada hoga.</li>
+          <li>The legacy data model is so entangled that no capability can be isolated; fix the data model first.</li>
+          <li>There is no budget or intent to ever finish — you will live in the hybrid state permanently.</li>
+        </ul>
+      </div>
+      <div class="dcell">
+        <h4>what it costs</h4>
+        <ul>
+          <li>Two systems plus a sync layer running at once.</li>
+          <li>The facade itself needs ownership, testing and monitoring.</li>
+          <li>Without a hard deletion deadline, "temporary" hybrid becomes permanent.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ 15. OBSERVABILITY ============ -->
+<section class="pattern" id="observability">
+  <div class="p-head">
+    <div class="tagrow"><span class="tag g-del">ops</span><span class="tag">tracing</span><span class="tag g-hard">never skip this one</span></div>
+    <h2>Correlation ID and distributed tracing</h2>
+    <p class="verdict">Yeh is poori list ka ekmatr pattern hai jiske liye "ignore when" section practically khali hai. Microservices ke saath observability optional nahi hai — uske bina aap ek distributed system ko blind debug kar rahe ho.</p>
+  </div>
+
+  <div class="split">
+    <div class="col fault">
+      <h3><span>!</span>Problem</h3>
+      <ul>
+        <li>A request touches nine services and fails somewhere. Nau alag log files, koi common key nahi.</li>
+        <li>"Checkout is slow" — but which of the nine hops is slow? Nobody can answer without guessing.</li>
+        <li>An error in service G was actually caused by a malformed payload from service B two hops earlier.</li>
+        <li>Alerts fire on CPU, not on the thing users feel: error rate and latency.</li>
+      </ul>
+    </div>
+    <div class="col fix">
+      <h3><span>✓</span>Solution</h3>
+      <ul>
+        <li>Generate a trace id at the edge and propagate it on every hop using the W3C <code>traceparent</code> header.</li>
+        <li>Put trace and span ids into the logging MDC so every log line is joinable across services.</li>
+        <li>Emit RED metrics per endpoint — rate, errors, duration — and alert on those, not on machine stats.</li>
+        <li>Use OpenTelemetry so instrumentation is not locked to one vendor.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-hd"><h3>HLD view</h3><em>one id, nine hops, one flame graph</em></div>
+    <div class="topo">
+      <div class="node">client</div>
+      <span class="link" data-label="traceparent"></span>
+      <div class="node good">gateway<small>span 1</small></div>
+      <span class="link" data-label="same trace"></span>
+      <div class="node good">order<small>span 2</small></div>
+      <span class="link" data-label="same trace"></span>
+      <div class="node bad">payment<small>span 3 · 2.1 s</small></div>
+      <span class="link dash" data-label="export"></span>
+      <div class="node store">tempo / jaeger</div>
+    </div>
+    <p class="topo-note">Kafka par bhi context propagate karo — headers mein traceparent daalo, warna async hop par trace toot jaayegi.</p>
+  </div>
+
+  <div class="block">
+    <div class="block-hd"><h3>LLD view</h3><em>filter in, interceptor out, MDC in between</em></div>
+    <div class="codewrap">
+      <div class="codebar"><span>shared-starter · CorrelationIdFilter + propagation</span><button class="notes-btn" type="button">Hide line notes</button></div>
+<pre class="code">@Component
+@Order(Ordered.HIGHEST_PRECEDENCE)                              //» Sabse pehle chale, taki baaki har filter ke logs mein bhi traceId aa jaaye.
+public class CorrelationIdFilter extends OncePerRequestFilter {
+
+    public static final String HEADER = "X-Correlation-Id";
+
+    @Override
+    protected void doFilterInternal(HttpServletRequest request,
+                                    HttpServletResponse response,
+                                    FilterChain chain) throws IOException, ServletException {
+        String correlationId = Optional.ofNullable(request.getHeader(HEADER))
+                .filter(StringUtils::hasText)
+                .orElseGet(() -&gt; UUID.randomUUID().toString());  //» Aaya hua id reuse karo; na aaye toh naya banao. Edge par hi ek baar generate hota hai.
+        MDC.put("correlationId", correlationId);                //» MDC mein daalte hi har log line automatically tagged ho jaati hai.
+        response.setHeader(HEADER, correlationId);              //» Response mein wapas bhejo — support team screenshot se hi request dhoondh legi.
+        try {
+            chain.doFilter(request, response);
+        } finally {
+            MDC.clear();                                        //» finally mein clear — warna thread pool ka agla request purana id le kar chalega.
+        }
+    }
+}
+
+@Configuration
+public class OutboundPropagationConfig {
+
+    @Bean
+    public RestClientCustomizer propagateCorrelationIdOnOutboundCalls() {
+        return builder -&gt; builder.requestInterceptor((request, body, execution) -&gt; {
+            String correlationId = MDC.get("correlationId");
+            if (correlationId != null) {
+                request.getHeaders().add(CorrelationIdFilter.HEADER, correlationId);  //» Har outbound call par id forward — ek hop chhoot gaya toh chain toot jaati hai.
+            }
+            return execution.execute(request, body);
+        });
+    }
+}
+
+@Service
+@RequiredArgsConstructor
+public class CheckoutMetrics {
+
+    private final MeterRegistry meters;
+
+    public void recordCheckoutOutcome(String outcome, Duration took) {
+        meters.timer("checkout.duration", "outcome", outcome)   //» Low-cardinality tag: outcome. orderId ya userId tag mat karo — metric cardinality phat jaayegi.
+              .record(took);
+    }
+}</pre>
+    </div>
+  </div>
+
+  <div class="docket">
+    <div class="docket-hd">Tradeoff docket — when, why, and when to ignore</div>
+    <div class="docket-grid">
+      <div class="dcell apply">
+        <h4>apply when</h4>
+        <ul>
+          <li>From service number two onward. Pehle din se lagao.</li>
+          <li>Any async or event-driven hop, where causality is otherwise invisible.</li>
+          <li>Whenever an SLO exists that someone is accountable for.</li>
+        </ul>
+      </div>
+      <div class="dcell skip">
+        <h4>ignore when</h4>
+        <ul>
+          <li>Practically never. Sirf sampling rate tune karo — 100% traces mehnge hain, 1–10% + all-errors usually sahi hai.</li>
+          <li>Full payload capture on high-volume endpoints — that you can skip, for cost and privacy reasons.</li>
+        </ul>
+      </div>
+      <div class="dcell">
+        <h4>what it costs</h4>
+        <ul>
+          <li>Storage and egress for traces and logs; sampling is a real budget decision.</li>
+          <li>A small latency and CPU overhead per span.</li>
+          <li>High-cardinality labels can blow up your metrics backend if you are careless.</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+</main>
+</div>
+
+<!-- ==================== DECISION FRAMEWORK ==================== -->
+<div class="wide">
+<section class="sec" id="tradeoffs">
+  <h2>How to decide: when, why, which to apply, which to ignore</h2>
+  <p class="deck">Interview mein pattern ka naam batana easy hai. Difficulty yahan hai: <em>kyun</em> aur <em>kab nahi</em>. Har pattern ek problem ke badle ek nayi problem deta hai — accha architect woh hai jo yeh exchange consciously karta hai.</p>
+
+  <div class="gates">
+    <div class="gate">
+      <div class="num">gate 1</div>
+      <h4>Is the pain measured, or imagined?</h4>
+      <p>Pattern tabhi lagao jab aapke paas number ho: p99 latency, error rate, deploy frequency, lead time. "Scale par kaam nahi karega" ek guess hai — "checkout p99 is 4.2 s and 60% of it is the recommendation call" ek reason hai.</p>
+    </div>
+    <div class="gate">
+      <div class="num">gate 2</div>
+      <h4>Is there a boring alternative?</h4>
+      <p>CQRS se pehle ek index ya materialised view. Mesh se pehle Resilience4j. Event sourcing se pehle ek history table. Agar boring option 80% problem 20% cost mein solve karta hai, woh jeet gaya.</p>
+    </div>
+    <div class="gate">
+      <div class="num">gate 3</div>
+      <h4>Can your team run it at 3&nbsp;am?</h4>
+      <p>Har pattern ek operational surface hai. Agar on-call engineer ko yeh samajh nahi aayega, toh pattern reliability badhane ke bajaye ghatayega. Ownership ke bina koi pattern deploy mat karo.</p>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-hd"><h3>Ignore list by stage</h3><em>same pattern, different answer at different sizes</em></div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>stage</th><th>apply</th><th>actively ignore</th><th>reason</th></tr></thead>
+        <tbody>
+          <tr>
+            <td><b>Pre-PMF</b><br><span class="pill lo">1–8 engineers</span></td>
+            <td>Modular monolith, correlation ids, CI/CD, one database</td>
+            <td>Microservices, saga, CQRS, event sourcing, mesh</td>
+            <td>Boundaries abhi maloom hi nahi hain. Har galat boundary ab ek migration hai, ek refactor nahi.</td>
+          </tr>
+          <tr>
+            <td><b>Growth</b><br><span class="pill md">8–40 engineers</span></td>
+            <td>Split 3–6 services, DB per service, gateway, breaker, retry, tracing, outbox</td>
+            <td>Event sourcing, service mesh, per-client BFFs</td>
+            <td>Yahi woh point hai jahan team coupling asli bottleneck ban jaati hai. Resilience basics pehle.</td>
+          </tr>
+          <tr>
+            <td><b>Scale-out</b><br><span class="pill md">40–200 engineers</span></td>
+            <td>Saga orchestration, CQRS where measured, bulkheads, BFF per client, mesh if polyglot</td>
+            <td>Event sourcing everywhere, nano-services</td>
+            <td>Ab platform investment pay off karta hai, lekin sirf un jagah jahan data pain dikhata hai.</td>
+          </tr>
+          <tr>
+            <td><b>Enterprise</b><br><span class="pill hi3">200+ engineers</span></td>
+            <td>Mesh, platform team, golden paths, event sourcing in regulated domains</td>
+            <td>Team-by-team improvisation of the same concern</td>
+            <td>Consistency ab speed hai. Har team ka apna resilience library banana hi asli cost hai.</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="block">
+    <div class="block-hd"><h3>Four failure smells</h3><em>agar yeh dikhein toh pattern galat lagaya gaya hai</em></div>
+    <div class="tablewrap">
+      <table>
+        <thead><tr><th>smell</th><th>what you observe</th><th>what actually went wrong</th><th>fix</th></tr></thead>
+        <tbody>
+          <tr><td><b>Distributed monolith</b></td><td>Ek feature ke liye 4 services ek saath deploy karne padte hain</td><td>Boundaries technical layers par kaati gayi, business capability par nahi</td><td>Merge the services back, then re-cut along capabilities</td></tr>
+          <tr><td><b>Shared database</b></td><td>Doosri team ki migration aapko todti hai</td><td>Deployment split hua, data ownership nahi</td><td>Table ownership assign karo, phir read APIs ya events ke peeche chhupao</td></tr>
+          <tr><td><b>Event soup</b></td><td>Koi nahi bata sakta ki order place hone ke baad kya hota hai</td><td>Choreography ko branching flow par stretch kiya gaya</td><td>Us ek flow ko orchestration mein le jao, baaki events choreographed rehne do</td></tr>
+          <tr><td><b>Retry storm</b></td><td>Dependency thodi slow hui aur turant poori tarah gir gayi</td><td>Multi-layer retries without jitter, budget or breaker</td><td>Ek hi layer par retry, jitter, retry budget, aur breaker upar</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== COST MATRIX ==================== -->
+<section class="sec" id="matrix">
+  <h2>Cost matrix — one table for the whole catalogue</h2>
+  <p class="deck">Interview mein jab poocha jaaye "ye pattern kyun nahi?", is table ka ek row hi poora jawab hai: kya solve karta hai, kya cheenta hai, aur sasta alternative kya tha.</p>
+  <div class="tablewrap">
+    <table>
+      <thead>
+        <tr><th>pattern</th><th>solves</th><th>cost</th><th>apply above</th><th>cheaper alternative first</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><b>Decomposition</b></td><td>Team coupling, release train</td><td><span class="pill hi3">high</span></td><td>3+ teams blocked</td><td>Modular monolith with enforced module boundaries</td></tr>
+        <tr><td><b>DB per service</b></td><td>Schema coupling, blast radius</td><td><span class="pill md">medium</span></td><td>Any real microservice</td><td>Strict table ownership inside one DB, temporarily</td></tr>
+        <tr><td><b>API gateway / BFF</b></td><td>Chatty clients, duplicated auth</td><td><span class="pill lo">low</span></td><td>2 client types or 5 services</td><td>nginx reverse proxy with auth at one service</td></tr>
+        <tr><td><b>Service discovery</b></td><td>Dynamic instances</td><td><span class="pill lo">low</span></td><td>Non-k8s dynamic infra</td><td>Kubernetes Service + DNS (already there)</td></tr>
+        <tr><td><b>Saga orchestration</b></td><td>Cross-service consistency</td><td><span class="pill hi3">high</span></td><td>4+ steps with branching</td><td>Keep the steps in one service and use a local transaction</td></tr>
+        <tr><td><b>Outbox</b></td><td>Dual-write event loss</td><td><span class="pill lo">low</span></td><td>Any DB-write + publish pair</td><td>Nothing — this one is close to mandatory</td></tr>
+        <tr><td><b>CQRS</b></td><td>Read/write model conflict</td><td><span class="pill md">medium</span></td><td>Measured read pain, 100:1 ratio</td><td>Materialised view or read replica</td></tr>
+        <tr><td><b>Event sourcing</b></td><td>Full history, temporal queries</td><td><span class="pill hi3">very high</span></td><td>Regulatory audit requirement</td><td>Append-only history table beside the state table</td></tr>
+        <tr><td><b>Circuit breaker</b></td><td>Cascading failure</td><td><span class="pill lo">low</span></td><td>Any cross-boundary call</td><td>Aggressive timeouts alone, for very fast internal calls</td></tr>
+        <tr><td><b>Retry + idempotency</b></td><td>Transient errors</td><td><span class="pill lo">low</span></td><td>Any flaky network path</td><td>Let the client retry manually for non-critical reads</td></tr>
+        <tr><td><b>Bulkhead</b></td><td>Resource starvation</td><td><span class="pill lo">low</span></td><td>3+ dependencies, multi-tenant</td><td>One tight global timeout + smaller connection pool</td></tr>
+        <tr><td><b>Sidecar</b></td><td>Polyglot cross-cutting concerns</td><td><span class="pill md">medium</span></td><td>3+ languages</td><td>A shared Spring Boot starter library</td></tr>
+        <tr><td><b>Service mesh</b></td><td>Fleet-wide policy, mTLS, canary</td><td><span class="pill hi3">very high</span></td><td>~20 services + platform team</td><td>Resilience4j + k8s + an ingress controller</td></tr>
+        <tr><td><b>Strangler fig</b></td><td>Risky rewrites</td><td><span class="pill md">medium</span></td><td>Any legacy migration</td><td>Rewrite in place, only if the system is genuinely small</td></tr>
+        <tr><td><b>Tracing</b></td><td>Blind debugging</td><td><span class="pill lo">low</span></td><td>From service #2</td><td>Correlation id in logs, as a bare minimum</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ==================== MOCK Q&A ==================== -->
+<section class="sec" id="mock">
+  <h2>Mock interview questions with answers</h2>
+  <p class="deck">Har jawab woh structure follow karta hai jo interviewer sunna chahta hai: pehle problem restate, phir approach, phir tradeoff, phir "yeh kab nahi karunga". Answers dekhne ke liye question par click karo.</p>
+
+  <div class="qa">
+
+  <details class="q"><summary><span class="qtag hld">HLD</span>Design checkout across Order, Payment, Inventory and Shipping. Consistency kaise rakhoge without 2PC?</summary>
+  <div class="ans">
+    <p>Order service ek saga orchestrator chalata hai. Steps: reserve inventory → charge payment → create shipment → confirm order. Har step ek local ACID transaction hai in its own service, and each has a named compensation: <code>releaseInventory</code>, <code>refundPayment</code>, <code>cancelShipment</code>.</p>
+    <p>Saga state DB mein persist hoti hai (<code>saga_instance</code> table) taki pod restart par flow resume ho. Commands aur events outbox ke through jaate hain, so no dual-write loss. Every consumer dedupes on event id.</p>
+    <span class="hi">2PC isliye nahi kyunki woh saare participants par lock pakadta hai aur ek slow service poore system ko rok deti hai; plus HTTP/Kafka par XA practically chalta hi nahi. Saga availability chunta hai consistency ke over — order thodi der PENDING dikhega, par system chalu rahega.</span>
+    <p>Cost jo main openly bataunga: no isolation. Beech ke states doosre readers ko dikhte hain, isliye order ko <code>PENDING</code> status ke saath model karta hoon aur UI wahi dikhata hai.</p>
+  </div></details>
+
+  <details class="q"><summary><span class="qtag hld">HLD</span>Service boundary decide karne ka concrete test kya hai?</summary>
+  <div class="ans">
+    <p>Teen tests jo main saath lagata hoon:</p>
+    <ul>
+      <li><b>Deploy test</b> — can this team deploy on Friday without coordinating with anyone? Agar nahi, boundary galat hai.</li>
+      <li><b>Data test</b> — does exactly one service write this table? Do writers matlab boundary galat jagah hai.</li>
+      <li><b>Change test</b> — pichhle 6 mahine ke PRs dekho. Jo files hamesha saath badalti hain woh ek hi service mein honi chahiye.</li>
+    </ul>
+    <span class="hi">Sabse aam galti: layers par kaatna — api-service, business-service, data-service. Yeh microservices nahi, ek monolith hai jisme teen network hop daal diye gaye hain, aur latency badhi bina koi independence mile.</span>
+  </div></details>
+
+  <details class="q"><summary><span class="qtag hld">HLD</span>Ek screen ko 4 services ka data chahiye. Kya karoge?</summary>
+  <div class="ans">
+    <p>Teen options, is order mein evaluate karta hoon:</p>
+    <ul>
+      <li><b>API composition</b> at a BFF — parallel calls, per-section fallback. Simplest; use it when the data set is small and latency budget allows.</li>
+      <li><b>CQRS read model</b> — events se ek denormalized table banao. Use when the join is large, frequent, or needs sorting/filtering across services.</li>
+      <li><b>Client-side composition</b> — sirf tab jab client fast network par ho aur sections independent ho.</li>
+    </ul>
+    <span class="hi">Default composition rakhunga kyunki woh sasta hai. Read model tab banaunga jab measurement dikhaye ki fan-out p99 budget se bahar ja raha hai — pehle se nahi.</span>
+  </div></details>
+
+  <details class="q"><summary><span class="qtag hld">HLD</span>Gateway single point of failure hai — isko kaise handle karoge?</summary>
+  <div class="ans">
+    <p>Gateway ko stateless rakho, multiple replicas across AZs, aur uske aage ek managed L4/L7 load balancer. Health checks + readiness probes se dead replicas rotate ho jaati hain. Gateway mein koi session state ya business logic nahi — sirf routing, auth, rate limit.</p>
+    <p>Deployment bottleneck se bachne ke liye routes ko per-team config files mein rakho, ek monolithic route file mein nahi, aur CI mein validate karo.</p>
+    <span class="hi">Asli khatra "single point of failure" se zyada "single point of change" hai — jab har team ko ek hi file edit karni pade, tab gateway release train ban jaata hai. Isliye config ownership distribute karna zaroori hai.</span>
+  </div></details>
+
+  <details class="q"><summary><span class="qtag hld">HLD</span>Monolith ko migrate karna hai bina feature freeze ke. Plan?</summary>
+  <div class="ans">
+    <p>Strangler fig. Step by step: (1) facade/gateway lagao taki client URLs na badlein; (2) sabse independent capability chuno — usually notifications or search; (3) naya service banao, dual-run karke responses compare karo; (4) percentage rollout with a stable customer hash; (5) traffic 100% hone ke baad legacy path delete, with a dated ticket.</p>
+    <p>Data ke liye: पहले read path migrate karo (easy), phir write path with dual-write or CDC sync, phir source of truth flip.</p>
+    <span class="hi">Sabse important discipline: har capability ke liye ek deletion deadline likho. Deadline ke bina team hamesha ke liye do systems maintain karti rahegi — aur yahi strangler ka sabse common failure mode hai.</span>
+  </div></details>
+
+  <details class="q"><summary><span class="qtag hld">HLD</span>Zero-downtime schema change ek live service mein kaise karoge?</summary>
+  <div class="ans">
+    <p>Expand–migrate–contract, teen alag deploys mein:</p>
+    <ul>
+      <li><b>Expand</b> — naya nullable column add karo. Purana code chalta rahta hai.</li>
+      <li><b>Migrate</b> — code dono column likhta hai, backfill job purana data bharta hai, reads abhi bhi purane column se.</li>
+      <li><b>Contract</b> — reads naye column par shift, phir purana column drop. Har step alag deploy.</li>
+    </ul>
+    <span class="hi">Rule: ek hi deploy mein kabhi bhi column rename ya drop mat karo, kyunki rollout ke dauraan purana aur naya code ek saath chal rahe hote hain. Rename = add + backfill + switch + drop, chaar alag steps.</span>
+  </div></details>
+
+  <details class="q"><summary><span class="qtag hld">HLD</span>Kafka ke through trace kaise propagate karoge?</summary>
+  <div class="ans">
+    <p>Producer side par <code>traceparent</code> ko Kafka record headers mein daalo; consumer side par header se context extract karke naya span parent set karo. OpenTelemetry ke Kafka instrumentation yeh automatically karta hai, par manual bhi 10 lines ka kaam hai.</p>
+    <p>Consumer span ko <code>CONSUMER</code> kind ke saath mark karo taki trace view mein async boundary saaf dikhe, aur queue lag ko span attribute mein record karo.</p>
+    <span class="hi">Async hop par trace tootne ka matlab hai ki aap producer aur consumer ko kabhi jod nahi paoge. Yeh exactly wahi jagah hai jahan debugging sabse zyada mushkil hoti hai — isliye headers propagate karna optional nahi hai.</span>
+  </div></details>
+
+  <details class="q"><summary><span class="qtag lld">LLD</span>Outbox kyun chahiye? Commit ke baad publish kyun nahi kar sakte?</summary>
+  <div class="ans">
+    <p>Kyunki DB commit aur broker publish do alag systems hain, aur unke beech process kabhi bhi mar sakta hai. Commit hone ke baad publish se pehle crash = event permanently lost, aur koi bhi retry mechanism usko recover nahi kar sakta kyunki intent kahin record hi nahi hua.</p>
+    <p>Outbox event ko usi local transaction mein likh deta hai. Ab intent durable hai; relay chahe 1 second baad publish kare ya 10 minute baad, event kabhi gum nahi hoga.</p>
+    <span class="hi">Iske badle mein aapko at-least-once delivery milti hai — matlab duplicates guaranteed hain. Isliye har consumer ko dedupe karna hi padega, usually event id par ek unique index se.</span>
+    <p><code>@TransactionalEventListener(AFTER_COMMIT)</code> bhi isko solve nahi karta — woh commit ke baad chalta hai, aur us gap mein crash ho sakta hai.</p>
+  </div></details>
+
+  <details class="q"><summary><span class="qtag lld">LLD</span>Saga step mein <code>@Transactional</code> boundary kahan rakhoge?</summary>
+  <div class="ans">
+    <p>Transaction ke andar sirf local DB writes — saga state update aur outbox insert. Remote call kabhi transaction ke andar nahi, kyunki network wait DB connection ko pakde rakhta hai aur ek slow downstream aapka connection pool khatam kar dega.</p>
+    <p>Pattern: <code>@Transactional</code> mein state advance + outbox row likho; transaction commit ke baad relay actual command bhejta hai.</p>
+    <span class="hi">Ek aur zaroori cheez: incoming event handle karte waqt saga row ko <code>lockById</code> se lock karo. Do events parallel aayein toh dono ek hi saga ko aage badha kar state corrupt kar sakte hain — row lock isko rokta hai.</span>
+  </div></details>
+
+  <details class="q"><summary><span class="qtag lld">LLD</span>Kafka consumer ko idempotent kaise banaoge? Mechanism batao.</summary>
+  <div class="ans">
+    <p>Sabse simple aur sabse reliable: ek <code>processed_event</code> table with a unique index on <code>event_id</code>. Consumer pehle insert try karta hai; duplicate key exception aaya toh event already processed hai, silently return karo.</p>
+    <p>Critical detail — yeh insert aur business write ek hi local transaction mein hone chahiye. Alag transactions mein karoge toh crash ke baad ek ho jaayega aur doosra nahi.</p>
+    <span class="hi">Doosra tareeka natural idempotency ka hai: <code>UPDATE inventory SET reserved = 5 WHERE order_id = ?</code> jaisa absolute set operation dubara chalane par bhi wahi result deta hai, jabki <code>reserved = reserved + 5</code> increment har baar galat kar dega.</span>
+    <p>Dedupe table ko TTL ke saath rakho (jaise 7 din), warna woh anant tak badhta rahega.</p>
+  </div></details>
+
+  <details class="q"><summary><span class="qtag lld">LLD</span><code>@Retry</code> aur <code>@CircuitBreaker</code> ka order kya hona chahiye, aur kyun?</summary>
+  <div class="ans">
+    <p>Resilience4j ka default order bahar se andar: CircuitBreaker → Retry → TimeLimiter → Bulkhead. Matlab breaker retries ke <em>bahar</em> hai: agar breaker OPEN hai toh retry karne ka mauka hi nahi milta, aur ek retried-then-failed call breaker ko ek failure gina jaata hai.</p>
+    <p>Ulta karoge (retry bahar, breaker andar) toh har retry ek breaker call banega, breaker jaldi trip karega, aur retry ka faayda khatam.</p>
+    <span class="hi">Aur teeno se pehle timeout zaroori hai. Bina timeout ke call kabhi khatam hi nahi hoti, isliye na retry trigger hoti hai na breaker ke paas koi failure signal aata hai — poora resilience stack chup-chaap bekaar ho jaata hai.</span>
+  </div></details>
+
+  <details class="q"><summary><span class="qtag lld">LLD</span>Event sourcing mein optimistic locking kaise implement karoge?</summary>
+  <div class="ans">
+    <p>Har aggregate ke stream mein ek monotonically increasing version hoti hai. Load karte waqt aap version <code>N</code> tak padhte ho. Append karte waqt store ko batate ho: "expected version <code>N</code>". Store ek conditional insert karta hai — usually a unique constraint on <code>(aggregate_id, version)</code>.</p>
+    <p>Beech mein kisi aur ne likh diya toh version <code>N+1</code> already exist karega, unique violation aayega, aur aap <code>ConcurrencyException</code> throw karke command ko reload-and-retry karoge.</p>
+    <span class="hi">Yahan pessimistic lock jaan-boojh kar nahi lagate, kyunki event store append-only hai aur conflicts kam hote hain. Retry ka matlab hai: aggregate dobara rehydrate karo, business rule dobara check karo, phir append — kyunki naye event ne shayad decision hi badal diya ho.</span>
+  </div></details>
+
+  <details class="q"><summary><span class="qtag lld">LLD</span>Async calls mein MDC / correlation id leak kaise rokoge?</summary>
+  <div class="ans">
+    <p>MDC ThreadLocal hai, isliye do problems hain: naya thread context nahi paata, aur pool ka thread purana context leke rehta hai.</p>
+    <ul>
+      <li>Filter mein hamesha <code>finally { MDC.clear(); }</code> — yeh leak rokta hai.</li>
+      <li><code>@Async</code> ke liye <code>TaskDecorator</code> lagao jo submit karte waqt <code>MDC.getCopyOfContextMap()</code> capture kare aur worker thread par set kare, phir clear kare.</li>
+      <li>Micrometer Tracing use kar rahe ho toh <code>ContextPropagatingTaskDecorator</code> yeh already karta hai.</li>
+    </ul>
+    <span class="hi">Leak ka lakshan bahut khatarnak hai: logs mein galat traceId dikhta hai, aur debugging aapko poori tarah galat request par le jaati hai. Isliye clear karna optional nahi hai.</span>
+  </div></details>
+
+  <details class="q"><summary><span class="qtag lld">LLD</span>Event sourcing mein snapshot kyun, aur usko correct kaise rakhoge?</summary>
+  <div class="ans">
+    <p>Snapshot sirf performance ke liye hai — 50,000 events replay karna har read par mehnga hai. Har N events (jaise 200) par current state serialize karke store karo, phir load par snapshot + uske baad ke events replay karo.</p>
+    <p>Correctness rule: snapshot kabhi source of truth nahi. Saare snapshots delete kar do toh system exactly same state par pahunchna chahiye. Snapshot mein apni schema version rakho; aggregate ka shape badle toh purane snapshots ko invalidate karo, migrate karne ki koshish mat karo.</p>
+    <span class="hi">Ek common bug: snapshot mein derived data store kar dena jo naye business rules se badal gaya hai. Isliye snapshot version mismatch par usse chup-chaap discard karke pura stream replay karna hi safe design hai.</span>
+  </div></details>
+
+  <details class="q"><summary><span class="qtag lld">LLD</span>CQRS mein read-your-own-write kaise handle karoge?</summary>
+  <div class="ans">
+    <p>Chaar practical options, situation ke hisaab se:</p>
+    <ul>
+      <li>Command ka response hi updated view return kare — client ko read hi na karna pade.</li>
+      <li>Us ek record ke liye write model se padho (jaise <code>findJustPlacedOrder</code>), list ke liye read model se.</li>
+      <li>Client ko ek version/token do; read model us version tak catch up na ho toh short poll karo.</li>
+      <li>UI par optimistic update dikhao aur background mein reconcile karo.</li>
+    </ul>
+    <span class="hi">Interview mein sabse achha jawab yeh hai ki aap isko product decision maano: "order placed" screen par lag bilkul unacceptable hai, lekin analytics dashboard par 5 second ka lag koi problem nahi. Ek hi rule sab jagah mat lagao.</span>
+  </div></details>
+
+  <details class="q"><summary><span class="qtag lld">LLD</span>Gateway aggregation mein ek downstream slow ho toh code kya karega?</summary>
+  <div class="ans">
+    <p>Har section ka apna future, apna fallback, aur poore screen ka ek global deadline. Deadline hit hone par jo ready hai woh bhejo (<code>getNow(default)</code>), baaki sections empty ya cached. Exception ko kabhi upar propagate mat karo, warna ek slow section poora page gira dega.</p>
+    <p>Degradation ko metric karo — <code>home.section.degraded{section="offers"}</code> — warna users ko toota page dikhta rahega aur dashboards green rahenge.</p>
+    <span class="hi">Aggregation ke liye alag executor rakhna zaroori hai. Agar aap request-handling threads par hi fan-out karoge, toh ek slow downstream poore server ka thread pool kha jaayega — yeh bulkhead ka classic use case hai.</span>
+  </div></details>
+
+  <details class="q"><summary><span class="qtag tro">tradeoff</span>Microservices kab <em>nahi</em> karoge?</summary>
+  <div class="ans">
+    <p>Jab in mein se koi bhi sach ho: team 8 se chhoti hai; domain boundaries abhi tak clear nahi hain; koi CI/CD ya centralized logging nahi hai; product roz pivot kar raha hai; ya sirf ek module ko scale karna hai jo ek read replica se ho sakta hai.</p>
+    <p>In sab cases mein modular monolith better hai — module boundaries enforce karo (ArchUnit, Java modules), taki kal split karna sasta rahe.</p>
+    <span class="hi">Interview mein yeh line strong hoti hai: "Microservices ek organizational solution hai, technical nahi. Agar aapke paas coordination problem nahi hai, toh microservices sirf latency, complexity aur on-call load add karenge."</span>
+  </div></details>
+
+  <details class="q"><summary><span class="qtag tro">tradeoff</span>Saga: orchestration ya choreography? Kaise chunoge?</summary>
+  <div class="ans">
+    <p>Choreography tab jab flow 2–3 steps ka ho, koi branching na ho, aur services genuinely independent hon. Kam coupling, kam code.</p>
+    <p>Orchestration tab jab steps 4+ hon, conditional paths hon, timeouts aur retries manage karne hon, ya business ko visibility chahiye ki order kis step par atka hai.</p>
+    <span class="hi">Decision ka asli signal yeh hai: agar aap "yeh flow poora kaise chalta hai" ka jawab ek jagah dekh kar nahi de sakte, toh aapko orchestrator chahiye. Choreography mein knowledge services mein bikhri hoti hai, aur ek limit ke baad woh debug karna namumkin ho jaata hai.</span>
+    <p>Hybrid bhi valid hai: core money flow orchestrated, side effects (email, analytics) choreographed.</p>
+  </div></details>
+
+  <details class="q"><summary><span class="qtag tro">tradeoff</span>CQRS chahiye ya read replica kaafi hai?</summary>
+  <div class="ans">
+    <p>Read replica kaafi hai jab query same shape ki hai aur sirf load offload karna hai. Yeh ek config change hai, code change nahi — isliye pehle yahi try karo.</p>
+    <p>CQRS tab chahiye jab read ko <em>alag model</em> ki zaroorat ho: different denormalization, different engine (search, geo), ya different consistency window. Replica same schema deta hai, alag model nahi.</p>
+    <span class="hi">Beech ka ek option bhi hai jo log bhool jaate hain: materialised view. Woh CQRS ka 60% faayda deta hai bina projector, bina event pipeline, bina eventual consistency ke — bas refresh cost ke saath.</span>
+  </div></details>
+
+  <details class="q"><summary><span class="qtag tro">tradeoff</span>Timeout, retry, breaker, bulkhead — priority order kya hai?</summary>
+  <div class="ans">
+    <ol>
+      <li><b>Timeout</b> — sabse pehle, hamesha. Iske bina baaki teeno kaam hi nahi karte.</li>
+      <li><b>Bulkhead / pool limits</b> — taki ek dependency poore process ko na khaaye.</li>
+      <li><b>Circuit breaker</b> — cascading failure rokne ke liye.</li>
+      <li><b>Retry</b> — sabse aakhir mein, aur sirf idempotent operations par.</li>
+    </ol>
+    <span class="hi">Log aksar ulta karte hain — sabse pehle retry lagate hain, jo actually sabse khatarnak hai. Bina timeout aur breaker ke retry ek healthy dependency ko bhi maar sakti hai, kyunki jab woh slow hoti hai tabhi aap uspar teen guna load daal dete ho.</span>
+  </div></details>
+
+  <details class="q"><summary><span class="qtag tro">tradeoff</span>Service mesh kab worth nahi hai?</summary>
+  <div class="ans">
+    <p>Jab services ~15 se kam hon, ek hi language ho, aur koi dedicated platform capacity na ho. Us case mein Resilience4j (retry, breaker, bulkhead) + Kubernetes Services + ek ingress controller aapko 90% value 5% operational cost mein de dete hain.</p>
+    <p>Mesh tab justify hota hai jab: polyglot fleet, mTLS ek compliance requirement ho, ya progressive delivery (canary, mirroring, fault injection) routine capability chahiye.</p>
+    <span class="hi">Mesh ka asli kharcha license nahi, samajh hai. Jab production mein request fail hoti hai toh ab aapko app, sidecar proxy aur control plane teeno debug karne aate hone chahiye. Team ke paas yeh skill nahi hai toh mesh reliability badhata nahi, ghatata hai.</span>
+  </div></details>
+
+  <details class="q"><summary><span class="qtag tro">tradeoff</span>Event sourcing chahiye ya ek audit table kaafi hai?</summary>
+  <div class="ans">
+    <p>Audit table kaafi hai jab aapko sirf "kya badla, kisne badla, kab" record karna hai. Ek append-only <code>order_history</code> table state table ke saath, aur kaam ho gaya — 5% cost mein.</p>
+    <p>Event sourcing tab chahiye jab events hi source of truth hon: aapko past state reconstruct karna ho, purane data par naye read models banane hon, ya regulator temporal correctness maange.</p>
+    <span class="hi">Ek honest warning jo interview mein achhi lagti hai: GDPR ke saath event sourcing mushkil ho jaata hai, kyunki immutable log se personal data delete nahi hota. Uska jawab crypto-shredding hai — per-user key se encrypt karo aur key delete kar do — lekin yeh design pehle din se sochna padta hai.</span>
+  </div></details>
+
+  <details class="q"><summary><span class="qtag tro">tradeoff</span>DB per service chahiye, par reporting ko 8-table join chahiye. Kya karoge?</summary>
+  <div class="ans">
+    <p>Reporting ko OLTP se bilkul alag karo. Services domain events publish karti hain, ek sink (Debezium/Kafka Connect) unhe warehouse mein daalta hai, aur saare joins wahan chalte hain. Analysts ko warehouse access milta hai, production DB nahi.</p>
+    <p>Chhote internal dashboards ke liye ek CQRS read model kaafi hai, poora warehouse nahi.</p>
+    <span class="hi">Jo cheez kabhi nahi karni: reporting ke liye services ke DBs par direct read access de dena. Woh ek hi din mein aapka data ownership boundary tod deta hai, aur uske baad koi bhi team apna schema safely nahi badal sakti.</span>
+  </div></details>
+
+  <details class="q"><summary><span class="qtag tro">tradeoff</span>Interviewer poochta hai: "2PC kyun nahi? Woh toh strong consistency deta hai."</summary>
+  <div class="ans">
+    <p>Kyunki 2PC availability aur throughput dono kharch karta hai. Prepare phase se commit tak saare participants locks pakde rehte hain, isliye ek slow participant sabki latency badha deta hai. Coordinator crash ho jaaye toh participants "in-doubt" state mein atak jaate hain jab tak manual recovery na ho.</p>
+    <p>Practically, Kafka aur REST XA support nahi karte, aur cloud managed databases aksar distributed transactions restrict karte hain.</p>
+    <span class="hi">Balanced jawab yeh hai: 2PC ek hi database ke andar ya ek trusted, low-latency boundary par theek hai — jaise DB aur message broker jo dono XA support karte hon. Services ke beech, internet-scale par, saga behtar tradeoff hai: thodi der ki inconsistency ke badle mein availability.</span>
+  </div></details>
+
+  <details class="q"><summary><span class="qtag tro">tradeoff</span>Distributed monolith kya hai, aur usko detect kaise karoge?</summary>
+  <div class="ans">
+    <p>Distributed monolith woh system hai jisme deployment toh alag hai par coupling monolith jaisi hi hai. Detect karne ke signals:</p>
+    <ul>
+      <li>Ek feature ke liye 3+ services ek saath release karni padti hain.</li>
+      <li>Services shared database ya shared domain JAR use karti hain.</li>
+      <li>Ek service down hone par baaki sab bhi practically down ho jaati hain.</li>
+      <li>Local development ke liye poora stack chalana padta hai.</li>
+    </ul>
+    <span class="hi">Fix aksar counter-intuitive hota hai: services ko wapas merge karo, phir business capability par dobara kaato. Interviewers ko yeh jawab pasand aata hai kyunki yeh dikhata hai ki aap "zyada services = behtar architecture" wali soch se aage badh chuke ho.</span>
+  </div></details>
+
+  </div>
+</section>
+</div>
+
+<!-- ==================== ANIMATED WALKTHROUGH ==================== -->
+<section class="stage-sec" id="anime">
+  <div class="stage-in">
+    <h2>One request, twelve steps, six patterns</h2>
+    <p class="deck">Neeche ek hi checkout request ko poore system se guzarte hue dekho — gateway se lekar outbox, saga aur circuit breaker tak. Har step par caption batata hai kya ho raha hai aur kaunsa pattern kaam kar raha hai.</p>
+    <span class="hi">Play dabao aur chhod do, ya Next se ek-ek step khud chalao. Payment step par jaan-boojh kar failure inject ki gayi hai, taki compensation aur breaker dono live dikh sakein.</span>
+
+    <div class="viz">
+      <svg viewBox="0 0 1040 372" role="img" aria-label="Animated walkthrough of a checkout request across gateway, order service, outbox, broker, inventory, payment and shipping">
+        <defs>
+          <marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="#4B5A6B"/>
+          </marker>
+        </defs>
+
+        <!-- paths -->
+        <path id="pClientGw"  class="vz-p" marker-end="url(#ah)" d="M148 176 H190"/>
+        <path id="pGwOrder"   class="vz-p" marker-end="url(#ah)" d="M313 176 H355"/>
+        <path id="pOrderDb"   class="vz-p" marker-end="url(#ah)" d="M419 202 V273"/>
+        <path id="pDbRelay"   class="vz-p" marker-end="url(#ah)" d="M478 304 H520"/>
+        <path id="pRelayKafka" class="vz-p" marker-end="url(#ah)" d="M584 278 V207"/>
+        <path id="pKafkaInv"  class="vz-p" marker-end="url(#ah)" d="M584 150 C584 95 620 50 695 50"/>
+        <path id="pKafkaPay"  class="vz-p" marker-end="url(#ah)" d="M643 176 H695"/>
+        <path id="pPayProv"   class="vz-p" marker-end="url(#ah)" d="M818 176 H875"/>
+        <path id="pKafkaShip" class="vz-p" marker-end="url(#ah)" d="M584 202 C584 250 620 302 695 302"/>
+        <path id="pKafkaOrder" class="vz-p" marker-end="url(#ah)" d="M523 192 H483"/>
+
+        <!-- edge labels -->
+        <text class="vz-s" x="169" y="142" text-anchor="middle">trace id</text>
+        <text class="vz-s" x="334" y="142" text-anchor="middle">routed</text>
+        <text class="vz-s" x="429" y="245" >1 tx</text>
+        <text class="vz-s" x="501" y="268" text-anchor="middle">skip locked</text>
+        <text class="vz-s" x="594" y="248" >publish</text>
+        <text class="vz-s" x="630" y="96"  >reserve</text>
+        <text class="vz-s" x="669" y="142" text-anchor="middle">charge</text>
+        <text class="vz-s" x="848" y="142" text-anchor="middle">https</text>
+        <text class="vz-s" x="612" y="286" >ship</text>
+        <text class="vz-s" x="501" y="216" text-anchor="middle">saga events</text>
+
+        <!-- nodes -->
+        <g id="nClient"><rect class="vz-box" x="30" y="150" width="118" height="52" rx="4"/>
+          <text class="vz-t" x="89" y="174" text-anchor="middle">client</text>
+          <text class="vz-s" x="89" y="190" text-anchor="middle">checkout tap</text></g>
+
+        <g id="nGateway"><rect class="vz-box" x="195" y="150" width="118" height="52" rx="4"/>
+          <text class="vz-t" x="254" y="174" text-anchor="middle">api gateway</text>
+          <text class="vz-s" x="254" y="190" text-anchor="middle">auth · rate limit</text></g>
+
+        <g id="nOrder"><rect class="vz-box" x="360" y="150" width="118" height="52" rx="4"/>
+          <text class="vz-t" x="419" y="174" text-anchor="middle">order service</text>
+          <text class="vz-s" id="orderStatus" x="419" y="190" text-anchor="middle">idle</text></g>
+
+        <g id="nDb"><rect class="vz-box" x="360" y="278" width="118" height="52" rx="4"/>
+          <text class="vz-t" x="419" y="302" text-anchor="middle">orders_db</text>
+          <text class="vz-s" x="419" y="318" text-anchor="middle">+ outbox table</text></g>
+
+        <g id="nRelay"><rect class="vz-box" x="525" y="278" width="118" height="52" rx="4"/>
+          <text class="vz-t" x="584" y="302" text-anchor="middle">outbox relay</text>
+          <text class="vz-s" x="584" y="318" text-anchor="middle">poll 500 ms</text></g>
+
+        <g id="nKafka"><rect class="vz-box" x="525" y="150" width="118" height="52" rx="4"/>
+          <text class="vz-t" x="584" y="174" text-anchor="middle">kafka</text>
+          <text class="vz-s" x="584" y="190" text-anchor="middle">order.events</text></g>
+
+        <g id="nInventory"><rect class="vz-box" x="700" y="24" width="118" height="52" rx="4"/>
+          <text class="vz-t" x="759" y="48" text-anchor="middle">inventory</text>
+          <text class="vz-s" id="invStatus" x="759" y="64" text-anchor="middle">stock free</text></g>
+
+        <g id="nPayment"><rect class="vz-box" x="700" y="150" width="118" height="52" rx="4"/>
+          <text class="vz-t" x="759" y="174" text-anchor="middle">payment</text>
+          <text class="vz-s" x="759" y="190" text-anchor="middle">resilience4j</text></g>
+
+        <g id="nProvider"><rect class="vz-box" x="875" y="150" width="118" height="52" rx="4"/>
+          <text class="vz-t" x="934" y="174" text-anchor="middle">card provider</text>
+          <text class="vz-s" x="934" y="190" text-anchor="middle">third party</text></g>
+
+        <g id="nShipping"><rect class="vz-box" x="700" y="276" width="118" height="52" rx="4"/>
+          <text class="vz-t" x="759" y="300" text-anchor="middle">shipping</text>
+          <text class="vz-s" x="759" y="316" text-anchor="middle">waiting</text></g>
+
+        <!-- breaker badge -->
+        <g id="breakerBadge">
+          <rect class="vz-box" x="700" y="116" width="118" height="22" rx="3"/>
+          <text class="vz-s" id="breakerText" x="759" y="131" text-anchor="middle">breaker closed</text>
+        </g>
+
+        <circle id="packet" class="packet" cx="89" cy="176" r="7" opacity="0"/>
+      </svg>
+
+      <div class="controls">
+        <button class="ctl" type="button" id="btnRestart">Restart</button>
+        <button class="ctl" type="button" id="btnPrev">Previous</button>
+        <button class="ctl primary" type="button" id="btnPlay">Play</button>
+        <button class="ctl" type="button" id="btnNext">Next</button>
+        <div class="dots" id="dots" role="tablist" aria-label="Steps"></div>
+      </div>
+
+      <div class="caption">
+        <p class="cap-step" id="capStep">step 1 of 12</p>
+        <h4 id="capTitle">Ready when you are</h4>
+        <p id="capEn">Press Play to send one checkout request through the whole system, or step through it yourself.</p>
+        <span class="hi" id="capHi">Play dabate hi request client se nikal kar gateway, order service, outbox, kafka aur payment tak jaayegi — aur beech mein ek failure bhi milegi.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="wide">
+  <div class="footer">Docket MSA-2026 · patterns are tools, not trophies · pick the boring option until the data says otherwise</div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ---------- 1. Java / YAML syntax highlighting + line notes ---------- */
+  var KEYWORDS = ['public','private','protected','class','interface','abstract','static','final','void','return','new','if','else','for','while','do','try','catch','finally','throw','throws','import','package','extends','implements','this','super','null','true','false','int','long','double','boolean','char','byte','var','record','enum','instanceof','synchronized','transient','volatile','default','case','switch','break','continue'];
+  var KW_RE = new RegExp('\\b(' + KEYWORDS.join('|') + ')\\b');
+
+  var TOKEN_RE = new RegExp([
+    '("(?:[^"\\\\]|\\\\.)*")',        // strings
+    '(\\/\\/[^\\n]*|#[^\\n]*|\\/\\*[^\\n]*|\\*\\/)', // comments
+    '(@\\w+)',                        // annotations
+    KW_RE.source,                     // keywords
+    '\\b(\\d[\\d_]*(?:\\.\\d+)?(?:[smhLdf]|ms)?)\\b', // numbers
+    '\\b([A-Z][A-Za-z0-9_]*)\\b'      // types
+  ].join('|'), 'g');
+
+  function escapeHtml(s) {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function colourise(code) {
+    return escapeHtml(code).replace(TOKEN_RE, function (m, str, com, ann, kw, num, typ) {
+      if (str) return '<span class="s">' + str + '</span>';
+      if (com) return '<span class="c">' + com + '</span>';
+      if (ann) return '<span class="a">' + ann + '</span>';
+      if (kw)  return '<span class="k">' + kw + '</span>';
+      if (num) return '<span class="n">' + num + '</span>';
+      if (typ) return '<span class="t">' + typ + '</span>';
+      return m;
+    });
+  }
+
+  var NOTE_RE = /\s*(?:\/\/|#)»\s?(.*)$/;
+
+  function renderCodeBlock(pre) {
+    var lines = pre.textContent.replace(/\s+$/, '').split('\n');
+    var html = '';
+    lines.forEach(function (raw) {
+      var note = null;
+      var match = raw.match(NOTE_RE);
+      if (match) {
+        note = match[1];
+        raw = raw.slice(0, match.index).replace(/\s+$/, '');
+      }
+      html += '<span class="cl">' + (colourise(raw) || ' ') + '</span>';
+      if (note) html += '<span class="nt">↳ ' + escapeHtml(note) + '</span>';
+    });
+    pre.innerHTML = html;
+  }
+
+  document.querySelectorAll('pre.code').forEach(renderCodeBlock);
+
+  document.querySelectorAll('.notes-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var pre = btn.closest('.codewrap').querySelector('pre.code');
+      var hidden = pre.classList.toggle('hide-notes');
+      btn.textContent = hidden ? 'Show line notes' : 'Hide line notes';
+    });
+  });
+
+  /* ---------- 2. Rail: scroll spy + mobile toggle ---------- */
+  var railLinks = Array.prototype.slice.call(document.querySelectorAll('.rail a'));
+  var watched = railLinks
+    .map(function (a) { return document.querySelector(a.getAttribute('href')); })
+    .filter(Boolean);
+
+  if ('IntersectionObserver' in window && watched.length) {
+    var visible = new Set();
+    var spy = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (entry.isIntersecting) visible.add(entry.target.id);
+        else visible.delete(entry.target.id);
+      });
+      var topmost = watched.filter(function (el) { return visible.has(el.id); })[0];
+      if (!topmost) return;
+      railLinks.forEach(function (a) {
+        a.classList.toggle('on', a.getAttribute('href') === '#' + topmost.id);
+      });
+    }, { rootMargin: '-12% 0px -68% 0px' });
+    watched.forEach(function (el) { spy.observe(el); });
+  }
+
+  var rail = document.getElementById('rail');
+  var railToggle = document.getElementById('railToggle');
+  function toggleRail() {
+    var open = rail.classList.toggle('open');
+    railToggle.setAttribute('aria-expanded', String(open));
+  }
+  railToggle.addEventListener('click', toggleRail);
+  railToggle.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleRail(); }
+  });
+  railLinks.forEach(function (a) {
+    a.addEventListener('click', function () { rail.classList.remove('open'); });
+  });
+
+  /* ---------- 3. The walkthrough ---------- */
+  var STEPS = [
+    {
+      title: 'The request reaches the front door',
+      en: 'One HTTPS call from the app arrives at the gateway carrying a fresh traceparent header. From here on, every hop will log the same trace id.',
+      hi: 'Client sirf ek hi request bhejta hai. Trace id yahin edge par bana, aur ab har service ke log mein wahi id dikhegi — nau logs jodne ka yahi ek tareeka hai.',
+      chip: 'API gateway · tracing',
+      path: 'pClientGw', kind: 'ok',
+      set: { nGateway: 'act', pClientGw: 'act' }
+    },
+    {
+      title: 'Gateway authenticates, throttles, and routes',
+      en: 'JWT is validated, the per-tenant rate limit is checked, and the call is routed to order-service. No business logic lives here.',
+      hi: 'Auth, rate limit aur routing — teenon ek hi jagah, har service mein alag-alag nahi. Gateway ko patla rakhna hi iski shart hai.',
+      chip: 'API gateway',
+      path: 'pGwOrder', kind: 'ok',
+      set: { nOrder: 'act', pGwOrder: 'act', orderStatus: 'PENDING' }
+    },
+    {
+      title: 'Order row and event row commit together',
+      en: 'The order and an OrderPlaced row in the outbox table are written inside one local transaction. Kafka is not touched yet.',
+      hi: 'Yahi dual-write problem ka ilaaj hai. Broker down bhi ho toh order safe hai, kyunki event ka intent usi commit mein durable ho chuka hai.',
+      chip: 'Transactional outbox',
+      path: 'pOrderDb', kind: 'ok',
+      set: { nDb: 'act', pOrderDb: 'act' }
+    },
+    {
+      title: 'The relay claims unpublished rows',
+      en: 'A poller selects the next batch with FOR UPDATE SKIP LOCKED, so several relay pods never fight over the same row.',
+      hi: 'SKIP LOCKED ki wajah se do relay pods ek hi event ko lock karke atkte nahi — dono alag rows uthate hain aur throughput bana rehta hai.',
+      chip: 'Transactional outbox',
+      path: 'pDbRelay', kind: 'ok',
+      set: { nRelay: 'act', pDbRelay: 'act' }
+    },
+    {
+      title: 'OrderPlaced is published',
+      en: 'The relay pushes the event to the broker and marks the row published. If it crashes before marking, the event is simply sent again.',
+      hi: 'Isi wajah se delivery at-least-once hai, exactly-once nahi. Matlab duplicates aayenge — aur har consumer ko dedupe karna hi padega.',
+      chip: 'Choreography',
+      path: 'pRelayKafka', kind: 'ok',
+      set: { nKafka: 'act', pRelayKafka: 'act' }
+    },
+    {
+      title: 'Inventory reserves the stock',
+      en: 'The consumer registers the event id first; a duplicate would return immediately. Then it reserves stock in its own database.',
+      hi: 'Dedupe insert aur stock reserve — dono ek hi local transaction mein. Alag karoge toh crash ke baad ek ho jaayega aur doosra nahi.',
+      chip: 'Idempotent consumer · saga step 1',
+      path: 'pKafkaInv', kind: 'ok',
+      set: { nInventory: 'act', pKafkaInv: 'act', invStatus: '2 units reserved' }
+    },
+    {
+      title: 'Payment is asked to charge the card',
+      en: 'The saga advances to CHARGE_PAYMENT and sends a command with the saga id and an idempotency key.',
+      hi: 'Saga ka state pehle DB mein likha jaata hai, phir command jaata hai. Ulta karoge toh pod restart ke baad pata hi nahi chalega ki command bheja tha ya nahi.',
+      chip: 'Saga orchestration',
+      path: 'pKafkaPay', kind: 'ok',
+      set: { nPayment: 'act', pKafkaPay: 'act' }
+    },
+    {
+      title: 'The provider stalls and the timeout fires',
+      en: 'The third-party API is taking 30 seconds. The 2-second time limiter cuts the call so the thread is released instead of parked.',
+      hi: 'Timeout hi woh cheez hai jo failure ka signal paida karti hai. Uske bina thread ghanton latki rehti aur breaker ko kabhi pata hi nahi chalta.',
+      chip: 'Timeout',
+      path: 'pPayProv', kind: 'err',
+      set: { nProvider: 'err', pPayProv: 'err' }
+    },
+    {
+      title: 'Failure rate crosses 50 percent — breaker opens',
+      en: 'Over the last 50 calls, more than half timed out. The breaker flips to OPEN, so new calls fail instantly and no thread waits.',
+      hi: 'Ab har request turant fail hoti hai aur fallback chalta hai. Isse thread pool bachta hai, aur cascading failure yahin ruk jaata hai.',
+      chip: 'Circuit breaker',
+      path: null,
+      set: { nPayment: 'err', breaker: 'breaker open' }
+    },
+    {
+      title: 'The saga turns around and compensates',
+      en: 'Payment declined, so the orchestrator stops going forward and issues releaseInventory, carrying the same saga id.',
+      hi: 'Compensation ka matlab undo nahi hai — yeh ek naya business fact hai. Stock wapas free hua, aur woh bhi ek event ke roop mein record hua.',
+      chip: 'Saga compensation',
+      path: 'pKafkaInv', dir: -1, kind: 'comp',
+      set: { pKafkaInv: 'comp', nInventory: 'warn', invStatus: 'reservation released' }
+    },
+    {
+      title: 'Order settles in a clear failed state',
+      en: 'The order becomes PAYMENT_FAILED, shipping is never triggered, and the customer sees an honest status instead of a spinner.',
+      hi: 'Distributed system mein sabse buri state "pata nahi" hai. Saga ka kaam yahi hai — har raasta kisi na kisi final, samajhne layak state par khatam ho.',
+      chip: 'Saga orchestration',
+      path: 'pKafkaOrder', kind: 'comp',
+      set: { pKafkaOrder: 'comp', nOrder: 'warn', orderStatus: 'PAYMENT_FAILED', nShipping: 'dim' }
+    },
+    {
+      title: 'Half-open, one trial call, back to normal',
+      en: 'After 20 seconds the breaker allows three trial calls. They succeed, it closes, and the deferred payment queue is drained.',
+      hi: 'Recovery bhi automatic hai — koi manual restart nahi. Isi wajah se fallback ko meaningful rakhna zaroori hai: request queue mein padi thi, isliye kuch bhi kho nahi gaya.',
+      chip: 'Circuit breaker recovery',
+      path: 'pPayProv', kind: 'ok',
+      set: { nProvider: 'act', pPayProv: 'act', nPayment: 'act', breaker: 'breaker closed', nOrder: 'act', orderStatus: 'retrying payment' }
+    }
+  ];
+
+  var svgIds = ['nClient','nGateway','nOrder','nDb','nRelay','nKafka','nInventory','nPayment','nProvider','nShipping'];
+  var pathIds = ['pClientGw','pGwOrder','pOrderDb','pDbRelay','pRelayKafka','pKafkaInv','pKafkaPay','pPayProv','pKafkaShip','pKafkaOrder'];
+
+  var packet = document.getElementById('packet');
+  var capStep = document.getElementById('capStep');
+  var capTitle = document.getElementById('capTitle');
+  var capEn = document.getElementById('capEn');
+  var capHi = document.getElementById('capHi');
+  var dotsBox = document.getElementById('dots');
+  var btnPlay = document.getElementById('btnPlay');
+
+  var reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var current = -1;
+  var playing = false;
+  var rafId = null;
+  var timerId = null;
+
+  STEPS.forEach(function (step, i) {
+    var dot = document.createElement('button');
+    dot.className = 'dot';
+    dot.type = 'button';
+    dot.setAttribute('aria-label', 'Step ' + (i + 1) + ': ' + step.title);
+    dot.addEventListener('click', function () { pause(); goTo(i); });
+    dotsBox.appendChild(dot);
+  });
+  var dots = Array.prototype.slice.call(dotsBox.children);
+
+  function resetVisuals() {
+    svgIds.forEach(function (id) {
+      document.querySelector('#' + id + ' rect').setAttribute('class', 'vz-box');
+    });
+    pathIds.forEach(function (id) {
+      document.getElementById(id).setAttribute('class', 'vz-p');
+    });
+    document.getElementById('orderStatus').textContent = 'idle';
+    document.getElementById('invStatus').textContent = 'stock free';
+    document.getElementById('breakerText').textContent = 'breaker closed';
+    document.querySelector('#breakerBadge rect').setAttribute('class', 'vz-box');
+    packet.setAttribute('opacity', '0');
+  }
+
+  function applyStateUpTo(index) {
+    resetVisuals();
+    for (var i = 0; i <= index; i++) {
+      var set = STEPS[i].set || {};
+      Object.keys(set).forEach(function (key) {
+        var value = set[key];
+        if (key === 'orderStatus' || key === 'invStatus') {
+          document.getElementById(key).textContent = value;
+        } else if (key === 'breaker') {
+          document.getElementById('breakerText').textContent = value;
+          document.querySelector('#breakerBadge rect')
+            .setAttribute('class', 'vz-box ' + (value.indexOf('open') > -1 ? 'err' : 'act'));
+        } else if (key.charAt(0) === 'n') {
+          document.querySelector('#' + key + ' rect').setAttribute('class', 'vz-box ' + value);
+        } else {
+          document.getElementById(key).setAttribute('class', 'vz-p ' + value);
+        }
+      });
+    }
+  }
+
+  function movePacket(pathId, direction, kind, onDone) {
+    var path = document.getElementById(pathId);
+    var length = path.getTotalLength();
+    var duration = reduceMotion ? 0 : 1150;
+    var startedAt = null;
+    packet.setAttribute('class', 'packet ' + (kind === 'ok' ? '' : kind));
+    packet.setAttribute('opacity', '1');
+
+    function frame(now) {
+      if (startedAt === null) startedAt = now;
+      var progress = duration === 0 ? 1 : Math.min((now - startedAt) / duration, 1);
+      var eased = progress < 0.5 ? 2 * progress * progress : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+      var at = direction === -1 ? (1 - eased) : eased;
+      var point = path.getPointAtLength(at * length);
+      packet.setAttribute('cx', point.x);
+      packet.setAttribute('cy', point.y);
+      if (progress < 1) { rafId = requestAnimationFrame(frame); }
+      else { onDone && onDone(); }
+    }
+    rafId = requestAnimationFrame(frame);
+  }
+
+  function goTo(index) {
+    if (rafId) cancelAnimationFrame(rafId);
+    if (timerId) clearTimeout(timerId);
+    current = index;
+    var step = STEPS[index];
+
+    applyStateUpTo(index);
+    capStep.textContent = 'step ' + (index + 1) + ' of ' + STEPS.length;
+    capTitle.textContent = step.title;
+    capEn.innerHTML = step.en + '<span class="cap-chip">' + step.chip + '</span>';
+    capHi.textContent = step.hi;
+    dots.forEach(function (d, i) { d.classList.toggle('on', i === index); });
+
+    if (step.path) {
+      movePacket(step.path, step.dir || 1, step.kind || 'ok', afterStep);
+    } else {
+      packet.setAttribute('opacity', '0');
+      afterStep();
+    }
+  }
+
+  function afterStep() {
+    if (!playing) return;
+    timerId = setTimeout(function () {
+      goTo(current + 1 >= STEPS.length ? 0 : current + 1);
+    }, 900);
+  }
+
+  function play() {
+    playing = true;
+    btnPlay.textContent = 'Pause';
+    goTo(current + 1 >= STEPS.length ? 0 : current + 1);
+  }
+
+  function pause() {
+    playing = false;
+    btnPlay.textContent = 'Play';
+    if (timerId) clearTimeout(timerId);
+  }
+
+  btnPlay.addEventListener('click', function () { playing ? pause() : play(); });
+  document.getElementById('btnNext').addEventListener('click', function () {
+    pause(); goTo(current + 1 >= STEPS.length ? 0 : current + 1);
+  });
+  document.getElementById('btnPrev').addEventListener('click', function () {
+    pause(); goTo(current - 1 < 0 ? STEPS.length - 1 : current - 1);
+  });
+  document.getElementById('btnRestart').addEventListener('click', function () {
+    pause(); current = -1; resetVisuals();
+    capStep.textContent = 'step 1 of ' + STEPS.length;
+    capTitle.textContent = 'Ready when you are';
+    capEn.textContent = 'Press Play to send one checkout request through the whole system, or step through it yourself.';
+    capHi.textContent = 'Play dabate hi request client se nikal kar gateway, order service, outbox, kafka aur payment tak jaayegi — aur beech mein ek failure bhi milegi.';
+    dots.forEach(function (d) { d.classList.remove('on'); });
+  });
+
+  resetVisuals();
+})();
+</script>
+</body>
+</html>

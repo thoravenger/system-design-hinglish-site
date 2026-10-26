@@ -1,0 +1,896 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Animation lab — Java collections &amp; GC internals</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Source+Serif+4:opsz,wght@8..60,400&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --panel:#0E1D24; --panel-2:#132B34; --panel-3:#183640;
+  --line:#22434F; --line-2:#2E5765;
+  --fg:#DCE9ED; --fg-2:#89AAB4; --fg-3:#5E828D;
+  --eden:#2E9E86; --surv:#D4923A; --old:#8C6CC4; --alert:#D4573E; --info:#4FA8D8;
+  --mono:"JetBrains Mono",ui-monospace,monospace;
+  --sans:"Archivo",system-ui,sans-serif;
+  --serif:"Source Serif 4",Georgia,serif;
+  --shell:1080px;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:60px}
+body{margin:0;background:var(--panel);color:var(--fg);font-family:var(--serif);font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+h1,h2,h3,.ui{font-family:var(--sans)}
+code{font-family:var(--mono);font-size:.88em;color:#9FD8C9}
+a{color:#6FC9B2}
+
+.bar{position:sticky;top:0;z-index:50;background:#0A171D;border-bottom:1px solid var(--line)}
+.bar .in{max-width:var(--shell);margin:0 auto;padding:9px 20px;display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.bar b{font-family:var(--sans);font-size:15px;font-weight:700;letter-spacing:-.02em}
+.bar nav{margin-left:auto;display:flex;gap:12px;flex-wrap:wrap}
+.bar nav a{font-family:var(--sans);font-size:12.5px;color:var(--fg-2);text-decoration:none}
+.bar nav a:hover{color:#fff}
+.bar .back{background:#1E4A44;color:#8FE0CB !important;padding:5px 10px;border-radius:3px;font-weight:600}
+
+.intro{max-width:var(--shell);margin:0 auto;padding:40px 20px 10px}
+.intro h1{font-size:clamp(28px,5vw,48px);line-height:1.04;margin:0 0 14px;letter-spacing:-.035em;max-width:18ch}
+.intro p{max-width:64ch;color:var(--fg-2);margin:0 0 10px}
+.jump{display:flex;gap:7px;flex-wrap:wrap;margin:22px 0 0;padding:0;list-style:none}
+.jump a{font-family:var(--mono);font-size:11.5px;color:var(--fg-2);border:1px solid var(--line-2);
+  padding:4px 9px;border-radius:12px;text-decoration:none;display:block}
+.jump a:hover{border-color:var(--eden);color:#fff}
+
+.sims{max-width:var(--shell);margin:0 auto;padding:0 20px 80px}
+.sim{margin-top:44px;scroll-margin-top:60px;border:1px solid var(--line);border-radius:5px;background:linear-gradient(180deg,#112630,#0F212A);overflow:hidden}
+.sim > header{padding:16px 20px 13px;border-bottom:1px solid var(--line)}
+.sim h2{margin:0 0 5px;font-size:19px;letter-spacing:-.02em;display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.sim h2 em{font-family:var(--mono);font-size:11px;font-style:normal;color:var(--fg-3);border:1px solid var(--line-2);padding:1px 7px;border-radius:10px}
+.sim > header p{margin:0;color:var(--fg-2);font-size:15px;max-width:70ch}
+
+.stage{padding:20px;min-height:210px;display:flex;flex-direction:column;justify-content:center}
+.cap{padding:11px 20px;border-top:1px solid var(--line);background:#0B1A21;font-size:14.6px;min-height:62px;display:flex;align-items:center}
+.cap span{color:var(--fg)}
+.cap b{color:#7FD8C0;font-family:var(--sans);font-weight:600}
+.ctl{display:flex;align-items:center;gap:8px;padding:10px 20px;border-top:1px solid var(--line);background:#0A171D;flex-wrap:wrap}
+.ctl button{font-family:var(--mono);font-size:11.5px;background:#183038;color:#A7CBD4;border:1px solid var(--line-2);
+  border-radius:3px;padding:5px 11px;cursor:pointer;line-height:1.4}
+.ctl button:hover:not(:disabled){background:#20424C;color:#fff}
+.ctl button:disabled{opacity:.35;cursor:default}
+.ctl button.play{background:#1E4A44;border-color:#2E7A6B;color:#8FE0CB}
+.ctl .prog{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--fg-3)}
+.track{height:3px;background:#16323C;border-radius:2px;flex:1;min-width:80px;max-width:230px;overflow:hidden}
+.track i{display:block;height:100%;background:var(--eden);width:0;transition:width .25s ease}
+
+/* ---- generic primitives ---- */
+.row{display:flex;gap:5px;flex-wrap:wrap;align-items:center}
+.rowlbl{font-family:var(--mono);font-size:10.5px;color:var(--fg-3);width:70px;flex:none;text-align:right;padding-right:6px}
+.cell{width:38px;height:38px;border:1px solid var(--line-2);border-radius:3px;display:flex;align-items:center;
+  justify-content:center;font-family:var(--mono);font-size:12px;color:var(--fg-2);background:#0D2129;flex:none}
+.cell.f{background:var(--eden);border-color:var(--eden);color:#04120F;font-weight:700}
+.cell.g{background:#1A2A30;border-style:dashed;color:#4E6B75}
+.cell.s{background:var(--surv);border-color:var(--surv);color:#1B1103;font-weight:700}
+.cell.o{background:var(--old);border-color:var(--old);color:#14061F;font-weight:700}
+.cell.x{background:var(--alert);border-color:var(--alert);color:#1B0703;font-weight:700}
+.cell.i{background:var(--info);border-color:var(--info);color:#03151F;font-weight:700}
+.cell.sm{width:22px;height:22px;font-size:9.5px;border-radius:2px}
+.chg{animation:pop .42s cubic-bezier(.2,1.4,.4,1)}
+@keyframes pop{0%{transform:scale(.5);opacity:0}100%{transform:scale(1);opacity:1}}
+.fade{animation:fade .5s ease}
+@keyframes fade{0%{opacity:.15}100%{opacity:1}}
+.idx{font-family:var(--mono);font-size:9px;color:var(--fg-3);text-align:center;width:38px;flex:none}
+.idx.sm{width:22px}
+.note{font-family:var(--mono);font-size:11px;color:var(--fg-3);margin-top:10px}
+.note b{color:#7FD8C0;font-weight:500}
+.tagline{font-family:var(--mono);font-size:10.5px;color:var(--fg-3);margin:0 0 7px}
+.grp{margin-bottom:14px}
+.grp:last-child{margin-bottom:0}
+.flag{display:inline-block;font-family:var(--mono);font-size:10px;padding:1px 6px;border-radius:9px;margin-left:6px}
+.flag.ok{background:#164039;color:#7FD8C0}
+.flag.warn{background:#40301A;color:#E8B776}
+.flag.bad{background:#40201A;color:#F0A48F}
+.flag.mv{background:#1E3548;color:#8FC8E8}
+svg{display:block;max-width:100%}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-family:var(--mono);font-size:10.5px;color:var(--fg-3);margin-top:12px}
+.legend i{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:5px}
+.bucket{display:flex;align-items:center;gap:5px;margin-bottom:3px}
+.bidx{font-family:var(--mono);font-size:10px;color:var(--fg-3);width:26px;flex:none;text-align:right}
+.slot{width:16px;height:20px;border:1px solid var(--line-2);border-radius:2px;flex:none;background:#0D2129}
+.slot.on{background:var(--eden);border-color:var(--eden)}
+.slot.mv{background:var(--info);border-color:var(--info)}
+.chain{display:flex;align-items:center;gap:3px;flex-wrap:wrap}
+.knode{font-family:var(--mono);font-size:10.5px;background:#17323B;border:1px solid var(--line-2);
+  border-radius:2px;padding:2px 6px;color:#B6D6DE;white-space:nowrap}
+.knode.hot{background:var(--eden);border-color:var(--eden);color:#04120F;font-weight:700}
+.knode.lo{background:#1B3B36;border-color:#2E7A6B;color:#8FE0CB}
+.knode.hi{background:#3A2E1B;border-color:#8A6A2E;color:#E8C88A}
+.arrow{color:var(--fg-3);font-family:var(--mono);font-size:11px}
+.lane{display:flex;align-items:center;gap:8px;margin-bottom:6px;font-family:var(--mono);font-size:11px}
+.who{width:70px;flex:none;color:var(--fg-2)}
+.state{padding:2px 8px;border-radius:3px;border:1px solid var(--line-2);background:#122A33;color:var(--fg-2)}
+.state.run{background:#164039;border-color:#2E7A6B;color:#8FE0CB}
+.state.block{background:#40201A;border-color:#8A3A2A;color:#F0A48F}
+.state.wait{background:#40301A;border-color:#8A6A2E;color:#E8B776}
+
+footer{border-top:1px solid var(--line);background:#0A171D;padding:26px 20px;color:var(--fg-3);font-size:14px}
+footer .in{max-width:var(--shell);margin:0 auto}
+
+@media (max-width:700px){
+  .rowlbl{width:100%;text-align:left;padding:0 0 4px}
+  .cell{width:30px;height:30px;font-size:10.5px}
+  .idx{width:30px}
+  .stage{padding:16px 12px}
+}
+@media (prefers-reduced-motion:reduce){
+  .chg,.fade{animation:none}
+  html{scroll-behavior:auto}
+  .track i{transition:none}
+}
+:focus-visible{outline:2px solid var(--eden);outline-offset:2px}
+</style>
+</head>
+<body>
+
+<div class="bar"><div class="in">
+  <b>Animation lab</b>
+  <nav>
+    <a href="#s-arraylist">ArrayList</a>
+    <a href="#s-hashmap">HashMap</a>
+    <a href="#s-chm">CHM</a>
+    <a href="#s-rbtree">Tree</a>
+    <a href="#s-heap">Heap</a>
+    <a href="#s-abq">BlockingQueue</a>
+    <a href="#s-young">Minor GC</a>
+    <a href="#s-g1">G1</a>
+    <a class="back" href="java-collections-gc-masterclass-original.html">Workbook</a>
+  </nav>
+</div></div>
+
+<section class="intro">
+  <h1>Memory ke andar kya ho raha hai — step by step.</h1>
+  <p>Har simulation ko <b>step</b> se aage badhao ya <b>play</b> daba do. Neeche caption batata hai ki us exact moment par JVM kya kar raha hai. Numbers real hain — bucket index, resize split, aur heap math wahi hai jo asli implementation use karti hai.</p>
+  <ul class="jump">
+    <li><a href="#s-arraylist">01 · ArrayList grow</a></li>
+    <li><a href="#s-hashmap">02 · HashMap put + resize</a></li>
+    <li><a href="#s-treeify">03 · Treeify</a></li>
+    <li><a href="#s-linked">04 · LinkedList node</a></li>
+    <li><a href="#s-chm">05 · ConcurrentHashMap</a></li>
+    <li><a href="#s-rbtree">06 · Red-Black tree</a></li>
+    <li><a href="#s-heap">07 · PriorityQueue heap</a></li>
+    <li><a href="#s-abq">08 · ArrayBlockingQueue</a></li>
+    <li><a href="#s-young">09 · Minor GC + promotion</a></li>
+    <li><a href="#s-msc">10 · Mark-Sweep-Compact</a></li>
+    <li><a href="#s-g1">11 · G1 garbage-first</a></li>
+  </ul>
+</section>
+
+<main class="sims" id="sims"></main>
+
+<footer><div class="in">
+  <p style="margin:0 0 6px">Constants (16, 0.75, 8, 64, 1.5x, tenuring 15) HotSpot ke implementation details hain — JDK version ke saath badal sakte hain.</p>
+  <p style="margin:0">Theory aur code ke liye wapas jao: <a href="java-collections-gc-masterclass-original.html">Collections &amp; GC workbook</a>.</p>
+</div></footer>
+<script>
+/* ============================================================
+   Player engine — har sim precomputed frames deta hai.
+   frame = { cap: "caption html", html: "stage html" }
+   ============================================================ */
+const SIMS = [];
+const defineSim = cfg => SIMS.push(cfg);
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+
+/* ---------- shared render helpers ---------- */
+function cellRow(values, capacity, classFor, small){
+  const sz = small ? ' sm' : '';
+  let out = '<div class="row">';
+  for (let i = 0; i < capacity; i++){
+    const v = values[i];
+    const extra = classFor ? (classFor(i, v) || '') : '';
+    out += `<div class="cell${sz} ${v == null ? 'g' : 'f'} ${extra}">${v == null ? '' : esc(v)}</div>`;
+  }
+  return out + '</div>';
+}
+function indexRow(n, small){
+  const sz = small ? ' sm' : '';
+  let out = '<div class="row">';
+  for (let i = 0; i < n; i++) out += `<div class="idx${sz}">${i}</div>`;
+  return out + '</div>';
+}
+function group(label, inner){
+  return `<div class="grp"><p class="tagline">${label}</p>${inner}</div>`;
+}
+function layoutTree(root){
+  const nodes = []; let order = 0;
+  (function walk(n, depth){
+    if (!n) return;
+    walk(n.l, depth + 1);
+    n._x = order++; n._d = depth; nodes.push(n);
+    walk(n.r, depth + 1);
+  })(root, 0);
+  const edges = [];
+  nodes.forEach(n => { if (n.l) edges.push([n, n.l]); if (n.r) edges.push([n, n.r]); });
+  return { nodes, edges, width: order };
+}
+function renderTree(root, opts){
+  const o = Object.assign({ gapX: 54, gapY: 52, r: 17, pad: 26 }, opts || {});
+  const { nodes, edges, width } = layoutTree(root);
+  const depth = Math.max(...nodes.map(n => n._d)) + 1;
+  const W = Math.max(width, 1) * o.gapX + o.pad * 2;
+  const H = depth * o.gapY + o.pad;
+  const px = n => o.pad + n._x * o.gapX + o.gapX / 2;
+  const py = n => o.pad + n._d * o.gapY;
+  let svg = `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img">`;
+  edges.forEach(([a, b]) => {
+    svg += `<line x1="${px(a)}" y1="${py(a)}" x2="${px(b)}" y2="${py(b)}" stroke="#2E5765" stroke-width="1.6"/>`;
+  });
+  nodes.forEach(n => {
+    const red = n.c === 'r';
+    const fill = n.hot ? '#2E9E86' : (red ? '#C4453A' : '#16323C');
+    const stroke = n.hot ? '#5FD8BC' : (red ? '#E27E70' : '#2E5765');
+    const txt = n.hot ? '#04120F' : '#EAF3F5';
+    svg += `<circle cx="${px(n)}" cy="${py(n)}" r="${o.r}" fill="${fill}" stroke="${stroke}" stroke-width="${n.hot ? 2.5 : 1.6}"/>`;
+    svg += `<text x="${px(n)}" y="${py(n) + 4}" text-anchor="middle" font-family="JetBrains Mono, monospace" font-size="11.5" fill="${txt}">${esc(n.v)}</text>`;
+  });
+  return svg + '</svg>';
+}
+function node(v, c, l, r, hot){ return { v, c, l: l || null, r: r || null, hot: !!hot }; }
+
+/* ============================================================
+   01 — ArrayList grow
+   ============================================================ */
+(function(){
+  const F = [];
+  const shell = (inner, note) =>
+    inner + (note ? `<p class="note">${note}</p>` : '');
+  const arr = (vals, cap, hi) => indexRow(cap) + cellRow(vals, cap, i => (hi && hi.includes(i) ? 'chg' : ''));
+
+  F.push({ cap: '<b>Start.</b> <code>new ArrayList&lt;&gt;()</code> abhi koi array allocate nahi karta — wo ek shared empty array pe point karta hai. Asli 10-slot array pehle <code>add()</code> par banta hai.',
+    html: shell(group('elementData — abhi khaali (lazy init)', indexRow(10) + cellRow([], 10)), 'size = 0 &nbsp; capacity = 0 → 10 (on first add)') });
+
+  F.push({ cap: '<b>add("A")</b> — capacity 10 ka array bana, index 0 par value likhi, <code>size</code> 1 ho gaya.',
+    html: shell(group('elementData (capacity 10)', arr(['A'], 10, [0])), 'size = 1 &nbsp; capacity = 10') });
+
+  F.push({ cap: 'Do aur add. Har add sirf ek array write + ek counter increment hai — <b>O(1)</b>, koi allocation nahi.',
+    html: shell(group('elementData (capacity 10)', arr(['A','B','C'], 10, [1,2])), 'size = 3 &nbsp; capacity = 10') });
+
+  F.push({ cap: 'Saat aur add karne ke baad <b>size == capacity</b>. Agla add ab seedha nahi ho sakta.',
+    html: shell(group('elementData (capacity 10) — FULL', arr(['A','B','C','D','E','F','G','H','I','J'], 10, [3,4,5,6,7,8,9])), 'size = 10 &nbsp; capacity = 10 &nbsp; → agla add grow trigger karega') });
+
+  F.push({ cap: '<b>grow()</b>: <code>newCapacity = oldCapacity + (oldCapacity &gt;&gt; 1)</code> → 10 + 5 = <b>15</b>. Naya array allocate hua, aur <code>Arrays.copyOf</code> (andar <code>System.arraycopy</code>, ek JIT intrinsic) purana data block-copy kar raha hai.',
+    html: shell(
+      group('purana array (capacity 10) — copy ke baad ye garbage ban jaayega',
+        '<div class="row">' + Array.from({length:10}, (_,i) => `<div class="cell g">${'ABCDEFGHIJ'[i]}</div>`).join('') + '</div>') +
+      `<p class="note" style="margin:2px 0 10px">↓ <b>Arrays.copyOf(elementData, 15)</b></p>` +
+      group('naya array (capacity 15)', indexRow(15) + cellRow('ABCDEFGHIJ'.split(''), 15, i => i < 10 ? 'fade' : '')),
+      'copy cost O(n) — par ye har add pe nahi hota, isliye amortized O(1)') });
+
+  F.push({ cap: '<b>add("K")</b> ab naye array mein index 10 par. Purana array kisi se reachable nahi raha — agli Minor GC use bina copy kiye hata degi.',
+    html: shell(group('elementData (capacity 15)', arr('ABCDEFGHIJK'.split(''), 15, [10])), 'size = 11 &nbsp; capacity = 15 &nbsp; slack = 4') });
+
+  F.push({ cap: 'Aur add — koi grow nahi, kyunki jagah bachi hai. Growth sequence: <b>10 → 15 → 22 → 33 → 49 → 73 …</b> (har baar 1.5x).',
+    html: shell(group('elementData (capacity 15)', arr('ABCDEFGHIJKL'.split(''), 15, [11])), 'size = 12 &nbsp; capacity = 15') });
+
+  F.push({ cap: '<b>trimToSize()</b> — slack wapas OS ko. Long-lived badi list par useful, short-lived par bekaar (ek aur copy).',
+    html: shell(group('elementData (capacity 12, trimmed)', indexRow(12) + cellRow('ABCDEFGHIJKL'.split(''), 12, () => 'fade')),
+      'size = 12 &nbsp; capacity = 12 &nbsp; <b>tip:</b> size pata ho to shuru mein hi new ArrayList&lt;&gt;(n) do') });
+
+  defineSim({ id: 's-arraylist', title: 'ArrayList grow', badge: 'java.util.ArrayList',
+    blurb: 'Ek dynamic array andar se fixed array hi hai. Dekho ki capacity kab aur kaise badhti hai, aur purana array garbage kaise banta hai.',
+    frames: F });
+})();
+
+/* ============================================================
+   02 — HashMap put + resize (real math)
+   ============================================================ */
+(function(){
+  const KEYS = [
+    { k: 'cat',  h: 42 }, { k: 'dog', h: 51 }, { k: 'act', h: 26 },
+    { k: 'tab',  h: 13 }, { k: 'sun', h: 34 }, { k: 'moon', h: 31 }, { k: 'key', h: 44 }
+  ];
+  function table(n, entries, opts){
+    const o = opts || {};
+    const buckets = Array.from({ length: n }, () => []);
+    entries.forEach(e => buckets[e.h & (n - 1)].push(e));
+    let out = '';
+    for (let i = 0; i < n; i++){
+      const chain = buckets[i];
+      let inner = chain.length
+        ? chain.map((e, j) => {
+            const cls = e.k === o.hot ? 'hot' : (o.split ? ((e.h & o.oldCap) === 0 ? 'lo' : 'hi') : '');
+            return `<span class="knode ${cls}">${e.k}<span style="opacity:.55"> h=${e.h}</span></span>` +
+                   (j < chain.length - 1 ? '<span class="arrow">→</span>' : '');
+          }).join('')
+        : '<span style="color:#3E5D68;font-family:var(--mono);font-size:10.5px">null</span>';
+      out += `<div class="bucket"><span class="bidx">${i}</span>` +
+             `<span class="slot ${chain.length ? 'on' : ''}"></span><span class="chain">${inner}</span></div>`;
+    }
+    return out;
+  }
+  const F = [];
+  const upto = n => KEYS.slice(0, n);
+
+  F.push({ cap: '<b>Setup.</b> Table size 8 (asli default 16 hai, yahan dikhane ke liye chhoti). Threshold = 8 × 0.75 = <b>6</b>. Index formula: <code>(n-1) &amp; hash</code>.',
+    html: group('Node&lt;K,V&gt;[] table — length 8, threshold 6', table(8, [])) });
+
+  const puts = [
+    ['cat',  'h = 42 → <code>42 &amp; 7 = 2</code>. Bucket 2 khaali tha, seedha node ban gaya.'],
+    ['dog',  'h = 51 → <code>51 &amp; 7 = 3</code>. Alag bucket, koi collision nahi.'],
+    ['act',  'h = 26 → <code>26 &amp; 7 = 2</code>. <b>Collision!</b> Bucket 2 mein pehle se cat hai, isliye act chain ke <b>tail</b> pe juda (Java 8 se tail insertion).'],
+    ['tab',  'h = 13 → <code>13 &amp; 7 = 5</code>.'],
+    ['sun',  'h = 34 → <code>34 &amp; 7 = 2</code>. Chain ab 3 lambi. Is bucket mein lookup ab O(3) hai.'],
+    ['moon', 'h = 31 → <code>31 &amp; 7 = 7</code>. size = 6 = threshold. Abhi resize nahi — condition <code>++size &gt; threshold</code> hai.']
+  ];
+  puts.forEach(([k, why], i) => {
+    F.push({ cap: `<b>put("${k}")</b> — ${why}`,
+      html: group(`table length 8 &nbsp;·&nbsp; size ${i + 1} / threshold 6`, table(8, upto(i + 1), { hot: k })) });
+  });
+
+  F.push({ cap: '<b>put("key")</b> — h = 44 → <code>44 &amp; 7 = 4</code>. Ab size 7 &gt; threshold 6, isliye <b>resize()</b> trigger ho gaya.',
+    html: group('table length 8 · size 7 > threshold 6 → RESIZE', table(8, upto(7), { hot: 'key' })) });
+
+  F.push({ cap: '<b>Split logic.</b> Table double hoti hai (8 → 16), isliye har entry ka naya index ya to <em>wahi</em> rahega ya <em>+8</em>. Faisla ek bit se: <code>(hash &amp; oldCapacity) == 0</code> → lo-list, warna hi-list. Poora rehash nahi hota.',
+    html: group('lo-list (index same) vs hi-list (index + 8)', table(8, upto(7), { split: true, oldCap: 8 })) +
+      `<div class="legend"><span><i style="background:#2E7A6B"></i>lo — index wahi rahega</span><span><i style="background:#8A6A2E"></i>hi — index + 8</span></div>` +
+      `<p class="note">bucket 2 ka chain [cat → act → sun] tootega: <b>cat, act → 10</b> · <b>sun → 2</b>. Relative order dono lists mein preserve rehta hai.</p>` });
+
+  F.push({ cap: '<b>Resize complete.</b> Length 16, naya threshold 12. Chains chhoti ho gayin, lookup wapas O(1) ke kareeb.',
+    html: group('table length 16 · size 7 / threshold 12', table(16, upto(7), { split: true, oldCap: 8 })) +
+      `<p class="note">Isi liye badi map ke liye <b>initial capacity</b> dena faydemand hai — 10,000 entries ke liye 16 se shuru hoke ~10 resize honge.</p>` });
+
+  defineSim({ id: 's-hashmap', title: 'HashMap: put, collision, resize', badge: 'java.util.HashMap',
+    blurb: 'Bucket index ka math, chain banna, aur resize par entries ka lo/hi split — saare numbers yahan asli formula se nikle hain.',
+    frames: F });
+})();
+
+/* ============================================================
+   03 — Treeify
+   ============================================================ */
+(function(){
+  const F = [];
+  const chainOf = n => {
+    const items = Array.from({ length: n }, (_, i) => `<span class="knode ${i === n - 1 ? 'hot' : ''}">k${i + 1}</span>`);
+    return `<div class="bucket"><span class="bidx">4</span><span class="slot on"></span>` +
+           `<span class="chain">${items.join('<span class="arrow">→</span>')}</span></div>`;
+  };
+  F.push({ cap: '<b>Collision attack.</b> Aise keys aa rahi hain jinka hash same bucket pe girta hai. Bucket 4 ka chain lamba hota jaa raha hai — is bucket mein lookup ab <b>O(n)</b> hai.',
+    html: group('bucket 4 — chain length 4', chainOf(4)) + '<p class="note">table length = 64 &nbsp;·&nbsp; TREEIFY_THRESHOLD = 8 &nbsp;·&nbsp; MIN_TREEIFY_CAPACITY = 64</p>' });
+  F.push({ cap: 'Chain 7 tak pahunch gayi. Abhi bhi linked list hai — har lookup poori chain scan karti hai.',
+    html: group('bucket 4 — chain length 7', chainOf(7)) + '<p class="note">7 &lt; 8 → abhi treeify nahi</p>' });
+  F.push({ cap: '<b>8th node.</b> Ab do conditions check hoti hain: chain ≥ 8 <em>aur</em> table length ≥ 64. Dono sach hain, isliye <b>treeifyBin()</b> chalega. (Agar table 64 se chhoti hoti to JVM treeify ke bajaye <em>resize</em> karta.)',
+    html: group('bucket 4 — chain length 8 → TREEIFY', chainOf(8)) + '<p class="note">condition: <b>binCount ≥ 8 &amp;&amp; table.length ≥ 64</b></p>' });
+
+  const T = node('k4','b',
+        node('k2','b', node('k1','r'), node('k3','r')),
+        node('k6','b', node('k5','r'), node('k7','b', null, node('k8','r'))));
+  F.push({ cap: '<b>Ho gaya.</b> Ye bucket ab <code>TreeNode</code> ka red-black tree hai. Worst case O(n) se <b>O(log n)</b>. Nodes mein ab <code>parent, left, right, red</code> extra fields hain — isliye memory zyada, aur yahi wajah hai ki treeify sirf emergency mein hota hai.',
+    html: group('bucket 4 — red-black tree', renderTree(T, { gapX: 50, gapY: 46 })) +
+      `<div class="legend"><span><i style="background:#C4453A"></i>red node</span><span><i style="background:#16323C;border:1px solid #2E5765"></i>black node</span></div>` });
+  F.push({ cap: '<b>Untreeify.</b> Removals ke baad node count 6 pe aa jaaye to tree wapas linked list ban jaata hai. 8 aur 6 ka gap (hysteresis) jaan-boojh kar rakha gaya hai — warna boundary par baar-baar convert hota rehta.',
+    html: group('bucket 4 — wapas chain (UNTREEIFY_THRESHOLD = 6)', chainOf(6)) +
+      '<p class="note">TreeNode se Node mein convert — memory wapas normal</p>' });
+
+  defineSim({ id: 's-treeify', title: 'Treeify: chain se red-black tree', badge: 'HashMap.treeifyBin()',
+    blurb: 'Java 8 ka collision defence. Dekho ki kab convert hota hai, kab nahi, aur wapas kab list ban jaata hai.',
+    frames: F });
+})();
+
+/* ============================================================
+   04 — LinkedList node linking
+   ============================================================ */
+(function(){
+  function chainView(items, opts){
+    const o = opts || {};
+    let out = '<div class="row" style="gap:0;align-items:stretch;flex-wrap:wrap">';
+    out += `<div style="font-family:var(--mono);font-size:10px;color:#5E828D;align-self:center;padding-right:6px">first→</div>`;
+    items.forEach((it, i) => {
+      const hot = o.hot === it ? 'chg' : '';
+      const dead = o.dead === it;
+      out += `<div style="display:flex;align-items:center">
+        <div class="${hot}" style="border:1px solid ${dead ? '#8A3A2A' : '#2E5765'};border-radius:3px;background:${dead ? '#33161010' : '#122A33'};
+             opacity:${dead ? .4 : 1};font-family:var(--mono);font-size:10.5px;min-width:74px;text-align:center">
+          <div style="border-bottom:1px solid #22434F;padding:2px 6px;color:#5E828D">prev · next</div>
+          <div style="padding:6px;font-size:14px;color:${dead ? '#F0A48F' : '#8FE0CB'};font-weight:700">${it}</div>
+        </div>${i < items.length - 1 ? '<span class="arrow" style="padding:0 5px">⇄</span>' : ''}</div>`;
+    });
+    out += `<div style="font-family:var(--mono);font-size:10px;color:#5E828D;align-self:center;padding-left:6px">←last</div>`;
+    return out + '</div>';
+  }
+  const F = [];
+  F.push({ cap: '<b>Khaali list.</b> <code>first</code> aur <code>last</code> dono null. LinkedList mein koi backing array nahi hai — sirf pointers.',
+    html: group('LinkedList — size 0', '<p style="font-family:var(--mono);font-size:12px;color:#5E828D;margin:0">first = null &nbsp; last = null</p>') });
+  F.push({ cap: '<b>addLast("A")</b> — naya <code>Node</code> object heap pe bana: <code>{item, next, prev}</code>. Ye ~40 bytes hai <em>ek</em> element rakhne ke liye.',
+    html: group('size 1', chainView(['A'], { hot: 'A' })) });
+  F.push({ cap: '<b>addLast("B")</b> — <code>last.next = newNode</code> aur <code>newNode.prev = last</code>. Do pointer writes, O(1).',
+    html: group('size 2', chainView(['A','B'], { hot: 'B' })) });
+  F.push({ cap: '<b>addFirst("C")</b> — bhi O(1). Yahi LinkedList ki asli taakat hai: dono siron par constant-time insert.',
+    html: group('size 3', chainView(['C','A','B'], { hot: 'C' })) });
+  F.push({ cap: '<b>get(2)</b> — yahan wo O(1) khatam. Index se access ke liye traverse karna padta hai. LinkedList thoda smart hai: index size/2 se bada ho to peeche se chalta hai. Par har hop ek naye memory address pe jump hai = <b>CPU cache miss</b>.',
+    html: group('traversal: 2 hops', chainView(['C','A','B'], { hot: 'B' })) +
+      '<p class="note">ArrayList mein yahi <code>get(2)</code> ek single pointer arithmetic hai — isi liye wo practically tez hai.</p>' });
+  F.push({ cap: '<b>unlink(A)</b> — do pointer writes: <code>C.next = B</code> aur <code>B.prev = C</code>. A ab list se bahar hai.',
+    html: group('unlink beech ka node', chainView(['C','A','B'], { dead: 'A' })) });
+  F.push({ cap: 'Aakhri step — <code>A.item = null; A.next = null; A.prev = null</code>. Ye JDK jaan-boojh kar karta hai taaki hataya gaya node zinda nodes ko reference na karta rahe. Ab wo poori tarah unreachable hai.',
+    html: group('size 2 — A garbage ban gaya', chainView(['C','B'], { hot: 'B' })) +
+      '<p class="note"><b>Design lesson:</b> reference chhodna GC ke liye utna hi zaroori hai jitna object banana.</p>' });
+
+  defineSim({ id: 's-linked', title: 'LinkedList: node link aur unlink', badge: 'java.util.LinkedList',
+    blurb: 'Doubly-linked nodes ka lifecycle — aur wo jagah jahan Big-O theory practical performance se alag ho jaati hai.',
+    frames: F });
+})();
+
+/* ============================================================
+   05 — ConcurrentHashMap: CAS, bin lock, transfer
+   ============================================================ */
+(function(){
+  function bins(state){
+    let out = '';
+    for (let i = 0; i < 8; i++){
+      const b = state[i] || {};
+      const items = (b.nodes || []).map(n => `<span class="knode ${n.hot ? 'hot' : ''}">${n.k}</span>`).join('<span class="arrow">→</span>');
+      let flag = '';
+      if (b.cas)   flag = '<span class="flag ok">CAS ok</span>';
+      if (b.lock)  flag = `<span class="flag warn">synchronized by ${b.lock}</span>`;
+      if (b.moved) flag = '<span class="flag mv">ForwardingNode (MOVED)</span>';
+      out += `<div class="bucket"><span class="bidx">${i}</span>` +
+             `<span class="slot ${b.moved ? 'mv' : (b.nodes && b.nodes.length ? 'on' : '')}"></span>` +
+             `<span class="chain">${items || '<span style="color:#3E5D68;font-family:var(--mono);font-size:10.5px">null</span>'}${flag}</span></div>`;
+    }
+    return out;
+  }
+  function lanes(rows){
+    return rows.map(r => `<div class="lane"><span class="who">${r[0]}</span><span class="state ${r[2]}">${r[1]}</span></div>`).join('');
+  }
+  const base = { 5: { nodes: [{ k: 'alpha' }] }, 1: { nodes: [{ k: 'zeta' }] } };
+  const clone = o => JSON.parse(JSON.stringify(o));
+  const F = [];
+
+  let s = clone(base);
+  F.push({ cap: '<b>Setup.</b> Teen threads, ek shared map. Java 8+ ke CHM mein <em>segment</em> nahi hote — locking bucket level pe hoti hai.',
+    html: group('ConcurrentHashMap — table length 8', bins(s)) +
+          group('threads', lanes([['T1','idle','' ],['T2','idle',''],['T3','idle','']])) });
+
+  s = clone(base); s[3] = { nodes: [{ k: 'beta', hot: 1 }], cas: 1 };
+  F.push({ cap: '<b>T1 put("beta") → bucket 3, jo khaali hai.</b> Khaali bin par CHM koi lock nahi leta — wo ek <code>compareAndSwapObject</code> se node insert karta hai. Safal hua to kaam khatam, <b>bilkul lock-free</b>.',
+    html: group('table', bins(s)) + group('threads', lanes([['T1','CAS → success','run'],['T2','idle',''],['T3','idle','']])) });
+
+  s = clone(base); s[5] = { nodes: [{ k: 'alpha' }], lock: 'T2' };
+  F.push({ cap: '<b>T2 aur T3 dono bucket 5 pe.</b> Bin khaali nahi hai, isliye CAS kaam nahi karega. T2 ne bin ke <em>head node</em> par <code>synchronized</code> le liya.',
+    html: group('table', bins(s)) + group('threads', lanes([['T1','done','' ],['T2','holds bin 5 lock','run'],['T3','BLOCKED on bin 5','block']])) });
+
+  s = clone(base); s[5] = { nodes: [{ k: 'alpha' }, { k: 'gamma', hot: 1 }] };
+  F.push({ cap: 'T2 ne node append karke lock chhod diya. Ab T3 aage badh sakta hai. Dhyaan do — <b>T1 ka kaam bilkul rukna nahi pada</b>, kyunki wo alag bin pe tha. Yahi CHM ki scalability hai: practically bucket-count jitne independent locks.',
+    html: group('table', bins(s)) + group('threads', lanes([['T1','done',''],['T2','released','run'],['T3','acquiring bin 5','wait']])) });
+
+  s = clone(base); s[5] = { nodes: [{ k: 'alpha' }, { k: 'gamma' }, { k: 'delta', hot: 1 }] };
+  F.push({ cap: 'T3 ka insert bhi ho gaya. Reads is poore drame ke dauraan kabhi block nahi hue — <code>Node.val</code> aur <code>Node.next</code> <b>volatile</b> hain, isliye <code>get()</code> ko koi lock chahiye hi nahi.',
+    html: group('table', bins(s)) + group('threads', lanes([['T1','done',''],['T2','done',''],['T3','done','run']])) });
+
+  s = clone(base); s[5] = { nodes: [{ k: 'alpha' }, { k: 'gamma' }, { k: 'delta' }] };
+  s[0] = { moved: 1 }; s[1] = { moved: 1 }; s[2] = { moved: 1 };
+  F.push({ cap: '<b>Resize shuru.</b> Table double ho rahi hai. Jo bin migrate ho chuka hai, uski jagah ek <code>ForwardingNode</code> (hash = MOVED) rakh diya jaata hai — matlab "ye bin ab nayi table mein hai".',
+    html: group('purani table — transfer in progress', bins(s)) +
+          group('threads', lanes([['T1','transferring bins 0–2','run'],['T2','idle',''],['T3','idle','']])) });
+
+  F.push({ cap: '<b>helpTransfer.</b> Ab agar T2 ko koi forwarded bin milta hai, to wo intezaar nahi karta — wo khud transfer ka ek hissa uthaa leta hai. Resize ka kaam threads mil-baant ke karte hain, isliye ek lambi stop-the-world jaisi pause nahi banti.',
+    html: group('purani table', bins(s)) +
+          group('threads', lanes([['T1','transferring bins 0–2','run'],['T2','helpTransfer(bins 3–5)','run'],['T3','read → forwarded to new table','wait']])) });
+
+  defineSim({ id: 's-chm', title: 'ConcurrentHashMap: CAS, bin lock, helpTransfer', badge: 'java.util.concurrent',
+    blurb: 'Kyun ek hi global lock wala Hashtable slow hai aur CHM nahi. Khaali bin pe lock-free CAS, bhare bin pe sirf us bin ka lock.',
+    frames: F });
+})();
+
+/* ============================================================
+   06 — Red-Black tree (TreeMap / TreeSet)
+   ============================================================ */
+(function(){
+  const F = [];
+  const rules = '<p class="note"><b>rules:</b> root black · red ka child red nahi · har path pe black nodes ki ginti barabar</p>';
+
+  F.push({ cap: '<b>insert 10</b> — pehla node root banta hai, aur root hamesha <b>black</b> hota hai.',
+    html: group('red-black tree', renderTree(node('10','b',null,null,true))) + rules });
+  F.push({ cap: '<b>insert 20</b> — naya node hamesha <b>red</b> daala jaata hai. Kyun? Kyunki red add karne se "black height" nahi badalti, isliye sabse kam violation hoti hai.',
+    html: group('red-black tree', renderTree(node('10','b',null,node('20','r',null,null,true)))) + rules });
+  F.push({ cap: '<b>insert 30</b> — ab 20 (red) ka child 30 (red) hai. <b>Red-red violation!</b> Ek plain BST yahin se list ki taraf jhukna shuru kar deta — height badhne lagti.',
+    html: group('violation', renderTree(node('10','b',null,node('20','r',null,node('30','r',null,null,true))))) + rules });
+  F.push({ cap: '<b>Left rotation</b> 10 par. 20 upar chala gaya, 10 uska left child ban gaya. Rotation sirf teen pointers badalta hai — <b>O(1)</b>.',
+    html: group('rotate left(10)', renderTree(node('20','r',node('10','b',null,null,true),node('30','r')))) + rules });
+  F.push({ cap: '<b>Recolour.</b> 20 black ho gaya, 10 aur 30 red. Ab saare rules satisfy hain aur height sirf 2 hai. Tree balanced ho gaya.',
+    html: group('balanced', renderTree(node('20','b',node('10','r'),node('30','r')))) + rules });
+  F.push({ cap: '<b>insert 15</b> — 10 ka right child, red. Parent 10 red hai <em>aur</em> uncle 30 bhi red hai. Is case mein rotation nahi, sirf <b>recolour</b> chalta hai.',
+    html: group('red parent + red uncle', renderTree(node('20','b',node('10','r',null,node('15','r',null,null,true)),node('30','r')))) + rules });
+  F.push({ cap: '<b>Recolour up.</b> 10 aur 30 black, 20 red — phir root ko black kar diya. Guarantee: height hamesha <code>≤ 2·log₂(n+1)</code>, isliye <code>get</code>/<code>put</code>/<code>floorKey</code> sab <b>O(log n)</b>.',
+    html: group('final', renderTree(node('20','b',node('10','b',null,node('15','r')),node('30','b')))) + rules });
+  F.push({ cap: '<b>In-order traversal</b> = sorted order: 10 → 15 → 20 → 30. Yahi wajah hai ki TreeMap <code>firstKey</code>, <code>floorKey</code>, <code>subMap</code> jaise operations de paata hai — jo HashMap kabhi nahi de sakta.',
+    html: group('in-order = sorted', renderTree(node('20','b',node('10','b',null,node('15','r',null,null,true)),node('30','b')))) +
+      '<p class="note">TreeSet andar se yahi TreeMap hai · ConcurrentSkipListMap wahi ordering deta hai par rotation ke bina (concurrency-friendly)</p>' });
+
+  defineSim({ id: 's-rbtree', title: 'Red-Black tree: rotation aur recolour', badge: 'TreeMap · TreeSet',
+    blurb: 'Sorted input par plain BST list ban jaata hai. Dekho ki red-black rules balance kaise zabardasti maintain karte hain.',
+    frames: F });
+})();
+
+/* ============================================================
+   07 — PriorityQueue binary heap
+   ============================================================ */
+(function(){
+  function heapTree(arr, hot){
+    function build(i){
+      if (i >= arr.length || arr[i] == null) return null;
+      return { v: arr[i], c: 'b', l: build(2 * i + 1), r: build(2 * i + 2), hot: !!(hot && hot.includes(i)) };
+    }
+    return build(0);
+  }
+  function view(arr, hot, label){
+    const cap = Math.max(arr.length, 7);
+    return group(label || 'Object[] queue — heap array hai, koi node object nahi',
+        indexRow(cap) + cellRow(arr, cap, i => (hot && hot.includes(i)) ? 'chg' : '')) +
+      (arr.length ? group('wahi array, tree ki tarah dekha jaaye', renderTree(heapTree(arr, hot), { gapX: 46, gapY: 44 })) : '');
+  }
+  const F = [];
+  const idxNote = '<p class="note">index i ka parent = <code>(i-1)/2</code> · children = <code>2i+1</code>, <code>2i+2</code></p>';
+
+  F.push({ cap: '<b>offer(5)</b> — pehla element index 0 par. Heap ek plain array hai; "tree" sirf index arithmetic se banti hai, koi pointer nahi.',
+    html: view([5], [0]) + idxNote });
+  F.push({ cap: '<b>offer(8)</b> — index 1 par. Parent 5 chhota hai, isliye min-heap ka invariant already theek hai. Koi swap nahi.',
+    html: view([5,8], [1]) + idxNote });
+  F.push({ cap: '<b>offer(3)</b> — index 2 par rakha, par parent (index 0) 5 hai jo 3 se bada hai. <b>siftUp</b> chahiye.',
+    html: view([5,8,3], [2]) + idxNote });
+  F.push({ cap: '<b>siftUp:</b> 3 aur 5 swap. Ab minimum wapas root pe hai. siftUp zyada se zyada tree ki height tak jaata hai = <b>O(log n)</b>.',
+    html: view([3,8,5], [0,2]) + idxNote });
+  F.push({ cap: '<b>offer(1)</b> — index 3 par. Parent index 1 (value 8) bada hai → swap. Phir parent index 0 (value 3) bhi bada hai → phir swap.',
+    html: view([3,8,5,1], [3]) + idxNote });
+  F.push({ cap: '<b>siftUp complete.</b> 1 root par pahunch gaya. Dhyaan do: 5 aur 8 ke beech koi order nahi hai — heap sirf <em>parent ≤ children</em> guarantee karta hai. Isi liye array ko iterate karoge to sorted nahi milega.',
+    html: view([1,3,5,8], [0,1]) + idxNote });
+  F.push({ cap: '<b>peek()</b> = index 0 = <b>O(1)</b>. Minimum hamesha root pe hota hai — top-K aur scheduling ke liye yahi property sabse kaam ki hai.',
+    html: view([1,3,5,8], [0]) + idxNote });
+  F.push({ cap: '<b>poll()</b> — root nikala (1). Ab khaali jagah bharni hai: <em>last</em> element (8) ko root par le aao aur array chhota kar do.',
+    html: view([8,3,5], [0], 'poll: last element root par') + idxNote });
+  F.push({ cap: '<b>siftDown:</b> 8 apne chhote child (3) se bada hai → swap. Ab invariant wapas theek hai. poll bhi <b>O(log n)</b>.',
+    html: view([3,8,5], [0,1]) + idxNote +
+      '<p class="note"><b>gotcha:</b> <code>remove(Object)</code> O(n) hai (linear search), aur element ki priority baad mein badal do to heap chup-chaap galat ho jaata hai.</p>' });
+
+  defineSim({ id: 's-heap', title: 'PriorityQueue: siftUp aur siftDown', badge: 'binary min-heap',
+    blurb: 'Ek array, thoda index math, aur "sabse chhota element" hamesha O(1) par. Dekho array aur tree ek hi cheez kaise hain.',
+    frames: F });
+})();
+
+/* ============================================================
+   08 — ArrayBlockingQueue
+   ============================================================ */
+(function(){
+  function ring(slots, head, tail, hot){
+    const cap = 6;
+    let out = '<div class="row">';
+    for (let i = 0; i < cap; i++){
+      const v = slots[i];
+      out += `<div class="cell ${v == null ? 'g' : 'f'} ${hot === i ? 'chg' : ''}">${v == null ? '' : v}</div>`;
+    }
+    out += '</div><div class="row">';
+    for (let i = 0; i < cap; i++){
+      const m = (i === head && i === tail) ? 'T/H' : (i === head ? 'take↑' : (i === tail ? 'put↑' : ''));
+      out += `<div class="idx" style="color:${m ? '#7FD8C0' : '#3E5D68'}">${m || i}</div>`;
+    }
+    return out + '</div>';
+  }
+  function lanes(rows){
+    return rows.map(r => `<div class="lane"><span class="who">${r[0]}</span><span class="state ${r[2]}">${r[1]}</span></div>`).join('');
+  }
+  const F = [];
+  const g = (slots, head, tail, hot, count) =>
+    group(`items[] — capacity 6 &nbsp;·&nbsp; count ${count}`, ring(slots, head, tail, hot));
+
+  F.push({ cap: '<b>Setup.</b> Ek fixed array, do index (<code>putIndex</code>, <code>takeIndex</code>), ek <code>ReentrantLock</code>, aur do <code>Condition</code> — <code>notEmpty</code> aur <code>notFull</code>. Bas itna hi hai poora ArrayBlockingQueue.',
+    html: g([], 0, 0, -1, 0) + group('threads', lanes([['producer','idle',''],['consumer','idle','']])) });
+  F.push({ cap: '<b>put(t1), put(t2), put(t3)</b> — lock lo, array mein likho, <code>putIndex</code> aage badhao, <code>notEmpty.signal()</code>, lock chhodo.',
+    html: g(['t1','t2','t3'], 0, 3, 2, 3) + group('threads', lanes([['producer','producing','run'],['consumer','idle','']])) });
+  F.push({ cap: '<b>take()</b> — consumer ne t1 uthaya, <code>takeIndex</code> aage badha. Note: slot khaali hua, lekin <em>array shift nahi hua</em> — indexes ghoomte hain, data nahi.',
+    html: g([null,'t2','t3'], 1, 3, 0, 2) + group('threads', lanes([['producer','idle',''],['consumer','consumed t1','run']])) });
+  F.push({ cap: 'Producer tez hai. <code>putIndex</code> array ke end pe pahunch ke <b>0 par wrap</b> ho gaya — isi liye ise <em>circular buffer</em> kehte hain. Formula: <code>if (++putIndex == items.length) putIndex = 0</code>.',
+    html: g(['t7','t2','t3','t4','t5','t6'], 1, 1, 0, 6) + group('threads', lanes([['producer','producing','run'],['consumer','slow','wait']])) });
+  F.push({ cap: '<b>Queue full.</b> Producer <code>put()</code> call karta hai par jagah nahi hai — wo <code>notFull.await()</code> par ruk gaya. Ye bura nahi, <b>yahi backpressure hai</b>: producer ki speed consumer ki speed se bandh gayi.',
+    html: g(['t7','t2','t3','t4','t5','t6'], 1, 1, -1, 6) + group('threads', lanes([['producer','BLOCKED — notFull.await()','block'],['consumer','working','run']])) +
+      '<p class="note">Unbounded queue hoti to producer chalta rehta aur ye 6 slots ki jagah heap bharti rehti → <b>OutOfMemoryError</b>.</p>' });
+  F.push({ cap: '<b>Consumer ne take kiya</b> → jagah bani → <code>notFull.signal()</code> → producer jaag gaya. Signal aane par bhi thread ko lock dobara lena padta hai, isliye <code>await()</code> hamesha <code>while</code> loop mein hota hai (spurious wakeup).',
+    html: g(['t7',null,'t3','t4','t5','t6'], 2, 1, 1, 5) + group('threads', lanes([['producer','awake, re-acquiring lock','wait'],['consumer','consumed t2','run']])) });
+  F.push({ cap: '<b>Sistem balance mein.</b> Bounded queue ne throughput ko system ke sabse dheere hisse par set kar diya — aur memory predictable rahi. <code>LinkedBlockingQueue</code> yahi kaam do alag locks (putLock/takeLock) se karta hai, isliye producer aur consumer ek doosre ko block nahi karte.',
+    html: g(['t7','t8','t3','t4','t5','t6'], 2, 2, 1, 6) + group('threads', lanes([['producer','steady','run'],['consumer','steady','run']])) });
+
+  defineSim({ id: 's-abq', title: 'ArrayBlockingQueue: backpressure live', badge: 'producer-consumer',
+    blurb: 'Circular buffer, do conditions, aur wo lamha jab producer ko rukna padta hai — jo asal mein system ko bachaata hai.',
+    frames: F });
+})();
+
+/* ============================================================
+   09 — Minor GC: Eden → Survivor → Old
+   ============================================================ */
+(function(){
+  const COL = { eden: 'f', surv: 's', old: 'o', dead: 'x' };
+  function zone(name, capacity, objects, sub){
+    let out = `<div style="flex:none;margin-right:14px;margin-bottom:10px">
+      <p class="tagline" style="margin-bottom:5px">${name}${sub ? ` <span style="color:#3E5D68">${sub}</span>` : ''}</p>
+      <div class="row" style="gap:3px;max-width:${Math.min(capacity, 12) * 25}px">`;
+    for (let i = 0; i < capacity; i++){
+      const o = objects[i];
+      out += o
+        ? `<div class="cell sm ${COL[o.t]} ${o.hot ? 'chg' : ''}" title="age ${o.age}">${o.t === 'dead' ? '×' : o.age}</div>`
+        : `<div class="cell sm g"></div>`;
+    }
+    return out + '</div></div>';
+  }
+  const mk = (n, t, age, hot) => Array.from({ length: n }, () => ({ t, age, hot }));
+  function heap(eden, s0, s1, old, fromLabel){
+    return `<div style="display:flex;flex-wrap:wrap;align-items:flex-start">
+      ${zone('Eden', 24, eden, '')}
+      ${zone('S0', 8, s0, fromLabel === 's0' ? '(from)' : '(to)')}
+      ${zone('S1', 8, s1, fromLabel === 's1' ? '(from)' : '(to)')}
+      ${zone('Old gen', 16, old, '')}
+    </div>`;
+  }
+  const legend = `<div class="legend">
+    <span><i style="background:#2E9E86"></i>Eden object</span>
+    <span><i style="background:#D4923A"></i>survivor (number = age)</span>
+    <span><i style="background:#8C6CC4"></i>promoted / tenured</span>
+    <span><i style="background:#D4573E"></i>unreachable (garbage)</span></div>`;
+  const F = [];
+
+  F.push({ cap: '<b>Khaali heap.</b> Young gen = Eden + do Survivor spaces. Naya object hamesha Eden mein banta hai — aur wo bhi har thread ke apne <b>TLAB</b> mein, isliye allocation sirf ek pointer bump hai (koi lock nahi).',
+    html: heap([], [], [], [], 's0') + legend });
+
+  const gen1 = mk(18, 'eden', 0).map((o, i) => (i % 5 === 0 ? { t: 'eden', age: 0 } : o));
+  F.push({ cap: '<b>Allocation.</b> Objects Eden mein bhar rahe hain. Abhi GC ko inki khabar tak nahi — allocation aur collection alag cheezein hain.',
+    html: heap(gen1, [], [], [], 's0') + legend });
+
+  const gen2 = mk(24, 'eden', 0);
+  F.push({ cap: '<b>Eden full → Minor GC trigger.</b> Application threads safepoint par rukti hain. Ab GC roots (thread stacks, static fields, JNI refs) se graph traverse hoga.',
+    html: heap(gen2, [], [], [], 's0') + legend });
+
+  const marked = gen2.map((o, i) => (i % 6 === 0 ? { t: 'eden', age: 0 } : { t: 'dead', age: 0 }));
+  F.push({ cap: '<b>Mark.</b> Sirf 4 objects reachable nikle, baaki 20 kachra. Yahi <em>weak generational hypothesis</em> hai: zyadatar objects jawaani mein hi mar jaate hain.',
+    html: heap(marked, [], [], [], 's0') + legend });
+
+  F.push({ cap: '<b>Copy, sweep nahi.</b> Young collector sirf <em>zinda</em> objects ko Survivor mein copy karta hai aur poore Eden ko ek jhatke mein khaali maan leta hai. Isliye GC ka cost <b>dead objects se nahi, live objects se</b> aata hai — 20 objects marne ka kharcha zero tha.',
+    html: heap([], mk(4, 'surv', 1, 1), [], [], 's0') + legend +
+      '<p class="note">S0 ab "from" space hai · Eden khaali · pause khatam, application chalu</p>' });
+
+  F.push({ cap: '<b>Dusra round.</b> Eden phir bhara. Is baar GC ko Eden ke saath-saath current survivor space bhi dekhna hai.',
+    html: heap(mk(24, 'eden', 0), mk(4, 'surv', 1), [], [], 's0') + legend });
+
+  F.push({ cap: '<b>Minor GC #2.</b> Eden ke survivors <em>aur</em> S0 ke purane survivors — dono S1 mein copy hue, aur sabki <b>age +1</b> ho gayi. Ab S0 khaali hai aur roles swap ho gaye: S1 "from", S0 "to".',
+    html: heap([], [], mk(3, 'surv', 2, 1).concat(mk(3, 'surv', 1, 1)), [], 's1') + legend });
+
+  F.push({ cap: 'Kuch cycles aur. Jo object har baar bach jaata hai uski age badhti rehti hai. Yahi objects ab "long-lived" maane jaayenge.',
+    html: heap(mk(12, 'eden', 0), [], mk(2, 'surv', 8).concat(mk(3, 'surv', 4), mk(2, 'surv', 2)), [], 's1') + legend });
+
+  F.push({ cap: '<b>Promotion.</b> Age <code>MaxTenuringThreshold</code> (default 15) tak pahunchte hi object Old gen mein promote ho jaata hai. Survivor space full ho jaaye to promotion jaldi bhi ho sakta hai.',
+    html: heap([], [], mk(3, 'surv', 6), mk(4, 'old', 15, 1), 's1') + legend +
+      '<p class="note">promotion rate high hai to Old gen tezi se bharega → mehngi Major/Mixed GC zyada bar</p>' });
+
+  F.push({ cap: '<b>Old gen bharne laga.</b> Yahan collection kaafi mehngi hai: region bada hai, live data zyada hai. Isiliye cache aur long-lived collections seedha yahin baithte hain — aur unka bound na hona hi "GC problem" ki asli jad hoti hai.',
+    html: heap(mk(8, 'eden', 0), [], mk(2, 'surv', 3), mk(13, 'old', 15), 's1') + legend +
+      '<p class="note">Old gen occupancy threshold (G1: <code>InitiatingHeapOccupancyPercent</code>) cross hote hi concurrent marking shuru ho jaati hai</p>' });
+
+  defineSim({ id: 's-young', title: 'Minor GC: Eden, Survivor, promotion', badge: 'young generation',
+    blurb: 'Object ka poora safar — Eden mein janam, Survivor mein age, aur Old gen mein retirement. Aur wo wajah ki chhote objects lagbhag muft kyun hain.',
+    frames: F });
+})();
+
+/* ============================================================
+   10 — Mark, Sweep, Compact (Old gen)
+   ============================================================ */
+(function(){
+  const N = 24;
+  // layout: har object ek ya do slot ka
+  const OBJ = [
+    { at: 0, w: 2, live: 1 }, { at: 2, w: 1, live: 0 }, { at: 3, w: 2, live: 1 },
+    { at: 5, w: 1, live: 0 }, { at: 6, w: 1, live: 0 }, { at: 7, w: 2, live: 1 },
+    { at: 9, w: 1, live: 0 }, { at: 10, w: 2, live: 0 }, { at: 12, w: 1, live: 1 },
+    { at: 13, w: 1, live: 0 }, { at: 14, w: 2, live: 1 }, { at: 16, w: 1, live: 0 },
+    { at: 17, w: 1, live: 1 }, { at: 18, w: 2, live: 0 }, { at: 20, w: 1, live: 1 }
+  ];
+  function strip(objects, mode, hot){
+    const slots = Array(N).fill(null);
+    objects.forEach((o, k) => { for (let i = 0; i < o.w; i++) slots[o.at + i] = { o, k, first: i === 0 }; });
+    let out = '<div class="row" style="gap:2px">';
+    for (let i = 0; i < N; i++){
+      const s = slots[i];
+      if (!s){ out += '<div class="cell sm g"></div>'; continue; }
+      let cls = 'i';
+      if (mode === 'mark') cls = s.o.live ? 'f' : 'i';
+      if (mode === 'swept') cls = 'f';
+      if (mode === 'compact') cls = 'f';
+      const hl = (hot && hot.includes(s.k)) ? 'chg' : '';
+      out += `<div class="cell sm ${cls} ${hl}">${s.first ? (s.o.live ? '●' : '·') : ''}</div>`;
+    }
+    return out + '</div>';
+  }
+  const F = [];
+  const roots = '<p class="note"><b>GC roots:</b> thread stack locals · static fields · JNI references · active monitors</p>';
+
+  F.push({ cap: '<b>Old gen, collection se pehle.</b> 15 objects, kuch zinda kuch nahi — par abhi GC ko pata nahi ki kaunsa kya hai. Young gen ke ulta, yahan copying sasti nahi padti kyunki live data bahut zyada hota hai.',
+    html: group('old generation memory', strip(OBJ, 'none')) + roots });
+
+  F.push({ cap: '<b>Mark phase.</b> GC roots se poora object graph traverse hota hai. Jo bhi touch hua wo "live" mark ho gaya (●). Baaki sab garbage. Note: reference counting use nahi hoti — cycles usme kabhi collect na hote.',
+    html: group('mark — reachable objects highlighted', strip(OBJ, 'mark')) + roots });
+
+  const swept = OBJ.filter(o => o.live);
+  F.push({ cap: '<b>Sweep phase.</b> Dead objects ki memory free-list mein wapas. Lekin dekho kya hua — free jagah <b>tukdon mein bikhri</b> hai. Total free = 13 slots, par lagatar (contiguous) sabse bada block sirf 3 slots ka hai.',
+    html: group('sweep ke baad — fragmentation', strip(swept, 'swept')) +
+      '<p class="note">free total = 13 slots &nbsp;·&nbsp; largest contiguous = 3 slots</p>' });
+
+  F.push({ cap: '<b>Fragmentation ka asar.</b> Ek 4-slot array allocate karna hai. Total free jagah kaafi hai, phir bhi allocation <b>fail</b> ho jaayegi kyunki contiguous block nahi mil raha. Yahi wajah hai ki sirf mark-sweep kaafi nahi hota.',
+    html: group('new byte[4] — kahan fit hoga?', strip(swept, 'swept')) +
+      '<div class="row" style="margin-top:10px"><span class="rowlbl">chahiye:</span>' +
+      '<div class="cell sm x">?</div><div class="cell sm x">?</div><div class="cell sm x">?</div><div class="cell sm x">?</div>' +
+      '<span class="flag bad">no contiguous block</span></div>' });
+
+  let cursor = 0;
+  const compacted = swept.map(o => { const n = { ...o, at: cursor }; cursor += o.w; return n; });
+  F.push({ cap: '<b>Compact phase.</b> Zinda objects ko ek sire par sarka diya gaya. Ab free space ek <em>single contiguous block</em> hai, aur allocation dobara ek pointer bump ban gaya.',
+    html: group('compaction ke baad', strip(compacted, 'compact', compacted.map((_, i) => i))) +
+      '<p class="note">free = 13 contiguous slots &nbsp;·&nbsp; <b>new byte[4]</b> ab aaram se fit hoga</p>' });
+
+  F.push({ cap: '<b>Compaction ka chhupa hua kharcha.</b> Object ka address badal gaya, isliye heap mein us object ko point karne wale <em>har reference</em> ko update karna padta hai. Isi liye classic collectors mein compaction <b>stop-the-world</b> hota hai — aur isi problem ko ZGC (coloured pointers + load barriers) aur Shenandoah concurrently solve karte hain.',
+    html: group('references update — is dauraan application ruki hui hai', strip(compacted, 'compact')) +
+      '<p class="note">Serial/Parallel: STW compaction · G1: evacuation (copy to naye region) · ZGC/Shenandoah: concurrent relocation</p>' });
+
+  defineSim({ id: 's-msc', title: 'Mark → Sweep → Compact', badge: 'old generation',
+    blurb: 'Fragmentation kya hai, wo allocation ko kaise fail karta hai, aur compaction ki asli keemat kya hai.',
+    frames: F });
+})();
+
+/* ============================================================
+   11 — G1: region-based, garbage first
+   ============================================================ */
+(function(){
+  const TY = {
+    F: { bg: '#0D2129', bd: '#2E5765', fg: '#5E828D', name: 'free' },
+    E: { bg: '#1B4A41', bd: '#2E9E86', fg: '#8FE0CB', name: 'eden' },
+    S: { bg: '#4A3618', bd: '#D4923A', fg: '#E8C88A', name: 'survivor' },
+    O: { bg: '#332552', bd: '#8C6CC4', fg: '#C6B0EC', name: 'old' },
+    H: { bg: '#173A4E', bd: '#4FA8D8', fg: '#A6D6EF', name: 'humongous' }
+  };
+  function grid(regions, opts){
+    const o = opts || {};
+    let out = '<div class="row" style="gap:4px;max-width:640px">';
+    regions.forEach((r, i) => {
+      const t = TY[r.t];
+      const picked = o.pick && o.pick.includes(i);
+      out += `<div class="${picked ? 'chg' : ''}" style="width:56px;height:42px;border:${picked ? 2 : 1}px solid ${picked ? '#F0A48F' : t.bd};
+        border-radius:3px;background:${t.bg};color:${t.fg};display:flex;flex-direction:column;align-items:center;
+        justify-content:center;font-family:var(--mono);line-height:1.15">
+        <b style="font-size:12px">${r.t}</b>
+        <span style="font-size:9px;opacity:.8">${r.g != null ? r.g + '%' : '&nbsp;'}</span></div>`;
+    });
+    return out + '</div>';
+  }
+  const legend = `<div class="legend">
+    ${Object.entries(TY).map(([k, v]) => `<span><i style="background:${v.bd}"></i>${k} — ${v.name}</span>`).join('')}
+    <span>% = us region mein kitna kachra hai</span></div>`;
+  const mk = spec => spec.split('').map(c => ({ t: c }));
+  const F = [];
+
+  F.push({ cap: '<b>G1 ka pehla idea:</b> heap ek contiguous Young/Old block nahi hai. Wo barabar size ke <b>regions</b> (1–32 MB) mein banta hai, aur har region kabhi bhi Eden, Survivor, Old ya free ho sakta hai — roles fix nahi hain.',
+    html: group('heap = 30 equal regions', grid(mk('FFFFFFFFFFFFFFFFFFFFFFFFFFFFFF'))) + legend });
+
+  F.push({ cap: '<b>Allocation.</b> Kuch regions Eden ban gaye. Young gen ka size G1 khud adjust karta hai — tumhare diye hue pause target ke hisaab se.',
+    html: group('allocation', grid(mk('EEEEEEFFFFFFFFFFFFFFFFFFFFFFFF'))) + legend });
+
+  F.push({ cap: '<b>Young collection.</b> Saare Eden regions evacuate hue: live objects Survivor region mein <em>copy</em> hue, aur purane Eden regions poore ke poore free ho gaye. Ye stop-the-world hai, par chhota — sirf young regions.',
+    html: group('young evacuation', grid(mk('SFFFFFFFFFFFFFFFFFFFFFFFFFFFFF'), { pick: [0] })) + legend });
+
+  F.push({ cap: '<b>Ek badi allocation.</b> Object region size ke 50% se bada ho to wo <b>humongous</b> kehlata hai aur seedha lagatar Old regions mein jaata hai. Bahut zyada humongous allocations G1 ke liye dard bante hain.',
+    html: group('humongous object — 2 contiguous regions', grid(mk('SOOEEEHHFFFFFFFFFFFFFFFFFFFFFF'), { pick: [6, 7] })) + legend });
+
+  const marked = [
+    { t: 'S' }, { t: 'O', g: 12 }, { t: 'O', g: 88 }, { t: 'E' }, { t: 'E' }, { t: 'E' },
+    { t: 'H' }, { t: 'H' }, { t: 'O', g: 74 }, { t: 'O', g: 21 }, { t: 'O', g: 91 }, { t: 'O', g: 35 },
+    { t: 'O', g: 66 }, { t: 'O', g: 9 }, { t: 'O', g: 82 }
+  ].concat(mk('FFFFFFFFFFFFFFF'));
+  F.push({ cap: '<b>Concurrent marking.</b> Application ke saath-saath G1 har Old region ka <em>liveness</em> compute karta hai (SATB algorithm se). Ab use pata hai ki kis region mein kitna kachra hai — aur yahi poori strategy ki buniyaad hai.',
+    html: group('marking ke baad — har region ka garbage %', grid(marked)) + legend });
+
+  F.push({ cap: '<b>"Garbage First" naam yahin se aata hai.</b> G1 sabse zyada kachre wale regions chunta hai (91%, 88%, 82%, 74%) — kam kaam mein sabse zyada jagah. Collection set kitna bada hoga, ye tumhara <code>-XX:MaxGCPauseMillis</code> decide karta hai.',
+    html: group('collection set = highest-garbage regions', grid(marked, { pick: [10, 2, 14, 8] })) +
+      '<p class="note">chuna gaya: 91% · 88% · 82% · 74% &nbsp;—&nbsp; 9% aur 12% wale regions chhod diye gaye (unse faayda kam, mehnat zyada)</p>' + legend });
+
+  const after = [
+    { t: 'S' }, { t: 'O', g: 12 }, { t: 'F' }, { t: 'E' }, { t: 'E' }, { t: 'E' },
+    { t: 'H' }, { t: 'H' }, { t: 'F' }, { t: 'O', g: 21 }, { t: 'F' }, { t: 'O', g: 35 },
+    { t: 'O', g: 66 }, { t: 'O', g: 9 }, { t: 'F' }, { t: 'O', g: 5 }
+  ].concat(mk('FFFFFFFFFFFFFF'));
+  F.push({ cap: '<b>Mixed collection.</b> Chune gaye regions ke live objects ek naye region mein copy ho gaye (index 15), aur purane regions poore free ho gaye. Copy karne ki wajah se <b>compaction free mein mil jaata hai</b> — alag compact phase ki zarurat hi nahi.',
+    html: group('evacuation complete', grid(after, { pick: [15] })) + legend +
+      '<p class="note">4 regions free hue · fragmentation nahi bacha · pause target ke andar rahe</p>' });
+
+  F.push({ cap: '<b>Jab G1 haar jaata hai:</b> agar evacuation ke liye khaali region hi na bache ("to-space exhausted"), to G1 ko <b>Full GC</b> karni padti hai — single-threaded style, lambi pause. Ilaaj: <code>InitiatingHeapOccupancyPercent</code> kam karo (marking jaldi shuru karao), heap badhao, ya humongous allocations kam karo.',
+    html: group('failure mode', grid(mk('OOOOOOOOOOOOOOOOOOOOOOOOOOOOOO'), { pick: [] })) + legend +
+      '<p class="note">GC log mein dekho: <code>to-space exhausted</code>, <code>Evacuation Failure</code>, <code>Full GC (Allocation Failure)</code></p>' });
+
+  defineSim({ id: 's-g1', title: 'G1: regions aur garbage-first evacuation', badge: 'default since JDK 9',
+    blurb: 'Fixed generations ki jagah regions. Dekho ki concurrent marking ke baad G1 kaise chunta hai ki kis region se sabse zyada faayda milega.',
+    frames: F });
+})();
+
+/* ============================================================
+   Mount + player controls
+   ============================================================ */
+(function mountAllSimulations(){
+  const root = document.getElementById('sims');
+  let running = null;
+
+  SIMS.forEach(cfg => {
+    const sec = document.createElement('section');
+    sec.className = 'sim';
+    sec.id = cfg.id;
+    sec.innerHTML =
+      `<header><h2>${cfg.title}<em>${cfg.badge}</em></h2><p>${cfg.blurb}</p></header>
+       <div class="stage"></div>
+       <div class="cap" aria-live="polite"><span></span></div>
+       <div class="ctl">
+         <button type="button" data-a="reset">⟲ reset</button>
+         <button type="button" data-a="prev">◀ back</button>
+         <button type="button" data-a="play" class="play">▶ play</button>
+         <button type="button" data-a="next">step ▶</button>
+         <div class="track"><i></i></div>
+         <span class="prog"></span>
+       </div>`;
+    root.appendChild(sec);
+
+    const stage = sec.querySelector('.stage');
+    const caption = sec.querySelector('.cap span');
+    const bar = sec.querySelector('.track i');
+    const prog = sec.querySelector('.prog');
+    const btn = a => sec.querySelector(`[data-a="${a}"]`);
+    const last = cfg.frames.length - 1;
+    let at = 0, timer = null;
+
+    function renderFrame(){
+      const f = cfg.frames[at];
+      stage.innerHTML = f.html;
+      caption.innerHTML = f.cap;
+      bar.style.width = ((at / last) * 100) + '%';
+      prog.textContent = `${at + 1} / ${cfg.frames.length}`;
+      btn('prev').disabled = at === 0;
+      btn('next').disabled = at === last;
+    }
+    function stopPlayback(){
+      clearInterval(timer); timer = null;
+      btn('play').textContent = '▶ play';
+      if (running === stopPlayback) running = null;
+    }
+    function startPlayback(){
+      if (running) running();
+      if (at === last) at = 0;
+      renderFrame();
+      btn('play').textContent = '❚❚ pause';
+      running = stopPlayback;
+      timer = setInterval(() => {
+        if (at >= last) { stopPlayback(); return; }
+        at++; renderFrame();
+      }, 2100);
+    }
+    function goTo(next){ stopPlayback(); at = Math.max(0, Math.min(last, next)); renderFrame(); }
+
+    btn('next').addEventListener('click', () => goTo(at + 1));
+    btn('prev').addEventListener('click', () => goTo(at - 1));
+    btn('reset').addEventListener('click', () => goTo(0));
+    btn('play').addEventListener('click', () => (timer ? stopPlayback() : startPlayback()));
+
+    renderFrame();
+  });
+
+  // scroll se bahar jaate hi autoplay band — background mein chalta rehna distracting hai
+  const io = new IntersectionObserver(entries => {
+    entries.forEach(e => {
+      if (!e.isIntersecting){
+        const playBtn = e.target.querySelector('[data-a="play"]');
+        if (playBtn && playBtn.textContent.indexOf('pause') > -1) playBtn.click();
+      }
+    });
+  }, { threshold: 0.12 });
+  document.querySelectorAll('.sim').forEach(s => io.observe(s));
+})();
+</script>
+</body>
+</html>

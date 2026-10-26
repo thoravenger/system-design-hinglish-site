@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Forward Deployed Engineer — the route</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&family=Newsreader:opsz,wght@6..72,300;6..72,400;6..72,500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --ink:#131C24;
+  --ink-2:#1A2731;
+  --ink-3:#26343F;
+  --line:#2E3F4B;
+  --paper:#E6E9E4;
+  --dim:#93A5AE;
+  --dimmer:#6B7E88;
+  --brass:#CBA135;
+  --chart:#7FA9C6;
+  --sans:"Archivo","Helvetica Neue",Helvetica,Arial,sans-serif;
+  --serif:"Newsreader",Georgia,"Times New Roman",serif;
+  --rail-x:15px;
+  --pad-l:40px;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;
+  background:var(--ink);
+  color:var(--paper);
+  font-family:var(--serif);
+  font-size:16.5px;
+  line-height:1.62;
+  font-weight:300;
+  -webkit-font-smoothing:antialiased;
+}
+
+#topbar{position:fixed;top:0;left:0;right:0;height:3px;background:var(--ink-3);z-index:60}
+#topbar span{display:block;height:100%;width:0%;background:var(--brass);transition:width .35s ease}
+
+.wrap{max-width:720px;margin:0 auto;padding:0 18px 90px var(--pad-l);position:relative}
+.rail{position:absolute;top:0;bottom:0;left:var(--rail-x);width:2px;background:var(--ink-3)}
+
+header.hero{padding:46px 0 30px}
+h1{
+  font-family:var(--sans);font-weight:800;
+  font-size:clamp(2.35rem,10.5vw,4.05rem);
+  line-height:.95;letter-spacing:-.033em;margin:0 0 20px;
+}
+.lede{font-size:1.09rem;line-height:1.6;color:#CFD6D3;max-width:34em;margin:0 0 10px}
+.assume{
+  font-size:.9rem;color:var(--dimmer);
+  border-left:2px solid var(--line);padding-left:12px;
+  margin:22px 0 0;max-width:34em;line-height:1.55;
+}
+
+.readout{margin:30px 0 8px;padding:16px 16px 18px;background:var(--ink-2);border:1px solid var(--line);border-radius:2px}
+.readout-top{display:flex;align-items:baseline;justify-content:space-between;gap:12px;font-family:var(--sans)}
+.count{font-size:1.5rem;font-weight:700;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.count b{color:var(--brass);font-weight:700}
+.where{font-size:.83rem;color:var(--dim);text-align:right;line-height:1.35}
+.meter{height:6px;background:var(--ink-3);margin-top:13px;border-radius:1px;overflow:hidden}
+.meter i{display:block;height:100%;width:0%;background:var(--brass);transition:width .35s ease}
+.controls{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}
+.controls button{
+  font-family:var(--sans);font-size:.79rem;font-weight:500;
+  color:var(--dim);background:transparent;border:1px solid var(--line);
+  border-radius:2px;padding:6px 11px;cursor:pointer;
+}
+.controls button:hover{color:var(--paper);border-color:var(--dimmer)}
+.controls button:focus-visible{outline:2px solid var(--chart);outline-offset:2px}
+
+nav.index{margin:34px 0 4px}
+nav.index a{
+  display:flex;gap:12px;align-items:baseline;
+  font-family:var(--sans);font-size:.92rem;color:var(--dim);
+  text-decoration:none;padding:7px 0;border-bottom:1px solid var(--ink-3);
+}
+nav.index a:hover,nav.index a:focus-visible{color:var(--brass)}
+nav.index a .n{color:var(--dimmer);font-variant-numeric:tabular-nums;min-width:1.5em}
+nav.index a .t{flex:1}
+nav.index a .d{color:var(--dimmer);font-size:.82rem;font-variant-numeric:tabular-nums}
+
+.phase{position:relative;padding:34px 0 6px;scroll-margin-top:20px}
+.station{
+  position:absolute;left:calc(var(--rail-x) - var(--pad-l) - 6px);top:40px;
+  width:14px;height:14px;border-radius:50%;
+  background:var(--ink);border:2px solid var(--line);z-index:3;
+}
+.phase.started .station{border-color:var(--brass)}
+.phase.done .station{background:var(--brass);border-color:var(--brass)}
+.seg{position:absolute;left:calc(var(--rail-x) - var(--pad-l));top:54px;bottom:0;width:2px;z-index:2}
+.seg i{display:block;width:100%;background:var(--brass);height:0%;transition:height .35s ease}
+
+.phead{display:flex;align-items:flex-start;gap:12px;width:100%;text-align:left;cursor:pointer;background:transparent;border:0;padding:0;color:inherit}
+.phead:focus-visible{outline:2px solid var(--chart);outline-offset:4px}
+.phead .ptitle{flex:1}
+.phase h2{font-family:var(--sans);font-weight:700;font-size:1.4rem;letter-spacing:-.02em;line-height:1.15;margin:0;color:var(--paper)}
+.pmeta{font-family:var(--sans);font-size:.8rem;color:var(--dimmer);margin-top:5px;display:flex;gap:14px;flex-wrap:wrap}
+.pmeta em{font-style:normal;color:var(--dim);font-variant-numeric:tabular-nums}
+.chev{font-family:var(--sans);font-size:1.05rem;color:var(--dimmer);line-height:1;padding-top:5px;transition:transform .25s ease}
+.phase.closed .chev{transform:rotate(-90deg)}
+.phase.closed .body{display:none}
+
+.body{padding-top:12px}
+.why{color:#C3CCC9;font-size:1rem;max-width:34em;margin:0 0 16px}
+
+ul.items{list-style:none;margin:0;padding:0}
+ul.items li{border-top:1px solid var(--ink-3)}
+ul.items li:last-child{border-bottom:1px solid var(--ink-3)}
+label.item{display:flex;gap:12px;align-items:flex-start;padding:11px 2px 12px;cursor:pointer}
+label.item input{
+  appearance:none;-webkit-appearance:none;
+  flex:0 0 auto;width:17px;height:17px;margin:4px 0 0;
+  border:1.5px solid var(--line);border-radius:2px;
+  background:transparent;cursor:pointer;position:relative;
+}
+label.item input:checked{background:var(--brass);border-color:var(--brass)}
+label.item input:checked::after{
+  content:"";position:absolute;left:5px;top:1px;width:4px;height:9px;
+  border:solid var(--ink);border-width:0 2px 2px 0;transform:rotate(42deg);
+}
+label.item input:focus-visible{outline:2px solid var(--chart);outline-offset:2px}
+label.item span{flex:1;font-size:.99rem;line-height:1.52}
+label.item input:checked+span{color:var(--dimmer);text-decoration:line-through;text-decoration-color:var(--line)}
+
+.skip{background:var(--paper);color:#1A2731;margin:44px 0 0;padding:26px 20px 24px;border-radius:2px}
+.skip h2{font-family:var(--sans);font-weight:700;font-size:1.3rem;letter-spacing:-.02em;margin:0 0 6px;color:#131C24}
+.skip .why{color:#44555E;margin-bottom:14px}
+.skip ul{list-style:none;margin:0;padding:0}
+.skip li{border-top:1px solid #C8CFC9;padding:10px 0 11px;font-size:.98rem;line-height:1.5}
+.skip li:first-child{border-top:0;padding-top:0}
+.skip li b{font-family:var(--sans);font-weight:600;font-size:.94rem}
+
+.pace{margin:40px 0 0}
+.pace h2{font-family:var(--sans);font-weight:700;font-size:1.3rem;letter-spacing:-.02em;margin:0 0 12px}
+table{width:100%;border-collapse:collapse;font-family:var(--sans);font-size:.9rem}
+th{text-align:left;font-weight:600;color:var(--dim);padding:0 8px 8px 0;border-bottom:1px solid var(--line);font-size:.83rem}
+td{padding:11px 8px 11px 0;border-bottom:1px solid var(--ink-3);color:#CFD6D3;font-variant-numeric:tabular-nums;vertical-align:top}
+td:first-child{color:var(--paper);font-weight:500}
+
+footer{margin-top:46px;padding-top:20px;border-top:1px solid var(--ink-3);color:var(--dimmer);font-size:.93rem;max-width:34em}
+footer strong{color:var(--dim);font-weight:400}
+
+@media (min-width:620px){
+  :root{--pad-l:56px;--rail-x:22px}
+  body{font-size:17px}
+  .wrap{padding-right:24px}
+  .skip{padding:30px 28px 28px}
+}
+@media (prefers-reduced-motion:reduce){*{transition:none !important}}
+</style>
+</head>
+<body>
+
+<div id="topbar"><span id="topfill"></span></div>
+
+<div class="wrap">
+  <div class="rail"></div>
+
+  <header class="hero">
+    <h1>Forward Deployed Engineer</h1>
+    <p class="lede">A route from wherever you are now to a job where you sit down with a customer, work out what they actually need, and ship it before you leave.</p>
+    <p class="lede">Six phases. Tick things off as you go and the rail on the left fills in behind you.</p>
+    <p class="assume">Written assuming you can already write some code and have around ten hours a week. If neither is true, Phase&nbsp;1 gets longer and nothing else changes. None of this is a course you buy — it's the list of things you have to be able to do.</p>
+
+    <div class="readout">
+      <div class="readout-top">
+        <div class="count"><b id="cDone">0</b> of <span id="cTotal">0</span> done</div>
+        <div class="where" id="cWhere">Start at Phase 0</div>
+      </div>
+      <div class="meter"><i id="cMeter"></i></div>
+      <div class="controls">
+        <button type="button" id="bCollapse">Collapse all</button>
+        <button type="button" id="bExpand">Expand all</button>
+        <button type="button" id="bReset">Clear progress</button>
+      </div>
+    </div>
+
+    <nav class="index" id="index"></nav>
+  </header>
+
+  <main id="phases"></main>
+
+  <section class="skip">
+    <h2>Things to skip</h2>
+    <p class="why">Every hour spent here is an hour not spent on the list above.</p>
+    <ul>
+      <li><b>Grinding algorithm puzzles past the basics.</b> There is a coding bar and you have to clear it, but nobody has been hired into this role for being quick at dynamic programming.</li>
+      <li><b>Collecting courses.</b> Two is plenty. The fifth one is procrastination wearing a lanyard.</li>
+      <li><b>Fine-tuning.</b> Not until you have exhausted prompting, retrieval and evaluation, which almost nobody has.</li>
+      <li><b>Another chatbot with no evaluation.</b> Every applicant has one. It reads as a tutorial you finished, not a system you own.</li>
+      <li><b>Waiting until you feel ready to talk to a real user.</b> Do it in week two, badly.</li>
+      <li><b>Kubernetes</b>, unless a job you actually want names it.</li>
+    </ul>
+  </section>
+
+  <section class="pace">
+    <h2>How long this takes</h2>
+    <table>
+      <thead>
+        <tr><th>Pace</th><th>Hours a week</th><th>Finished in</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Evenings only</td><td>5</td><td>10–12 months</td></tr>
+        <tr><td>Serious side project</td><td>10–15</td><td>5–6 months</td></tr>
+        <tr><td>Full-time run</td><td>40</td><td>10–12 weeks</td></tr>
+      </tbody>
+    </table>
+  </section>
+
+  <footer>
+    <p>Phases 1 to 3 are partly skippable — take only what you don't already have. Phase 4 isn't really a phase, it's a habit, so start it in week one and never stop. Phase 5 is the only one a hiring manager can actually see.</p>
+    <p><strong>One test for whether you're ready:</strong> can you take a vague sentence from someone non-technical, turn it into a written scope by Friday, and have something running they can click by the end of the second week?</p>
+  </footer>
+</div>
+
+<script>
+var PHASES = [
+  {
+    id:"p0", n:"Phase 0", title:"Get the target in focus", dur:"1 week",
+    why:"Before learning anything, find out precisely what you're aiming at. The role varies a lot between companies, and the gap in your own skills is probably not where you think it is.",
+    items:[
+      "Read ten real job postings for this role and paste every requirement into one document",
+      "Sort those requirements into three columns: engineering, AI, customer-facing. Notice which column is thinnest for you",
+      "Read what Palantir has published about forward deployment, plus two or three first-hand accounts from people doing the job now",
+      "Write one paragraph on which industry's problems you actually want to sit inside — health, finance, logistics, government, manufacturing",
+      "Set up a public code profile and a one-page site. Empty is fine for now",
+      "Start a work log: one file, dated entries, what you built and what broke"
+    ]
+  },
+  {
+    id:"p1", n:"Phase 1", title:"Engineering floor", dur:"4–6 weeks",
+    why:"Skip whatever you already have. You need to be the person in the room who can build the thing, not just specify it.",
+    items:[
+      "Python to a professional standard: type hints, virtual environments, pytest, a sane project layout",
+      "Git past commit and push: branches, rebase, resolving a conflict, reading someone else's diff",
+      "The command line for real — ssh, curl, jq, grep, watching processes, reading logs on a machine that isn't yours",
+      "SQL properly: joins, window functions, indexes, reading a query plan. Run Postgres locally",
+      "HTTP and REST: status codes, auth headers, pagination, idempotency, webhooks",
+      "Ship one backend service with authentication, a database and tests",
+      "Docker: write a Dockerfile from nothing, then compose a two-service stack",
+      "Enough frontend to demo. You will be demoing constantly, and an ugly demo loses the room",
+      "Deploy something to a real URL with logs you can actually read",
+      "Sketch the architecture on paper before writing code. Every time, until it's automatic"
+    ]
+  },
+  {
+    id:"p2", n:"Phase 2", title:"AI engineering", dur:"6–8 weeks",
+    why:"The part most people start with. Do it thoroughly and most of the field falls away, because the majority of self-taught builders stop before evaluation.",
+    items:[
+      "Mechanics first: tokens, context windows, temperature, cost per call, latency budgets",
+      "Structured output and tool calling, until it's boring",
+      "Prompt engineering treated as engineering — versioned prompts, held-out examples, decomposition, not vibes",
+      "Build one retrieval system end to end: ingestion, chunking, embeddings, a vector store, retrieval, generation",
+      "Then break it. Measure retrieval quality separately from answer quality",
+      "Hybrid search and reranking. Learn where plain keyword search still wins",
+      "Agents: tool loops, planning, memory, approval gates, and what happens when a tool fails halfway through",
+      "Connect a model to a real external system through a tool server",
+      "Evaluation, seriously: a hundred-example golden set, a judging rubric, and a regression run you execute on every change",
+      "Instrument one project with tracing so you can see why a bad answer happened",
+      "Cost and latency work: caching, batching, routing to a smaller model, streaming",
+      "Learn enough about fine-tuning to explain why you're not doing it, and the few cases where you would",
+      "Guardrails: prompt injection, jailbreaks, output validation, stripping personal data"
+    ]
+  },
+  {
+    id:"p3", n:"Phase 3", title:"Enterprise reality", dur:"4 weeks",
+    why:"This is the part self-taught AI builders skip, and it is most of the job. Customer environments are old, locked down, and full of systems nobody wants to touch.",
+    items:[
+      "Deployment models: shared cloud, single-tenant private cloud, on-premise, air-gapped. Know what each one breaks",
+      "Identity: SSO, SAML, OIDC, user provisioning, role-based access. Wire real auth into one project",
+      "Data plumbing: object storage, a warehouse, a queue — and the unglamorous truth of nightly file drops and inconsistent CSVs",
+      "Integrate with one large enterprise system's real API and feel how slow and strange it is",
+      "Compliance vocabulary: SOC 2, GDPR, HIPAA, data residency, audit logging. Enough not to freeze in a security review",
+      "Secrets management, key rotation, least privilege",
+      "Write a runbook for one of your projects: how it deploys, what each alert means, how to roll back",
+      "Find a customer security questionnaire and answer it honestly for your own project"
+    ]
+  },
+  {
+    id:"p4", n:"Phase 4", title:"The forward-deployed half", dur:"start now, never stop",
+    why:"The technical half gets you the interview. This half gets the offer, and it's the half you can start practising this week with no code at all.",
+    items:[
+      "Learn to ask the question behind the question. Practise on friends who run small businesses",
+      "Map the people: who signs, who blocks, who uses it daily, who will champion you internally",
+      "Turn one vague problem into a written scope — the problem, the success criteria, what's explicitly out — before any code",
+      "Timebox a proof of concept to two weeks and hold the line when it starts to slip",
+      "Build a five-minute demo narrative. Run it three times. Have a plan for when it breaks live, because it will",
+      "Write a one-page project memo, then cut it in half",
+      "Run a weekly cadence with a real stakeholder: agenda, what changed, what's blocked, what's next",
+      "Practise handing something over — documentation, a training session, a runbook, and support that doesn't need you",
+      "Learn to say no with an alternative attached",
+      "Write an honest post-mortem of something of yours that failed"
+    ]
+  },
+  {
+    id:"p5", n:"Phase 5", title:"Build the evidence", dur:"8–10 weeks, overlapping",
+    why:"Nobody is hired for this role off a certificate. Four builds, each harder than the last. The fourth is worth more than the other three together.",
+    items:[
+      "Build one: retrieval over a genuinely messy corpus — scanned documents, inconsistent formats, contradictions. The readme opens with evaluation numbers, not a feature list",
+      "Build two: an agent that completes a real multi-step workflow, with an approval gate and a recovery path when a tool fails",
+      "Build three, the one that matters: a full mock engagement. Invent a plausible client, then publish all six artefacts together — discovery notes, scope document, deployed application, evaluation report, runbook, and a five-minute recorded demo",
+      "Build four: one real engagement. A small business, a nonprofit, a university lab. Free or nearly free. One real deployment outranks three portfolio projects",
+      "Write each one up short: the problem, the constraint, and what you'd do differently"
+    ]
+  },
+  {
+    id:"p6", n:"Phase 6", title:"Get hired", dur:"4 weeks, in parallel",
+    why:"Run this alongside Phase 5. Applying is how you find out which of your gaps are real.",
+    items:[
+      "Search these titles: forward deployed engineer, forward deployed software engineer, AI solutions engineer, solutions architect, delivery engineer, implementation engineer, applied AI engineer",
+      "Look at AI labs, AI product companies, enterprise software firms adding an AI line, and AI consultancies — plus any growth-stage company whose customers are large and non-technical",
+      "Rewrite your CV around deployments and outcomes, not tools you have touched",
+      "Keep a five-minute demo you can run from your phone at any moment",
+      "Prepare four rounds: coding, system design, a take-home build, and a customer-scenario roleplay",
+      "Rehearse the roleplay out loud with someone playing a difficult stakeholder. This is the round most candidates lose",
+      "Prepare your own questions: who owns the roadmap, how much travel, what happens when a customer wants something the product cannot do"
+    ]
+  }
+];
+
+var KEY = "fde-route-v1";
+var state = {};
+var mem = {};
+
+function $(s){ return document.querySelector(s); }
+
+async function save(){
+  mem[KEY] = state;
+  try{
+    if(window.storage && typeof window.storage.set === "function"){
+      await window.storage.set(KEY, JSON.stringify(state));
+    }
+  }catch(e){ /* progress stays in memory for this session */ }
+}
+
+async function load(){
+  try{
+    if(window.storage && typeof window.storage.get === "function"){
+      var r = await window.storage.get(KEY);
+      if(r && r.value) return JSON.parse(r.value);
+    }
+  }catch(e){ /* nothing saved yet, or storage unavailable */ }
+  return mem[KEY] || {};
+}
+
+function render(){
+  var idx = $("#index");
+  var main = $("#phases");
+  idx.innerHTML = "";
+  main.innerHTML = "";
+
+  PHASES.forEach(function(p, pi){
+    var a = document.createElement("a");
+    a.href = "#" + p.id;
+    a.innerHTML = '<span class="n">' + pi + '</span><span class="t"></span>' +
+                  '<span class="d" id="idx-' + p.id + '">0/' + p.items.length + '</span>';
+    a.querySelector(".t").textContent = p.title;
+    idx.appendChild(a);
+
+    var sec = document.createElement("section");
+    sec.className = "phase";
+    sec.id = p.id;
+
+    var station = document.createElement("div");
+    station.className = "station";
+    sec.appendChild(station);
+
+    var seg = document.createElement("div");
+    seg.className = "seg";
+    seg.innerHTML = '<i id="seg-' + p.id + '"></i>';
+    sec.appendChild(seg);
+
+    var head = document.createElement("button");
+    head.type = "button";
+    head.className = "phead";
+    head.setAttribute("aria-expanded", "true");
+    head.setAttribute("aria-controls", p.id + "-body");
+    head.innerHTML =
+      '<div class="ptitle"><h2></h2>' +
+      '<div class="pmeta"><span class="pn"></span><span class="pd"></span>' +
+      '<em id="cnt-' + p.id + '">0/' + p.items.length + '</em></div></div>' +
+      '<span class="chev" aria-hidden="true">&#9662;</span>';
+    head.querySelector("h2").textContent = p.title;
+    head.querySelector(".pn").textContent = p.n;
+    head.querySelector(".pd").textContent = p.dur;
+    head.addEventListener("click", function(){
+      var closed = sec.classList.toggle("closed");
+      head.setAttribute("aria-expanded", closed ? "false" : "true");
+    });
+    sec.appendChild(head);
+
+    var body = document.createElement("div");
+    body.className = "body";
+    body.id = p.id + "-body";
+
+    var why = document.createElement("p");
+    why.className = "why";
+    why.textContent = p.why;
+    body.appendChild(why);
+
+    var ul = document.createElement("ul");
+    ul.className = "items";
+    p.items.forEach(function(text, ii){
+      var key = p.id + "-" + ii;
+      var li = document.createElement("li");
+      var label = document.createElement("label");
+      label.className = "item";
+      var box = document.createElement("input");
+      box.type = "checkbox";
+      box.dataset.key = key;
+      box.checked = !!state[key];
+      box.addEventListener("change", function(){
+        if(box.checked){ state[key] = 1; } else { delete state[key]; }
+        save();
+        refresh();
+      });
+      var span = document.createElement("span");
+      span.textContent = text;
+      label.appendChild(box);
+      label.appendChild(span);
+      li.appendChild(label);
+      ul.appendChild(li);
+    });
+    body.appendChild(ul);
+    sec.appendChild(body);
+    main.appendChild(sec);
+  });
+}
+
+function refresh(){
+  var total = 0, done = 0, current = null;
+
+  PHASES.forEach(function(p){
+    var d = 0;
+    p.items.forEach(function(_, ii){ if(state[p.id + "-" + ii]) d++; });
+    total += p.items.length;
+    done += d;
+
+    var pct = Math.round(d / p.items.length * 100);
+    document.getElementById("cnt-" + p.id).textContent = d + "/" + p.items.length;
+    document.getElementById("idx-" + p.id).textContent = d + "/" + p.items.length;
+    document.getElementById("seg-" + p.id).style.height = pct + "%";
+
+    var sec = document.getElementById(p.id);
+    sec.classList.toggle("started", d > 0);
+    sec.classList.toggle("done", d === p.items.length);
+    if(!current && d < p.items.length) current = p;
+  });
+
+  var pct = total ? Math.round(done / total * 100) : 0;
+  $("#cDone").textContent = done;
+  $("#cTotal").textContent = total;
+  $("#cMeter").style.width = pct + "%";
+  $("#topfill").style.width = pct + "%";
+  $("#cWhere").textContent = done === 0 ? "Start at Phase 0"
+    : (current ? "Now at " + current.n : "All six phases clear");
+}
+
+function setAll(closed){
+  var secs = document.querySelectorAll(".phase");
+  for(var i = 0; i < secs.length; i++){
+    secs[i].classList.toggle("closed", closed);
+    secs[i].querySelector(".phead").setAttribute("aria-expanded", closed ? "false" : "true");
+  }
+}
+
+$("#bCollapse").addEventListener("click", function(){ setAll(true); });
+$("#bExpand").addEventListener("click", function(){ setAll(false); });
+$("#bReset").addEventListener("click", function(){
+  if(!confirm("Clear every tick on this page?")) return;
+  state = {};
+  save();
+  var boxes = document.querySelectorAll("label.item input");
+  for(var i = 0; i < boxes.length; i++){ boxes[i].checked = false; }
+  refresh();
+});
+
+(async function init(){
+  state = await load();
+  render();
+  refresh();
+})();
+</script>
+</body>
+</html>

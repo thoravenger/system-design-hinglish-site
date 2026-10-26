@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Final Capstone — Remaining Deep Dives + Master Reference</title>
+<style>
+  :root{
+    --bg:#0a0e14; --bg2:#121820; --bg3:#1a222d; --bg4:#232d3b;
+    --border:#2a3441; --border2:#3a4757;
+    --fg:#e6edf3; --fg2:#b8c4d0; --muted:#7d8b9c;
+    --blue:#4dabf7; --cyan:#22d3ee; --green:#51cf66; --yellow:#ffd43b;
+    --orange:#ff922b; --red:#ff6b6b; --purple:#b197fc; --pink:#f783ac;
+    --code-bg:#080b10;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth}
+  body{background:var(--bg); color:var(--fg);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Noto Sans",sans-serif;
+    line-height:1.7; font-size:15px;}
+  .wrap{display:flex; min-height:100vh}
+  aside{width:310px; flex-shrink:0; background:var(--bg2);
+    border-right:1px solid var(--border); height:100vh;
+    position:sticky; top:0; overflow-y:auto; padding:22px 14px;}
+  main{flex:1; padding:36px 44px; max-width:1150px; margin:0 auto; min-width:0}
+
+  aside .brand{font-size:16px; font-weight:700; margin-bottom:3px;
+    background:linear-gradient(135deg,var(--orange),var(--pink),var(--purple));
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;}
+  aside .tagline{font-size:11px; color:var(--muted); margin-bottom:20px; letter-spacing:.3px}
+  .search{width:100%; padding:10px 12px; border-radius:9px; border:1px solid var(--border);
+    background:var(--bg); color:var(--fg); font-size:13px; margin-bottom:18px; outline:none; transition:.2s;}
+  .search:focus{border-color:var(--orange); box-shadow:0 0 0 3px rgba(255,146,43,.1)}
+  .navsec{font-size:10px; text-transform:uppercase; letter-spacing:1.2px;
+          color:var(--muted); margin:18px 8px 8px; font-weight:700}
+  .navitem{display:flex; justify-content:space-between; align-items:center;
+    padding:9px 11px; border-radius:8px; cursor:pointer; font-size:13px;
+    color:var(--fg2); margin-bottom:2px; transition:.15s; border-left:2px solid transparent;}
+  .navitem:hover{background:var(--bg3); color:var(--fg)}
+  .navitem.active{background:linear-gradient(90deg,rgba(255,146,43,.15),transparent);
+    color:var(--orange); border-left-color:var(--orange); font-weight:600;}
+
+  h1.page{font-size:30px; font-weight:800; margin-bottom:8px;
+    background:linear-gradient(135deg,var(--orange),var(--pink),var(--purple),var(--cyan));
+    -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; letter-spacing:-.5px;}
+  .page-sub{color:var(--muted); font-size:14px; margin-bottom:36px; max-width:820px}
+
+  h2.section{font-size:23px; font-weight:700; margin:52px 0 8px;
+    display:flex; align-items:center; gap:11px; letter-spacing:-.3px; scroll-margin-top:20px;}
+  h2.section:first-of-type{margin-top:0}
+  h2.section .badge{font-size:10px; padding:3px 9px; border-radius:20px; font-weight:700;
+    letter-spacing:.5px; text-transform:uppercase;}
+  .badge.rem{background:rgba(247,131,172,.15); color:var(--pink); border:1px solid rgba(247,131,172,.3)}
+  .badge.ds{background:rgba(81,207,102,.15); color:var(--green); border:1px solid rgba(81,207,102,.3)}
+  .badge.conc{background:rgba(255,212,59,.15); color:var(--yellow); border:1px solid rgba(255,212,59,.3)}
+  .badge.db{background:rgba(77,171,247,.15); color:var(--blue); border:1px solid rgba(77,171,247,.3)}
+  .badge.fw{background:rgba(177,151,252,.15); color:var(--purple); border:1px solid rgba(177,151,252,.3)}
+  .section-desc{color:var(--muted); font-size:13.5px; margin-bottom:22px; max-width:820px}
+
+  h3.topic{font-size:18px; font-weight:700; margin:32px 0 12px;
+    padding-left:13px; border-left:3px solid var(--orange); color:var(--fg); scroll-margin-top:20px;}
+  h3.topic.green{border-left-color:var(--green)}
+  h3.topic.purple{border-left-color:var(--purple)}
+  h3.topic.blue{border-left-color:var(--blue)}
+  h3.topic.yellow{border-left-color:var(--yellow)}
+  h3.topic.pink{border-left-color:var(--pink)}
+  h3.topic.cyan{border-left-color:var(--cyan)}
+
+  .card{background:var(--bg2); border:1px solid var(--border); border-radius:13px;
+    padding:20px 22px; margin-bottom:16px;}
+  .card.key{background:linear-gradient(135deg,rgba(255,212,59,.06),rgba(255,146,43,.03));
+    border-color:rgba(255,212,59,.25);}
+  .card.key .key-label{font-size:10px; text-transform:uppercase; letter-spacing:1px;
+    color:var(--yellow); font-weight:800; margin-bottom:9px; display:flex; align-items:center; gap:6px;}
+  .card.common{background:linear-gradient(135deg,rgba(177,151,252,.07),rgba(247,131,172,.03));
+    border-color:rgba(177,151,252,.25);}
+  .card.common .key-label{color:var(--purple)}
+
+  .card p{margin-bottom:11px; color:var(--fg2); font-size:14px}
+  .card p:last-child{margin-bottom:0}
+  .card strong{color:var(--fg); font-weight:600}
+  .card em{color:var(--cyan); font-style:normal; font-weight:500}
+
+  ul.clean{list-style:none; margin:8px 0}
+  ul.clean li{padding:5px 0 5px 24px; position:relative; color:var(--fg2); font-size:13.5px}
+  ul.clean li::before{content:"▸"; position:absolute; left:6px; color:var(--orange); font-weight:700}
+  ul.clean.check li::before{content:"✓"; color:var(--green)}
+  ul.clean.cross li::before{content:"✗"; color:var(--red)}
+
+  code.inl{background:var(--bg4); padding:2px 7px; border-radius:5px;
+    font-family:ui-monospace,"SF Mono",Consolas,monospace; font-size:12.5px;
+    color:var(--cyan); border:1px solid var(--border);}
+
+  .codewrap{background:var(--code-bg); border:1px solid var(--border); border-radius:11px;
+    overflow:hidden; margin:14px 0;}
+  .codewrap .code-head{background:var(--bg3); padding:8px 14px; font-size:11px;
+    color:var(--muted); font-family:ui-monospace,monospace;
+    border-bottom:1px solid var(--border); display:flex; justify-content:space-between;
+    letter-spacing:.5px;}
+  .codewrap .code-head .lang{color:var(--green); font-weight:700}
+  pre{padding:16px 18px; overflow-x:auto; font-size:12.8px; line-height:1.75;
+    font-family:ui-monospace,"SF Mono",Consolas,monospace; color:#c9d1d9;}
+  pre .cmt{color:#5c6d7e; font-style:italic}
+  pre .kw{color:#ff7b72}
+  pre .str{color:#a5d6ff}
+  pre .num{color:#79c0ff}
+  pre .fn{color:#d2a8ff}
+  pre .typ{color:#ffa657}
+
+  .lbl{width:100%; border-collapse:collapse; margin:12px 0; font-size:13px;
+    border:1px solid var(--border); border-radius:10px; overflow:hidden;}
+  .lbl th{background:var(--bg3); padding:10px 14px; text-align:left; font-size:11px;
+    text-transform:uppercase; letter-spacing:.8px; color:var(--muted); font-weight:700;
+    border-bottom:1px solid var(--border);}
+  .lbl td{padding:10px 14px; border-bottom:1px solid var(--border); vertical-align:top; color:var(--fg2);}
+  .lbl tr:last-child td{border-bottom:none}
+  .lbl tr:nth-child(even){background:rgba(255,255,255,.015)}
+  .lbl td:first-child{font-family:ui-monospace,monospace; font-size:12px; color:var(--cyan);
+    white-space:nowrap; width:1%; background:rgba(34,211,238,.04);}
+  .lbl td strong{color:var(--fg)}
+
+  .diagram{background:var(--code-bg); border:1px solid var(--border); border-radius:11px;
+    padding:18px 20px; margin:14px 0; overflow-x:auto;
+    font-family:ui-monospace,monospace; font-size:12px; line-height:1.6;
+    color:var(--fg2); white-space:pre;}
+
+  .flow{counter-reset:step; margin:14px 0}
+  .flow .step{position:relative; padding:10px 0 10px 44px; border-left:2px solid var(--border);
+    margin-left:14px; counter-increment:step;}
+  .flow .step::before{content:counter(step); position:absolute; left:-15px; top:10px;
+    width:28px; height:28px; border-radius:50%; background:var(--bg2);
+    border:2px solid var(--orange); color:var(--orange);
+    display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800;}
+  .flow .step:last-child{border-left-color:transparent}
+  .flow .step strong{color:var(--fg); display:block; margin-bottom:3px; font-size:13.5px}
+  .flow .step span{color:var(--fg2); font-size:13px}
+
+  .callout{border-left:3px solid var(--orange); background:rgba(255,146,43,.06);
+    padding:13px 17px; border-radius:0 9px 9px 0; margin:14px 0; font-size:13.5px; color:var(--fg2);}
+  .callout.tip{border-left-color:var(--green); background:rgba(81,207,102,.06)}
+  .callout.warn{border-left-color:var(--red); background:rgba(255,107,107,.06)}
+  .callout b{color:var(--fg)}
+
+  .cmp{width:100%; border-collapse:collapse; margin:14px 0; font-size:13px}
+  .cmp th{background:var(--bg3); padding:11px 14px; text-align:left; font-size:11px;
+    text-transform:uppercase; letter-spacing:.8px; color:var(--muted);
+    border:1px solid var(--border);}
+  .cmp td{padding:10px 14px; border:1px solid var(--border); color:var(--fg2); vertical-align:top}
+  .cmp tr:nth-child(even) td{background:rgba(255,255,255,.015)}
+  .cmp td strong{color:var(--fg)}
+
+  .pgrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(290px,1fr)); gap:13px; margin:16px 0}
+  .pcard{background:var(--bg2); border:1px solid var(--border); border-radius:11px;
+    padding:15px 17px; transition:.2s;}
+  .pcard:hover{border-color:var(--border2); transform:translateY(-2px)}
+  .pcard .ptitle{font-size:14px; font-weight:700; margin-bottom:7px; color:var(--fg);
+    display:flex; align-items:center; gap:8px;}
+  .pcard .pnum{width:22px; height:22px; border-radius:6px; background:var(--bg4);
+    display:flex; align-items:center; justify-content:center;
+    font-size:11px; color:var(--orange); font-weight:800; flex-shrink:0;}
+  .pcard .pdesc{font-size:12.5px; color:var(--muted); line-height:1.55}
+
+  .tree{background:var(--code-bg); border:1px solid var(--border); border-radius:11px;
+    padding:18px 20px; margin:14px 0; overflow-x:auto;
+    font-family:ui-monospace,monospace; font-size:12.5px; line-height:1.75;
+    color:var(--fg2); white-space:pre;}
+
+  footer{margin-top:70px; padding:26px 0; border-top:1px solid var(--border);
+    color:var(--muted); font-size:12px; text-align:center;}
+
+  @media(max-width:900px){
+    .wrap{flex-direction:column}
+    aside{width:100%; height:auto; position:relative; border-right:none;
+          border-bottom:1px solid var(--border); padding:16px}
+    .navitem{display:inline-flex; margin:2px}
+    main{padding:22px 18px}
+    h1.page{font-size:24px}
+    h2.section{font-size:19px}
+    .lbl td:first-child{white-space:normal}
+  }
+
+  ::-webkit-scrollbar{width:9px; height:9px}
+  ::-webkit-scrollbar-track{background:var(--bg)}
+  ::-webkit-scrollbar-thumb{background:var(--bg4); border-radius:5px}
+  ::-webkit-scrollbar-thumb:hover{background:var(--border2)}
+</style>
+</head>
+<body>
+<div id="sdh-libbar" style="position:relative;z-index:2147483000;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0;padding:8px 16px;background:#0f172a;color:#cbd5e1;font:600 13px/1.5 Inter,'Segoe UI',system-ui,-apple-system,sans-serif;border-bottom:2px solid #4f46e5;box-sizing:border-box;width:100%;text-align:left;letter-spacing:0"><a href="../../index.html" style="color:#fff;text-decoration:none;font-weight:800">SystemDesign<span style="color:#8b8cff">.hinglish</span></a><span style="opacity:.45">/</span><a href="../index.html" style="color:#fff;text-decoration:none">📚 Library</a><span style="opacity:.45">/</span><a href="../index.html#karat" style="color:#cbd5e1;text-decoration:none">Karat Rounds · HSBC GCB-4</a><a href="../files/hld-lld-final-capstone-original.html" download style="color:#a5b4fc;text-decoration:none;font-size:12px">⬇ Original</a><span style="margin-left:auto;font-size:11px;padding:2px 9px;border-radius:999px;border:1px solid #6366f1;color:#c7d2fe">📘 HTML ebook</span></div>
+
+<div class="wrap">
+
+<!-- ================= SIDEBAR ================= -->
+<aside>
+  <div class="brand">🎯 Final Capstone</div>
+  <div class="tagline">Remaining Deep Dives + Master Reference</div>
+  <input class="search" id="search" placeholder="🔍 Search topics...">
+
+  <div class="navsec">Remaining Deep Dives</div>
+  <div class="navitem active" data-target="rem-lru-thread"><span>🔒 Thread-safe LRU</span></div>
+  <div class="navitem" data-target="rem-lock-order"><span>🔐 Lock Ordering Transfer</span></div>
+  <div class="navitem" data-target="rem-topk"><span>🏆 Top-K Merchants</span></div>
+  <div class="navitem" data-target="rem-normalize"><span>🧹 Normalize + Dedup</span></div>
+  <div class="navitem" data-target="rem-anagram"><span>🔤 Anagram Groups</span></div>
+
+  <div class="navsec">Master Reference</div>
+  <div class="navitem" data-target="ref-datastruct"><span>🌳 Data Structures Guide</span></div>
+  <div class="navitem" data-target="ref-concurrency"><span>⚡ Concurrency Primitives</span></div>
+  <div class="navitem" data-target="ref-consistency"><span>⚖️ Consistency Models</span></div>
+  <div class="navitem" data-target="ref-db"><span>🗄️ SQL vs NoSQL</span></div>
+  <div class="navitem" data-target="ref-mq"><span>📨 Message Queues</span></div>
+  <div class="navitem" data-target="ref-cache"><span>💾 Caching Strategies</span></div>
+
+  <div class="navsec">Interview Frameworks</div>
+  <div class="navitem" data-target="fw-hld"><span>🏗️ HLD 45-min Framework</span></div>
+  <div class="navitem" data-target="fw-lld"><span>🧩 LLD Framework</span></div>
+  <div class="navitem" data-target="fw-star"><span>⭐ STAR for Behavioural</span></div>
+  <div class="navitem" data-target="fw-backof"><span>🧮 Back-of-Envelope</span></div>
+  <div class="navitem" data-target="fw-sla"><span>📊 SLA / SLO / SLI</span></div>
+  <div class="navitem" data-target="fw-anti"><span>🚫 Anti-Patterns</span></div>
+
+  <div class="navsec">Final Cheat Sheet</div>
+  <div class="navitem" data-target="cheat-final"><span>📋 Master Summary</span></div>
+</aside>
+
+<!-- ================= MAIN ================= -->
+<main>
+
+<h1 class="page">Final Capstone — Remaining + Master Reference</h1>
+<p class="page-sub">
+  HTML #2 aur #3 ke baad jo bacha, woh yahan hai — plus <b>master reference tables aur frameworks</b>
+  jo poore trilogy ko complete karte hain. Same Hinglish, same line-by-line depth.
+</p>
+
+<!-- ============================================================
+     SECTION 1: REMAINING DEEP DIVES
+     ============================================================ -->
+<h2 class="section" id="rem">
+  <span class="badge rem">Remaining</span> Deep Dives — Jo Bach Gaya Tha
+</h2>
+<p class="section-desc">Yeh questions HTML #1 mein short the, HTML #2/#3 mein aaye nahi. Ab full line-by-line.</p>
+
+<!-- THREAD-SAFE LRU -->
+<h3 class="topic pink" id="rem-lru-thread">🔒 Thread-safe LRU Without Coarse Locks</h3>
+
+<div class="card">
+  <p><strong>Problem:</strong> Single global lock high QPS pe bottleneck. Contention 1/N karna hai.</p>
+  <p><strong>Solution: Segmented LRU (Striping)</strong> — N segments, har segment ka apna lock + apna LRU. Key hash se segment choose karo.</p>
+</div>
+
+<div class="codewrap">
+  <div class="code-head"><span>SegmentedLRU.java</span><span class="lang">JAVA</span></div>
+<pre><span class="kw">class</span> <span class="typ">SegmentedLRU</span>&lt;K, V&gt; {
+    <span class="kw">private static final int</span> SEGMENTS = <span class="num">16</span>;      <span class="cmt">// power of 2</span>
+    <span class="kw">private final</span> <span class="typ">Segment</span>&lt;K, V&gt;[] segments;
+
+    <span class="kw">@SuppressWarnings</span>(<span class="str">"unchecked"</span>)
+    <span class="kw">public</span> <span class="typ">SegmentedLRU</span>(<span class="kw">int</span> totalCapacity) {
+        <span class="kw">int</span> perSeg = Math.max(<span class="num">1</span>, totalCapacity / SEGMENTS);
+        segments = <span class="kw">new</span> <span class="typ">Segment</span>[SEGMENTS];
+        <span class="kw">for</span> (<span class="kw">int</span> i = <span class="num">0</span>; i &lt; SEGMENTS; i++) {
+            segments[i] = <span class="kw">new</span> <span class="typ">Segment</span>&lt;&gt;(perSeg);
+        }
+    }
+
+    <span class="kw">private</span> <span class="typ">Segment</span>&lt;K, V&gt; <span class="fn">segmentFor</span>(<span class="typ">K</span> key) {
+        <span class="kw">int</span> h = key.hashCode();
+        h ^= (h &gt;&gt;&gt; <span class="num">16</span>);                        <span class="cmt">// spread bits</span>
+        <span class="kw">return</span> segments[h &amp; (SEGMENTS - <span class="num">1</span>)];  <span class="cmt">// mask for power of 2</span>
+    }
+
+    <span class="kw">public</span> V <span class="fn">get</span>(<span class="typ">K</span> key) {
+        <span class="kw">return</span> segmentFor(key).get(key);
+    }
+
+    <span class="kw">public void</span> <span class="fn">put</span>(<span class="typ">K</span> key, V value) {
+        segmentFor(key).put(key, value);
+    }
+
+    <span class="kw">static class</span> <span class="typ">Segment</span>&lt;K, V&gt; {
+        <span class="kw">private final int</span> cap;
+        <span class="kw">private final</span> <span class="typ">Map</span>&lt;<span class="typ">K</span>, <span class="typ">Node</span>&lt;K,V&gt;&gt; map = <span class="kw">new</span> <span class="typ">HashMap</span>&lt;&gt;();
+        <span class="kw">private final</span> <span class="typ">Node</span>&lt;K,V&gt; head = <span class="kw">new</span> <span class="typ">Node</span>&lt;&gt;(<span class="kw">null</span>, <span class="kw">null</span>);
+        <span class="kw">private final</span> <span class="typ">Node</span>&lt;K,V&gt; tail = <span class="kw">new</span> <span class="typ">Node</span>&lt;&gt;(<span class="kw">null</span>, <span class="kw">null</span>);
+        <span class="kw">private final</span> <span class="typ">ReentrantLock</span> lock = <span class="kw">new</span> <span class="typ">ReentrantLock</span>();
+
+        <span class="typ">Segment</span>(<span class="kw">int</span> cap) {
+            <span class="kw">this</span>.cap = cap;
+            head.next = tail; tail.prev = head;
+        }
+
+        V <span class="fn">get</span>(<span class="typ">K</span> key) {
+            lock.lock();
+            <span class="kw">try</span> {
+                <span class="typ">Node</span>&lt;K,V&gt; n = map.get(key);
+                <span class="kw">if</span> (n == <span class="kw">null</span>) <span class="kw">return null</span>;
+                moveToFront(n);
+                <span class="kw">return</span> n.v;
+            } <span class="kw">finally</span> { lock.unlock(); }
+        }
+
+        <span class="kw">void</span> <span class="fn">put</span>(<span class="typ">K</span> key, V value) {
+            lock.lock();
+            <span class="kw">try</span> {
+                <span class="typ">Node</span>&lt;K,V&gt; n = map.get(key);
+                <span class="kw">if</span> (n != <span class="kw">null</span>) { n.v = value; moveToFront(n); <span class="kw">return</span>; }
+                <span class="kw">if</span> (map.size() == cap) {
+                    <span class="typ">Node</span>&lt;K,V&gt; lru = tail.prev;
+                    unlink(lru); map.remove(lru.k);
+                }
+                <span class="typ">Node</span>&lt;K,V&gt; nn = <span class="kw">new</span> <span class="typ">Node</span>&lt;&gt;(key, value);
+                map.put(key, nn); addFirst(nn);
+            } <span class="kw">finally</span> { lock.unlock(); }
+        }
+
+        <span class="kw">private void</span> <span class="fn">moveToFront</span>(<span class="typ">Node</span>&lt;K,V&gt; n) { unlink(n); addFirst(n); }
+        <span class="kw">private void</span> <span class="fn">addFirst</span>(<span class="typ">Node</span>&lt;K,V&gt; n) {
+            n.next = head.next; n.prev = head;
+            head.next.prev = n; head.next = n;
+        }
+        <span class="kw">private void</span> <span class="fn">unlink</span>(<span class="typ">Node</span>&lt;K,V&gt; n) {
+            n.prev.next = n.next; n.next.prev = n.prev;
+        }
+    }
+
+    <span class="kw">static class</span> <span class="typ">Node</span>&lt;K,V&gt; {
+        <span class="typ">K</span> k; V v; <span class="typ">Node</span>&lt;K,V&gt; prev, next;
+        <span class="typ">Node</span>(<span class="typ">K</span> k, V v) { <span class="kw">this</span>.k = k; <span class="kw">this</span>.v = v; }
+    }
+}</pre>
+</div>
+
+<table class="lbl">
+  <tr><th>Line</th><th>Explanation</th></tr>
+  <tr><td>SEGMENTS = 16</td><td><strong>Power of 2</strong> — mask se modulo fast. 16 threads tak contention 1/16.</td></tr>
+  <tr><td>totalCapacity / SEGMENTS</td><td>Capacity per segment. Total capacity divide hota — LRU global nahi, per-segment.</td></tr>
+  <tr><td>h ^= (h >>> 16)</td><td><strong>Bit spread.</strong> Java HashMap ka trick — upper bits lower mein mix karo, poor distribution avoid.</td></tr>
+  <tr><td>h & (SEGMENTS - 1)</td><td><strong>Mask = fast modulo.</strong> Power of 2 hone se AND operation kaam karta hai.</td></tr>
+  <tr><td>ReentrantLock per segment</td><td><strong>Lock striping.</strong> Har segment independent. 16 threads parallel.</td></tr>
+  <tr><td>hashCode()</td><td><strong>Key ka hashCode call.</strong> Null key ke liye caller responsible (ya Optional wrapper).</td></tr>
+</table>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Trade-off:</strong> Exact global LRU accuracy vs throughput. Segmented = approximate LRU, but 16x throughput. <strong>Production:</strong> <b>Caffeine</b> — W-TinyLFU eviction (better hit ratio than LRU), lock-free reads (ring buffer), concurrent writes. Best of both.</p>
+  <p><strong>Alternatives:</strong> ConcurrentHashMap + per-node locks (complex, deadlock-prone), read-buffer approach (Caffeine-style).</p>
+</div>
+
+<!-- LOCK ORDERING -->
+<h3 class="topic pink" id="rem-lock-order">🔐 Concurrent Transfer — Global Lock Ordering</h3>
+
+<div class="card">
+  <p><strong>Deadlock scenario:</strong> Thread-1 A→B lock karta (A then B), Thread-2 B→A lock karta (B then A). Circular wait = deadlock.</p>
+  <p><strong>Fix:</strong> Hamesha consistent order — <code class="inl">accountId</code> ke natural order se chhota pehle.</p>
+</div>
+
+<div class="codewrap">
+  <div class="code-head"><span>TransferService.java — Lock Ordering</span><span class="lang">JAVA</span></div>
+<pre><span class="kw">void</span> <span class="fn">transfer</span>(<span class="typ">Account</span> from, <span class="typ">Account</span> to, <span class="typ">BigDecimal</span> amt) {
+    <span class="cmt">// Deterministic order: chhota ID pehle, bada baad mein</span>
+    <span class="typ">Account</span> first  = from.id().compareTo(to.id()) &lt; <span class="num">0</span> ? from : to;
+    <span class="typ">Account</span> second = from.id().compareTo(to.id()) &lt; <span class="num">0</span> ? to   : from;
+
+    <span class="kw">synchronized</span> (first) {
+        <span class="kw">synchronized</span> (second) {
+            <span class="cmt">// Double-check after acquiring locks (funds race)</span>
+            <span class="kw">if</span> (from.balance().compareTo(amt) &lt; <span class="num">0</span>)
+                <span class="kw">throw new</span> <span class="typ">InsufficientFundsException</span>();
+            from.debit(amt);
+            to.credit(amt);
+            ledger.save(<span class="typ">Ledger</span>.doubleEntry(from, to, amt));
+        }
+    }
+}</pre>
+</div>
+
+<table class="lbl">
+  <tr><th>Line</th><th>Explanation</th></tr>
+  <tr><td>first / second decide</td><td><strong>Deterministic order.</strong> Dono threads A→B aur B→A ke liye same order follow karenge — circular wait impossible.</td></tr>
+  <tr><td>synchronized (first)</td><td>Pehla lock. Chhota ID.</td></tr>
+  <tr><td>synchronized (second)</td><td>Dusra lock. Bada ID.</td></tr>
+  <tr><td>Double-check balance</td><td><strong>Locks ke baad.</strong> Warna check aur debit ke beech race — dusra thread balance khaali kar sakta.</td></tr>
+  <tr><td>ledger.save</td><td>Double-entry immutable ledger.</td></tr>
+</table>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Global lock ordering:</strong> Har thread same order mein locks leta hai. Chhota ID pehle. <strong>DB mein bhi:</strong> <code class="inl">SELECT ... FOR UPDATE ORDER BY id</code> — DB khud order maintain karega, row locks bhi deterministic.</p>
+  <p><strong>Alternatives:</strong> Distributed lock with timeout (Redis/etcd), single-writer per aggregate (saga/event-driven), optimistic concurrency (version column/CAS).</p>
+</div>
+
+<!-- TOP-K MERCHANTS -->
+<h3 class="topic pink" id="rem-topk">🏆 Top-K Merchants by Total Spend</h3>
+
+<div class="codewrap">
+  <div class="code-head"><span>TopKMerchants.java</span><span class="lang">JAVA</span></div>
+<pre><span class="kw">record</span> <span class="typ">Tx</span>(<span class="typ">String</span> merchant, <span class="typ">BigDecimal</span> amount) {}
+
+<span class="typ">List</span>&lt;<span class="typ">String</span>&gt; <span class="fn">topK</span>(<span class="typ">Stream</span>&lt;<span class="typ">Tx</span>&gt; stream, <span class="kw">int</span> k) {
+    <span class="cmt">// Step 1: aggregate per merchant — O(n)</span>
+    <span class="typ">Map</span>&lt;<span class="typ">String</span>, <span class="typ">BigDecimal</span>&gt; totals = stream.collect(
+        <span class="typ">Collectors</span>.groupingBy(<span class="typ">Tx</span>::merchant,
+            <span class="typ">Collectors</span>.reducing(<span class="typ">BigDecimal</span>.ZERO,
+                                <span class="typ">Tx</span>::amount, <span class="typ">BigDecimal</span>::add)));
+
+    <span class="cmt">// Step 2: min-heap of size k — O(m log k), m = distinct merchants</span>
+    <span class="typ">PriorityQueue</span>&lt;<span class="typ">Map</span>.<span class="typ">Entry</span>&lt;<span class="typ">String</span>, <span class="typ">BigDecimal</span>&gt;&gt; heap =
+        <span class="kw">new</span> <span class="typ">PriorityQueue</span>&lt;&gt;(<span class="typ">Comparator</span>.comparing(<span class="typ">Map</span>.<span class="typ">Entry</span>::getValue));
+
+    <span class="kw">for</span> (<span class="kw">var</span> e : totals.entrySet()) {
+        heap.offer(e);
+        <span class="kw">if</span> (heap.size() &gt; k) heap.poll();       <span class="cmt">// smallest out</span>
+    }
+
+    <span class="cmt">// Step 3: extract descending</span>
+    <span class="typ">List</span>&lt;<span class="typ">String</span>&gt; out = <span class="kw">new</span> <span class="typ">ArrayList</span>&lt;&gt;();
+    <span class="kw">while</span> (!heap.isEmpty()) out.add(heap.poll().getKey());
+    <span class="typ">Collections</span>.reverse(out);
+    <span class="kw">return</span> out;
+}</pre>
+</div>
+
+<table class="lbl">
+  <tr><th>Line</th><th>Explanation</th></tr>
+  <tr><td>groupingBy(merchant, reducing(...))</td><td><strong>Aggregate.</strong> Per merchant total. BigDecimal reducing, sum() nahi (primitive only).</td></tr>
+  <tr><td>PriorityQueue(comparing(value))</td><td><strong>Min-heap.</strong> Sabse chhota value top pe. Size k se zyada nahi hone dena.</td></tr>
+  <tr><td>heap.offer(e); if(size>k) poll()</td><td><strong>Top-K trick.</strong> K se zyada hone pe sabse chhota nikaal do — final mein top K best bachenge.</td></tr>
+  <tr><td>Collections.reverse(out)</td><td>Min-heap se nikalte waqt ascending aata — reverse karo descending ke liye.</td></tr>
+</table>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Complexity:</strong> O(n + m log k) where n = transactions, m = distinct merchants. Naive sort O(m log m) se better jab k &lt;&lt; m. <strong>Alternative:</strong> Full sort O(m log m) — simpler, jab m chhota ho.</p>
+</div>
+
+<!-- NORMALIZE -->
+<h3 class="topic pink" id="rem-normalize">🧹 Normalize + Dedup Account IDs</h3>
+
+<div class="codewrap">
+  <div class="code-head"><span>NormalizeDedup.java</span><span class="lang">JAVA</span></div>
+<pre><span class="typ">List</span>&lt;<span class="typ">String</span>&gt; <span class="fn">normalize</span>(<span class="typ">List</span>&lt;<span class="typ">String</span>&gt; raw) {
+    <span class="kw">if</span> (raw == <span class="kw">null</span>) <span class="kw">return</span> <span class="typ">List</span>.of();
+    <span class="kw">return</span> raw.stream()
+              .filter(<span class="typ">Objects</span>::nonNull)
+              .map(<span class="typ">String</span>::trim)
+              .filter(s -&gt; !s.isEmpty())
+              .map(s -&gt; s.toUpperCase(<span class="typ">Locale</span>.ROOT))
+              .distinct()
+              .collect(<span class="typ">Collectors</span>.toList());
+}
+
+<span class="cmt">// Order preserve karna ho:</span>
+<span class="typ">Set</span>&lt;<span class="typ">String</span>&gt; out = <span class="kw">new</span> <span class="typ">LinkedHashSet</span>&lt;&gt;();
+<span class="kw">for</span> (<span class="typ">String</span> s : raw) {
+    <span class="kw">if</span> (s == <span class="kw">null</span>) <span class="kw">continue</span>;
+    <span class="typ">String</span> n = s.trim().toUpperCase(<span class="typ">Locale</span>.ROOT);
+    <span class="kw">if</span> (!n.isEmpty()) out.add(n);
+}</pre>
+</div>
+
+<table class="lbl">
+  <tr><th>Line</th><th>Explanation</th></tr>
+  <tr><td>Objects::nonNull</td><td><strong>Null skip.</strong> NPE avoid, empty string bhi handle.</td></tr>
+  <tr><td>String::trim</td><td>Leading/trailing whitespace hatao.</td></tr>
+  <tr><td>!s.isEmpty()</td><td>Trim ke baad khaali strings bhi out.</td></tr>
+  <tr><td>toUpperCase(Locale.ROOT)</td><td><strong>Locale.ROOT important.</strong> Turkish "i" → "İ" problem avoid. Default locale unpredictable.</td></tr>
+  <tr><td>distinct()</td><td>Stream ka dedup. Internal LinkedHashSet use karta — order preserve.</td></tr>
+</table>
+
+<!-- ANAGRAM -->
+<h3 class="topic pink" id="rem-anagram">🔤 Group Anagram Reference IDs</h3>
+
+<div class="codewrap">
+  <div class="code-head"><span>AnagramGroups.java</span><span class="lang">JAVA</span></div>
+<pre><span class="typ">List</span>&lt;<span class="typ">List</span>&lt;<span class="typ">String</span>&gt;&gt; <span class="fn">groupAnagrams</span>(<span class="typ">List</span>&lt;<span class="typ">String</span>&gt; ids) {
+    <span class="typ">Map</span>&lt;<span class="typ">String</span>, <span class="typ">List</span>&lt;<span class="typ">String</span>&gt;&gt; map = <span class="kw">new</span> <span class="typ">LinkedHashMap</span>&lt;&gt;();
+    <span class="kw">for</span> (<span class="typ">String</span> s : ids) {
+        <span class="kw">char</span>[] c = s.toCharArray();
+        <span class="typ">Arrays</span>.sort(c);
+        <span class="typ">String</span> key = <span class="kw">new</span> <span class="typ">String</span>(c);    <span class="cmt">// sorted chars = canonical</span>
+        map.computeIfAbsent(key, k -&gt; <span class="kw">new</span> <span class="typ">ArrayList</span>&lt;&gt;()).add(s);
+    }
+    <span class="kw">return new</span> <span class="typ">ArrayList</span>&lt;&gt;(map.values());
+}</pre>
+</div>
+
+<table class="lbl">
+  <tr><th>Line</th><th>Explanation</th></tr>
+  <tr><td>toCharArray()</td><td>String → char array. String immutable, array mutable.</td></tr>
+  <tr><td>Arrays.sort(c)</td><td><strong>Sort chars.</strong> "eat" and "tea" → both "aet". Same canonical form.</td></tr>
+  <tr><td>new String(c)</td><td>Array → String. Yeh key ban jaati hai.</td></tr>
+  <tr><td>computeIfAbsent(...).add(s)</td><td>Group mein add. List lazy create.</td></tr>
+</table>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Complexity:</strong> O(n · L log L) where n = number of IDs, L = avg length. <strong>Alternative:</strong> Character frequency count as key — O(n · L) but longer key.</p>
+</div>
+
+<!-- ============================================================
+     SECTION 2: MASTER REFERENCE
+     ============================================================ -->
+<h2 class="section" id="ref">
+  <span class="badge fw">Reference</span> Master Reference Tables
+</h2>
+
+<!-- DATA STRUCTURES GUIDE -->
+<h3 class="topic green" id="ref-datastruct">🌳 Data Structures Decision Guide</h3>
+
+<div class="tree">Question: Kaunsa data structure use karoon?
+
+1. Key-value lookup chahiye?
+   → Haan → HashMap (unordered) / LinkedHashMap (insertion order) / TreeMap (sorted)
+   → Nahi → Next
+
+2. Ordered sequence + random access?
+   → Haan → ArrayList (fast get/iterate)
+   → Nahi → Next
+
+3. Frequent insert/remove at ends?
+   → ArrayDeque (stack + queue, no null)
+   → LinkedList (agar node reference available ho)
+
+4. Sorted keys + range queries?
+   → TreeMap / TreeSet (O(log n))
+
+5. Priority / min-max nikalna?
+   → PriorityQueue (min-heap by default, max-heap via comparator reverseOrder)
+
+6. Dedup only?
+   → HashSet (fast) / TreeSet (sorted) / LinkedHashSet (insertion order)
+
+7. Thread-safe concurrent access?
+   → ConcurrentHashMap (better than Collections.synchronizedMap)
+   → CopyOnWriteArrayList (read-heavy, write-rare)
+   → BlockingQueue (producer-consumer)
+
+8. Top-K / Kth largest?
+   → Min-heap of size K (not full sort)
+
+9. Sliding window?
+   → Deque + running sum (bucket approach)
+
+10. LRU?
+    → HashMap + doubly linked list (or LinkedHashMap with accessOrder)</div>
+
+<!-- CONCURRENCY PRIMITIVES -->
+<h3 class="topic yellow" id="ref-concurrency">⚡ Concurrency Primitives — Java</h3>
+
+<table class="cmp">
+  <tr><th>Primitive</th><th>Use Case</th><th>Pros</th><th>Cons</th></tr>
+  <tr><td><strong>synchronized</strong></td><td>Simple mutual exclusion</td><td>JVM optimizes, auto-release on exception</td><td>No timeout, no fairness, coarse</td></tr>
+  <tr><td><strong>ReentrantLock</strong></td><td>Need tryLock, timeout, fairness</td><td>tryLock(timeout), fairness, multiple conditions</td><td>Manual unlock (finally), verbose</td></tr>
+  <tr><td><strong>ReadWriteLock</strong></td><td>Read-heavy workloads</td><td>Parallel reads, single write</td><td>Writer starvation risk, complex</td></tr>
+  <tr><td><strong>StampedLock</strong></td><td>Ultra-fast reads</td><td>Optimistic reads (lock-free), 3 modes</td><td>Not reentrant, complex API</td></tr>
+  <tr><td><strong>Atomic* (CAS)</strong></td><td>Counters, flags</td><td>Lock-free, fast</td><td>Only single variable, ABA problem</td></tr>
+  <tr><td><strong>LongAdder</strong></td><td>High-contention counters</td><td>Striped, faster than AtomicLong under contention</td><td>Eventual sum, not exact per-read</td></tr>
+  <tr><td><strong>volatile</strong></td><td>Visibility, not atomicity</td><td>Cheap, JMM visibility guarantee</td><td>No atomicity, no compound ops</td></tr>
+  <tr><td><strong>ConcurrentHashMap</strong></td><td>Thread-safe map</td><td>Lock striping, atomic compound ops (merge, compute)</td><td>Weak iteration consistency</td></tr>
+  <tr><td><strong>BlockingQueue</strong></td><td>Producer-consumer</td><td>put/take block, bounded</td><td>Blocking can deadlock if unbounded</td></tr>
+  <tr><td><strong>CompletableFuture</strong></td><td>Async composition</td><td>Chaining, exception handling, timeouts</td><td>Debugging hard</td></tr>
+  <tr><td><strong>ForkJoinPool</strong></td><td>Recursive divide-conquer</td><td>Work stealing</td><td>Blocking I/O starves pool</td></tr>
+  <tr><td><strong>Virtual Threads (21+)</strong></td><td>High-concurrency I/O</td><td>Cheap, blocking style, millions of threads</td><td>Pinning with synchronized</td></tr>
+</table>
+
+<!-- CONSISTENCY MODELS -->
+<h3 class="topic purple" id="ref-consistency">⚖️ Consistency Models — Full Comparison</h3>
+
+<table class="cmp">
+  <tr><th>Model</th><th>Guarantee</th><th>Latency</th><th>Use Case</th><th>Examples</th></tr>
+  <tr><td><strong>Strong (Linearizable)</strong></td><td>Har read latest write dekhe</td><td>High</td><td>Banking, inventory</td><td>Spanner, etcd, ZooKeeper</td></tr>
+  <tr><td><strong>Sequential</strong></td><td>Global order, but not real-time</td><td>Medium</td><td>Coordination</td><td>ZooKeeper (default)</td></tr>
+  <tr><td><strong>Causal</strong></td><td>Cause-effect order preserved</td><td>Medium</td><td>Chat, comments</td><td>MongoDB causal sessions</td></tr>
+  <tr><td><strong>Read-your-writes</strong></td><td>Apna write turant dikhe</td><td>Low</td><td>User profile</td><td>Session stickiness</td></tr>
+  <tr><td><strong>Monotonic reads</strong></td><td>Time peeche nahi jaata</td><td>Low</td><td>Feed</td><td>Replica pinning</td></tr>
+  <tr><td><strong>Eventual</strong></td><td>Converge hote hain (no timeline)</td><td>Lowest</td><td>Social, analytics, DNS</td><td>Cassandra, DynamoDB, Riak</td></tr>
+</table>
+
+<div class="card">
+  <p><strong>PACELC:</strong> Partition ke waqt C vs A. Warna (Else) Latency vs Consistency.</p>
+  <ul class="clean">
+    <li><strong>PC/EC:</strong> Spanner — consistent hamesha, partition ho ya na ho</li>
+    <li><strong>PA/EL:</strong> Cassandra — available + low latency, eventual consistency</li>
+    <li><strong>PC/EL:</strong> MongoDB (default) — consistent during partition, low latency otherwise</li>
+    <li><strong>PA/EC:</strong> Rare — some HBase configs</li>
+  </ul>
+</div>
+
+<!-- SQL vs NoSQL -->
+<h3 class="topic blue" id="ref-db">🗄️ SQL vs NoSQL vs NewSQL</h3>
+
+<table class="cmp">
+  <tr><th>Aspect</th><th>SQL (Postgres, MySQL)</th><th>NoSQL (Mongo, Cassandra, Redis)</th><th>NewSQL (Spanner, CockroachDB)</th></tr>
+  <tr><td><strong>Schema</strong></td><td>Fixed, migrations</td><td>Flexible, schema-less</td><td>Fixed (SQL-like)</td></tr>
+  <tr><td><strong>Consistency</strong></td><td>Strong (ACID)</td><td>Eventual / tunable</td><td>Strong (ACID) + distributed</td></tr>
+  <tr><td><strong>Scaling</strong></td><td>Vertical (read replicas)</td><td>Horizontal (native)</td><td>Horizontal + strong</td></tr>
+  <tr><td><strong>Joins</strong></td><td>Native</td><td>Application-level</td><td>Native</td></tr>
+  <tr><td><strong>Use case</strong></td><td>OLTP, complex queries</td><td>High-scale, flexible</td><td>Global OLTP</td></tr>
+  <tr><td><strong>Latency</strong></td><td>Low (single node)</td><td>Very low (partition)</td><td>Medium (cross-region)</td></tr>
+  <tr><td><strong>Best for</strong></td><td>Payments, users, orders</td><td>Logs, feeds, IoT, cache</td><td>Global banking, gaming</td></tr>
+</table>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Rule of thumb:</strong> Start with <strong>Postgres</strong>. Agar scale ya access pattern specially demanding hai (massive writes, geo-distributed, flexible schema), tab NoSQL consider karo. NewSQL agar global strong consistency chahiye bina sharding ki headache.</p>
+  <p><strong>Polyglot persistence:</strong> Real systems mein mix — Postgres (users), Cassandra (events), Redis (cache), Elasticsearch (search), S3 (blobs).</p>
+</div>
+
+<!-- MESSAGE QUEUES -->
+<h3 class="topic blue" id="ref-mq">📨 Message Queues Comparison</h3>
+
+<table class="cmp">
+  <tr><th>Aspect</th><th>Kafka</th><th>RabbitMQ</th><th>AWS SQS</th><th>AWS Kinesis</th></tr>
+  <tr><td><strong>Model</strong></td><td>Distributed log</td><td>Broker (AMQP)</td><td>Managed queue</td><td>Managed stream</td></tr>
+  <tr><td><strong>Ordering</strong></td><td>Per partition</td><td>Per queue (FIFO mode)</td><td>FIFO (limited)</td><td>Per shard</td></tr>
+  <tr><td><strong>Throughput</strong></td><td>Millions/sec</td><td>Thousands/sec</td><td>Thousands/sec</td><td>Millions/sec</td></tr>
+  <tr><td><strong>Retention</strong></td><td>Configurable (days/forever)</td><td>Until acked</td><td>Up to 14 days</td><td>Up to 365 days</td></tr>
+  <tr><td><strong>Replay</strong></td><td>Yes (offset)</td><td>No (acked gone)</td><td>No</td><td>Yes (sequence)</td></tr>
+  <tr><td><strong>Use case</strong></td><td>Event streaming, log aggregation</td><td>Task queues, RPC</td><td>Simple queues</td><td>Real-time analytics</td></tr>
+  <tr><td><strong>Consumer model</strong></td><td>Pull (consumer group)</td><td>Push</td><td>Pull</td><td>Pull</td></tr>
+</table>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Kafka:</strong> Event streaming, replay chahiye, high throughput. <strong>RabbitMQ:</strong> Task queue, routing rules, RPC. <strong>SQS:</strong> Simple, managed, AWS-native. <strong>Kinesis:</strong> Kafka-like but AWS-managed.</p>
+  <p><strong>Delivery semantics:</strong> At-least-once (default) + idempotent consumer = exactly-once effective. Kafka <code class="inl">enable.idempotence=true</code> + transactions = broker-side exactly-once.</p>
+</div>
+
+<!-- CACHING -->
+<h3 class="topic blue" id="ref-cache">💾 Caching Strategies</h3>
+
+<table class="cmp">
+  <tr><th>Strategy</th><th>How</th><th>Pros</th><th>Cons</th><th>Use Case</th></tr>
+  <tr><td><strong>Cache-Aside</strong></td><td>App checks cache, miss → DB → cache</td><td>Simple, flexible</td><td>Miss penalty, stale risk</td><td>Most common</td></tr>
+  <tr><td><strong>Read-Through</strong></td><td>Cache fetch on miss (transparent)</td><td>App simple</td><td>Cache library dependency</td><td>ORM caching</td></tr>
+  <tr><td><strong>Write-Through</strong></td><td>Write to cache + DB together</td><td>Consistent</td><td>Write latency</td><td>Write-heavy correctness</td></tr>
+  <tr><td><strong>Write-Behind</strong></td><td>Write to cache, async DB flush</td><td>Fast writes</td><td>Data loss on crash</td><td>High write throughput</td></tr>
+  <tr><td><strong>Refresh-Ahead</strong></td><td>Proactively refresh before expiry</td><td>No miss penalty</td><td>Wasted refresh</td><td>Predictable hot keys</td></tr>
+</table>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Cache invalidation = 2 hard problems.</strong> Common patterns:</p>
+  <ul class="clean">
+    <li><strong>TTL:</strong> Simplest, eventual staleness accepted. Different TTLs per entity.</li>
+    <li><strong>Event-driven invalidation:</strong> DB write → event → cache delete. Fresh, complex.</li>
+    <li><strong>Versioned keys:</strong> Cache key includes version. Update = new key. No stale reads.</li>
+    <li><strong>Stampede prevention:</strong> Lock on miss (only one thread fetches), OR probabilistic early expiry.</li>
+  </ul>
+</div>
+
+<!-- ============================================================
+     SECTION 3: FRAMEWORKS
+     ============================================================ -->
+<h2 class="section" id="fw">
+  <span class="badge fw">Frameworks</span> Interview Frameworks
+</h2>
+
+<!-- HLD 45-min -->
+<h3 class="topic purple" id="fw-hld">🏗️ System Design Interview — 45-minute Framework</h3>
+
+<div class="flow">
+  <div class="step"><strong>Requirements (5 min)</strong><span>Functional: kya karega? Non-functional: scale, latency, consistency, availability. Back-of-envelope numbers poocho.</span></div>
+  <div class="step"><strong>API Design (3 min)</strong><span>Public endpoints, methods, request/response shape. Sirf important endpoints.</span></div>
+  <div class="step"><strong>High-Level Architecture (8 min)</strong><span>Boxes + arrows. Client → LB → App → Cache → DB → Queue → Workers. Components ka purpose batao.</span></div>
+  <div class="step"><strong>Data Model (5 min)</strong><span>Core entities, relationships, SQL vs NoSQL choice. Sharding key decide karo.</span></div>
+  <div class="step"><strong>Deep Dive (15 min)</strong><span>Interviewer ke interest ke hisaab se: sharding, replication, caching, consistency, failure modes.</span></div>
+  <div class="step"><strong>Scale & Trade-offs (5 min)</strong><span>Bottlenecks identify, alternatives discuss. CAP trade-off clearly state.</span></div>
+  <div class="step"><strong>Wrap up (4 min)</strong><span>Monitoring, deployment, security, open questions. Recap decisions.</span></div>
+</div>
+
+<!-- LLD -->
+<h3 class="topic purple" id="fw-lld">🧩 LLD Interview Framework</h3>
+
+<div class="flow">
+  <div class="step"><strong>Entities identify karo (3 min)</strong><span>Nouns = classes. Fields, relationships. e.g. Parking: Lot, Floor, Spot, Vehicle, Ticket.</span></div>
+  <div class="step"><strong>Public API define karo (3 min)</strong><span>Method signatures pehle. Implementation baad. Callers ka perspective.</span></div>
+  <div class="step"><strong>Interfaces + inheritance (5 min)</strong><span>Abstractions, polymorphism. Vehicle → Car/Bike/Truck. Payment → Card/UPI/Cash.</span></div>
+  <div class="step"><strong>Data structures choose karo (5 min)</strong><span>HashMap + DLL (LRU), TreeMap + Deque (order book), Lock + Condition (blocking queue).</span></div>
+  <div class="step"><strong>Implement core logic (15 min)</strong><span>Sabse important method pehle. Clean code, comments minimal.</span></div>
+  <div class="step"><strong>Concurrency & edge cases (5 min)</strong><span>Thread-safe? Deadlock? Null? Empty? Boundary? Spurious wakeup?</span></div>
+  <div class="step"><strong>Extensibility (4 min)</strong><span>Naya feature add karna kitna easy? Design patterns (Strategy, Factory, Observer).</span></div>
+</div>
+
+<!-- STAR -->
+<h3 class="topic purple" id="fw-star">⭐ STAR Framework — Behavioural Questions</h3>
+
+<div class="card">
+  <p><strong>S — Situation:</strong> Context do. Kahan, kab, kaun involved tha. 20-30 seconds.</p>
+  <p><strong>T — Task:</strong> Tumhara specific role/responsibility. Kya deliver karna tha, kya constraints the. 20-30 seconds.</p>
+  <p><strong>A — Action:</strong> <em>Sabse important.</em> Kya steps liye, kyun, kisne kya kiya. "We" se "I" pe focus. 60-90 seconds.</p>
+  <p><strong>R — Result:</strong> Outcome, metrics, learnings. Quantify karo jahan possible. 30-40 seconds.</p>
+</div>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Common behavioural prompts aur kaise approach karo:</strong></p>
+  <ul class="clean">
+    <li><strong>"Major incident prevent kiya?"</strong> — Signals (latency spike, error rate), Action (war room, rollback, mitigation), Outcome (no data loss, post-mortem, runbook update).</li>
+    <li><strong>"Compliance vs delivery timeline conflict?"</strong> — Early engagement, risk-based prioritization, phased delivery, escalate clearly documented.</li>
+    <li><strong>"Feature rollback during trading hours?"</strong> — Decision criteria (wrong orders, data corruption), feature flag kill switch, communicate, preserve state, audit.</li>
+    <li><strong>"Engineering quality raise kiya regulated env mein?"</strong> — Testing gates, code review, CI/CD automation, observability, DORA metrics, blameless post-mortems.</li>
+  </ul>
+  <p><strong>Tip:</strong> 2-3 strong STAR stories taiyaar rakho jo multiple questions pe adapt ho jaayein.</p>
+</div>
+
+<!-- BACK OF ENVELOPE -->
+<h3 class="topic purple" id="fw-backof">🧮 Back-of-Envelope Estimation</h3>
+
+<table class="cmp">
+  <tr><th>Quantity</th><th>Formula / Number</th><th>Notes</th></tr>
+  <tr><td>Seconds in a day</td><td>86,400 ≈ 10^5</td><td>Mental math ke liye</td></tr>
+  <tr><td>Seconds in a month</td><td>2.5M ≈ 2.5 × 10^6</td><td></td></tr>
+  <tr><td>Seconds in a year</td><td>31.5M ≈ 3 × 10^7</td><td></td></tr>
+  <tr><td>DAU → QPS</td><td>DAU × actions/day / 86400</td><td>Peak = 2-5x avg</td></tr>
+  <tr><td>Storage</td><td>items × size × replication × retention</td><td>Compression ~5-10x text</td></tr>
+  <tr><td>Bandwidth</td><td>QPS × avg_payload_size</td><td>Bytes/sec</td></tr>
+  <tr><td>Memory</td><td>hot_data × per_item_bytes × 1.5</td><td>Overhead buffer</td></tr>
+  <tr><td>Servers</td><td>Total QPS / per_server_QPS</td><td>+ 30% headroom</td></tr>
+  <tr><td>Latency budget</td><td>Sum of component latencies</td><td>p99 not avg</td></tr>
+  <tr><td>Single HDD</td><td>~1 TB storage, ~100 MB/s</td><td>Sequential</td></tr>
+  <tr><td>Single SSD</td><td>~1 TB, ~500 MB/s, ~100k IOPS</td><td>Random fast</td></tr>
+  <tr><td>Single node QPS</td><td>~10k simple queries/sec</td><td>DB dependent</td></tr>
+  <tr><td>Redis</td><td>~100k ops/sec per node</td><td>Single-threaded</td></tr>
+  <tr><td>Kafka</td><td>~1M msgs/sec per broker</td><td>Batch dependent</td></tr>
+  <tr><td>Network within DC</td><td>~0.5 ms</td><td>Cross-AZ ~1-2 ms</td></tr>
+  <tr><td>Cross-continent</td><td>~100-200 ms</td><td>Speed of light</td></tr>
+  <tr><td>Memory read</td><td>~100 ns</td><td>Cache ~1-10 ns</td></tr>
+  <tr><td>SSD random read</td><td>~100 μs</td><td></td></tr>
+  <tr><td>HDD seek</td><td>~10 ms</td><td>100k x slower than memory</td></tr>
+</table>
+
+<div class="card key">
+  <div class="key-label">🔑 Key Answer</div>
+  <p><strong>Example:</strong> Twitter-like, 100M DAU, 5 tweets/day/user avg:</p>
+  <ul class="clean">
+    <li>Writes: 500M tweets/day = ~6k/sec avg, ~30k/sec peak</li>
+    <li>Reads: 100x writes = 60k/sec avg, ~300k/sec peak</li>
+    <li>Storage: 500M × 300 bytes (text) = 150 GB/day, plus media (100x) = 15 TB/day</li>
+    <li>Servers: 300k QPS / 10k per server = 30 app servers + LB + cache + sharded DB</li>
+  </ul>
+</div>
+
+<!-- SLA/SLO -->
+<h3 class="topic purple" id="fw-sla">📊 SLA / SLO / SLI</h3>
+
+<table class="cmp">
+  <tr><th>Term</th><th>Full Form</th><th>Meaning</th><th>Example</th></tr>
+  <tr><td><strong>SLI</strong></td><td>Service Level Indicator</td><td>Measured metric</td><td>Request latency p99</td></tr>
+  <tr><td><strong>SLO</strong></td><td>Service Level Objective</td><td>Target for SLI</td><td>p99 &lt; 200ms for 99.9% of requests</td></tr>
+  <tr><td><strong>SLA</strong></td><td>Service Level Agreement</td><td>Contract with consequences</td><td>99.99% uptime or refund</td></tr>
+  <tr><td><strong>Error Budget</strong></td><td>—</td><td>Allowed downtime</td><td>99.9% = 43 min/month</td></tr>
+</table>
+
+<div class="card">
+  <p><strong>Availability nines:</strong></p>
+  <ul class="clean">
+    <li>99% = 3.65 days/year downtime</li>
+    <li>99.9% ("three nines") = 8.76 hours/year</li>
+    <li>99.99% ("four nines") = 52.6 minutes/year</li>
+    <li>99.999% ("five nines") = 5.26 minutes/year</li>
+  </ul>
+  <p><strong>Key insight:</strong> Har extra nine exponentially mehnga. Real systems: 99.9-99.99% achha hai. Five nines sirf critical services (telecom, stock exchange).</p>
+</div>
+
+<!-- ANTI-PATTERNS -->
+<h3 class="topic purple" id="fw-anti">🚫 Anti-Patterns — Yeh Mat Karo</h3>
+
+<div class="pgrid">
+
+  <div class="pcard">
+    <div class="ptitle"><span class="pnum">1</span> Distributed Monolith</div>
+    <div class="pdesc">Microservices ka naam, monolith ka coupling. Saare services ek dusre pe synchronous depend. Ek fail = sab fail. <strong>Fix:</strong> Bounded contexts, async events, circuit breakers.</div>
+  </div>
+
+  <div class="pcard">
+    <div class="ptitle"><span class="pnum">2</span> Shared Database</div>
+    <div class="pdesc">Multiple services ek hi DB. Schema changes coordinated, coupling tight. <strong>Fix:</strong> Database per service, API contracts.</div>
+  </div>
+
+  <div class="pcard">
+    <div class="ptitle"><span class="pnum">3</span> Synchronous Chain</div>
+    <div class="pdesc">A→B→C→D saara sync. Latency sum, ek bhi slow = sab slow. <strong>Fix:</strong> Async where possible, parallel calls, timeout + circuit breaker.</div>
+  </div>
+
+  <div class="pcard">
+    <div class="ptitle"><span class="pnum">4</span> Chatty Communication</div>
+    <div class="pdesc">1000 chhote HTTP calls instead of batch. Network overhead killer. <strong>Fix:</strong> Batch, gRPC streaming, GraphQL aggregation.</div>
+  </div>
+
+  <div class="pcard">
+    <div class="ptitle"><span class="pnum">5</span> Unbounded Everything</div>
+    <div class="pdesc">Queue, cache, thread pool — sab unbounded. OOM ya cascade. <strong>Fix:</strong> Bounded + backpressure.</div>
+  </div>
+
+  <div class="pcard">
+    <div class="ptitle"><span class="pnum">6</span> Retry Without Backoff</div>
+    <div class="pdesc">Fail pe turant retry = thundering herd. Downstream maar deta. <strong>Fix:</strong> Exponential backoff + jitter + circuit breaker.</div>
+  </div>
+
+  <div class="pcard">
+    <div class="ptitle"><span class="pnum">7</span> Global Locks</div>
+    <div class="pdesc">Ek synchronized method se poori service bottleneck. <strong>Fix:</strong> Lock striping, per-resource locks, optimistic concurrency.</div>
+  </div>
+
+  <div class="pcard">
+    <div class="ptitle"><span class="pnum">8</span> No Idempotency</div>
+    <div class="pdesc">Retry pe duplicate charge/order. Network retry default hai. <strong>Fix:</strong> Idempotency key + unique constraint.</div>
+  </div>
+
+  <div class="pcard">
+    <div class="ptitle"><span class="pnum">9</span> Cache Without Invalidation</div>
+    <div class="pdesc">Stale data forever. Bug reports "why is old value showing". <strong>Fix:</strong> TTL + event-driven invalidation + versioned keys.</div>
+  </div>
+
+  <div class="pcard">
+    <div class="ptitle"><span class="pnum">10</span> Double-Write</div>
+    <div class="pdesc">DB write + Kafka publish separately. Ek succeed, dusra fail = inconsistency. <strong>Fix:</strong> Outbox pattern.</div>
+  </div>
+
+  <div class="pcard">
+    <div class="ptitle"><span class="pnum">11</span> Deep Coupling to Vendor</div>
+    <div class="pdesc">Cloud provider specific APIs har jagah. Migrate impossible. <strong>Fix:</strong> Abstraction layer, standard protocols (S3 API, SQL).</div>
+  </div>
+
+  <div class="pcard">
+    <div class="ptitle"><span class="pnum">12</span> Premature Optimization</div>
+    <div class="pdesc">Cache + shard + queue jab tak chahiye nahi. Complexity premature. <strong>Fix:</strong> Measure first, optimize bottleneck. YAGNI.</div>
+  </div>
+
+</div>
+
+<!-- ============================================================
+     FINAL CHEAT SHEET
+     ============================================================ -->
+<h2 class="section" id="cheat-final">
+  <span class="badge fw">Final</span> Master Summary — Sab Kuch Ek Jagah
+</h2>
+
+<div class="card common">
+  <div class="key-label">🎯 Trilogy Ka Complete Coverage</div>
+  <p><strong>HTML #1 (Broad Q&A):</strong> 113 questions ke short answers + code snippets. Reference/cheat sheet ki tarah use karo.</p>
+  <p><strong>HTML #2 (Deep Dive #1):</strong> 5 HLD + 6 LLD core topics, line-by-line code explanation, 10 common patterns.</p>
+  <p><strong>HTML #3 (Deep Dive #2):</strong> Baaki saare remaining questions — DSA, JVM, distributed, payments, security, ops, system design case studies, testing, coding bugs.</p>
+  <p><strong>HTML #4 (Capstone):</strong> Jo bach gaya + master reference tables (data structures, concurrency, consistency, DB, MQ, caching) + interview frameworks (HLD 45-min, LLD, STAR, back-of-envelope, SLA/SLO) + anti-patterns.</p>
+</div>
+
+<h3 class="topic">🎯 Common Thread — Poore Trilogy Ka Core</h3>
+
+<div class="card key">
+  <div class="key-label">🔑 Har Design Mein Yeh 6 Sawaal</div>
+  <ol style="margin-left:20px; color:var(--fg2); font-size:13.5px; line-height:1.9">
+    <li><strong>Consistency vs Availability?</strong> Paisa = CP, social = AP. PACELC se describe karo.</li>
+    <li><strong>Duplicate request aaye toh?</strong> Idempotency key + unique constraint + result replay.</li>
+    <li><strong>Do locks chahiye?</strong> Global lock ordering (chhota ID pehle). DB mein ORDER BY id.</li>
+    <li><strong>DB + event dono likhna?</strong> Outbox pattern — same transaction mein dono.</li>
+    <li><strong>Fail ho jaaye toh?</strong> Retry with jitter + circuit breaker + bulkhead + fallback + backpressure.</li>
+    <li><strong>Scale kaise?</strong> Stateless app + sharded data (consistent hashing) + cached reads + async writes + bounded queues.</li>
+  </ol>
+</div>
+
+<h3 class="topic">📋 Final Cheat Sheet — Ek Page Mein</h3>
+
+<div class="card">
+  <p><strong>HLD Recipe:</strong> Requirements → API → Components → Data Model → Deep Dive → Scale/Trade-offs → Monitoring.</p>
+  <p><strong>LLD Recipe:</strong> Entities → API → Interfaces → Data Structures → Core Logic → Concurrency/Edge → Extensibility.</p>
+  <p><strong>Code Recipe:</strong> Idempotency key → Lock ordering → Business logic → Ledger/audit → Outbox event → Mark done.</p>
+  <p><strong>Test Recipe:</strong> Happy → Duplicate → Concurrent → Partial failure → Crash recovery → Reconciliation.</p>
+  <p><strong>Debug Recipe:</strong> Reproduce → Measure (logs/metrics/traces) → Hypothesis → Fix → Verify with metrics → Prevent.</p>
+</div>
+
+<h3 class="topic">🎓 Last Words — Interview Mein Yaad Rakho</h3>
+
+<div class="card key">
+  <div class="key-label">🔑 Golden Mantras</div>
+  <ul class="clean check">
+    <li>Requirements clear karo pehle — 5 min invest, 40 min bachao</li>
+    <li>Trade-offs explicitly batao — "X choose kiya kyunki Y"</li>
+    <li>Failure modes address karo — happy path sab bana lete hain</li>
+    <li>Numbers do — QPS, storage, latency. Back-of-envelope.</li>
+    <li>Simplest solution se start karo — interviewer complexity chahe toh badhao</li>
+    <li>Domain knowledge dikhao — money mein BigDecimal, ledger immutable, chat mein fan-out trade-off</li>
+    <li>Admit karo jab nahi pata — "Yeh interesting hai, main approach karta..."</li>
+    <li>Questions poocho — requirements, scale, SLA. Blind design nahi.</li>
+  </ul>
+</div>
+
+<footer>
+  🎯 Final Capstone · Hinglish Playbook<br>
+  <strong>HTML #1 + #2 + #3 + #4 = Complete Interview Prep</strong><br>
+  Common threads: <strong>Idempotency · Lock Ordering · Caching · Outbox · Bounded Resources · Append-Only · CQRS</strong>
+</footer>
+
+</main>
+</div>
+
+<script>
+/* Smooth scroll for nav */
+const navItems = document.querySelectorAll('.navitem');
+navItems.forEach(item => {
+  item.addEventListener('click', () => {
+    navItems.forEach(n => n.classList.remove('active'));
+    item.classList.add('active');
+    const target = document.getElementById(item.dataset.target);
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+});
+
+/* Highlight active section on scroll */
+const observer = new IntersectionObserver((entries) => {
+  entries.forEach(entry => {
+    if (entry.isIntersecting && entry.target.id) {
+      const id = entry.target.id;
+      navItems.forEach(n => {
+        n.classList.toggle('active', n.dataset.target === id);
+      });
+    }
+  });
+}, { rootMargin: '-20% 0px -70% 0px' });
+
+document.querySelectorAll('h2.section[id], h3.topic[id]').forEach(el => observer.observe(el));
+
+/* Search — scroll to first match */
+const search = document.getElementById('search');
+search.addEventListener('input', () => {
+  const q = search.value.trim().toLowerCase();
+  if (q.length < 2) return;
+  const sections = document.querySelectorAll('h3.topic, h2.section');
+  for (const s of sections) {
+    if (s.textContent.toLowerCase().includes(q)) {
+      s.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      break;
+    }
+  }
+});
+</script>
+
+</body>
+</html>

@@ -1,0 +1,2647 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Java Threads: shuru se interview tak</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=JetBrains+Mono:wght@500;600;700;800&family=M+PLUS+Rounded+1c:wght@400;500;700;800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box}
+[hidden]{display:none!important}
+:root{
+  --paper:#eef1fa;
+  --sheet:#ffffff;
+  --ink:#1b2140;
+  --ink2:#4a5174;
+  --ink3:#a3a9c6;
+  --deep:#161b36;
+  --sakura:#ff7aa8;
+  --sky:#3e8bff;
+  --yuzu:#ffc83d;
+  --matcha:#2fae74;
+  --tomato:#ef4b3a;
+  --violet:#7c5cff;
+  --mint:#35c6a6;
+  --tangerine:#ff9446;
+  --st-new:#8e95b5;
+  --st-run:#2a9d69;
+  --st-blocked:#e0402f;
+  --st-wait:#2f6fe0;
+  --st-twait:#8456ec;
+  --disp:"Dela Gothic One",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --body:"M PLUS Rounded 1c",ui-rounded,"SF Pro Rounded",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+html{-webkit-text-size-adjust:100%}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 16px/1.6 var(--body)}
+b,strong{font-weight:800}
+code{font-family:var(--mono)}
+:focus-visible{outline:3px solid var(--sky);outline-offset:2px}
+.wrap{max-width:1100px;margin:0 auto;padding:0 14px 48px}
+
+/* ---------- hero ---------- */
+.hero{padding:40px 2px 24px}
+.hero h1{margin:0 0 14px;max-width:12ch;font:800 clamp(38px,11vw,72px)/1.04 var(--disp);letter-spacing:-.01em;font-synthesis:none}
+.lede{margin:0 0 24px;max-width:58ch;font-size:17px;line-height:1.6;color:var(--ink2)}
+.cast{background:var(--sheet);border:2.5px solid var(--ink);border-radius:26px;padding:16px 10px 20px}
+.cast h2{margin:0 0 18px;padding:0 6px;font:800 16px/1.35 var(--body)}
+.cast-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:22px 6px}
+@media(min-width:720px){.cast-grid{grid-template-columns:repeat(6,minmax(0,1fr))}}
+.cm{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center}
+.cm .tok{position:relative;left:auto;top:auto;margin:0;flex:none;animation:popIn .5s cubic-bezier(.3,1.4,.5,1) both;animation-delay:calc(var(--i,0) * 90ms + 150ms)}
+.cm .tok .badge,.cm .tok .nm{display:none}
+.cm code{font-size:10.5px;font-weight:800;line-height:1.2}
+.cm span{font-size:12.5px;line-height:1.35;color:var(--ink2)}
+
+/* ---------- sticky episode tabs ---------- */
+.tabs{position:sticky;top:0;z-index:40;display:flex;gap:8px;overflow-x:auto;margin:0 -14px;padding:10px 14px;background:rgba(238,241,250,.93);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border-bottom:2px solid var(--ink);scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tabs a{flex:none;display:flex;align-items:center;gap:7px;padding:5px 12px 5px 5px;border:2px solid var(--ink);border-radius:999px;background:var(--sheet);color:var(--ink);text-decoration:none;font:700 13px/1 var(--body)}
+.tabs a i{display:grid;place-items:center;width:23px;height:23px;border-radius:50%;background:var(--ink);color:#fff;font:800 11px/1 var(--disp);font-style:normal}
+.tabs a.on{background:var(--yuzu)}
+
+/* ---------- episodes ---------- */
+.ep{margin:28px 0;padding:20px 14px;background:var(--sheet);border:2.5px solid var(--ink);border-radius:26px;scroll-margin-top:62px}
+.ep-head{display:flex;align-items:center;gap:12px;margin:0 0 12px}
+.medal{flex:none;display:grid;place-items:center;width:52px;height:52px;border-radius:50%;background:var(--acc);border:2.5px solid var(--ink);box-shadow:3px 3px 0 var(--ink);font:800 24px/1 var(--disp);font-synthesis:none}
+.ep h2{margin:0;font:800 clamp(24px,7vw,34px)/1.1 var(--disp);font-synthesis:none}
+.ep-sub{margin:5px 0 0;font:700 15px/1.3 var(--body);color:var(--ink2)}
+.intro{margin:0 0 16px;max-width:64ch}
+.intro code,.cap-txt code,.pts code,.sheet dd code{font-size:.86em;font-weight:600;background:#e7eaf7;border-radius:6px;padding:1px 5px}
+.demo{display:grid;gap:18px}
+@media(min-width:900px){
+  .demo{grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);align-items:start}
+  .code-col{position:sticky;top:72px}
+}
+.seg{display:inline-flex;max-width:100%;margin:0 0 12px;border:2.5px solid var(--ink);border-radius:14px;overflow:hidden;background:var(--sheet)}
+.seg button{appearance:none;-webkit-appearance:none;margin:0;border:0;background:transparent;color:var(--ink);font:700 13.5px/1.2 var(--body);padding:0 13px;min-height:42px;cursor:pointer}
+.seg button+button{border-left:2.5px solid var(--ink)}
+.seg button code{font-size:12.5px;font-weight:700}
+.seg button.on{background:var(--ink);color:#fff}
+
+/* ---------- stage ---------- */
+.stage{position:relative;height:var(--h,300px);overflow:hidden;isolation:isolate;border:2.5px solid var(--ink);border-radius:18px;background-color:#fbfcff;background-image:radial-gradient(#d8ddef 1.2px,transparent 1.3px);background-size:14px 14px}
+.stage.has-log{border-radius:18px 18px 0 0}
+.console{position:relative;min-height:98px;margin-top:-2.5px;padding:9px 13px 10px;background:var(--deep);color:#e8ebff;border:2.5px solid var(--ink);border-radius:0 0 18px 18px;font:500 12.5px/1.6 var(--mono)}
+.console .ll{color:var(--lc,#e8ebff);animation:lnIn .3s ease both}
+.console:empty::before{content:"Console: abhi kuch print nahi hua";color:#747bb0;font:500 12.5px/1.6 var(--body)}
+
+/* caption = speech bubble under the stage */
+.cap{position:relative;min-height:98px;margin-top:17px;padding:11px 13px 12px;background:var(--sheet);border:2.5px solid var(--ink);border-radius:18px}
+.cap::before{content:"";position:absolute;top:-10px;left:30px;width:16px;height:16px;background:var(--sheet);border-left:2.5px solid var(--ink);border-top:2.5px solid var(--ink);border-radius:3px 0 0 0;transform:rotate(45deg)}
+.cap-top{display:flex;align-items:center;gap:8px;min-width:0;margin-bottom:5px}
+.cap-step{flex:none;padding:4px 9px;border:2px solid var(--ink);border-radius:999px;background:var(--yuzu);font:800 12px/1 var(--body)}
+.cap-code{min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font:600 12px/1.4 var(--mono);color:var(--ink2)}
+.cap-txt{margin:0;font-size:15.5px;line-height:1.55}
+
+.ctrls{display:flex;gap:8px;margin-top:12px}
+.btn{appearance:none;-webkit-appearance:none;margin:0;display:inline-flex;align-items:center;justify-content:center;min-height:48px;padding:0 10px;border:2.5px solid var(--ink);border-radius:14px;background:var(--sheet);color:var(--ink);font:800 15px/1 var(--body);white-space:nowrap;box-shadow:3px 3px 0 var(--ink);cursor:pointer;touch-action:manipulation;transition:transform .08s ease,box-shadow .08s ease}
+.btn:active{transform:translate(3px,3px);box-shadow:0 0 0 var(--ink)}
+.btn.play{flex:1.2;background:var(--yuzu)}
+.btn.next{flex:1}
+.btn.sq{flex:none;width:50px;padding:0}
+.btn.reset{font-size:20px}
+.btn.spd{font:800 13px/1 var(--mono)}
+.btn.next.pulse{animation:nudge 1.1s ease-in-out infinite}
+
+/* ---------- code ---------- */
+.code-col{min-width:0}
+pre.code{margin:0;padding:12px 0;overflow-x:auto;-webkit-overflow-scrolling:touch;background:var(--deep);color:#e8ebff;border:2.5px solid var(--ink);border-radius:18px;font:500 12.5px/1.7 var(--mono);counter-reset:ln}
+pre.code code{display:inline-block;min-width:100%}
+.ln{display:block;min-height:1.7em;padding-right:16px;white-space:pre;transition:background-color .25s}
+.ln::before{counter-increment:ln;content:counter(ln);display:inline-block;width:2.7em;padding-right:1em;text-align:right;color:#59608a;-webkit-user-select:none;user-select:none}
+.ln.hot{background:rgba(255,200,61,.17);box-shadow:inset 3px 0 0 var(--yuzu)}
+.ln.hot::before{color:var(--yuzu)}
+.k{color:#ff8cc0}.t{color:#78d0ff}.s{color:#b5ef8a}.c{color:#8a90b8;font-style:italic}.n{color:#ffb86c}.f{color:#ffe08a}
+
+.pts{margin:20px 0 0;padding:0;list-style:none;display:grid;gap:10px;max-width:70ch}
+.pts li{position:relative;padding-left:24px;font-size:15px;line-height:1.55}
+.pts li::before{content:"";position:absolute;left:2px;top:.5em;width:11px;height:11px;border-radius:50%;background:var(--acc);border:2px solid var(--ink)}
+
+/* ---------- cheat sheet ---------- */
+.sheet{margin:28px 0 0;padding:20px 14px 22px;background:var(--sheet);border:2.5px solid var(--ink);border-radius:26px}
+.sheet h2{margin:0 0 16px;font:800 clamp(22px,6vw,30px)/1.15 var(--disp);font-synthesis:none}
+.sheet dl{margin:0;display:grid;gap:14px}
+.sheet .row{display:grid;gap:5px}
+.sheet dt{justify-self:start;padding:6px 10px;border-radius:9px;background:var(--ink);color:#fff;font:700 12.5px/1 var(--mono)}
+.sheet dd{margin:0;font-size:15px;line-height:1.5;color:var(--ink2)}
+@media(min-width:720px){.sheet .row{grid-template-columns:210px 1fr;align-items:center;gap:14px}}
+.foot{margin:22px 4px 0;font-size:13.5px;line-height:1.5;color:var(--ink2)}
+
+/* =========================================================
+   Characters: one per thread. Face = Java thread state.
+   ========================================================= */
+.tok{position:absolute;left:0;top:0;width:40px;height:40px;margin:-20px 0 0 -20px;border-radius:50%;background:var(--c);border:2.5px solid var(--ink);box-shadow:2px 3px 0 var(--ink);z-index:3;transition-property:left,top;transition-duration:.6s;transition-timing-function:cubic-bezier(.5,0,.25,1)}
+.tok.talk{z-index:8}
+.tok.ghost{opacity:0}
+.tok .bodyc{position:absolute;inset:0;border-radius:50%}
+.tok .bodyc i{position:absolute;display:block;box-sizing:content-box}
+.tok .eye{top:12px;width:5px;height:7px;background:var(--ink);border-radius:3px}
+.tok .eye.l{left:9px}.tok .eye.r{right:9px}
+.tok .brow{top:7px;width:8px;height:2.5px;background:var(--ink);border-radius:2px;opacity:0}
+.tok .brow.l{left:7px;transform:rotate(22deg)}.tok .brow.r{right:7px;transform:rotate(-22deg)}
+.tok .mouth{left:50%;top:20px;width:10px;height:4px;margin-left:-7.5px;border:2.5px solid var(--ink);border-top:0;border-radius:0 0 8px 8px}
+.tok .blush{top:19px;width:6px;height:3.5px;border-radius:50%;background:rgba(255,70,115,.42)}
+.tok .blush.l{left:3px}.tok .blush.r{right:3px}
+
+.tok .badge{position:absolute;bottom:calc(100% + 6px);left:50%;transform:translateX(-50%);padding:3px 5px;border-radius:6px;background:var(--ink);color:#fff;font:700 8.5px/1 var(--mono);letter-spacing:.01em;white-space:nowrap}
+.tok .nm{position:absolute;top:calc(100% + 6px);left:50%;transform:translateX(-50%);font:800 10.5px/1 var(--mono);color:var(--ink);white-space:nowrap}
+.tok .mk{position:absolute;left:calc(100% + 1px);top:0;font-size:14px;line-height:1;pointer-events:none}
+
+/* live-only motion (only after the person presses Play) */
+.live .tok .eye{animation:blink 4.2s var(--bd,0s) infinite}
+.live .tok.s-run .bodyc{animation:bob 1.1s ease-in-out infinite}
+.live .tok.s-blocked .bodyc{animation:shake .45s ease-in-out 2}
+.live .tok.s-blocked .mk{animation:throb .9s ease-in-out infinite}
+.live .tok.s-wait .mk,.live .tok.s-twait .mk{animation:zz 1.8s ease-in-out infinite}
+
+/* NEW: pale, dotted outline, flat mouth */
+.tok.s-new{background:#fff;background:color-mix(in srgb,var(--c) 40%,#fff);border-style:dashed;box-shadow:none}
+.tok.s-new .mouth{width:8px;height:0;margin-left:-6.5px;top:22px;border-radius:0}
+.tok.s-new .blush{opacity:0}
+/* BLOCKED: angry */
+.tok.s-blocked .brow{opacity:1}
+.tok.s-blocked .eye{top:13px;height:5px}
+.tok.s-blocked .mouth{top:23px;height:3px;border-top:2.5px solid var(--ink);border-bottom:0;border-radius:8px 8px 0 0}
+.tok.s-blocked .blush{opacity:0}
+/* WAITING / TIMED_WAITING: asleep */
+.tok.s-wait .eye,.tok.s-twait .eye{top:15px;width:6px;height:2.5px;border-radius:2px}
+.tok.s-wait .mouth,.tok.s-twait .mouth{width:3px;height:3px;margin-left:-4px;top:22px;border:2.5px solid var(--ink);border-radius:50%}
+/* TERMINATED: happy ^ ^ */
+.tok.s-done .eye{top:13px;width:3px;height:3px;background:transparent;border:2.5px solid var(--ink);border-bottom:0;border-radius:6px 6px 0 0}
+.tok.s-done .eye.l{left:7px}.tok.s-done .eye.r{right:7px}
+.tok.s-done .mouth{width:12px;height:5px;margin-left:-8.5px}
+.tok.s-done .mk{left:auto;right:-7px;top:auto;bottom:-5px;width:17px;height:17px;display:grid;place-items:center;border-radius:50%;background:var(--matcha);border:2px solid var(--ink);color:#fff;font:800 9px/1 var(--body)}
+/* exception: shocked */
+.tok.oops .eye{top:9px;width:5px;height:5px;background:#fff;border:2px solid var(--ink);border-radius:50%}
+.tok.oops .eye.l{left:6px}.tok.oops .eye.r{right:6px}
+.tok.oops .mouth{width:5px;height:6px;margin-left:-5px;top:21px;border:2.5px solid var(--ink);border-radius:50%}
+.tok.oops .brow,.tok.oops .blush{opacity:0}
+.tok.s-wait .eye,.tok.s-twait .eye,.tok.s-done .eye,.tok.oops .eye{animation:none}
+
+.tok.s-new .badge{background:var(--st-new)}
+.tok.s-run .badge{background:var(--st-run)}
+.tok.s-blocked .badge{background:var(--st-blocked)}
+.tok.s-wait .badge{background:var(--st-wait)}
+.tok.s-twait .badge{background:var(--st-twait)}
+
+/* "on CPU right now" */
+.tok.zoom::before{content:"";position:absolute;right:calc(100% + 4px);top:9px;width:16px;height:18px;border-radius:2px;background:repeating-linear-gradient(180deg,var(--ink) 0 2px,transparent 2px 6px);opacity:.45}
+.tok.zoom::after{content:"⚡";position:absolute;left:50%;top:-34px;margin-left:-7px;font-size:13px;line-height:1}
+
+/* speech bubble */
+.tok .bub{position:absolute;bottom:calc(100% + 27px);left:50%;padding:5px 9px;background:#fff;border:2px solid var(--ink);border-radius:12px;box-shadow:2px 2px 0 var(--ink);font:700 12px/1.3 var(--body);color:var(--ink);white-space:nowrap;pointer-events:none;opacity:0;transform:translateX(-50%) scale(.6);transform-origin:50% 100%;transition:opacity .2s,transform .25s cubic-bezier(.3,1.6,.5,1)}
+.tok .bub.on{opacity:1;transform:translateX(-50%) scale(1)}
+.tok .bub::after{content:"";position:absolute;left:50%;bottom:-6px;width:9px;height:9px;margin-left:-5.5px;background:#fff;border-right:2px solid var(--ink);border-bottom:2px solid var(--ink);transform:rotate(45deg)}
+.tok.bub-r .bub{left:auto;right:-14px;transform:scale(.6);transform-origin:100% 100%}
+.tok.bub-r .bub.on{transform:scale(1)}
+.tok.bub-r .bub::after{left:auto;right:24px;margin-left:0}
+
+/* ---------- episode 1: thread race ---------- */
+.track{position:absolute;left:20%;width:64%;height:12px;margin-top:-6px;overflow:hidden;border:2px solid var(--ink);border-radius:8px;background:#fff repeating-linear-gradient(90deg,transparent 0 8px,#e3e7f5 8px 12px);z-index:1}
+.track .fill{display:block;height:100%;width:0;background:var(--c);transition-property:width;transition-timing-function:linear}
+.flag{position:absolute;width:26px;height:26px;margin:-13px 0 0 -13px;display:grid;place-items:center;font-size:17px;line-height:1;z-index:2}
+.note{position:absolute;left:19%;right:3%;margin-top:-9px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font:700 12px/1.4 var(--body);color:var(--ink2);z-index:1}
+
+/* ---------- episode 2: synchronized ---------- */
+.zone{position:absolute;left:21%;right:21%;top:3%;bottom:21%;border:2.5px dashed var(--ink);border-radius:20px;background:rgba(255,200,61,.14);z-index:1}
+.zone span{position:absolute;left:0;right:0;bottom:7px;text-align:center;font:700 11.5px/1.2 var(--body);color:var(--ink2)}
+.heap{position:absolute;left:29%;right:29%;top:7%;height:78px;padding-top:9px;text-align:center;background:#fff;border:2.5px solid var(--ink);border-radius:14px;box-shadow:3px 3px 0 var(--ink);z-index:2}
+.heap small{display:block;font:700 11px/1.2 var(--body);color:var(--ink2);white-space:nowrap}
+.heap small.bad{color:var(--tomato)}
+.heap .cnt{margin-top:10px;font:800 19px/1 var(--mono);white-space:nowrap}
+.heap .cnt b{display:inline-block;padding:2px 6px;border-radius:7px}
+.heap .cnt b.f-ok{animation:flashOk .9s ease}
+.heap .cnt b.f-bad{animation:flashBad .9s ease}
+.tok .reg{position:absolute;top:calc(100% + 22px);left:50%;transform:translateX(-50%);padding:4px 7px;border-radius:7px;background:var(--deep);color:#fff;font:700 10.5px/1 var(--mono);white-space:nowrap;opacity:0;transition:opacity .2s}
+.tok .reg.on{opacity:1}
+.tok .reg.flash{animation:regFlash .7s ease}
+.key{position:absolute;width:30px;height:30px;margin:-15px 0 0 -15px;display:grid;place-items:center;border-radius:50%;background:var(--yuzu);border:2.5px solid var(--ink);box-shadow:2px 2px 0 var(--ink);font-size:14px;line-height:1;z-index:7;transition-property:left,top;transition-duration:.55s;transition-timing-function:cubic-bezier(.5,0,.25,1)}
+.stamp{position:absolute;left:50%;top:89%;padding:7px 12px;border:3px solid currentColor;border-radius:10px;background:#fff;font:800 17px/1 var(--disp);font-synthesis:none;white-space:nowrap;opacity:0;z-index:9;transform:translate(-50%,-50%) rotate(-7deg)}
+.stamp.bad{color:var(--tomato)}.stamp.ok{color:var(--st-run)}
+.stamp.on{animation:stampIn .5s cubic-bezier(.2,1.5,.4,1) both}
+
+/* ---------- episode 3: ReentrantLock ---------- */
+.lockp{position:absolute;left:20%;right:20%;top:2.5%;padding:8px 11px 9px;background:#fff;border:2.5px solid var(--ink);border-radius:14px;box-shadow:3px 3px 0 var(--ink);z-index:2}
+.lp-t{margin-bottom:4px;font:800 12px/1.2 var(--mono);white-space:nowrap}
+.lp-t em{margin-left:6px;padding:2px 6px;border-radius:6px;background:var(--ink);color:#fff;font:700 10px/1 var(--body);font-style:normal;vertical-align:1px}
+.lp-r{display:flex;justify-content:space-between;align-items:baseline;gap:8px;font:600 12px/1.45 var(--body);color:var(--ink2)}
+.lp-r span:first-child{font-family:var(--body)}
+.lp-r b{display:inline-block;font:800 14px/1.2 var(--mono);color:var(--ink)}
+.lp-r .hc{font-family:var(--mono)}
+.lp-r b.pop{animation:bump .45s ease}
+.qbox{position:absolute;left:69%;right:3%;top:26%;bottom:26%;border:2.5px dashed var(--ink3);border-radius:16px;z-index:1}
+.qlab{position:absolute;left:69%;right:3%;top:76%;text-align:center;font:700 11.5px/1.2 var(--body);color:var(--ink2);z-index:1}
+.tok .ring{position:absolute;inset:-9px;border-radius:50%;background:conic-gradient(var(--st-twait) calc(var(--p,0) * 360deg),rgba(27,33,64,.12) 0);-webkit-mask:radial-gradient(farthest-side,transparent calc(100% - 5px),#000 calc(100% - 4.5px));mask:radial-gradient(farthest-side,transparent calc(100% - 5px),#000 calc(100% - 4.5px));opacity:0;transition:opacity .25s;pointer-events:none}
+.tok .ring.on{opacity:1}
+
+/* ---------- episode 4: CompletableFuture ---------- */
+.wires{position:absolute;inset:0;width:100%;height:100%;z-index:1;pointer-events:none}
+.wires .w{fill:none;stroke:var(--ink3);stroke-width:2.5;stroke-dasharray:5 5;vector-effect:non-scaling-stroke;transition:stroke .3s}
+.wires .w.on{stroke:var(--ink);animation:flow .7s linear infinite}
+.card{position:absolute;top:3.5%;width:45%;height:16%;padding:8px 8px 0 14%;background:#fff;border:2.5px solid var(--ink);border-radius:14px;box-shadow:3px 3px 0 var(--ink);z-index:2;opacity:.35;transition:opacity .35s,background-color .3s}
+.card.show{opacity:1}
+.card.cl{left:3%;--c:var(--mint)}
+.card.cr{left:52%;--c:var(--tangerine)}
+.c-l{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font:800 12px/1.3 var(--mono)}
+.c-s{margin-top:2px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font:600 11px/1.3 var(--body);color:var(--ink2)}
+.c-bar{height:9px;margin-top:6px;overflow:hidden;border:2px solid var(--ink);border-radius:6px;background:#fff}
+.c-bar i{display:block;height:100%;width:0;background:var(--c)}
+.card.ok{background:#e8f7ef}.card.ok .c-s{color:var(--st-run);font-weight:800}
+.card.err{background:#ffe9e6}.card.err .c-s{color:var(--tomato);font-weight:800}.card.err .c-bar i{background:var(--tomato)}
+.node{position:absolute;left:26%;right:5%;height:44px;margin-top:-22px;padding:5px 10px;background:#fff;border:2.5px solid var(--ink3);border-radius:12px;z-index:2;transition:background-color .3s,border-color .3s,opacity .3s,box-shadow .3s}
+.n-l{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font:800 11.5px/1.25 var(--mono)}
+.n-v{overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font:600 11.5px/1.25 var(--body);color:var(--ink2)}
+.node.on{border-color:var(--ink);background:#fff4cc;box-shadow:3px 3px 0 var(--ink)}
+.node.done{border-color:var(--ink);background:#e8f7ef}
+.node.done .n-v{color:var(--st-run);font-weight:800}
+.node.skip{opacity:.5;border-style:dashed}
+.node.skip .n-l{text-decoration:line-through}
+.mstrip{position:absolute;left:19%;right:3%;top:85%;height:12.5%;padding:6px 10px;background:#fff;border:2.5px solid var(--ink);border-radius:12px;z-index:2}
+.ms-top{display:flex;align-items:baseline;gap:8px;white-space:nowrap;font:600 12px/1.3 var(--body)}
+.ms-top b{font:800 12px/1.3 var(--mono)}
+.ms-t{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;color:var(--ink2)}
+.clk{font:800 12px/1.3 var(--mono)}
+.ms-bar{height:9px;margin-top:6px;overflow:hidden;border:2px solid var(--ink);border-radius:6px}
+.ms-bar i{display:block;height:100%;width:0;background:var(--violet)}
+
+/* ---------- motion ---------- */
+.pop{animation:popIn .45s cubic-bezier(.3,1.4,.5,1) both}
+@keyframes popIn{0%{transform:scale(.3);opacity:0}65%{transform:scale(1.14);opacity:1}100%{transform:scale(1);opacity:1}}
+@keyframes blink{0%,92%,100%{transform:scaleY(1)}95%{transform:scaleY(.12)}}
+@keyframes bob{50%{transform:translateY(-2px)}}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-3px)}75%{transform:translateX(3px)}}
+@keyframes throb{50%{transform:scale(1.25)}}
+@keyframes zz{0%{transform:translate(0,2px);opacity:.3}50%{opacity:1}100%{transform:translate(5px,-9px);opacity:0}}
+@keyframes lnIn{from{opacity:0;transform:translateY(4px)}}
+@keyframes flow{to{stroke-dashoffset:-20}}
+@keyframes stampIn{0%{transform:translate(-50%,-50%) rotate(-7deg) scale(2);opacity:0}100%{transform:translate(-50%,-50%) rotate(-7deg) scale(1);opacity:1}}
+@keyframes flashOk{0%{background:#bdf0d2}100%{background:transparent}}
+@keyframes flashBad{0%{background:#ffc9c2;transform:translateX(0)}15%{transform:translateX(-4px)}30%{transform:translateX(4px)}45%{transform:translateX(-3px)}60%{transform:translateX(0)}100%{background:transparent}}
+@keyframes regFlash{0%{background:var(--yuzu);color:var(--ink)}100%{background:var(--deep);color:#fff}}
+@keyframes bump{50%{transform:scale(1.5)}}
+@keyframes nudge{50%{background:#fff0bf}}
+
+@media (prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}
+}
+
+/* ---------- layout adjustments ---------- */
+.play-col{min-width:0}
+.ctrls{flex-wrap:wrap;gap:7px}
+.btn{padding:0 9px}
+.btn.sq{width:46px}
+@media (max-width:370px){.btn{font-size:14px}.btn.sq{width:42px}}
+.cap{margin-top:12px;min-height:120px}
+.cap::before{display:none}
+.cap-txt{font-size:15px}
+.console.short{min-height:64px}
+.stamp{top:58%}
+.hero h1,.ep h2,.sheet h2,.medal,.stamp,.tabs a i{font-synthesis:none}
+
+
+/* ================= tabbed notes page ================= */
+.hero-sm{padding:34px 2px 16px}
+.hero-sm h1{max-width:15ch;font-size:clamp(34px,9.5vw,60px)}
+.hero-sm .lede{margin-bottom:6px}
+.toptabs{position:sticky;top:0;z-index:40;display:flex;gap:8px;overflow-x:auto;margin:0 -14px;padding:10px 14px;background:rgba(238,241,250,.95);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border-bottom:2px solid var(--ink);scrollbar-width:none}
+.toptabs::-webkit-scrollbar{display:none}
+.toptabs button{flex:none;appearance:none;-webkit-appearance:none;margin:0;min-height:42px;padding:0 14px;border:2px solid var(--ink);border-radius:999px;background:var(--sheet);color:var(--ink);font:700 14px/1 var(--body);white-space:nowrap;cursor:pointer}
+.toptabs button.anim-tab{background:var(--yuzu)}
+.toptabs button[aria-selected="true"]{background:var(--ink);color:#fff}
+.tabp{padding:4px 0 12px}
+.tab-intro{padding:20px 2px 2px}
+.tab-h{margin:0 0 8px;font:800 clamp(28px,8vw,44px)/1.08 var(--disp);font-synthesis:none}
+.tab-intro p{margin:0;max-width:62ch;font-size:16.5px;color:var(--ink2)}
+.toc{display:flex;flex-wrap:wrap;gap:8px;margin:16px 0 4px}
+.toc a{padding:7px 11px;border:2px solid var(--ink);border-radius:10px;background:var(--sheet);color:var(--ink);text-decoration:none;font:700 13px/1.2 var(--body)}
+
+.nsec{margin:20px 0;padding:20px 14px;background:var(--sheet);border:2.5px solid var(--ink);border-radius:24px;scroll-margin-top:66px}
+.nsec h2{margin:0 0 10px;font:800 clamp(21px,6vw,28px)/1.18 var(--disp);font-synthesis:none}
+.nsec h3{margin:22px 0 8px;font:800 17px/1.35 var(--body)}
+.nsec p,.nsec ul,.nsec ol{max-width:68ch}
+.nsec p{margin:0 0 12px}
+.nsec ul,.nsec ol{margin:0 0 12px;padding-left:22px}
+.nsec li{margin:5px 0}
+.nsec code{font-size:.86em;font-weight:600;background:#e7eaf7;border-radius:6px;padding:1px 5px}
+.nsec pre.code code{font-size:inherit;font-weight:inherit;background:none;border-radius:0;padding:0}
+pre.code.jcode{margin:10px 0 16px}
+pre.code.plain{color:#dfe3ff}
+
+.tbl{margin:10px 0 16px;overflow-x:auto;-webkit-overflow-scrolling:touch;border:2px solid var(--ink);border-radius:14px}
+.tbl table{width:100%;border-collapse:collapse;font-size:14px;line-height:1.45}
+.tbl.wide table{min-width:600px}
+.tbl th,.tbl td{padding:9px 11px;text-align:left;vertical-align:top;border-bottom:1.5px solid #e0e4f2}
+.tbl th{background:#e9ecf8;font-weight:800}
+.tbl tr:last-child td{border-bottom:0}
+
+.tip,.warn{max-width:72ch;margin:12px 0 16px;padding:11px 13px;border:2px solid var(--ink);border-radius:14px;font-size:15px;line-height:1.55}
+.tip{background:#e8f7ef}
+.warn{background:#fff0e6}
+
+/* concurrency vs parallelism lanes */
+.lanes{margin:12px 0 16px;padding:12px;border:2px solid var(--ink);border-radius:14px;background:#fbfcff}
+.lanes-t{margin:4px 0 6px!important;font:700 13.5px/1.3 var(--body)}
+.lane{display:flex;align-items:center;gap:4px;margin:0 0 6px}
+.lane span{flex:none;width:54px;font:700 12px/1 var(--mono);color:var(--ink2)}
+.lane i{flex:1;padding:7px 0;text-align:center;font:800 13px/1 var(--mono);font-style:normal;border:2px solid var(--ink);border-radius:8px}
+.ja{background:var(--sakura)}.jb{background:#9cc3ff}.jc{background:var(--yuzu)}
+
+/* memory picture */
+.mem{display:grid;gap:8px;margin:12px 0 16px}
+.mem-heap{padding:12px;border:2.5px solid var(--ink);border-radius:14px;background:#fff4cc}
+.mem-stacks{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px}
+.mem-stk{padding:10px;border:2.5px solid var(--ink);border-radius:12px;background:#fff;background:color-mix(in srgb,var(--c) 28%,#fff)}
+.mem b{display:block;font:800 14px/1.3 var(--body)}
+.mem span{display:block;margin-top:3px;font-size:13px;line-height:1.4;color:var(--ink2)}
+
+/* thread pool decision flow */
+.nsec .flow{list-style:none;margin:12px 0 16px;padding:0;display:grid;gap:10px;counter-reset:fl}
+.flow li{position:relative;margin:0;padding:10px 12px 10px 48px;border:2px solid var(--ink);border-radius:12px;background:#fff;counter-increment:fl}
+.flow li::before{content:counter(fl);position:absolute;left:10px;top:9px;width:26px;height:26px;display:grid;place-items:center;border-radius:50%;background:var(--yuzu);border:2px solid var(--ink);font:800 13px/1 var(--mono)}
+.flow b{display:block;font-weight:800}
+.flow span{display:block;font-size:14px;color:var(--ink2)}
+
+/* interview Q&A */
+.qa{margin:10px 0;border:2px solid var(--ink);border-radius:14px;background:#fff}
+.qa summary{padding:12px 14px 12px 38px;position:relative;font:800 15px/1.4 var(--body);cursor:pointer;list-style:none}
+.qa summary::-webkit-details-marker{display:none}
+.qa summary::before{content:"+";position:absolute;left:14px;top:11px;font:800 17px/1.2 var(--mono)}
+.qa[open] summary::before{content:"−"}
+.qa .ans{padding:0 14px 12px;font-size:15px;line-height:1.55}
+.qa .ans p{margin:0 0 8px}
+
+.nextt{margin:4px 0 10px}
+.anim-intro{padding:20px 2px 16px}
+
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero hero-sm">
+  <h1>Java Threads: shuru se interview tak</h1>
+  <p class="lede">Har topic ka seedha explanation, Java code, aur "kab kya use karein" tables. Characters wala animation <b>🎬 Animation</b> tab mein hai.</p>
+</header>
+
+<div id="tabs-top"></div>
+<nav class="toptabs" role="tablist" aria-label="Topics">
+  <button type="button" role="tab" data-tab="basics" aria-controls="tab-basics">Basics</button>
+  <button type="button" role="tab" data-tab="locks" aria-controls="tab-locks">Locks</button>
+  <button type="button" role="tab" data-tab="exec" aria-controls="tab-exec">Executor</button>
+  <button type="button" role="tab" data-tab="cf" aria-controls="tab-cf">CompletableFuture</button>
+  <button type="button" role="tab" data-tab="dead" aria-controls="tab-dead">Deadlock</button>
+  <button type="button" role="tab" data-tab="dsa" aria-controls="tab-dsa">DSA + Interview</button>
+  <button type="button" role="tab" data-tab="anim" aria-controls="tab-anim" class="anim-tab">🎬 Animation</button>
+</nav>
+
+<!-- ============================ BASICS ============================ -->
+<section class="tabp" id="tab-basics" role="tabpanel" style="--acc:var(--sakura)">
+  <div class="tab-intro">
+    <h2 class="tab-h">Basics</h2>
+    <p>Process, thread, concurrency aur parallelism ka farq, thread memory mein kahan rehta hai, kaise banta hai aur kaise band hota hai.</p>
+  </div>
+
+  <article class="nsec" id="b-pt">
+    <h2 data-short="Process vs Thread">Process vs Thread vs Concurrency vs Parallelism</h2>
+    <p>Ye chaar shabd clear ho gaye toh baaki sab inhi pe bana hai.</p>
+    <div class="tbl"><table>
+      <tr><th>Cheez</th><th>Matlab</th></tr>
+      <tr><td><b>Process</b></td><td>Ek chalta hua program. Apni alag memory hoti hai, doosre process ki memory seedha nahi dekh sakta. Banana aur switch karna mehnga hai.<br><i>Jaise: Chrome, IntelliJ, aapki Java app (ek JVM = ek process)</i></td></tr>
+      <tr><td><b>Thread</b></td><td>Process ke andar kaam karne wala worker. Process ki heap memory share karta hai, par apna stack rakhta hai. Halka hota hai.<br><i>Jaise: web server mein har request handle karne wala worker</i></td></tr>
+      <tr><td><b>Concurrency</b></td><td>Kai kaam ek saath "chal rahe" hain, bari-bari thoda-thoda karke. 1 core pe bhi ho sakta hai.<br><i>Jaise: ek cook teen dish bana raha hai, beech-beech mein switch karke</i></td></tr>
+      <tr><td><b>Parallelism</b></td><td>Kai kaam sach mein ek hi pal mein chal rahe hain, alag-alag cores pe.<br><i>Jaise: teen cook teen dish ek saath bana rahe hain</i></td></tr>
+    </table></div>
+    <div class="lanes" role="img" aria-label="Concurrency mein ek core pe A, B, C bari-bari chalte hain. Parallelism mein do cores pe A aur B ek saath chalte hain.">
+      <p class="lanes-t">Concurrency: 1 core, kaam bari-bari</p>
+      <div class="lane"><span>Core 1</span><i class="ja">A</i><i class="jb">B</i><i class="ja">A</i><i class="jc">C</i><i class="jb">B</i><i class="jc">C</i></div>
+      <p class="lanes-t">Parallelism: 2 cores, kaam sach mein ek saath</p>
+      <div class="lane"><span>Core 1</span><i class="ja">A</i><i class="ja">A</i><i class="ja">A</i></div>
+      <div class="lane"><span>Core 2</span><i class="jb">B</i><i class="jb">B</i><i class="jb">B</i></div>
+    </div>
+    <p class="tip"><b>Yaad rakho:</b> Concurrency kaam ko <i>baantne</i> ka tareeka hai, parallelism kaam ko sach mein <i>ek saath chalana</i> hai. Parallelism ke liye multiple cores chahiye, concurrency ke liye nahi.</p>
+  </article>
+
+  <article class="nsec" id="b-mem">
+    <h2 data-short="Memory">Thread kahan rehta hai aur kaise chalta hai</h2>
+    <div class="mem" role="img" aria-label="Heap sab threads share karte hain. Har thread ka apna stack hota hai.">
+      <div class="mem-heap"><b>Heap (shared)</b><span>Objects, arrays aur static fields. Sab threads isko share karte hain, isliye race condition yahin hoti hai.</span></div>
+      <div class="mem-stacks">
+        <div class="mem-stk" style="--c:var(--sakura)"><b>T1 stack</b><span>Local variables, method calls</span></div>
+        <div class="mem-stk" style="--c:var(--sky)"><b>T2 stack</b><span>Local variables, method calls</span></div>
+        <div class="mem-stk" style="--c:var(--yuzu)"><b>T3 stack</b><span>Local variables, method calls</span></div>
+      </div>
+    </div>
+    <ul>
+      <li>Java ka normal (platform) thread OS ka ek asli thread hota hai. OS ka <b>scheduler</b> use CPU core pe chalata hai.</li>
+      <li>Threads cores se zyada hon toh OS unhe bari-bari chalata hai. Ek se doosre pe switch karna <b>context switch</b> kehlata hai, aur iski bhi keemat hai.</li>
+      <li>Local variables stack pe hote hain, isliye har thread ki apni copy hoti hai aur woh safe hain. Problem sirf shared objects mein aati hai.</li>
+      <li><b>Virtual threads</b> (Java 21): JVM inhe manage karta hai, ye bahut halke hote hain aur lakhon mein ban sakte hain. Blocking IO (DB, HTTP) mein fayda hai, CPU-heavy kaam mein nahi.</li>
+    </ul>
+    <script type="text/plain" class="jsrc">
+    // Local variable: har thread ki apni copy, isliye safe
+    void work() {
+        int local = 0;          // stack pe
+        local++;                // koi problem nahi
+    }
+
+    // Shared field: heap pe, sab threads share karte hain
+    class Counter {
+        int count = 0;          // object ke andar, heap pe
+        void inc() { count++; } // ❌ race condition ho sakti hai
+    }
+    </script>
+  </article>
+
+  <article class="nsec" id="b-create">
+    <h2 data-short="Thread banana">Thread banane ke tareeke</h2>
+    <script type="text/plain" class="jsrc">
+    // 1) Thread class extend karke
+    class MyThread extends Thread {
+        public void run() { System.out.println("Hello from " + getName()); }
+    }
+    new MyThread().start();
+
+    // 2) Runnable (behtar: class kisi aur ko extend kar sakti hai)
+    Runnable task = () -> System.out.println("Runnable chal raha");
+    new Thread(task, "worker-1").start();
+
+    // 3) Callable + ExecutorService (jab result wapas chahiye)
+    ExecutorService pool = Executors.newFixedThreadPool(2);
+    Future<Integer> f = pool.submit(() -> 2 + 3);
+    System.out.println(f.get());      // 5 (result aane tak rukta hai)
+    pool.shutdown();
+
+    // 4) Virtual thread (Java 21+)
+    Thread.ofVirtual().start(() -> System.out.println("virtual!"));
+    </script>
+    <div class="tbl"><table>
+      <tr><th>Situation</th><th>Kya use karein</th></tr>
+      <tr><td>Seekhna, chhota demo</td><td><code>Thread</code> + <code>Runnable</code></td></tr>
+      <tr><td>Real project, bahut saare tasks</td><td><code>ExecutorService</code> (thread pool)</td></tr>
+      <tr><td>Kaam ka result chahiye</td><td><code>Callable</code> + <code>Future</code>, ya <code>CompletableFuture</code></td></tr>
+      <tr><td>Hazaaron blocking IO tasks</td><td>Virtual threads (Java 21+)</td></tr>
+    </table></div>
+  </article>
+
+  <article class="nsec" id="b-life">
+    <h2 data-short="Lifecycle">Thread lifecycle (states)</h2>
+    <div class="tbl"><table>
+      <tr><th>Badlaav</th><th>Kab hota hai</th></tr>
+      <tr><td>NEW → RUNNABLE</td><td><code>start()</code> call kiya</td></tr>
+      <tr><td>RUNNABLE → BLOCKED</td><td><code>synchronized</code> ka lock kisi aur ke paas hai</td></tr>
+      <tr><td>RUNNABLE → WAITING</td><td><code>wait()</code>, <code>join()</code>, <code>LockSupport.park()</code>. <code>ReentrantLock.lock()</code> ka wait bhi yahi hai</td></tr>
+      <tr><td>RUNNABLE → TIMED_WAITING</td><td><code>sleep(ms)</code>, <code>wait(ms)</code>, <code>join(ms)</code>, <code>tryLock(timeout)</code></td></tr>
+      <tr><td>Wapas RUNNABLE</td><td>Lock mil gaya, notify/signal hua, ya time khatam</td></tr>
+      <tr><td>RUNNABLE → TERMINATED</td><td><code>run()</code> khatam ho gaya, ya exception aa gaya</td></tr>
+    </table></div>
+    <p class="tip"><b>Dekh ke samjho:</b> har state ka character aur uska chehra <a href="#" data-go="anim">🎬 Animation tab</a> mein hai.</p>
+  </article>
+
+  <article class="nsec" id="b-methods">
+    <h2 data-short="Methods">Zaroori methods aur thread ko sahi se band karna</h2>
+    <div class="tbl"><table>
+      <tr><th>Method</th><th>Kya karta hai</th></tr>
+      <tr><td><code>start()</code></td><td>Naya thread banata hai, jo andar <code>run()</code> chalata hai. Do baar call karne pe <code>IllegalThreadStateException</code></td></tr>
+      <tr><td><code>join()</code></td><td>Current thread tab tak rukta hai jab tak woh thread khatam na ho</td></tr>
+      <tr><td><code>sleep(ms)</code></td><td>Current thread ko rokta hai. Pakda hua lock <b>nahi</b> chhodta</td></tr>
+      <tr><td><code>interrupt()</code></td><td>Thread ko "ruk jao" ka signal. Soye ya wait kar rahe thread ko <code>InterruptedException</code> milta hai</td></tr>
+      <tr><td><code>setDaemon(true)</code></td><td>Background thread. JVM iske khatam hone ka wait nahi karti. <code>start()</code> se pehle set karo</td></tr>
+    </table></div>
+    <p>Thread ko zabardasti rokne ka koi safe tareeka nahi hai (<code>stop()</code> hata diya gaya hai). Sahi tareeka hai interrupt bhejna, aur thread khud check karke band ho:</p>
+    <script type="text/plain" class="jsrc">
+    Thread worker = new Thread(() -> {
+        while (!Thread.currentThread().isInterrupted()) {
+            try {
+                doWork();
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                // sleep ke beech interrupt aaya: flag clear ho jaata hai,
+                // isliye wapas set karo taaki loop ruk jaaye
+                Thread.currentThread().interrupt();
+            }
+        }
+        System.out.println("Saaf-suthra band hua");
+    });
+    worker.start();
+    Thread.sleep(2000);
+    worker.interrupt();   // band hone ko bolo
+    worker.join();        // band hone tak ruko
+    </script>
+    <p class="warn"><b>Dhyan:</b> <code>InterruptedException</code> ko khaali catch karke ignore mat karo. Ya toh aage throw karo, ya interrupt flag wapas set karo.</p>
+  </article>
+
+  <article class="nsec" id="b-race">
+    <h2 data-short="Race + visibility">Race condition aur visibility</h2>
+    <p><b>Race condition:</b> <code>count++</code> ek step nahi, teen steps hai (read, add, write). Do threads beech mein ghus gaye toh ek update gayab ho jaata hai. Iska animation bhi Animation tab mein hai.</p>
+    <p><b>Visibility:</b> Ek thread ne jo value likhi, woh doosre thread ko turant dikhe, iski guarantee nahi hai. CPU cache aur compiler optimization value ko purana dikha sakte hain. <code>volatile</code> ye guarantee deta hai:</p>
+    <script type="text/plain" class="jsrc">
+    class Worker implements Runnable {
+        private volatile boolean running = true;  // sabko latest value dikhegi
+
+        public void run() {
+            while (running) { /* kaam */ }
+            System.out.println("ruk gaya");
+        }
+        public void stop() { running = false; }   // doosra thread call karega
+    }
+    </script>
+    <p><code>volatile</code> ke bina aisa ho sakta hai ki loop kabhi na ruke, kyunki worker thread purani value hi dekhta rahe.</p>
+    <p class="tip"><b>Happens-before:</b> lock chhodna aur phir wahi lock lena, volatile likhna aur phir padhna, <code>start()</code> aur thread ka kaam, thread ka khatam hona aur <code>join()</code> ka return. In jodon mein pehle wale ke changes baad wale ko dikhne ki guarantee hai.</p>
+    <button type="button" class="btn nextt" data-go="locks">Agla topic: Locks</button>
+  </article>
+</section>
+
+<!-- ============================ LOCKS ============================ -->
+<section class="tabp" id="tab-locks" role="tabpanel" style="--acc:var(--sky)" hidden>
+  <div class="tab-intro">
+    <h2 class="tab-h">Locks aur synchronization</h2>
+    <p>Shared data ko safe rakhne ke saare tools, aur kis situation mein kaunsa tool lagana hai.</p>
+  </div>
+
+  <article class="nsec" id="l-pick">
+    <h2 data-short="Kab kya">Kis condition mein kya use karein</h2>
+    <div class="tbl wide"><table>
+      <tr><th>Situation</th><th>Use karo</th><th>Kyun</th></tr>
+      <tr><td>Sirf ek counter ya number badhana</td><td><code>AtomicInteger</code>, <code>LongAdder</code></td><td>Bina lock ke CAS se safe aur fast</td></tr>
+      <tr><td>Ek flag (stop, ready) doosre threads ko dikhana</td><td><code>volatile</code></td><td>Sirf visibility chahiye, atomicity nahi</td></tr>
+      <tr><td>Kai fields ek saath consistent update</td><td><code>synchronized</code></td><td>Simple, apne aap unlock</td></tr>
+      <tr><td>Timeout, interrupt ya fairness chahiye</td><td><code>ReentrantLock</code></td><td><code>tryLock</code>, <code>lockInterruptibly</code>, fair queue</td></tr>
+      <tr><td>Padhne wale bahut, likhne wale kam</td><td><code>ReentrantReadWriteLock</code></td><td>Readers ek saath padh sakte hain</td></tr>
+      <tr><td>"Jab tak X na ho, ruko" (queue khaali ya full)</td><td><code>BlockingQueue</code> ya <code>Condition</code></td><td>Bina CPU jalaye sona aur jagna</td></tr>
+      <tr><td>N kaam khatam hone ka wait</td><td><code>CountDownLatch</code></td><td><code>countDown()</code> aur <code>await()</code></td></tr>
+      <tr><td>Ek time pe max N threads andar</td><td><code>Semaphore</code></td><td>Permits se limit</td></tr>
+      <tr><td>Sab threads ek point pe milein, phir aage</td><td><code>CyclicBarrier</code></td><td>Phases mein kaam</td></tr>
+      <tr><td>Shared map</td><td><code>ConcurrentHashMap</code></td><td>Poore map pe ek lock nahi, isliye fast</td></tr>
+    </table></div>
+  </article>
+
+  <article class="nsec" id="l-sync">
+    <h2>synchronized</h2>
+    <script type="text/plain" class="jsrc">
+    class Account {
+        private int balance;
+        private final Object lock = new Object();   // private lock object
+
+        // method: "this" object ka lock
+        public synchronized void deposit(int amt) { balance += amt; }
+
+        // block: sirf zaroori hissa lock karo
+        public void withdraw(int amt) {
+            synchronized (lock) {
+                if (balance >= amt) balance -= amt;  // check + update ek saath
+            }
+        }
+
+        // static synchronized: Account.class ka lock (object ka nahi)
+        public static synchronized void audit() { /* ... */ }
+    }
+    </script>
+    <ul>
+      <li>Har object ka ek built-in lock (monitor) hota hai. Static method pe class object ka lock lagta hai.</li>
+      <li>Reentrant hai: jis thread ke paas lock hai, woh dobara andar aa sakta hai.</li>
+      <li>Block khatam hote hi lock apne aap chhoot jaata hai, exception aaye tab bhi.</li>
+      <li>Wait karne wala thread <b>BLOCKED</b> hota hai. Na timeout hai, na interrupt se wait toot-ta hai.</li>
+    </ul>
+    <p class="warn"><b>Dhyan:</b> String literal ya <code>Integer</code> jaise object pe lock mat lagao, ye JVM mein shared ho sakte hain. Hamesha <code>private final</code> lock object rakho.</p>
+  </article>
+
+  <article class="nsec" id="l-atomic">
+    <h2 data-short="volatile + Atomic">volatile aur Atomic classes</h2>
+    <script type="text/plain" class="jsrc">
+    AtomicInteger hits = new AtomicInteger();
+    hits.incrementAndGet();                          // atomic count++
+    hits.updateAndGet(x -> Math.min(x + 5, 100));    // apna atomic update
+
+    // CAS ka idea: "agar value abhi bhi 10 hai, toh 11 kar do"
+    boolean ok = hits.compareAndSet(10, 11);
+
+    // Bahut saare threads ek hi counter pe: LongAdder zyada fast
+    LongAdder total = new LongAdder();
+    total.increment();
+    long sum = total.sum();
+    </script>
+    <div class="tbl"><table>
+      <tr><th></th><th>volatile</th><th>Atomic</th><th>synchronized</th></tr>
+      <tr><td>Latest value dikhegi</td><td>✅</td><td>✅</td><td>✅</td></tr>
+      <tr><td><code>count++</code> safe</td><td>❌</td><td>✅</td><td>✅</td></tr>
+      <tr><td>Kai fields ek saath</td><td>❌</td><td>❌</td><td>✅</td></tr>
+      <tr><td>Thread ko rokta hai</td><td>Nahi</td><td>Nahi</td><td>Haan</td></tr>
+    </table></div>
+  </article>
+
+  <article class="nsec" id="l-rl">
+    <h2>ReentrantLock</h2>
+    <script type="text/plain" class="jsrc">
+    private final ReentrantLock lock = new ReentrantLock();   // (true) = fair
+
+    void demo() throws InterruptedException {
+        // 1) Normal
+        lock.lock();
+        try { /* kaam */ }
+        finally { lock.unlock(); }                  // hamesha finally mein
+
+        // 2) Time limit ke saath (deadlock se bachao)
+        if (lock.tryLock(500, TimeUnit.MILLISECONDS)) {
+            try { /* kaam */ }
+            finally { lock.unlock(); }
+        } else {
+            // lock nahi mila: retry, error ya fallback
+        }
+
+        // 3) Aisa wait jo interrupt se toot sake
+        lock.lockInterruptibly();
+        try { /* kaam */ }
+        finally { lock.unlock(); }
+    }
+    </script>
+    <div class="tbl"><table>
+      <tr><th>Feature</th><th>synchronized</th><th>ReentrantLock</th></tr>
+      <tr><td>Unlock</td><td>Apne aap</td><td>Khud, <code>finally</code> mein</td></tr>
+      <tr><td>Timeout</td><td>❌</td><td>✅ <code>tryLock(t)</code></td></tr>
+      <tr><td>Interrupt se wait todna</td><td>❌</td><td>✅ <code>lockInterruptibly()</code></td></tr>
+      <tr><td>Fair queue</td><td>❌</td><td>✅ <code>new ReentrantLock(true)</code></td></tr>
+      <tr><td>Kai wait conditions</td><td>Ek (<code>wait/notify</code>)</td><td>Kai <code>Condition</code></td></tr>
+    </table></div>
+    <p><b>Condition:</b> ek lock pe alag-alag wait lines bana sakte ho, jaise <code>notFull</code> aur <code>notEmpty</code>. Poora code <a href="#" data-go="dsa">DSA tab</a> ke "Bounded Blocking Queue" mein hai.</p>
+  </article>
+
+  <article class="nsec" id="l-rw">
+    <h2>ReadWriteLock</h2>
+    <script type="text/plain" class="jsrc">
+    class Cache {
+        private final Map<String, String> map = new HashMap<>();
+        private final ReentrantReadWriteLock rw = new ReentrantReadWriteLock();
+
+        String get(String k) {
+            rw.readLock().lock();              // kai readers ek saath
+            try { return map.get(k); }
+            finally { rw.readLock().unlock(); }
+        }
+
+        void put(String k, String v) {
+            rw.writeLock().lock();             // writer akela, readers bhi ruk jaate hain
+            try { map.put(k, v); }
+            finally { rw.writeLock().unlock(); }
+        }
+    }
+    </script>
+    <p class="warn"><b>Dhyan:</b> read lock pakde hue write lock lene ki koshish mat karo. Ye upgrade support nahi hota, thread khud se hi atak jaayega.</p>
+  </article>
+
+  <article class="nsec" id="l-wait">
+    <h2 data-short="wait / notify">wait() aur notify()</h2>
+    <script type="text/plain" class="jsrc">
+    // wait karne wala
+    synchronized (lock) {
+        while (!ready) {        // hamesha while, if nahi
+            lock.wait();        // lock chhod ke so jaata hai
+        }
+        // yahan ready == true pakka hai
+    }
+
+    // jagane wala
+    synchronized (lock) {
+        ready = true;
+        lock.notifyAll();       // sab waiters ko jagao
+    }
+    </script>
+    <ul>
+      <li>Dono sirf <code>synchronized</code> ke andar chalte hain, warna <code>IllegalMonitorStateException</code>.</li>
+      <li><code>wait()</code> lock chhodta hai, <code>sleep()</code> nahi chhodta.</li>
+      <li><code>while</code> isliye, kyunki thread bina notify ke bhi jag sakta hai (spurious wakeup), ya condition phir se badal chuki ho.</li>
+    </ul>
+  </article>
+
+  <article class="nsec" id="l-tools">
+    <h2 data-short="Latch, Semaphore">CountDownLatch, Semaphore, CyclicBarrier</h2>
+    <script type="text/plain" class="jsrc">
+    // CountDownLatch: 3 services start hone ka wait
+    CountDownLatch ready = new CountDownLatch(3);
+    for (int i = 0; i < 3; i++) {
+        pool.submit(() -> { startService(); ready.countDown(); });
+    }
+    ready.await();                          // count 0 hone tak ruko
+    System.out.println("Sab services ready");
+
+    // Semaphore: ek time pe max 2 DB connections
+    Semaphore permits = new Semaphore(2);
+    void query() throws InterruptedException {
+        permits.acquire();
+        try { runQuery(); }
+        finally { permits.release(); }
+    }
+
+    // CyclicBarrier: 3 threads ek point pe milte hain, phir saath aage
+    CyclicBarrier barrier = new CyclicBarrier(3, () -> System.out.println("Phase done"));
+    // har thread: kaam1(); barrier.await(); kaam2();
+    </script>
+    <button type="button" class="btn nextt" data-go="exec">Agla topic: Executor</button>
+  </article>
+</section>
+
+<!-- ============================ EXECUTOR ============================ -->
+<section class="tabp" id="tab-exec" role="tabpanel" style="--acc:var(--mint)" hidden>
+  <div class="tab-intro">
+    <h2 class="tab-h">Executor framework</h2>
+    <p>Thread pool kya hai, kaunsa pool kab lena hai, andar kaunse data structures hain, aur apna thread pool kaise banaate hain.</p>
+  </div>
+
+  <article class="nsec" id="e-why">
+    <h2 data-short="Pool kyun">Thread pool kyun chahiye</h2>
+    <p>Har task ke liye naya thread banana mehnga hai: OS thread banta hai, uska stack memory leta hai, aur 10,000 requests pe 10,000 threads app ko gira sakte hain.</p>
+    <p>Thread pool ek restaurant jaisa hai: cook (threads) gine-chune hain aur reuse hote hain, orders (tasks) ek line (queue) mein lagte hain. Jo cook free hota hai, woh agla order uthata hai.</p>
+  </article>
+
+  <article class="nsec" id="e-parts">
+    <h2 data-short="Basic API">Framework ke hisse aur basic use</h2>
+    <div class="tbl"><table>
+      <tr><th>Interface / class</th><th>Kaam</th></tr>
+      <tr><td><code>Executor</code></td><td>Sirf <code>execute(Runnable)</code></td></tr>
+      <tr><td><code>ExecutorService</code></td><td><code>submit</code>, <code>invokeAll</code>, <code>shutdown</code></td></tr>
+      <tr><td><code>ScheduledExecutorService</code></td><td>Delay ya repeat pe task chalana</td></tr>
+      <tr><td><code>Future</code></td><td>Task ke result ka handle</td></tr>
+      <tr><td><code>ThreadPoolExecutor</code></td><td>Asli implementation, jisko sab settings de sakte ho</td></tr>
+      <tr><td><code>Executors</code></td><td>Ready-made pools banane ki factory</td></tr>
+    </table></div>
+    <script type="text/plain" class="jsrc">
+    ExecutorService pool = Executors.newFixedThreadPool(4);
+
+    pool.execute(() -> log("fire and forget"));           // result nahi chahiye
+    Future<String> f = pool.submit(() -> fetchUser(7));    // result milega
+    String user = f.get(2, TimeUnit.SECONDS);              // max 2 second wait
+
+    List<Callable<Integer>> jobs = List.of(() -> 1, () -> 2, () -> 3);
+    int sum = 0;
+    for (Future<Integer> r : pool.invokeAll(jobs)) sum += r.get();
+
+    pool.shutdown();                                       // naye task band
+    if (!pool.awaitTermination(10, TimeUnit.SECONDS)) {
+        pool.shutdownNow();                                // chal rahe tasks ko interrupt
+    }
+
+    // Har 30 second pe health check
+    ScheduledExecutorService sch = Executors.newScheduledThreadPool(1);
+    sch.scheduleAtFixedRate(() -> checkHealth(), 0, 30, TimeUnit.SECONDS);
+    </script>
+    <p class="tip"><b>execute vs submit:</b> <code>execute</code> mein exception thread ko khatam karke uncaught handler tak jaata hai. <code>submit</code> mein exception <code>Future</code> ke andar chhup jaata hai, aur <code>get()</code> karne pe hi dikhta hai.</p>
+  </article>
+
+  <article class="nsec" id="e-kinds">
+    <h2 data-short="Kaunsa pool">Kaunsa pool kab</h2>
+    <div class="tbl wide"><table>
+      <tr><th>Pool</th><th>Andar kya hai</th><th>Kab use</th><th>Dhyan</th></tr>
+      <tr><td><code>newFixedThreadPool(n)</code></td><td>n threads + unbounded <code>LinkedBlockingQueue</code></td><td>Stable load, CPU kaam</td><td>Queue bina limit badh sakti hai, memory khatam</td></tr>
+      <tr><td><code>newCachedThreadPool()</code></td><td>0 se unlimited threads + <code>SynchronousQueue</code>, 60s idle pe band</td><td>Chhote, jaldi khatam hone wale tasks</td><td>Threads bina limit ban sakte hain</td></tr>
+      <tr><td><code>newSingleThreadExecutor()</code></td><td>1 thread + unbounded queue</td><td>Tasks order mein, ek-ek karke</td><td>Queue unbounded</td></tr>
+      <tr><td><code>newScheduledThreadPool(n)</code></td><td><code>DelayedWorkQueue</code> (heap)</td><td>Timer, repeat jobs</td><td>Lamba task baaki schedule late kar deta hai</td></tr>
+      <tr><td><code>newWorkStealingPool()</code></td><td><code>ForkJoinPool</code>, har thread ki apni deque</td><td>Divide and conquer, recursive kaam</td><td>Blocking kaam ke liye nahi</td></tr>
+      <tr><td><code>newVirtualThreadPerTaskExecutor()</code></td><td>Har task ka naya virtual thread</td><td>Bahut saara blocking IO (Java 21+)</td><td>CPU-heavy kaam mein fayda nahi</td></tr>
+    </table></div>
+    <p class="warn"><b>Production rule:</b> <code>Executors</code> ke shortcuts ki jagah khud <code>ThreadPoolExecutor</code> banao, <b>bounded queue</b> ke saath. Tab aapko pata hota hai ki load badhne pe kya hoga.</p>
+  </article>
+
+  <article class="nsec" id="e-tpe">
+    <h2 data-short="ThreadPoolExecutor">ThreadPoolExecutor andar se kaise kaam karta hai</h2>
+    <script type="text/plain" class="jsrc">
+    AtomicInteger n = new AtomicInteger();
+    ThreadPoolExecutor pool = new ThreadPoolExecutor(
+        4,                                // corePoolSize: hamesha zinda threads
+        8,                                // maximumPoolSize: max threads
+        60, TimeUnit.SECONDS,             // extra threads kitni der idle reh sakte hain
+        new ArrayBlockingQueue<>(100),    // bounded queue
+        r -> new Thread(r, "order-worker-" + n.incrementAndGet()),  // naam se debug aasaan
+        new ThreadPoolExecutor.CallerRunsPolicy());                  // sab full: caller khud chalaye
+    </script>
+    <p>Naya task aane pe pool ye faisla karta hai:</p>
+    <ol class="flow">
+      <li><b>Running threads &lt; corePoolSize?</b><span>Haan: naya thread banao aur task use do</span></li>
+      <li><b>Queue mein jagah hai?</b><span>Haan: task queue mein daalo, koi free thread uthayega</span></li>
+      <li><b>Threads &lt; maximumPoolSize?</b><span>Haan: extra thread banao</span></li>
+      <li><b>Kuch nahi bacha</b><span>Rejection policy chalegi</span></li>
+    </ol>
+    <p class="tip"><b>Surprise point:</b> extra threads (core se upar) tabhi bante hain jab queue full ho. Unbounded queue ke saath pool kabhi core size se aage nahi badhega.</p>
+    <div class="tbl"><table>
+      <tr><th>Rejection policy</th><th>Kya karti hai</th></tr>
+      <tr><td><code>AbortPolicy</code> (default)</td><td><code>RejectedExecutionException</code> throw</td></tr>
+      <tr><td><code>CallerRunsPolicy</code></td><td>Submit karne wala thread khud task chalata hai. Isse apne aap speed kam hoti hai (backpressure)</td></tr>
+      <tr><td><code>DiscardPolicy</code></td><td>Task chup-chaap gira deta hai</td></tr>
+      <tr><td><code>DiscardOldestPolicy</code></td><td>Queue ka sabse purana task gira ke naya daalta hai</td></tr>
+    </table></div>
+    <p><b>Kitne threads?</b> CPU wale kaam ke liye lagbhag cores jitne. IO wale kaam ke liye: <code>cores × (1 + wait time / compute time)</code>. Phir load test karke adjust karo.</p>
+  </article>
+
+  <article class="nsec" id="e-ds">
+    <h2 data-short="Background DS">Background mein kaunse data structures hain</h2>
+    <div class="tbl wide"><table>
+      <tr><th>Hissa</th><th>Data structure</th><th>Kaam</th></tr>
+      <tr><td>Task queue</td><td><code>BlockingQueue</code>: <code>ArrayBlockingQueue</code> (circular array + 1 lock + 2 Conditions) ya <code>LinkedBlockingQueue</code> (linked nodes + alag put/take locks)</td><td>Tasks ki line</td></tr>
+      <tr><td>Workers</td><td><code>HashSet&lt;Worker&gt;</code>, ek <code>ReentrantLock</code> (mainLock) se protected</td><td>Zinda threads ki list</td></tr>
+      <tr><td>Pool state</td><td>Ek <code>AtomicInteger ctl</code>: upar ke 3 bits mein state, neeche ke 29 bits mein worker count</td><td>State aur count ek saath atomic</td></tr>
+      <tr><td>Scheduled pool</td><td><code>DelayedWorkQueue</code>: binary heap, jiska time pehle aata hai woh upar</td><td>Agla due task</td></tr>
+      <tr><td>ForkJoinPool</td><td>Har worker ki apni deque. Khaali worker doosron ki deque se kaam "chura" leta hai</td><td>Work stealing</td></tr>
+      <tr><td>Locks, Semaphore, Latch</td><td>AQS: ek <code>int state</code> + waiting threads ki FIFO queue (doubly linked list)</td><td>Kaun andar, kaun line mein</td></tr>
+    </table></div>
+  </article>
+
+  <article class="nsec" id="e-own">
+    <h2 data-short="Apna pool">Apna thread pool banao</h2>
+    <p>Teen hisse chahiye: tasks ki <b>queue</b>, N <b>worker threads</b> jo loop mein queue se task nikaal ke chalate hain, aur <b>shutdown</b> ka tareeka. Shutdown ke liye "poison pill" use kiya hai: har worker ke liye ek khaas task, jise dekh ke woh band ho jaata hai. Queue FIFO hai, isliye pill se pehle ke saare tasks pehle chal jaate hain.</p>
+    <script type="text/plain" class="jsrc" data-file="SimpleThreadPool">
+    import java.util.ArrayList;
+    import java.util.List;
+    import java.util.concurrent.ArrayBlockingQueue;
+    import java.util.concurrent.BlockingQueue;
+
+    public class SimpleThreadPool {
+        private static final Runnable POISON = () -> {};   // "band ho jao" wala nishaan
+
+        private final BlockingQueue<Runnable> queue;
+        private final List<Thread> workers = new ArrayList<>();
+        private volatile boolean shutdown = false;
+
+        public SimpleThreadPool(int nThreads, int queueSize) {
+            queue = new ArrayBlockingQueue<>(queueSize);
+            for (int i = 1; i <= nThreads; i++) {
+                Thread t = new Thread(this::workLoop, "pool-worker-" + i);
+                workers.add(t);
+                t.start();
+            }
+        }
+
+        public void submit(Runnable task) throws InterruptedException {
+            if (shutdown) throw new IllegalStateException("Pool band ho chuka hai");
+            queue.put(task);          // queue full: caller yahin rukega (backpressure)
+        }
+
+        private void workLoop() {
+            while (true) {
+                Runnable task;
+                try {
+                    task = queue.take();          // queue khaali: worker yahan WAITING
+                } catch (InterruptedException e) {
+                    return;                       // bahar se interrupt: turant band
+                }
+                if (task == POISON) return;       // isse pehle ke saare task ho chuke
+                try {
+                    task.run();
+                } catch (RuntimeException ex) {   // ek task ki galti se worker na mare
+                    System.err.println(Thread.currentThread().getName() + ": " + ex);
+                }
+            }
+        }
+
+        public void shutdown() throws InterruptedException {
+            shutdown = true;
+            for (int i = 0; i < workers.size(); i++) queue.put(POISON);  // har worker ko ek
+        }
+
+        public void awaitTermination() throws InterruptedException {
+            for (Thread t : workers) t.join();
+        }
+
+        public static void main(String[] args) throws InterruptedException {
+            SimpleThreadPool pool = new SimpleThreadPool(3, 10);
+            for (int i = 1; i <= 6; i++) {
+                int id = i;
+                pool.submit(() -> System.out.println(
+                    Thread.currentThread().getName() + " ne task " + id + " chalaya"));
+            }
+            pool.shutdown();
+            pool.awaitTermination();
+            System.out.println("Sab tasks khatam, pool band");
+        }
+    }
+    </script>
+    <p>Asli <code>ThreadPoolExecutor</code> isse aage ye sab karta hai: core aur max threads, idle threads ko band karna, rejection policies, <code>Future</code> se result, aur <code>beforeExecute</code>/<code>afterExecute</code> hooks.</p>
+    <button type="button" class="btn nextt" data-go="cf">Agla topic: CompletableFuture</button>
+  </article>
+</section>
+
+<!-- ============================ COMPLETABLEFUTURE ============================ -->
+<section class="tabp" id="tab-cf" role="tabpanel" style="--acc:var(--tangerine)" hidden>
+  <div class="tab-intro">
+    <h2 class="tab-h">CompletableFuture</h2>
+    <p>Background mein kaam chalao, aur pehle se bata do ki result aane par kya karna hai. Main thread free rehta hai.</p>
+  </div>
+
+  <article class="nsec" id="c-why">
+    <h2 data-short="Kyun">Future kaafi kyun nahi</h2>
+    <ul>
+      <li><code>Future.get()</code> thread ko rok deta hai, result aane tak.</li>
+      <li>"Result aaye toh ye karna" jaisa chain nahi bana sakte.</li>
+      <li>Do futures ke results jodne ka seedha tareeka nahi.</li>
+      <li>Error aane pe fallback dene ka callback nahi.</li>
+    </ul>
+    <p><code>CompletableFuture</code> ye sab deta hai: chaining, combine, error handling, aur timeout.</p>
+  </article>
+
+  <article class="nsec" id="c-create">
+    <h2 data-short="Banana">Banana aur apna executor dena</h2>
+    <script type="text/plain" class="jsrc">
+    ExecutorService io = Executors.newFixedThreadPool(10);    // IO kaam ka apna pool
+
+    CompletableFuture<String> user =
+        CompletableFuture.supplyAsync(() -> fetchUser(42), io);     // result wala kaam
+
+    CompletableFuture<Void> audit =
+        CompletableFuture.runAsync(() -> writeAudit("login"), io);  // bina result
+
+    CompletableFuture<String> ready = CompletableFuture.completedFuture("ready");
+    </script>
+    <p class="warn"><b>Dhyan:</b> executor nahi diya toh <code>ForkJoinPool.commonPool()</code> use hota hai, jisme lagbhag cores jitne threads hote hain. Usme DB ya HTTP jaisa blocking kaam daala toh poori app ka async kaam slow ho jaayega.</p>
+  </article>
+
+  <article class="nsec" id="c-methods">
+    <h2 data-short="Methods">Methods ka cheat sheet</h2>
+    <div class="tbl wide"><table>
+      <tr><th>Method</th><th>Kya karta hai</th><th>Example</th></tr>
+      <tr><td><code>thenApply</code></td><td>Result ko badlo (map)</td><td>price se discount wala price</td></tr>
+      <tr><td><code>thenAccept</code></td><td>Result use karo, kuch return nahi</td><td>print, save</td></tr>
+      <tr><td><code>thenRun</code></td><td>Result ki zaroorat nahi, bas baad mein chalao</td><td>log "done"</td></tr>
+      <tr><td><code>thenCompose</code></td><td>Ek async ke baad doosra async (flatMap)</td><td>user mila, phir uske orders lao</td></tr>
+      <tr><td><code>thenCombine</code></td><td>Do alag results jodo</td><td>user + price = bill</td></tr>
+      <tr><td><code>allOf</code> / <code>anyOf</code></td><td>Sabka wait / jo pehle aaye</td><td>3 APIs parallel</td></tr>
+      <tr><td><code>exceptionally</code></td><td>Error pe fallback</td><td>default value</td></tr>
+      <tr><td><code>handle</code></td><td>Result ya error, dono ek jagah</td><td><code>(res, ex) -&gt; ...</code></td></tr>
+      <tr><td><code>whenComplete</code></td><td>Side effect, result nahi badalta</td><td>metrics, log</td></tr>
+      <tr><td><code>orTimeout</code> / <code>completeOnTimeout</code></td><td>Time limit (Java 9+)</td><td>800ms mein nahi toh fallback</td></tr>
+    </table></div>
+    <h3>thenApply vs thenCompose</h3>
+    <script type="text/plain" class="jsrc">
+    // thenApply: function normal value return karta hai
+    CompletableFuture<Integer> len = user.thenApply(String::length);
+
+    // thenCompose: function khud CompletableFuture return karta hai, ye use flatten karta hai
+    CompletableFuture<List<Order>> orders =
+        user.thenCompose(u -> CompletableFuture.supplyAsync(() -> fetchOrders(u), io));
+
+    // yahan thenApply lagate toh type banta:
+    // CompletableFuture<CompletableFuture<List<Order>>>  ❌
+    </script>
+  </article>
+
+  <article class="nsec" id="c-real">
+    <h2 data-short="Real example">Real example: teen APIs parallel</h2>
+    <p>Product page ke liye product, reviews aur stock teen alag services se aate hain. Ek-ek karke laane mein teeno ka time judta hai. Parallel mein total time sirf sabse slow wale jitna.</p>
+    <script type="text/plain" class="jsrc">
+    public ProductPage loadPage(long id) {
+        CompletableFuture<Product> product = CompletableFuture
+            .supplyAsync(() -> productApi.get(id), io);             // zaroori hai
+
+        CompletableFuture<List<Review>> reviews = CompletableFuture
+            .supplyAsync(() -> reviewApi.forProduct(id), io)
+            .completeOnTimeout(List.of(), 800, TimeUnit.MILLISECONDS) // slow? khaali list
+            .exceptionally(ex -> List.of());                          // fail? khaali list
+
+        CompletableFuture<Integer> stock = CompletableFuture
+            .supplyAsync(() -> stockApi.count(id), io)
+            .exceptionally(ex -> -1);                                 // -1 = pata nahi
+
+        return CompletableFuture.allOf(product, reviews, stock)
+            .thenApply(v -> new ProductPage(product.join(), reviews.join(), stock.join()))
+            .join();
+    }
+    </script>
+    <p><code>allOf</code> ke baad <code>join()</code> rukta nahi, kyunki teeno pehle hi complete ho chuke hote hain. Product fail hua toh poora page fail hoga, kyunki uska koi fallback nahi diya. Ye jaan-boojh ke hai.</p>
+  </article>
+
+  <article class="nsec" id="c-err">
+    <h2 data-short="Errors">Errors aur kaunsa thread chalata hai</h2>
+    <script type="text/plain" class="jsrc">
+    CompletableFuture<Integer> f = CompletableFuture
+        .supplyAsync(() -> riskyCall(), io)
+        .handle((res, ex) -> {
+            if (ex != null) {                       // ex = CompletionException
+                log("Error: " + ex.getCause());     // asli error andar hai
+                return 0;                           // fallback
+            }
+            return res;
+        });
+
+    int v1 = f.join();   // unchecked CompletionException deta hai
+    int v2 = f.get();    // checked ExecutionException + InterruptedException
+    </script>
+    <div class="tbl"><table>
+      <tr><th>Aise likha</th><th>Callback kaunsa thread chalayega</th></tr>
+      <tr><td><code>thenApply(fn)</code></td><td>Jis thread ne pichla step khatam kiya. Agar pehle hi khatam tha, toh jo thread <code>thenApply</code> call kar raha hai</td></tr>
+      <tr><td><code>thenApplyAsync(fn)</code></td><td><code>commonPool</code> ka thread</td></tr>
+      <tr><td><code>thenApplyAsync(fn, io)</code></td><td>Aapke <code>io</code> pool ka thread</td></tr>
+    </table></div>
+    <p class="tip"><b>Background data structure:</b> har <code>CompletableFuture</code> ke andar ek result field aur ek lock-free stack (Treiber stack, CAS se chalne wali linked list) hota hai, jisme uske baad chalne wale steps rakhe jaate hain. Result aate hi ye stack khaali karke saare steps chala diye jaate hain.</p>
+    <h3>Common galtiyan</h3>
+    <ul>
+      <li>Blocking IO <code>commonPool</code> mein chalana.</li>
+      <li>Har step ke baad <code>join()</code> karna. Isse async ka poora fayda khatam.</li>
+      <li>Error handle na karna. Koi <code>join</code> nahi kar raha toh error kabhi dikhega hi nahi.</li>
+      <li>Apna executor <code>shutdown</code> karna bhool jaana.</li>
+    </ul>
+    <button type="button" class="btn nextt" data-go="dead">Agla topic: Deadlock</button>
+  </article>
+</section>
+
+<!-- ============================ DEADLOCK ============================ -->
+<section class="tabp" id="tab-dead" role="tabpanel" style="--acc:var(--tomato)" hidden>
+  <div class="tab-intro">
+    <h2 class="tab-h">Deadlock</h2>
+    <p>Deadlock kyun hota hai, kaise rokein, aur chalti app mein kaise pata karein ki deadlock hai ya nahi.</p>
+  </div>
+
+  <article class="nsec" id="d-what">
+    <h2 data-short="4 conditions">Deadlock aur uski 4 conditions</h2>
+    <p>Do ya zyada threads ek doosre ke pakde hue lock ka hamesha ke liye wait karte rehte hain. Exception nahi aata, app bas atak jaati hai. Deadlock ke liye ye chaaron conditions ek saath honi chahiye. Ek bhi todo, deadlock nahi hoga.</p>
+    <div class="tbl wide"><table>
+      <tr><th>Condition</th><th>Matlab</th><th>Kaise todein</th></tr>
+      <tr><td>Mutual exclusion</td><td>Resource ek time pe ek ke paas</td><td>Lock hi kam karo: immutable objects, <code>Atomic</code>, <code>ConcurrentHashMap</code></td></tr>
+      <tr><td>Hold and wait</td><td>Ek pakda hai, doosre ka wait</td><td>Saare locks ek saath lo, ya ek hi bada lock rakho</td></tr>
+      <tr><td>No preemption</td><td>Lock zabardasti chheen nahi sakte</td><td><code>tryLock(timeout)</code>: na mile toh jo pakda hai woh chhodo</td></tr>
+      <tr><td>Circular wait</td><td>T1 → T2 → T1 ka circle</td><td><b>Lock ordering</b>: sab threads same order mein locks lein</td></tr>
+    </table></div>
+  </article>
+
+  <article class="nsec" id="d-ex">
+    <h2 data-short="Example + fix">Example aur fix</h2>
+    <script type="text/plain" class="jsrc">
+    // ❌ T1: transfer(A, B) aur T2: transfer(B, A) ek saath → deadlock
+    void transfer(Account from, Account to, int amt) {
+        synchronized (from) {
+            synchronized (to) { from.debit(amt); to.credit(amt); }
+        }
+    }
+
+    // ✅ Fix 1: lock ordering, hamesha chhoti id wala pehle
+    void transferSafe(Account from, Account to, int amt) {
+        Account first  = from.id < to.id ? from : to;
+        Account second = from.id < to.id ? to : from;
+        synchronized (first) {
+            synchronized (second) { from.debit(amt); to.credit(amt); }
+        }
+    }
+
+    // ✅ Fix 2: tryLock, na mile toh chhodo aur thodi der baad dobara
+    boolean transferTry(Account a, Account b, int amt) throws InterruptedException {
+        while (true) {
+            if (a.lock.tryLock(100, TimeUnit.MILLISECONDS)) {
+                try {
+                    if (b.lock.tryLock(100, TimeUnit.MILLISECONDS)) {
+                        try { a.debit(amt); b.credit(amt); return true; }
+                        finally { b.lock.unlock(); }
+                    }
+                } finally { a.lock.unlock(); }
+            }
+            Thread.sleep(ThreadLocalRandom.current().nextInt(10, 50));  // random wait: livelock se bachao
+        }
+    }
+    </script>
+  </article>
+
+  <article class="nsec" id="d-detect">
+    <h2 data-short="Kaise pata karein">Kaise pata karein ki deadlock hai ya nahi</h2>
+    <h3>1. Lakshan pehchano</h3>
+    <ul>
+      <li>App ya API hang, requests timeout, par logs mein koi error nahi.</li>
+      <li><b>CPU low</b> hai. Atke threads CPU nahi khaate. CPU 100% ho toh infinite loop ya livelock ka shak karo.</li>
+    </ul>
+    <h3>2. Thread dump lo</h3>
+    <script type="text/plain" class="jsrc" data-lang="text">
+    jps -l                    # Java process ka PID
+    jstack <PID>              # thread dump
+    jcmd <PID> Thread.print   # same kaam, naya tareeka
+    kill -3 <PID>             # Linux: dump app ke log mein, app band nahi hoti
+    </script>
+    <h3>3. Dump ke end mein ye dhoondo</h3>
+    <script type="text/plain" class="jsrc" data-lang="text">
+    Found one Java-level deadlock:
+    =============================
+    "T2":
+      waiting to lock monitor 0x... (object 0x..., a java.lang.Object),
+      which is held by "T1"
+    "T1":
+      waiting to lock monitor 0x... (object 0x..., a java.lang.Object),
+      which is held by "T2"
+
+    Java stack information for the threads listed above:
+    "T2":
+            at Demo.lambda$main$1(Demo.java:17)
+    ...
+    Found 1 deadlock.
+    </script>
+    <p>T2 ko T1 ka lock chahiye aur T1 ko T2 ka, yaani circle. <code>Demo.java:17</code> woh line hai jahan thread atka hai. <code>synchronized</code> wale threads BLOCKED dikhte hain, <code>ReentrantLock</code> wale WAITING mein "waiting for ownable synchronizer" ke saath.</p>
+    <h3>4. GUI tools</h3>
+    <p>JConsole ke Threads tab mein "Detect Deadlock" button hai. VisualVM Threads tab mein khud "Deadlock detected!" dikhata hai. IntelliJ debug mode mein "Get Thread Dump" bhi kaam karta hai.</p>
+    <h3>5. Code se khud pakdo (production watchdog)</h3>
+    <script type="text/plain" class="jsrc">
+    ScheduledExecutorService watchdog = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "deadlock-watchdog");
+        t.setDaemon(true);                      // app band hone se na roke
+        return t;
+    });
+
+    watchdog.scheduleAtFixedRate(() -> {
+        ThreadMXBean mx = ManagementFactory.getThreadMXBean();
+        long[] ids = mx.findDeadlockedThreads();    // null = koi deadlock nahi
+        if (ids != null) {
+            for (ThreadInfo info : mx.getThreadInfo(ids, true, true)) {
+                System.err.println("DEADLOCK: " + info.getThreadName()
+                    + " wait kar raha " + info.getLockName()
+                    + ", jo " + info.getLockOwnerName() + " ke paas hai");
+            }
+        }
+    }, 30, 30, TimeUnit.SECONDS);
+    </script>
+    <p>Spring Boot mein <code>/actuator/threaddump</code> endpoint se bhi dump le sakte ho. JVM andar se ek wait-for graph banata hai (kaun kiska wait kar raha hai) aur usme circle dhoondhta hai.</p>
+    <p class="warn"><b>Limitation:</b> ye tools sirf locks ka circle pakadte hain. Threads <code>await()</code>, <code>wait()</code>, <code>CountDownLatch</code> ya <code>future.get()</code> pe hamesha ke liye atke hon, toh "Found deadlock" nahi aayega. Aise mein 5-10 second ke gap pe 3 dumps lo. Wahi threads har baar same line pe atke hain, toh wahi culprit hai.</p>
+    <h3>Pool starvation: deadlock jaisa, par detect nahi hota</h3>
+    <script type="text/plain" class="jsrc">
+    ExecutorService single = Executors.newSingleThreadExecutor();
+    Future<String> outer = single.submit(() -> {
+        Future<String> inner = single.submit(() -> "inner");   // same pool mein
+        return inner.get();   // ❌ akela thread khud ka wait kar raha: hamesha atka
+    });
+    </script>
+  </article>
+
+  <article class="nsec" id="d-other">
+    <h2 data-short="Livelock, starvation">Livelock, starvation aur DB deadlock</h2>
+    <div class="tbl"><table>
+      <tr><th>Problem</th><th>Kya hota hai</th><th>Ilaaj</th></tr>
+      <tr><td>Deadlock</td><td>Sab ruk gaye, CPU low</td><td>Lock ordering, <code>tryLock</code></td></tr>
+      <tr><td>Livelock</td><td>Threads busy hain, ek doosre ko rasta dete-dete progress zero</td><td>Retry mein random wait</td></tr>
+      <tr><td>Starvation</td><td>Ek thread ki baari kabhi nahi aati</td><td>Fair lock <code>new ReentrantLock(true)</code></td></tr>
+      <tr><td>DB deadlock</td><td>Do transactions ek doosre ki rows lock kiye baithe hain</td><td>Rows same order mein update karo, transaction chhoti rakho. DB ek transaction ko rollback kar deta hai, retry karo</td></tr>
+    </table></div>
+    <button type="button" class="btn nextt" data-go="dsa">Agla topic: DSA + Interview</button>
+  </article>
+</section>
+
+<!-- ============================ DSA ============================ -->
+<section class="tabp" id="tab-dsa" role="tabpanel" style="--acc:var(--violet)" hidden>
+  <div class="tab-intro">
+    <h2 class="tab-h">DSA + Interview</h2>
+    <p>Concurrency wale coding questions kaise sochein aur solve karein, concurrent collections andar se kaise bane hain, aur interview ke common sawaal.</p>
+  </div>
+
+  <article class="nsec" id="q-how">
+    <h2 data-short="Kaise sochein">Aise questions solve karne ka tareeka</h2>
+    <ol>
+      <li><b>Shared state dhoondo:</b> kaunsa data kai threads chhoo rahe hain?</li>
+      <li><b>Rule likho:</b> kab rukna hai? (queue full ho toh producer ruke, odd ki baari ho toh even ruke)</li>
+      <li><b>Tool chuno:</b> lock + condition, <code>BlockingQueue</code>, <code>Atomic</code>, <code>Semaphore</code>.</li>
+      <li><b>Wait hamesha <code>while</code> mein</b>, aur state badalne ke baad signal ya notify karo.</li>
+      <li><b>Test karo:</b> bahut saare threads chalao, aur har line pe socho "agar yahan thread switch ho gaya toh?"</li>
+    </ol>
+  </article>
+
+  <article class="nsec" id="q-pc">
+    <h2 data-short="Producer-Consumer">Q1. Producer-Consumer</h2>
+    <p>Ek thread cheezein banata hai, doosra use karta hai. Beech mein limited jagah hai. Sabse aasaan solution <code>BlockingQueue</code> hai, kyunki rukne aur jagne ka kaam woh khud karti hai.</p>
+    <script type="text/plain" class="jsrc">
+    BlockingQueue<Integer> q = new ArrayBlockingQueue<>(5);
+
+    Thread producer = new Thread(() -> {
+        try {
+            for (int i = 1; i <= 10; i++) {
+                q.put(i);                          // full: yahin rukega
+                System.out.println("Banaya " + i);
+            }
+            q.put(-1);                             // poison pill: "aur nahi aayega"
+        } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+    });
+
+    Thread consumer = new Thread(() -> {
+        try {
+            while (true) {
+                int x = q.take();                  // khaali: yahin rukega
+                if (x == -1) break;
+                System.out.println("  Khaaya " + x);
+            }
+        } catch (InterruptedException e) { Thread.currentThread().interrupt(); }
+    });
+    producer.start();
+    consumer.start();
+    </script>
+  </article>
+
+  <article class="nsec" id="q-bbq">
+    <h2 data-short="Blocking Queue">Q2. Bounded Blocking Queue khud banao</h2>
+    <p>Interview mein aksar kehte hain "BlockingQueue use mat karo, khud banao". Ek lock aur do Conditions: <code>notFull</code> pe producer sota hai, <code>notEmpty</code> pe consumer. Java ki <code>ArrayBlockingQueue</code> bhi andar se bilkul aisi hi hai.</p>
+    <script type="text/plain" class="jsrc" data-file="BoundedBlockingQueue">
+    class BoundedBlockingQueue<T> {
+        private final Object[] items;                 // circular array
+        private int head = 0, tail = 0, count = 0;
+        private final ReentrantLock lock = new ReentrantLock();
+        private final Condition notFull = lock.newCondition();
+        private final Condition notEmpty = lock.newCondition();
+
+        BoundedBlockingQueue(int capacity) { items = new Object[capacity]; }
+
+        public void put(T x) throws InterruptedException {
+            lock.lock();
+            try {
+                while (count == items.length) notFull.await();   // full: so jao
+                items[tail] = x;
+                tail = (tail + 1) % items.length;
+                count++;
+                notEmpty.signal();                               // consumer ko jagao
+            } finally { lock.unlock(); }
+        }
+
+        @SuppressWarnings("unchecked")
+        public T take() throws InterruptedException {
+            lock.lock();
+            try {
+                while (count == 0) notEmpty.await();             // khaali: so jao
+                T x = (T) items[head];
+                items[head] = null;                              // GC ke liye
+                head = (head + 1) % items.length;
+                count--;
+                notFull.signal();                                // producer ko jagao
+                return x;
+            } finally { lock.unlock(); }
+        }
+
+        public int size() {
+            lock.lock();
+            try { return count; } finally { lock.unlock(); }
+        }
+    }
+    </script>
+  </article>
+
+  <article class="nsec" id="q-oddeven">
+    <h2 data-short="Odd-Even">Q3. Do threads se odd-even baari-baari print</h2>
+    <p>Shared state: <code>n</code>. Rule: jiski baari nahi, woh wait kare. Print karke <code>n++</code> aur doosre ko jagao.</p>
+    <script type="text/plain" class="jsrc" data-file="OddEven">
+    class OddEven {
+        private int n = 1;
+        private final int max;
+        OddEven(int max) { this.max = max; }
+
+        void print(boolean odd) {
+            synchronized (this) {
+                while (n <= max) {
+                    if ((n % 2 == 1) != odd) {            // meri baari nahi
+                        try { wait(); } catch (InterruptedException e) { return; }
+                        continue;
+                    }
+                    System.out.println(Thread.currentThread().getName() + ": " + n);
+                    n++;
+                    notifyAll();                          // doosre ko baari do
+                }
+            }
+        }
+
+        public static void main(String[] args) {
+            OddEven p = new OddEven(10);
+            new Thread(() -> p.print(true), "odd").start();
+            new Thread(() -> p.print(false), "even").start();
+        }
+    }
+    </script>
+    <p class="tip"><b>3 threads, 1 se N tak sequence mein?</b> Same idea: har thread ka id 0, 1, 2 rakho, aur baari tab hai jab <code>n % 3 == id</code>. Baaki sab wait karein.</p>
+  </article>
+
+  <article class="nsec" id="q-single">
+    <h2 data-short="Singleton">Q4. Thread-safe Singleton</h2>
+    <script type="text/plain" class="jsrc" data-file="Config">
+    class Config {
+        private static volatile Config instance;     // volatile zaroori hai
+
+        private Config() { /* bhaari setup */ }
+
+        static Config get() {
+            Config c = instance;
+            if (c == null) {                         // 1st check: bina lock (fast)
+                synchronized (Config.class) {
+                    c = instance;
+                    if (c == null) {                 // 2nd check: lock ke andar
+                        instance = c = new Config();
+                    }
+                }
+            }
+            return c;
+        }
+    }
+
+    // Aur simple: holder idiom. JVM ka class loading khud thread-safe hai
+    class Config2 {
+        private Config2() {}
+        private static class Holder { static final Config2 INSTANCE = new Config2(); }
+        static Config2 get() { return Holder.INSTANCE; }
+    }
+    </script>
+    <p><b><code>volatile</code> kyun?</b> Uske bina doosre thread ko object ka reference mil sakta hai, jabki constructor abhi poora chala hi nahi. Isse aadha-bana object dikh sakta hai.</p>
+  </article>
+
+  <article class="nsec" id="q-lru">
+    <h2 data-short="LRU Cache">Q5. Thread-safe LRU cache</h2>
+    <p>Background data structure: <code>LinkedHashMap</code> = HashMap + doubly linked list. Access order mode mein har <code>get</code> entry ko list ke end pe le jaata hai, aur sabse purani entry list ke shuru mein rehti hai.</p>
+    <script type="text/plain" class="jsrc" data-file="LruCache">
+    class LruCache<K, V> {
+        private final int capacity;
+        private final LinkedHashMap<K, V> map;
+
+        LruCache(int capacity) {
+            this.capacity = capacity;
+            // true = access order: get() karne pe entry end pe chali jaati hai
+            this.map = new LinkedHashMap<K, V>(16, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {
+                    return size() > LruCache.this.capacity;   // sabse purani hatao
+                }
+            };
+        }
+
+        public synchronized V get(K key) { return map.get(key); }   // get bhi list badalta hai!
+        public synchronized void put(K key, V val) { map.put(key, val); }
+        public synchronized int size() { return map.size(); }
+    }
+    </script>
+    <p class="warn"><b>Trap:</b> sirf <code>put</code> ko synchronized karna kaafi nahi. Access order mein <code>get</code> bhi andar ki list badalta hai, isliye woh bhi lock mein chahiye.</p>
+  </article>
+
+  <article class="nsec" id="q-count">
+    <h2 data-short="Word count">Q6. Parallel word count</h2>
+    <script type="text/plain" class="jsrc">
+    Map<String, Integer> freq = new ConcurrentHashMap<>();
+    ExecutorService pool = Executors.newFixedThreadPool(4);
+
+    for (List<String> chunk : chunks) {              // lines ke tukde
+        pool.submit(() -> {
+            for (String line : chunk)
+                for (String w : line.split("\\s+"))
+                    freq.merge(w, 1, Integer::sum);  // read + add + write ek atomic step
+        });
+    }
+    pool.shutdown();
+    pool.awaitTermination(1, TimeUnit.MINUTES);
+    </script>
+    <p class="warn"><b>Trap:</b> <code>if (!map.containsKey(k)) map.put(k, 1)</code> jaisa check-then-act <code>ConcurrentHashMap</code> ke saath bhi race hai. <code>merge</code>, <code>compute</code> ya <code>putIfAbsent</code> use karo.</p>
+  </article>
+
+  <article class="nsec" id="q-ds">
+    <h2 data-short="Collections andar se">Concurrent collections andar se kaisi hain</h2>
+    <div class="tbl wide"><table>
+      <tr><th>Collection</th><th>Andar kya hai</th><th>Kab use</th></tr>
+      <tr><td><code>ConcurrentHashMap</code></td><td>Buckets ka array. Khaali bucket mein CAS se daalta hai, bhari bucket pe sirf uske pehle node pe lock. Ek bucket mein 8 se zyada entries (aur table 64+) hon toh red-black tree</td><td>Shared map, cache</td></tr>
+      <tr><td><code>CopyOnWriteArrayList</code></td><td>Har write pe poori array ki nayi copy, read bina lock</td><td>Padhna bahut, likhna kam (listeners)</td></tr>
+      <tr><td><code>ConcurrentLinkedQueue</code></td><td>Lock-free linked list (CAS)</td><td>Bina blocking wali queue</td></tr>
+      <tr><td><code>ArrayBlockingQueue</code></td><td>Circular array + 1 lock + 2 Conditions</td><td>Bounded producer-consumer</td></tr>
+      <tr><td><code>LinkedBlockingQueue</code></td><td>Linked nodes + 2 locks (put aur take alag), dono ek saath chal sakte hain</td><td>Thread pool ki queue</td></tr>
+      <tr><td><code>PriorityBlockingQueue</code></td><td>Binary heap + lock</td><td>Priority wale tasks</td></tr>
+      <tr><td><code>DelayQueue</code></td><td>Priority queue (heap) + lock + Condition</td><td>Time ke baad nikalna</td></tr>
+      <tr><td><code>SynchronousQueue</code></td><td>Capacity zero: har put ek take se seedha milta hai</td><td>Direct handoff (cached pool)</td></tr>
+      <tr><td><code>ConcurrentSkipListMap</code></td><td>Skip list, lock-free</td><td>Sorted concurrent map</td></tr>
+      <tr><td><code>ReentrantLock</code>, <code>Semaphore</code>, <code>CountDownLatch</code></td><td>AQS: <code>int state</code> + waiting threads ki FIFO linked queue</td><td>Locks aur synchronizers</td></tr>
+    </table></div>
+  </article>
+
+  <article class="nsec" id="q-qa">
+    <h2 data-short="Interview Q&amp;A">Interview ke common sawaal</h2>
+    <details class="qa"><summary>wait() vs sleep()?</summary><div class="ans"><p><code>wait()</code> lock chhodta hai aur sirf <code>synchronized</code> ke andar chalta hai. <code>sleep()</code> lock pakde rehta hai aur kahin bhi chalta hai.</p></div></details>
+    <details class="qa"><summary>Runnable vs Callable?</summary><div class="ans"><p><code>Runnable.run()</code> kuch return nahi karta aur checked exception throw nahi kar sakta. <code>Callable.call()</code> value return karta hai aur exception throw kar sakta hai.</p></div></details>
+    <details class="qa"><summary>shutdown() vs shutdownNow()?</summary><div class="ans"><p><code>shutdown()</code> naye task lena band karta hai, par queue ke saare task poore hone deta hai. <code>shutdownNow()</code> chal rahe threads ko interrupt karta hai aur queue ke bache task list mein wapas deta hai.</p></div></details>
+    <details class="qa"><summary>HashMap vs synchronizedMap vs ConcurrentHashMap?</summary><div class="ans"><p><code>HashMap</code> thread-safe nahi hai. <code>Collections.synchronizedMap</code> poore map pe ek lock lagata hai, isliye slow. <code>ConcurrentHashMap</code> sirf us bucket ko lock karta hai jisme likh raha hai, aur read bina lock ke hote hain.</p></div></details>
+    <details class="qa"><summary>ConcurrentHashMap null kyun allow nahi karta?</summary><div class="ans"><p><code>get(k)</code> ne null diya toh ye pata nahi chalega ki key nahi hai ya value hi null hai. Single-thread mein <code>containsKey</code> se check kar lete, par concurrent map mein dono calls ke beech map badal sakta hai.</p></div></details>
+    <details class="qa"><summary>volatile se count++ safe kyun nahi hota?</summary><div class="ans"><p><code>volatile</code> sirf latest value dikhane ki guarantee deta hai. <code>count++</code> teen steps hai, aur do threads beech mein ghus sakte hain. Iske liye <code>AtomicInteger</code> ya lock chahiye.</p></div></details>
+    <details class="qa"><summary>Deadlock vs livelock vs starvation?</summary><div class="ans"><p>Deadlock mein sab ruke hain. Livelock mein sab busy hain par progress zero. Starvation mein ek thread ki baari hi nahi aati.</p></div></details>
+    <details class="qa"><summary>Thread pool ka size kaise decide karein?</summary><div class="ans"><p>CPU wale kaam ke liye lagbhag cores jitna. IO wale kaam ke liye <code>cores × (1 + wait time / compute time)</code>. Queue hamesha bounded rakho, aur load test se final karo.</p></div></details>
+  </article>
+</section>
+
+<!-- ============================ ANIMATION ============================ -->
+<section class="tabp" id="tab-anim" role="tabpanel" hidden>
+  <div class="anim-intro">
+    <h2 class="tab-h">🎬 Animation</h2>
+    <p class="lede">Har thread ek character hai. <b>▶ Play</b> dabao, ya <b>Agla step</b> se ek-ek karke chalao. Jo code line chal rahi hai, woh neeche highlight hogi.</p>
+  </div>
+  <section class="cast" aria-labelledby="cast-h">
+    <h2 id="cast-h">Cast: chehra dekho, state samjho</h2>
+    <div class="cast-grid"></div>
+  </section>
+<main>
+
+<!-- Episode 1 -->
+<section class="ep" id="ep-thread" style="--acc:var(--sakura)" aria-labelledby="h-thread">
+  <div class="ep-head">
+    <span class="medal" aria-hidden="true">1</span>
+    <div><h2 id="h-thread">Thread</h2><p class="ep-sub">Ek program, kai workers</p></div>
+  </div>
+  <p class="intro">Thread program ke andar ek alag worker hai. Sab threads heap (objects) share karte hain, par har thread ka apna stack hota hai. Kaun kab chalega, ye <b>scheduler</b> decide karta hai, isliye har run mein order badal sakta hai.</p>
+  <div class="demo">
+    <div class="play-col">
+      <div class="seg" role="group" aria-label="Kaunsa method call karein">
+        <button type="button" class="on" data-mode="start" aria-pressed="true"><code>t.start()</code></button>
+        <button type="button" data-mode="run" aria-pressed="false"><code>t.run()</code></button>
+      </div>
+      <div class="stage has-log" style="--h:330px" role="img" aria-label="Animation: main thread teen threads banata aur chalata hai"></div>
+      <div class="console" aria-label="Console output"></div>
+      <div class="ctrls">
+        <button type="button" class="btn play">▶ Play</button>
+        <button type="button" class="btn next">Agla step</button>
+        <button type="button" class="btn sq reset" aria-label="Reset">↺</button>
+        <button type="button" class="btn sq spd" aria-label="Speed badlo">1x</button>
+      </div>
+      <div class="cap"><div class="cap-top"><span class="cap-step">Ready</span><code class="cap-code" hidden></code></div><p class="cap-txt" aria-live="polite"></p></div>
+    </div>
+    <div class="code-col"><pre class="code" tabindex="0" aria-label="Java code"></pre></div>
+  </div>
+  <ul class="pts">
+    <li><code>start()</code> naya thread banata hai. <code>run()</code> bas ek normal method call hai, jise main thread hi chalata hai.</li>
+    <li>Ek hi thread pe <code>start()</code> do baar call kiya toh <code>IllegalThreadStateException</code> aayega.</li>
+    <li>Real project mein <code>new Thread()</code> ki jagah <code>ExecutorService</code> (thread pool) use karo.</li>
+  </ul>
+</section>
+
+<!-- Episode 2 -->
+<section class="ep" id="ep-sync" style="--acc:var(--sky)" aria-labelledby="h-sync">
+  <div class="ep-head">
+    <span class="medal" aria-hidden="true">2</span>
+    <div><h2 id="h-sync">synchronized</h2><p class="ep-sub">Ek time pe sirf ek thread</p></div>
+  </div>
+  <p class="intro"><code>count++</code> ek step nahi, teen steps hai: read, add, write. Do threads beech mein ghus gaye toh ek update gayab ho jaata hai. Isko <b>race condition</b> kehte hain. <code>synchronized</code> object ke built-in lock (<b>monitor</b>) se ek time pe ek hi thread ko andar aane deta hai.</p>
+  <div class="demo">
+    <div class="play-col">
+      <div class="seg" role="group" aria-label="Mode chuno">
+        <button type="button" class="on" data-mode="unsafe" aria-pressed="true">❌ Bina lock</button>
+        <button type="button" data-mode="sync" aria-pressed="false">🔒 <code>synchronized</code></button>
+      </div>
+      <div class="stage" style="--h:300px" role="img" aria-label="Animation: do threads ek hi counter badhate hain"></div>
+      <div class="ctrls">
+        <button type="button" class="btn play">▶ Play</button>
+        <button type="button" class="btn next">Agla step</button>
+        <button type="button" class="btn sq reset" aria-label="Reset">↺</button>
+        <button type="button" class="btn sq spd" aria-label="Speed badlo">1x</button>
+      </div>
+      <div class="cap"><div class="cap-top"><span class="cap-step">Ready</span><code class="cap-code" hidden></code></div><p class="cap-txt" aria-live="polite"></p></div>
+    </div>
+    <div class="code-col"><pre class="code" tabindex="0" aria-label="Java code"></pre></div>
+  </div>
+  <ul class="pts">
+    <li>Method khatam hote hi lock apne aap chhoot jaata hai, exception aaye tab bhi.</li>
+    <li>Lock ka wait karne wala thread <b>BLOCKED</b> state mein hota hai. Thread dump mein yahi dikhega.</li>
+    <li>Sirf ek counter badhana hai? <code>AtomicInteger.incrementAndGet()</code> bina lock ke bhi safe hai.</li>
+  </ul>
+</section>
+
+<!-- Episode 3 -->
+<section class="ep" id="ep-rlock" style="--acc:var(--violet)" aria-labelledby="h-rlock">
+  <div class="ep-head">
+    <span class="medal" aria-hidden="true">3</span>
+    <div><h2 id="h-rlock">Reentrant<wbr>Lock</h2><p class="ep-sub">Chabi aapke haath mein</p></div>
+  </div>
+  <p class="intro">Kaam <code>synchronized</code> jaisa hi hai, par control zyada milta hai: <code>tryLock()</code> se wait ki limit, fair queue, aur ek lock pe kai Conditions. Bas <code>unlock()</code> khud karna padta hai, hamesha <code>finally</code> mein.</p>
+  <div class="demo">
+    <div class="play-col">
+      <div class="stage" style="--h:360px" role="img" aria-label="Animation: teen threads ek ReentrantLock ke liye aate hain"></div>
+      <div class="ctrls">
+        <button type="button" class="btn play">▶ Play</button>
+        <button type="button" class="btn next">Agla step</button>
+        <button type="button" class="btn sq reset" aria-label="Reset">↺</button>
+        <button type="button" class="btn sq spd" aria-label="Speed badlo">1x</button>
+      </div>
+      <div class="cap"><div class="cap-top"><span class="cap-step">Ready</span><code class="cap-code" hidden></code></div><p class="cap-txt" aria-live="polite"></p></div>
+    </div>
+    <div class="code-col"><pre class="code" tabindex="0" aria-label="Java code"></pre></div>
+  </div>
+  <ul class="pts">
+    <li><b>Reentrant</b> ka matlab: jis thread ke paas lock hai, woh dobara bhi le sakta hai. Har baar holdCount +1.</li>
+    <li>Jitni baar <code>lock()</code>, utni baar <code>unlock()</code>. Ek bhi miss hua toh lock hamesha busy rahega aur baaki threads atke rahenge.</li>
+    <li><code>tryLock(timeout)</code> deadlock se bachne ka sabse aasaan tareeka hai.</li>
+    <li><code>lock()</code> pe atka thread, thread dump mein <b>WAITING (parking)</b> dikhta hai, BLOCKED nahi.</li>
+  </ul>
+</section>
+
+<!-- Episode 4 -->
+<section class="ep" id="ep-cf" style="--acc:var(--mint)" aria-labelledby="h-cf">
+  <div class="ep-head">
+    <span class="medal" aria-hidden="true">4</span>
+    <div><h2 id="h-cf">Completable<wbr>Future</h2><p class="ep-sub">Wait mat karo, aage ka plan bata do</p></div>
+  </div>
+  <p class="intro">Kaam background thread pool ko do, aur pehle se bata do ki result aane par kya karna hai (<code>thenApply</code>, <code>thenCombine</code>…). Main thread free rehta hai. Food delivery app jaisa: order karo, apna kaam karo, khana ready hote hi notification aa jaata hai.</p>
+  <div class="demo">
+    <div class="play-col">
+      <div class="seg" role="group" aria-label="Mode chuno">
+        <button type="button" class="on" data-mode="ok" aria-pressed="true">✅ Sab theek</button>
+        <button type="button" data-mode="err" aria-pressed="false">💥 Error aane do</button>
+      </div>
+      <div class="stage has-log" style="--h:420px" role="img" aria-label="Animation: do async kaam parallel chalte hain aur result aage ki chain mein jaata hai"></div>
+      <div class="console short" aria-label="Console output"></div>
+      <div class="ctrls">
+        <button type="button" class="btn play">▶ Play</button>
+        <button type="button" class="btn next">Agla step</button>
+        <button type="button" class="btn sq reset" aria-label="Reset">↺</button>
+        <button type="button" class="btn sq spd" aria-label="Speed badlo">1x</button>
+      </div>
+      <div class="cap"><div class="cap-top"><span class="cap-step">Ready</span><code class="cap-code" hidden></code></div><p class="cap-txt" aria-live="polite"></p></div>
+    </div>
+    <div class="code-col"><pre class="code" tabindex="0" aria-label="Java code"></pre></div>
+  </div>
+  <ul class="pts">
+    <li><code>thenApply</code> result badalta hai, <code>thenCombine</code> do results jodta hai, aur <code>thenCompose</code> ek async kaam ke baad doosra async kaam chalata hai.</li>
+    <li><code>join()</code> aur <code>get()</code> blocking hain. Inhe sirf end mein use karo.</li>
+    <li>Default pool <code>ForkJoinPool.commonPool()</code> hai. DB ya API calls ke liye apna Executor do: <code>supplyAsync(task, executor)</code>.</li>
+    <li><code>exceptionally</code> na ho toh <code>join()</code> <code>CompletionException</code> throw karega.</li>
+  </ul>
+</section>
+
+<section class="sheet" aria-labelledby="h-sheet">
+  <h2 id="h-sheet">Kab kya use karein?</h2>
+  <dl>
+    <div class="row"><dt>synchronized</dt><dd>Shared data ko simple tareeke se safe karna ho</dd></div>
+    <div class="row"><dt>ReentrantLock</dt><dd>Timeout, fairness ya multiple Conditions chahiye</dd></div>
+    <div class="row"><dt>AtomicInteger</dt><dd>Sirf ek counter ya flag update karna ho</dd></div>
+    <div class="row"><dt>CompletableFuture</dt><dd>Kaam background mein chalao, aur result aane par aage ka kaam</dd></div>
+    <div class="row"><dt>ExecutorService</dt><dd>Bahut saare tasks ke liye thread pool</dd></div>
+  </dl>
+</section>
+<p class="foot">Animation samjhane ke liye simple rakha gaya hai. Asli timing aur order JVM, OS aur CPU pe depend karta hai.</p>
+
+</main>
+</section>
+
+<p class="foot">Animations samjhane ke liye simple rakhe gaye hain. Asli timing aur order JVM, OS aur CPU pe depend karta hai.</p>
+</div>
+<script>
+(() => {
+  'use strict';
+
+  /* ================= helpers ================= */
+  const CANCEL = Symbol('cancel');
+  const SPEEDS = [1, 0.5, 2];
+  let SPEED = 1;
+
+  const $ = (s, r = document) => r.querySelector(s);
+  const $$ = (s, r = document) => Array.from(r.querySelectorAll(s));
+  const rand = (a, b) => a + Math.random() * (b - a);
+  const noop = () => {};
+  const shuffle = a => {
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  };
+
+  function mk(tag, cls, html) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (html != null) e.innerHTML = html;
+    return e;
+  }
+  function place(e, x, y) { e.style.left = x + '%'; e.style.top = y + '%'; }
+  function move(e, x, y, ms = 600) {
+    e.style.transitionDuration = Math.round(ms / SPEED) + 'ms';
+    place(e, x, y);
+  }
+  function restart(e, cls) { e.classList.remove(cls); void e.offsetWidth; e.classList.add(cls); }
+
+  /* ================= characters ================= */
+  const LABEL = { new: 'NEW', run: 'RUNNABLE', blocked: 'BLOCKED', wait: 'WAITING', twait: 'TIMED_WAITING', done: 'TERMINATED' };
+  const MARK = { blocked: '💢', wait: '💤', twait: '⏳', done: '✓' };
+  const FACE = '<div class="bodyc"><i class="brow l"></i><i class="brow r"></i><i class="eye l"></i><i class="eye r"></i>' +
+    '<i class="mouth"></i><i class="blush l"></i><i class="blush r"></i></div>';
+
+  function tok(name, color, extra) {
+    const t = mk('div', 'tok' + (extra ? ' ' + extra : ''));
+    t.style.setProperty('--c', color);
+    t.style.setProperty('--bd', (-Math.random() * 4).toFixed(2) + 's');
+    t.innerHTML = FACE + '<span class="badge"></span><b class="nm"></b><span class="mk" aria-hidden="true"></span><span class="bub"></span>';
+    t.querySelector('.nm').textContent = name;
+    return t;
+  }
+  function setState(t, s) {
+    for (const k in LABEL) t.classList.remove('s-' + k);
+    t.classList.add('s-' + s);
+    t.querySelector('.badge').textContent = LABEL[s];
+    t.querySelector('.mk').textContent = MARK[s] || '';
+  }
+  function bubble(t, text) {
+    const b = t.querySelector('.bub');
+    if (!text) { b.classList.remove('on'); t.classList.remove('talk'); return; }
+    b.textContent = text;
+    t.classList.add('talk');
+    restart(b, 'on');
+  }
+
+  /* ================= tiny Java highlighter ================= */
+  const KW = new Set(('abstract boolean break case catch class continue default do double else enum extends final finally ' +
+    'float for if implements import instanceof int interface long new null private protected public return static super ' +
+    'synchronized this throw throws true false try var void volatile while').split(' '));
+  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  function hlJava(line) {
+    const re = /(\/\/.*$|\/\*.*?\*\/)|("(?:[^"\\]|\\.)*")|(\b\d+(?:\.\d+)?\b)|([A-Za-z_$][\w$]*)|([\s\S])/g;
+    let out = '';
+    let m;
+    while ((m = re.exec(line))) {
+      if (m[1]) out += '<span class="c">' + esc(m[1]) + '</span>';
+      else if (m[2]) out += '<span class="s">' + esc(m[2]) + '</span>';
+      else if (m[3]) out += '<span class="n">' + m[3] + '</span>';
+      else if (m[4]) {
+        const id = m[4];
+        if (KW.has(id)) out += '<span class="k">' + id + '</span>';
+        else if (/^[A-Z]/.test(id)) out += '<span class="t">' + id + '</span>';
+        else if (/^\s*\(/.test(line.slice(re.lastIndex))) out += '<span class="f">' + id + '</span>';
+        else out += id;
+      } else out += esc(m[5]);
+    }
+    return out;
+  }
+
+  /* ================= scene engine =================
+     Each episode = setup() (initial frame) + async script().
+     beat() = a step boundary: auto mode waits, step mode waits for "Agla step". */
+  class Scene {
+    constructor(sec, def) {
+      this.sec = sec;
+      this.def = def;
+      this.stage = $('.stage', sec);
+      this.log = $('.console', sec);
+      this.capStep = $('.cap-step', sec);
+      this.capCode = $('.cap-code', sec);
+      this.capTxt = $('.cap-txt', sec);
+      this.pre = $('pre.code', sec);
+      this.bPlay = $('.play', sec);
+      this.bNext = $('.next', sec);
+      this.modeBtns = $$('.seg button', sec);
+      const on = this.modeBtns.find(b => b.classList.contains('on'));
+      this.mode = on ? on.dataset.mode : null;
+      this.run = 0;
+      this.playing = false;
+      this.auto = true;
+      this.pending = null;
+      this.finished = false;
+      this.n = 0;
+      this.bPlay.addEventListener('click', () => this.onPlay());
+      this.bNext.addEventListener('click', () => this.onNext());
+      $('.reset', sec).addEventListener('click', () => this.reset());
+      this.modeBtns.forEach(b => b.addEventListener('click', () => this.setMode(b.dataset.mode)));
+      this.renderCode();
+      this.reset();
+    }
+    setMode(m) {
+      if (m === this.mode) return;
+      this.mode = m;
+      this.modeBtns.forEach(b => {
+        const on = b.dataset.mode === m;
+        b.classList.toggle('on', on);
+        b.setAttribute('aria-pressed', String(on));
+      });
+      this.renderCode();
+      this.reset();
+    }
+    renderCode() {
+      this.lines = this.def.code(this.mode);
+      this.pre.innerHTML = '<code>' + this.lines.map(l => '<span class="ln">' + hlJava(l) + '</span>').join('') + '</code>';
+      this.lnEls = $$('.ln', this.pre);
+    }
+    hl(...nums) {
+      this.lnEls.forEach((el, i) => el.classList.toggle('hot', nums.includes(i + 1)));
+      const txt = nums.map(n => (this.lines[n - 1] || '').replace(/\s*\/\/.*$/, '').trim()).filter(Boolean).join(' ');
+      this.capCode.textContent = txt;
+      this.capCode.hidden = !txt;
+    }
+    say(html) {
+      this.n += 1;
+      this.capStep.textContent = 'Step ' + this.n;
+      this.capTxt.innerHTML = html;
+    }
+    print(text, color) {
+      if (!this.log) return;
+      const l = mk('div', 'll');
+      l.textContent = text;
+      if (color) l.style.setProperty('--lc', color);
+      this.log.appendChild(l);
+      while (this.log.children.length > 4) this.log.firstElementChild.remove();
+    }
+    wait(ms) {
+      const id = this.run;
+      return new Promise((res, rej) => setTimeout(() => (id === this.run ? res() : rej(CANCEL)), ms / SPEED));
+    }
+    beat(ms = 1500) {
+      if (this.auto) return this.wait(ms);
+      return new Promise((res, rej) => { this.pending = { res, rej }; this.ui(); });
+    }
+    tween(ms, fn) {
+      const id = this.run;
+      return new Promise((res, rej) => {
+        let t0 = null;
+        const f = now => {
+          if (id !== this.run) { rej(CANCEL); return; }
+          if (t0 === null) t0 = now;
+          const p = Math.min(1, (now - t0) / (ms / SPEED));
+          fn(p);
+          if (p < 1) requestAnimationFrame(f); else res();
+        };
+        requestAnimationFrame(f);
+      });
+    }
+    cancel() {
+      this.run += 1;
+      if (this.pending) { const p = this.pending; this.pending = null; p.rej(CANCEL); }
+      this.playing = false;
+      this.stage.classList.remove('live');
+    }
+    prepare() {
+      this.def.setup.call(this);
+      if (this.log) this.log.innerHTML = '';
+      this.n = 0;
+    }
+    reset() {
+      this.cancel();
+      this.finished = false;
+      this.prepare();
+      this.capStep.textContent = 'Ready';
+      this.capTxt.innerHTML = this.def.idle(this.mode);
+      this.hl();
+      this.ui();
+    }
+    async start() {
+      this.cancel();
+      this.prepare();
+      this.finished = false;
+      const id = ++this.run;
+      this.playing = true;
+      this.stage.classList.add('live');
+      this.ui();
+      try {
+        await this.def.script.call(this);
+        if (id === this.run) this.finished = true;
+      } catch (e) {
+        if (e !== CANCEL) console.error(e);
+      }
+      if (id === this.run) {
+        this.playing = false;
+        this.pending = null;
+        this.stage.classList.remove('live');
+        this.ui();
+      }
+    }
+    release() {
+      if (this.pending) { const p = this.pending; this.pending = null; p.res(); }
+    }
+    onPlay() {
+      if (!this.playing) { this.auto = true; this.start(); return; }
+      if (this.auto) this.auto = false;
+      else { this.auto = true; this.release(); }
+      this.ui();
+    }
+    onNext() {
+      if (!this.playing) { this.auto = false; this.start(); return; }
+      this.auto = false;
+      this.release();
+      this.ui();
+    }
+    ui() {
+      this.bPlay.textContent = !this.playing
+        ? (this.finished ? '↻ Dobara' : '▶ Play')
+        : (this.auto ? '⏸ Pause' : '▶ Resume');
+      this.bNext.classList.toggle('pulse', !!this.pending);
+    }
+  }
+
+  const TC = ['var(--sakura)', 'var(--sky)', 'var(--yuzu)'];
+  const LOGC = ['#ff9cc2', '#8fbcff', '#ffd46b', '#b9a6ff'];
+
+  /* ================= Episode 1: Thread ================= */
+  const THREAD = {
+    code(mode) {
+      return [
+        'Runnable task = () -> {',
+        '  doWork();  // thoda kaam',
+        '  String n =',
+        '    Thread.currentThread().getName();',
+        '  System.out.println(n + " done");',
+        '};',
+        '',
+        'Thread t1 = new Thread(task, "T1");',
+        'Thread t2 = new Thread(task, "T2");',
+        'Thread t3 = new Thread(task, "T3");',
+        '',
+        ...(mode === 'run'
+          ? ['t1.run();  // ❌ naya thread nahi', 't2.run();', 't3.run();']
+          : ['t1.start();  // naya thread ✅', 't2.start();', 't3.start();']),
+        'System.out.println("main aage badha");'
+      ];
+    },
+    idle(mode) {
+      return mode === 'run'
+        ? 'Ab dekho <code>start()</code> ki jagah <code>run()</code> call kiya toh kya hota hai. Ye interview ka favourite trap hai.'
+        : '<b>▶ Play</b> dabao aur dekho <code>start()</code> ke baad teen threads saath-saath kaise chalte hain.';
+    },
+    setup() {
+      const st = this.stage;
+      st.innerHTML = '';
+      this.Y = [39, 61.5, 84];
+      this.note = mk('div', 'note');
+      this.note.textContent = 'Program yahin se shuru hota hai';
+      place(this.note, 19, 16);
+      st.appendChild(this.note);
+      this.tracks = this.Y.map((y, i) => {
+        const tr = mk('div', 'track', '<i class="fill"></i>');
+        tr.style.top = y + '%';
+        tr.style.setProperty('--c', TC[i]);
+        st.appendChild(tr);
+        const fl = mk('div', 'flag', '🏁');
+        place(fl, 95, y);
+        st.appendChild(fl);
+        tr.flag = fl;
+        tr.fillEl = tr.firstChild;
+        return tr;
+      });
+      this.main = tok('main', 'var(--violet)');
+      place(this.main, 8, 16);
+      setState(this.main, 'run');
+      st.appendChild(this.main);
+      this.T = ['T1', 'T2', 'T3'].map((n, i) => {
+        const t = tok(n, TC[i], 'ghost');
+        place(t, 8, this.Y[i]);
+        setState(t, 'new');
+        st.appendChild(t);
+        return t;
+      });
+    },
+    async script() {
+      const { T, Y, main, tracks } = this;
+      const fill = (i, p, ms) => {
+        const f = tracks[i].fillEl;
+        f.style.transitionDuration = Math.round(ms / SPEED) + 'ms';
+        f.style.width = p + '%';
+      };
+
+      this.hl(8, 9, 10);
+      this.say('Teen <code>Thread</code> object bane. Abhi ye sirf object hain, chal nahi rahe, isliye state <b>NEW</b> hai.');
+      for (const t of T) { t.classList.remove('ghost'); restart(t, 'pop'); await this.wait(180); }
+      await this.beat(1800);
+
+      if (this.mode !== 'run') {
+        this.say('<code>start()</code> par JVM har ek ke liye naya thread banata hai. State ab <b>RUNNABLE</b>.');
+        for (let i = 0; i < 3; i++) {
+          this.hl(12 + i);
+          setState(T[i], 'run');
+          move(T[i], 20, Y[i], 500);
+          this.note.textContent = 'start() kiya: ' + ['T1', 'T1, T2', 'T1, T2, T3'][i];
+          await this.wait(450);
+        }
+        await this.beat(1200);
+
+        this.hl(2);
+        this.say('Maan lo CPU ke 2 cores hain: ek time pe 2 hi thread sach mein chalte hain (⚡ wale). Kaun chalega, ye <b>scheduler</b> decide karta hai.');
+        const order = [];
+        const racing = (async () => {
+          const prog = [0, 0, 0];
+          while (order.length < 3) {
+            const now = shuffle([0, 1, 2].filter(i => prog[i] < 100)).slice(0, 2);
+            T.forEach((t, i) => t.classList.toggle('zoom', now.includes(i)));
+            for (const i of now) {
+              prog[i] = Math.min(100, prog[i] + rand(7, 17));
+              move(T[i], 20 + prog[i] * 0.64, Y[i], 210);
+              fill(i, prog[i], 210);
+            }
+            await this.wait(240);
+            for (const i of now) {
+              if (prog[i] >= 100 && !order.includes(i)) {
+                order.push(i);
+                T[i].classList.remove('zoom');
+                setState(T[i], 'done');
+                tracks[i].flag.textContent = ['🥇', '🥈', '🥉'][order.length - 1];
+                restart(tracks[i].flag, 'pop');
+                this.print('T' + (i + 1) + ' done', LOGC[i]);
+              }
+            }
+          }
+          T.forEach(t => t.classList.remove('zoom'));
+        })();
+        racing.catch(noop);
+        await this.beat(1900);
+
+        this.hl(15);
+        setState(main, 'done');
+        this.note.textContent = 'main ne kisi ka wait nahi kiya';
+        this.print('main aage badha', LOGC[3]);
+        this.say('Is beech <b>main</b> apni aakhri line chala ke khatam (TERMINATED). Program tab tak chalega jab tak T1, T2, T3 kaam kar rahe hain.');
+        await this.beat(1900);
+        await racing;
+        await this.wait(500);
+        this.hl();
+        this.say('Finish order: <b>' + order.map(i => 'T' + (i + 1)).join(', phir ') + '</b>. Dobara chalao, order badal sakta hai 🎲 Threads ke order pe kabhi bharosa mat karo.');
+      } else {
+        this.say('<code>run()</code> bas ek normal method call hai. Naya thread nahi banta, kaam <b>main</b> khud karega.');
+        await this.beat(1700);
+        for (let i = 0; i < 3; i++) {
+          this.hl(12 + i);
+          this.note.textContent = 't' + (i + 1) + '.run(): kaam main khud kar raha';
+          tracks[i].style.setProperty('--c', 'var(--violet)');
+          move(main, 20, Y[i], 650);
+          await this.wait(700);
+          this.hl(2);
+          main.classList.add('zoom');
+          for (let p = 10; p <= 100; p += 10) {
+            move(main, 20 + p * 0.64, Y[i], 150);
+            fill(i, p, 150);
+            await this.wait(165);
+          }
+          main.classList.remove('zoom');
+          this.hl(5);
+          this.print('main done', LOGC[3]);
+          if (i === 0) {
+            this.say('Print hua <b>"main done"</b>, "T1 done" nahi! Ye code main thread ne chalaya. T1 abhi bhi <b>NEW</b> hai.');
+            await this.beat(2100);
+          } else {
+            await this.wait(450);
+          }
+        }
+        move(main, 8, 16, 650);
+        await this.wait(700);
+        this.hl(15);
+        this.print('main aage badha', LOGC[3]);
+        this.note.textContent = 'Teeno kaam khud line se kiye';
+        setState(main, 'done');
+        T.forEach(t => { t.querySelector('.mk').textContent = '❓'; });
+        await this.wait(500);
+        this.hl();
+        this.say('Teeno kaam <b>ek ke baad ek</b>, sirf main ne kiye. T1, T2, T3 kabhi start hi nahi hue. Parallel chahiye toh <code>start()</code> ✅');
+      }
+    }
+  };
+
+  /* ================= Episode 2: synchronized ================= */
+  const SYNC = {
+    code(mode) {
+      const s = mode === 'sync';
+      return [
+        'class Counter {',
+        '  private int count = 5;',
+        '',
+        s ? '  synchronized void increment() {' : '  void increment() {  // ❌ no lock',
+        '    int tmp = count;  // 1. read',
+        '    tmp = tmp + 1;    // 2. add',
+        '    count = tmp;      // 3. write',
+        s ? '  }  // 🔓 lock apne aap free' : '  }',
+        '}',
+        '',
+        '// count++ bhi andar se yahi 3 steps hai',
+        s ? '// Block style: synchronized (this) {…}' : '// T1 aur T2: counter.increment();'
+      ];
+    },
+    idle(mode) {
+      return mode === 'sync'
+        ? 'Ab wahi kaam <code>synchronized</code> ke saath. <b>▶ Play</b> dabao aur 🔑 pe nazar rakho.'
+        : 'Pehle bina lock ka haal dekho. <b>▶ Play</b> dabao.';
+    },
+    setup() {
+      const st = this.stage;
+      const sync = this.mode === 'sync';
+      st.innerHTML = '';
+      if (sync) st.appendChild(mk('div', 'zone', '<span>🔒 Ek time pe ek</span>'));
+      const heap = mk('div', 'heap',
+        '<small class="' + (sync ? '' : 'bad') + '">' + (sync ? 'Shared heap' : '🔓 Koi lock nahi') + '</small>' +
+        '<div class="cnt">count = <b>5</b></div>');
+      st.appendChild(heap);
+      this.cnt = heap.querySelector('b');
+      this.key = null;
+      if (sync) {
+        this.key = mk('div', 'key', '🔑');
+        place(this.key, 79, 4.5);
+        st.appendChild(this.key);
+      }
+      this.home = [[13, 76], [87, 76]];
+      this.T = ['T1', 'T2'].map((n, i) => {
+        const t = tok(n, TC[i]);
+        place(t, ...this.home[i]);
+        setState(t, 'run');
+        t.appendChild(mk('span', 'reg'));
+        st.appendChild(t);
+        return t;
+      });
+      this.stampEl = mk('div', 'stamp');
+      st.appendChild(this.stampEl);
+    },
+    async script() {
+      const [A, B] = this.T;
+      const reg = (t, v) => {
+        const r = t.querySelector('.reg');
+        r.textContent = 'tmp = ' + v;
+        r.classList.add('on');
+        restart(r, 'flash');
+      };
+      const write = (v, bad) => { this.cnt.textContent = v; restart(this.cnt, bad ? 'f-bad' : 'f-ok'); };
+      const stamp = (text, kind) => {
+        this.stampEl.textContent = text;
+        this.stampEl.className = 'stamp ' + kind;
+        restart(this.stampEl, 'on');
+      };
+      const keyTo = (x, y) => move(this.key, x + 11, y - 1, 550);
+      const keyHome = () => move(this.key, 79, 4.5, 550);
+
+      this.say('T1 aur T2 dono <code>increment()</code> call karenge. 5 + 1 + 1 = <b>7</b> aana chahiye.');
+      await this.beat(1700);
+
+      if (this.mode !== 'sync') {
+        this.hl(4);
+        move(A, 35, 52, 700);
+        move(B, 65, 52, 700);
+        this.say('Koi lock nahi, isliye dono <b>ek saath</b> andar aa gaye 😬');
+        await this.wait(750);
+        await this.beat(1100);
+
+        this.hl(5);
+        reg(A, 5);
+        this.say('T1 ne padha: <b>tmp = 5</b>');
+        await this.wait(1000);
+        reg(B, 5);
+        this.say('T2 ne bhi padha: <b>tmp = 5</b>. T1 ne abhi likha hi nahi tha!');
+        await this.beat(1600);
+
+        this.hl(6);
+        reg(A, 6);
+        await this.wait(300);
+        reg(B, 6);
+        this.say('Dono ne apne-apne <code>tmp</code> mein +1 kiya: 6 aur 6');
+        await this.beat(1500);
+
+        this.hl(7);
+        write(6);
+        bubble(A, 'count = 6 likha');
+        this.say('T1 ne likha: <b>count = 6</b>');
+        await this.wait(1100);
+        bubble(A);
+        write(6, true);
+        bubble(B, 'Main bhi 6 likhunga');
+        this.say('T2 ne bhi <b>6</b> likh diya. T1 ka update overwrite ho gaya 😱');
+        await this.beat(1800);
+
+        bubble(B);
+        this.hl();
+        setState(A, 'done');
+        setState(B, 'done');
+        move(A, ...this.home[0]);
+        move(B, ...this.home[1]);
+        stamp('Update gayab!', 'bad');
+        this.say('Do increments hue, par count ek hi baar badha: <b>6</b>, 7 nahi. Yahi <b>race condition</b> hai. Ab upar <code>synchronized</code> chuno.');
+      } else {
+        this.hl(4);
+        move(A, 50, 52, 700);
+        move(B, 86, 50, 850);
+        await this.wait(720);
+        keyTo(50, 52);
+        this.say('T1 pehle pahuncha aur object ka monitor lock (🔑) le liya.');
+        await this.wait(800);
+        setState(B, 'blocked');
+        this.say('T2 ko lock nahi mila, isliye <b>BLOCKED</b> 💢 Jab tak 🔑 free nahi hoti, woh andar nahi aa sakta.');
+        await this.beat(1800);
+
+        this.hl(5); reg(A, 5); this.say('T1: read, <b>tmp = 5</b>'); await this.wait(900);
+        this.hl(6); reg(A, 6); this.say('T1: add, <b>tmp = 6</b>'); await this.wait(900);
+        this.hl(7); write(6); this.say('T1: write, <b>count = 6</b>. Beech mein koi nahi ghus paaya.');
+        await this.beat(1500);
+
+        this.hl(8);
+        keyHome();
+        setState(A, 'done');
+        move(A, ...this.home[0], 700);
+        this.say('Method khatam, lock apne aap chhoot gaya 🔓');
+        await this.wait(1000);
+
+        setState(B, 'run');
+        move(B, 50, 52, 700);
+        await this.wait(450);
+        keyTo(50, 52);
+        this.hl(4);
+        this.say('Ab T2 ki baari. Is baar woh <b>6</b> padhega, 5 nahi.');
+        await this.beat(1600);
+
+        this.hl(5); reg(B, 6); await this.wait(800);
+        this.hl(6); reg(B, 7); await this.wait(800);
+        this.hl(7); write(7);
+        this.say('T2: read 6, add, write <b>7</b>');
+        await this.beat(1400);
+
+        this.hl(8);
+        keyHome();
+        setState(B, 'done');
+        move(B, ...this.home[1], 700);
+        stamp('count = 7 ✓', 'ok');
+        await this.wait(500);
+        this.hl();
+        this.say('Sahi jawab: <b>7</b> ✅ <code>synchronized</code> ne dono ko ek-ek karke chalaya. Jo bahar ruka tha, woh BLOCKED tha.');
+      }
+    }
+  };
+
+  /* ================= Episode 3: ReentrantLock ================= */
+  const RLOCK = {
+    code() {
+      return [
+        'ReentrantLock lock =',
+        '    new ReentrantLock(true);  // fair',
+        '',
+        'void outer() {',
+        '  lock.lock();        // holdCount 1',
+        '  try {',
+        '    inner();',
+        '  } finally {',
+        '    lock.unlock();    // holdCount 0',
+        '  }',
+        '}',
+        '',
+        'void inner() {',
+        '  lock.lock();        // holdCount 2 ✅',
+        '  try { /* kaam */ }',
+        '  finally { lock.unlock(); }  // 1',
+        '}',
+        '',
+        '// T3: sirf 1 second wait karega',
+        'if (lock.tryLock(1, TimeUnit.SECONDS)) {',
+        '  try { /* kaam */ }',
+        '  finally { lock.unlock(); }',
+        '} else {',
+        '  retryLater();  // atka nahi ✅',
+        '}'
+      ];
+    },
+    idle() {
+      return '<b>▶ Play</b> dabao: ek hi scene mein <code>lock()</code>, reentrancy, wait queue aur <code>tryLock</code> ka timeout.';
+    },
+    setup() {
+      const st = this.stage;
+      st.innerHTML = '';
+      const p = mk('div', 'lockp',
+        '<div class="lp-t">ReentrantLock<em>fair</em></div>' +
+        '<div class="lp-r"><span>owner</span><b class="own">koi nahi</b></div>' +
+        '<div class="lp-r"><span>holdCount</span><b class="hc">0</b></div>');
+      st.appendChild(p);
+      this.own = p.querySelector('.own');
+      this.hc = p.querySelector('.hc');
+      st.appendChild(mk('div', 'qbox'));
+      st.appendChild(mk('div', 'qlab', 'Wait queue'));
+      this.key = mk('div', 'key', '🔑');
+      place(this.key, 80, 4.5);
+      st.appendChild(this.key);
+      this.home = [[14, 87], [36, 87], [58, 87]];
+      this.T = ['T1', 'T2', 'T3'].map((n, i) => {
+        const t = tok(n, TC[i], i === 2 ? 'bub-r' : '');
+        place(t, ...this.home[i]);
+        setState(t, 'run');
+        st.appendChild(t);
+        return t;
+      });
+      this.ring = mk('span', 'ring');
+      this.T[2].appendChild(this.ring);
+    },
+    async script() {
+      const [A, B, C] = this.T;
+      const OWN = [44, 48];
+      const Q1 = [82, 38];
+      const Q2 = [82, 62];
+      const hold = (n, who) => {
+        this.hc.textContent = n;
+        restart(this.hc, 'pop');
+        if (who) this.own.textContent = who;
+      };
+      const keyTo = ([x, y]) => move(this.key, x + 11, y - 1, 550);
+      const keyHome = () => move(this.key, 80, 4.5, 550);
+
+      this.hl(1, 2);
+      this.say('<code>ReentrantLock</code> ek chabi 🔑 wala lock hai: <code>lock()</code> se lo, <code>unlock()</code> se khud wapas do. <code>true</code> = fair, queue ka order chalega.');
+      await this.beat(1900);
+
+      this.hl(5);
+      move(A, ...OWN, 700);
+      await this.wait(650);
+      keyTo(OWN);
+      hold(1, 'T1');
+      this.say('T1 ne <code>lock()</code> kiya. Owner ab <b>T1</b>, holdCount <b>1</b>.');
+      await this.beat(1600);
+
+      this.hl(7);
+      await this.wait(650);
+      this.hl(14);
+      hold(2);
+      bubble(A, 'Mera hi lock hai 😎');
+      this.say('<code>inner()</code> ne phir <code>lock()</code> maanga. Same thread hai, toh turant mila: holdCount <b>2</b>. Yahi <b>reentrant</b> hai.');
+      await this.beat(2300);
+      bubble(A);
+
+      this.hl(5);
+      move(B, ...Q1, 800);
+      await this.wait(820);
+      setState(B, 'wait');
+      this.say('T2 ne bhi <code>lock()</code> kiya, par owner T1 hai. T2 queue mein <b>WAITING</b> 😴');
+      await this.beat(1800);
+
+      this.hl(20);
+      move(C, ...Q2, 800);
+      await this.wait(820);
+      setState(C, 'twait');
+      this.ring.classList.add('on');
+      this.say('T3 ne <code>tryLock(1, SECONDS)</code> kiya. Ye sirf <b>1 second</b> wait karega ⏳');
+      await this.tween(1700, p => { this.ring.style.setProperty('--p', p); });
+      this.ring.classList.remove('on');
+      setState(C, 'run');
+      this.hl(23, 24);
+      bubble(C, 'false mila, baad mein try');
+      this.say('Time khatam, lock nahi mila, toh <b>false</b> mila. T3 hamesha ke liye atka nahi ✅ Deadlock se bachne ka yahi tareeka hai.');
+      await this.wait(1200);
+      move(C, ...this.home[2], 800);
+      await this.wait(500);
+      bubble(C);
+      await this.beat(1400);
+
+      this.hl(16);
+      hold(1);
+      this.say('<code>inner()</code> ka <code>unlock()</code>: holdCount <b>1</b>. Lock abhi bhi T1 ke paas hai!');
+      await this.beat(1700);
+
+      this.hl(9);
+      hold(0, 'koi nahi');
+      keyHome();
+      setState(A, 'done');
+      move(A, ...this.home[0], 700);
+      this.say('<code>outer()</code> ka <code>unlock()</code>: holdCount <b>0</b>. Ab lock free 🔓');
+      await this.wait(1200);
+
+      setState(B, 'run');
+      move(B, ...OWN, 700);
+      await this.wait(650);
+      keyTo(OWN);
+      hold(1, 'T2');
+      this.hl(5);
+      this.say('Fair lock hai aur queue mein sabse pehle <b>T2</b> tha, isliye chabi usi ko mili.');
+      await this.beat(1800);
+
+      this.hl(14); hold(2); await this.wait(700);
+      this.hl(16); hold(1); await this.wait(700);
+      this.hl(9); hold(0, 'koi nahi');
+      keyHome();
+      setState(B, 'done');
+      move(B, ...this.home[1], 700);
+      await this.wait(800);
+      this.hl();
+      this.say('T2 ne bhi 2 baar lock aur 2 baar unlock kiya. Rule: <b>jitne lock(), utne unlock()</b>, hamesha <code>finally</code> mein.');
+    }
+  };
+
+  /* ================= Episode 4: CompletableFuture ================= */
+  const CF = {
+    code() {
+      return [
+        'CompletableFuture<String> user =',
+        '  CompletableFuture.supplyAsync(',
+        '      () -> getUser());    // 1.5s',
+        '',
+        'CompletableFuture<Integer> price =',
+        '  CompletableFuture.supplyAsync(',
+        '      () -> getPrice());   // 2.5s',
+        '',
+        'CompletableFuture<Void> order = user',
+        '  .thenCombine(price,',
+        '      (u, p) -> u + ": ₹" + p)',
+        '  .thenApply(b -> b + " (10% off)")',
+        '  .exceptionally(ex -> "Fallback bill")',
+        '  .thenAccept(System.out::println);',
+        '',
+        'doOtherWork();   // main free hai ✅',
+        'order.join();    // end mein wait'
+      ];
+    },
+    idle(mode) {
+      return mode === 'err'
+        ? 'Is baar <code>getPrice()</code> fail hoga. <b>▶ Play</b> dabao aur dekho chain error ko kaise sambhalti hai.'
+        : '<b>▶ Play</b> dabao: do kaam background mein parallel chalenge, aur main thread free rahega.';
+    },
+    setup() {
+      const st = this.stage;
+      st.innerHTML = '<svg class="wires" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">' +
+        '<path class="w wL" d="M25.5 19.5 L60.5 29"/><path class="w wR" d="M74.5 19.5 L60.5 29"/>' +
+        '<path class="w w1" d="M60.5 39 V43"/><path class="w w2" d="M60.5 53 V57"/><path class="w w3" d="M60.5 67 V71"/></svg>';
+      const card = (cls, name, sub) => {
+        const c = mk('div', 'card ' + cls,
+          '<div class="c-l">' + name + '</div><div class="c-s">' + sub + '</div><div class="c-bar"><i></i></div>');
+        st.appendChild(c);
+        return c;
+      };
+      this.cL = card('cl', 'getUser()', 'W1 pe chalega');
+      this.cR = card('cr', 'getPrice()', 'W2 pe chalega');
+      const node = (y, label) => {
+        const n = mk('div', 'node', '<div class="n-l">' + label + '</div><div class="n-v">Intezaar…</div>');
+        n.style.top = y + '%';
+        st.appendChild(n);
+        return n;
+      };
+      this.nC = node(34, '.thenCombine(price, …)');
+      this.nA = node(48, '.thenApply(… 10% off)');
+      this.nE = node(62, '.exceptionally(…)');
+      this.nP = node(76, '.thenAccept(println)');
+      const ms = mk('div', 'mstrip',
+        '<div class="ms-top"><b>main</b><span class="ms-t">Ready</span><span class="clk">⏱ 0.0s</span></div>' +
+        '<div class="ms-bar"><i></i></div>');
+      st.appendChild(ms);
+      this.mtext = ms.querySelector('.ms-t');
+      this.clk = ms.querySelector('.clk');
+      this.mbar = ms.querySelector('.ms-bar i');
+      this.W1 = tok('W1', 'var(--mint)', 'ghost');
+      place(this.W1, 9.5, 11.5);
+      setState(this.W1, 'run');
+      st.appendChild(this.W1);
+      this.W2 = tok('W2', 'var(--tangerine)', 'ghost');
+      place(this.W2, 58.5, 11.5);
+      setState(this.W2, 'run');
+      st.appendChild(this.W2);
+      this.main = tok('main', 'var(--violet)');
+      place(this.main, 9, 91);
+      setState(this.main, 'run');
+      st.appendChild(this.main);
+    },
+    async script() {
+      const err = this.mode === 'err';
+      const { cL, cR, nC, nA, nE, nP, W1, W2, main } = this;
+      const barL = cL.querySelector('.c-bar i');
+      const barR = cR.querySelector('.c-bar i');
+      const wire = c => this.stage.querySelector('.w.' + c).classList.add('on');
+      const val = (n, v) => { n.querySelector('.n-v').textContent = v; };
+      const K = 1300; // real ms per simulated second (1x)
+      const T_MAIN = 1.0, T_USER = 1.5, T_PRICE = 2.5, T_FAIL = 1.8;
+      const tick = t => {
+        barL.style.width = Math.min(1, t / T_USER) * 100 + '%';
+        barR.style.width = Math.min(1, t / T_PRICE) * 100 + '%';
+        this.mbar.style.width = Math.min(1, t / T_MAIN) * 100 + '%';
+        this.clk.textContent = '⏱ ' + t.toFixed(1) + 's';
+      };
+      const runTo = (a, b) => this.tween((b - a) * K, p => tick(a + (b - a) * p));
+
+      this.hl(1, 2, 3, 5, 6, 7);
+      cL.classList.add('show');
+      cR.classList.add('show');
+      for (const w of [W1, W2]) { w.classList.remove('ghost'); restart(w, 'pop'); }
+      this.say('<code>supplyAsync()</code> kaam ko background pool (<b>ForkJoinPool</b>) ke workers W1 aur W2 ko de deta hai.');
+      await this.beat(1900);
+
+      this.hl(16);
+      this.mtext.textContent = 'doOtherWork() chal raha';
+      this.say('Ab teen kaam <b>ek saath</b>: W1 pe getUser(), W2 pe getPrice(), aur main apna doOtherWork().');
+      await runTo(0, T_MAIN);
+
+      this.hl(17);
+      setState(main, 'wait');
+      this.mtext.textContent = 'join(): result ka wait';
+      this.say('main ka apna kaam khatam, ab <code>join()</code> pe <b>WAITING</b>. Isiliye <code>join()</code> hamesha end mein.');
+      await this.beat(1700);
+
+      await runTo(T_MAIN, T_USER);
+      cL.classList.add('ok');
+      cL.querySelector('.c-s').textContent = '✓ "Aman"';
+      setState(W1, 'wait');
+      this.say('<b>1.5s</b>: getUser() ready ✓ W1 wapas pool mein, agle kaam ke liye free.');
+      await this.beat(1600);
+
+      if (!err) {
+        await runTo(T_USER, T_PRICE);
+        cR.classList.add('ok');
+        cR.querySelector('.c-s').textContent = '✓ 500';
+        this.say('<b>2.5s</b>: getPrice() bhi ready ✓ Dono results aa gaye.');
+        await this.beat(1400);
+
+        this.hl(10, 11);
+        wire('wL');
+        wire('wR');
+        move(W2, 13, 34, 700);
+        await this.wait(700);
+        nC.classList.add('on');
+        val(nC, '"Aman: ₹500"');
+        this.say('<code>thenCombine</code> ne dono results jode. Ise <b>W2</b> ne chalaya: <code>then…</code> steps usi thread pe chalte hain jo aakhri result laata hai.');
+        await this.beat(2300);
+
+        nC.classList.replace('on', 'done');
+        this.hl(12);
+        wire('w1');
+        move(W2, 13, 48, 600);
+        await this.wait(600);
+        nA.classList.add('on');
+        val(nA, '"Aman: ₹500 (10% off)"');
+        this.say('<code>thenApply</code> ne result ko badal diya (transform).');
+        await this.beat(1600);
+
+        nA.classList.replace('on', 'done');
+        this.hl(13);
+        wire('w2');
+        move(W2, 13, 62, 600);
+        await this.wait(600);
+        nE.classList.add('skip');
+        val(nE, 'Koi error nahi, skip');
+        this.say('<code>exceptionally</code> sirf error aane par chalta hai. Abhi sab theek hai, isliye <b>skip</b>.');
+        await this.beat(1600);
+
+        this.hl(14);
+        wire('w3');
+        move(W2, 13, 76, 600);
+        await this.wait(600);
+        nP.classList.add('done');
+        val(nP, 'Print ho gaya ✓');
+        this.print('Aman: ₹500 (10% off)', '#8ff0c4');
+      } else {
+        await runTo(T_USER, T_FAIL);
+        cR.classList.add('err');
+        cR.querySelector('.c-s').textContent = '💥 Exception!';
+        W2.classList.add('oops');
+        W2.querySelector('.mk').textContent = '💥';
+        this.say('<b>1.8s</b>: getPrice() mein exception aa gaya 💥');
+        await this.beat(1600);
+
+        this.hl(10, 11, 12);
+        wire('wR');
+        move(W2, 13, 34, 600);
+        await this.wait(600);
+        nC.classList.add('skip');
+        val(nC, 'Error hai, skip');
+        await this.wait(550);
+        wire('w1');
+        move(W2, 13, 48, 550);
+        await this.wait(550);
+        nA.classList.add('skip');
+        val(nA, 'Error hai, skip');
+        this.say('Error chain mein aage badhta hai: <code>thenCombine</code> aur <code>thenApply</code> dono <b>skip</b>.');
+        await this.beat(1700);
+
+        this.hl(13);
+        wire('w2');
+        move(W2, 13, 62, 600);
+        await this.wait(600);
+        W2.classList.remove('oops');
+        W2.querySelector('.mk').textContent = '';
+        nE.classList.add('on');
+        val(nE, '"Fallback bill"');
+        this.say('<code>exceptionally</code> ne error pakda aur fallback value de di ✅');
+        await this.beat(1700);
+
+        nE.classList.replace('on', 'done');
+        this.hl(14);
+        wire('w3');
+        move(W2, 13, 76, 600);
+        await this.wait(600);
+        nP.classList.add('done');
+        val(nP, 'Print ho gaya ✓');
+        this.print('Fallback bill', '#ffd46b');
+      }
+      this.say('<code>thenAccept</code> ne final result print kar diya.');
+      await this.wait(1100);
+
+      this.hl(17);
+      setState(main, 'run');
+      this.mtext.textContent = '✓ join() complete, aage badho';
+      setState(W2, 'wait');
+      move(W2, 58.5, 11.5, 800);
+      await this.wait(900);
+      this.hl();
+      this.say(err
+        ? 'App crash nahi hua, fallback mila. <code>exceptionally</code> na hota toh <code>join()</code> <code>CompletionException</code> throw karta.'
+        : 'Total ⏱ <b>2.5s</b>. Sab ek-ek karke hota toh 1 + 1.5 + 2.5 = <b>5s</b> lagte. Yahi async ka fayda hai 🚀');
+    }
+  };
+
+  /* ================= cast (legend) ================= */
+  const CAST = [
+    ['new', 'NEW', 'Object bana, start nahi hua', 'var(--sakura)'],
+    ['run', 'RUNNABLE', 'Chal raha, ya CPU ki line mein', 'var(--sky)'],
+    ['blocked', 'BLOCKED', '<code>synchronized</code> lock ka wait', 'var(--yuzu)'],
+    ['wait', 'WAITING', 'Signal ya unlock ka wait', 'var(--mint)'],
+    ['twait', 'TIMED_WAITING', 'Time limit ke saath wait', 'var(--tangerine)'],
+    ['done', 'TERMINATED', 'Kaam khatam', 'var(--violet)']
+  ];
+  const grid = $('.cast-grid');
+  CAST.forEach(([s, code, text, color], i) => {
+    const item = mk('div', 'cm');
+    item.style.setProperty('--i', i);
+    const t = tok('', color);
+    setState(t, s);
+    item.append(t, mk('code', null, code), mk('span', null, text));
+    grid.appendChild(item);
+  });
+
+  /* ================= boot ================= */
+  const scenes = [
+    new Scene($('#ep-thread'), THREAD),
+    new Scene($('#ep-sync'), SYNC),
+    new Scene($('#ep-rlock'), RLOCK),
+    new Scene($('#ep-cf'), CF)
+  ];
+
+  $$('.spd').forEach(b => b.addEventListener('click', () => {
+    SPEED = SPEEDS[(SPEEDS.indexOf(SPEED) + 1) % SPEEDS.length];
+    $$('.spd').forEach(x => { x.textContent = SPEED + 'x'; });
+  }));
+
+  const tabs = $$('.tabs a');
+  tabs.forEach(a => a.addEventListener('click', e => {
+    const target = document.getElementById(a.getAttribute('href').slice(1));
+    if (!target) return;
+    e.preventDefault();
+    const smooth = !matchMedia('(prefers-reduced-motion: reduce)').matches;
+    target.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' });
+  }));
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver(entries => {
+      entries.forEach(en => {
+        if (en.isIntersecting) tabs.forEach(a => a.classList.toggle('on', a.getAttribute('href') === '#' + en.target.id));
+      });
+    }, { rootMargin: '-40% 0px -55% 0px' });
+    $$('.ep').forEach(s => io.observe(s));
+  }
+
+  window.__hl = hlJava;
+  window.__demo = { scenes, setSpeed: v => { SPEED = v; } };
+})();
+
+</script>
+<script>
+(() => {
+  'use strict';
+  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const hl = window.__hl || esc;
+
+  // 1) Java code blocks: raw text inside <script type="text/plain"> -> highlighted <pre>
+  document.querySelectorAll('script.jsrc').forEach(src => {
+    let lines = src.textContent.replace(/^\n+/, '').replace(/\s+$/, '').split('\n');
+    const ind = Math.min(...lines.filter(l => l.trim()).map(l => l.match(/^ */)[0].length));
+    if (isFinite(ind) && ind > 0) lines = lines.map(l => l.slice(ind));
+    const plain = src.dataset.lang === 'text';
+    const pre = document.createElement('pre');
+    pre.className = 'code jcode' + (plain ? ' plain' : '');
+    pre.tabIndex = 0;
+    pre.setAttribute('aria-label', plain ? 'Output' : 'Java code');
+    pre.innerHTML = '<code>' + lines.map(l => '<span class="ln">' + (plain ? esc(l) : hl(l)) + '</span>').join('') + '</code>';
+    src.replaceWith(pre);
+  });
+
+  // 2) "Is topic mein" list of sections for each notes tab
+  document.querySelectorAll('.tabp').forEach(p => {
+    const heads = p.querySelectorAll('.nsec[id] > h2');
+    const intro = p.querySelector('.tab-intro');
+    if (heads.length < 2 || !intro) return;
+    const nav = document.createElement('nav');
+    nav.className = 'toc';
+    nav.setAttribute('aria-label', 'Is topic ke sections');
+    heads.forEach(h => {
+      const a = document.createElement('a');
+      a.href = '#' + h.parentElement.id;
+      a.textContent = h.dataset.short || h.textContent;
+      nav.appendChild(a);
+    });
+    intro.after(nav);
+  });
+
+  // 3) Tabs
+  const tabs = [...document.querySelectorAll('.toptabs [role="tab"]')];
+  const panels = [...document.querySelectorAll('.tabp')];
+  const bar = document.querySelector('.toptabs');
+  const top = document.getElementById('tabs-top');
+
+  function show(name, scroll) {
+    if (!document.getElementById('tab-' + name)) return;
+    tabs.forEach(t => {
+      const on = t.dataset.tab === name;
+      t.setAttribute('aria-selected', String(on));
+      t.tabIndex = on ? 0 : -1;
+    });
+    panels.forEach(p => { p.hidden = p.id !== 'tab-' + name; });
+    const cur = tabs.find(t => t.dataset.tab === name);
+    if (cur) bar.scrollTo({ left: cur.offsetLeft - 14, behavior: 'smooth' });
+    if (name !== 'anim' && window.__demo) {
+      window.__demo.scenes.forEach(s => { if (s.playing) s.reset(); });
+    }
+    if (scroll && top) {
+      const y = top.getBoundingClientRect().top + window.scrollY;
+      if (window.scrollY > y) window.scrollTo({ top: y });
+    }
+  }
+
+  tabs.forEach(t => t.addEventListener('click', () => show(t.dataset.tab, true)));
+  bar.addEventListener('keydown', e => {
+    const i = tabs.findIndex(t => t.getAttribute('aria-selected') === 'true');
+    let j = null;
+    if (e.key === 'ArrowRight') j = (i + 1) % tabs.length;
+    if (e.key === 'ArrowLeft') j = (i - 1 + tabs.length) % tabs.length;
+    if (j !== null) { e.preventDefault(); show(tabs[j].dataset.tab, false); tabs[j].focus(); }
+  });
+
+  document.addEventListener('click', e => {
+    const a = e.target.closest('.toc a');
+    if (a) {
+      const t = document.getElementById(a.getAttribute('href').slice(1));
+      if (t) { e.preventDefault(); t.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+      return;
+    }
+    const g = e.target.closest('[data-go]');
+    if (g) { e.preventDefault(); show(g.dataset.go, true); }
+  });
+
+  const want = location.hash.slice(1);
+  show(tabs.some(t => t.dataset.tab === want) ? want : 'basics', false);
+})();
+
+</script>
+</body>
+</html>
