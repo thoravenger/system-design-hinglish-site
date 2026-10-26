@@ -1,0 +1,649 @@
+<!doctype html>
+<html lang="en-IN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Java Streams &amp; Map – Study Notes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600&display=swap">
+<style>
+:root {
+
+  --bg: #F5F6F8;
+  --surface: #FFFFFF;
+  --ink: #172033;
+  --muted: #566175;
+  --line: #DCE1E9;
+  --code-bg: #FFFFFF;
+  --inline-code-bg: #E8ECF2;
+  --hl-bg: #FFE45C;
+  --hl-ink: #1B1A10;
+  --pen: #C42B37;
+  --rule: #1E7A4E;
+  --rule-bg: #E7F3EC;
+  --focus: #1E4FA8;
+  --shadow: rgba(23, 32, 51, 0.14);
+  --tk-comment: #667085;
+  --tk-keyword: #9B2C6F;
+  --tk-string: #0F766E;
+  --tk-number: #B45309;
+  --tk-class: #1E4FA8;
+  --tk-fn: #2F3B57;
+  --tk-punct: #4A5568;
+  color-scheme: light;
+
+  --font-body: "Atkinson Hyperlegible", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "Atkinson Hyperlegible Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+
+  --bg: #0E131D;
+  --surface: #151C29;
+  --ink: #E6EAF2;
+  --muted: #9AA5B9;
+  --line: #273145;
+  --code-bg: #121927;
+  --inline-code-bg: #1F2838;
+  --hl-bg: rgba(255, 214, 10, 0.2);
+  --hl-ink: #FFE58A;
+  --pen: #FF7B84;
+  --rule: #5ED69A;
+  --rule-bg: rgba(94, 214, 154, 0.1);
+  --focus: #8DB4FF;
+  --shadow: rgba(0, 0, 0, 0.45);
+  --tk-comment: #8B95A8;
+  --tk-keyword: #F28FC4;
+  --tk-string: #5FD1C1;
+  --tk-number: #F5B66B;
+  --tk-class: #8DB4FF;
+  --tk-fn: #D3DBEA;
+  --tk-punct: #A9B3C6;
+  color-scheme: dark;
+
+  }
+}
+:root[data-theme="dark"] {
+
+  --bg: #0E131D;
+  --surface: #151C29;
+  --ink: #E6EAF2;
+  --muted: #9AA5B9;
+  --line: #273145;
+  --code-bg: #121927;
+  --inline-code-bg: #1F2838;
+  --hl-bg: rgba(255, 214, 10, 0.2);
+  --hl-ink: #FFE58A;
+  --pen: #FF7B84;
+  --rule: #5ED69A;
+  --rule-bg: rgba(94, 214, 154, 0.1);
+  --focus: #8DB4FF;
+  --shadow: rgba(0, 0, 0, 0.45);
+  --tk-comment: #8B95A8;
+  --tk-keyword: #F28FC4;
+  --tk-string: #5FD1C1;
+  --tk-number: #F5B66B;
+  --tk-class: #8DB4FF;
+  --tk-fn: #D3DBEA;
+  --tk-punct: #A9B3C6;
+  color-scheme: dark;
+
+}
+*, *::before, *::after { box-sizing: inherit; }
+html { scroll-padding-top: env(safe-area-inset-top, 0px); -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
+body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 1.0625rem; line-height: 1.6; }
+img { max-width: 100%; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+
+/* hero */
+.hero { max-width: 1120px; margin: 0 auto; padding: 56px 20px 40px; }
+.hero h1 { font-size: clamp(2.4rem, 8vw, 4.2rem); line-height: 1; letter-spacing: -0.03em; font-weight: 700; margin: 0 0 16px; }
+.hero .lede { font-size: 1.18rem; color: var(--muted); max-width: 46ch; margin: 0 0 28px; }
+.hero .rail { max-width: 780px; font-size: .84rem; }
+@media (min-width: 720px) { .hero .rail { font-size: 1rem; } }
+.hero .rule { max-width: 780px; margin: 18px 0 10px; }
+.hero .note { color: var(--muted); font-size: .95rem; margin: 0; }
+.hero p code { font-family: var(--font-mono); font-size: .86em; background: var(--inline-code-bg); padding: .08em .35em; border-radius: 4px; overflow-wrap: anywhere; }
+
+/* layout */
+.layout { max-width: 1120px; margin: 0 auto; padding: 0 20px 112px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 36px; }
+@media (min-width: 1024px) { .layout { grid-template-columns: 200px minmax(0, 1fr); gap: 72px; padding-bottom: 140px; } }
+main { min-width: 0; max-width: 760px; }
+
+/* contents */
+.toc { border: 1px solid var(--line); border-radius: 12px; background: var(--surface); padding: 16px; }
+.toc-title { font-size: 1rem; line-height: 1.3; font-weight: 700; margin: 0 0 10px; }
+.toc-group + .toc-group { margin-top: 12px; }
+.toc-label { margin: 0 0 6px; font-size: .85rem; color: var(--muted); }
+.toc ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.toc a { display: block; color: var(--ink); text-decoration: none; border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; font-size: .92rem; }
+.toc a:hover { border-color: var(--muted); }
+@media (min-width: 1024px) {
+  .toc { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 24px); align-self: start; border: 0; background: none; padding: 0; max-height: calc(100vh - 48px); overflow-y: auto; }
+  .toc ul { display: grid; gap: 1px; }
+  .toc a { border: 0; border-radius: 6px; padding: 5px 10px; margin-left: -10px; }
+  .toc a:hover { background: var(--inline-code-bg); }
+}
+
+/* sections */
+main > section { padding: 44px 0 4px; border-top: 1px solid var(--line); }
+main > section:first-child { border-top: 0; padding-top: 0; }
+main h2 { font-size: clamp(1.45rem, 3.4vw, 1.9rem); line-height: 1.2; letter-spacing: -0.015em; margin: 0 0 14px; }
+main h3 { font-size: 1.12rem; line-height: 1.3; margin: 30px 0 8px; }
+main p { margin: 0 0 14px; max-width: 68ch; }
+main p code, main li code, main td code, main dd code {
+  font-family: var(--font-mono); font-size: .86em; background: var(--inline-code-bg);
+  padding: .08em .35em; border-radius: 4px; overflow-wrap: anywhere;
+}
+
+/* code blocks */
+pre.code { margin: 0 0 18px; padding: 14px 16px; background: var(--code-bg); border: 1px solid var(--line); border-radius: 10px; overflow-x: auto; font-family: var(--font-mono); font-size: .86rem; line-height: 1.6; tab-size: 4; }
+pre.code code { font-family: inherit; white-space: pre; }
+
+/* type rail: code on the left, the type of each step highlighted on the right */
+.rail { margin: 0 0 18px; background: var(--code-bg); border: 1px solid var(--line); border-radius: 10px; overflow-x: auto; font-family: var(--font-mono); font-size: .86rem; line-height: 1.55; }
+.rail-inner { display: grid; width: max-content; min-width: 100%; padding: 12px 0; }
+.rail-row { display: grid; grid-template-columns: minmax(max-content, 1fr) max-content; column-gap: 32px; align-items: baseline; padding: 3px 16px; }
+.rail-row.no-type { grid-template-columns: minmax(max-content, 1fr); }
+.rail code { font-family: inherit; white-space: pre; }
+.type { justify-self: end; white-space: nowrap; font-size: .92em; color: var(--hl-ink); padding: .05em .45em; border-radius: 2px; background-image: linear-gradient(var(--hl-bg), var(--hl-bg)); background-repeat: no-repeat; background-size: 100% 100%; }
+@media (max-width: 600px) {
+  .rail-row { grid-template-columns: minmax(max-content, 1fr); row-gap: 2px; padding: 4px 14px; }
+  .type { justify-self: start; margin-left: 2ch; }
+  .type::before { content: "↳ "; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .hero .type { background-size: 0% 100%; animation: swipe .6s cubic-bezier(.2, .7, .2, 1) forwards; animation-delay: calc(var(--i, 0) * 240ms + 450ms); }
+}
+@keyframes swipe { to { background-size: 100% 100%; } }
+
+/* rules */
+.rule { margin: 0 0 20px; padding: 14px 18px; border-left: 4px solid var(--rule); background: var(--rule-bg); border-radius: 0 10px 10px 0; }
+.rule p { margin: 0 0 8px; max-width: 68ch; }
+.rule p:last-child { margin-bottom: 0; }
+.rule strong { color: var(--rule); }
+.rule code { font-family: var(--font-mono); font-size: .86em; background: var(--inline-code-bg); padding: .08em .35em; border-radius: 4px; overflow-wrap: anywhere; }
+
+/* tables */
+.table-wrap { margin: 0 0 20px; overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.table-wrap table { width: 100%; border-collapse: collapse; font-size: .95rem; }
+.table-wrap table.wide { min-width: 540px; }
+.table-wrap table.wide td:first-child { white-space: nowrap; }
+.table-wrap th, .table-wrap td { text-align: left; vertical-align: top; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+.table-wrap th { font-weight: 700; border-bottom: 2px solid var(--ink); }
+.table-wrap tbody tr:last-child td { border-bottom: 0; }
+@media (max-width: 600px) {
+  .table-wrap table.wide { min-width: 0; }
+  .table-wrap table.wide thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0, 0, 0, 0); }
+  .table-wrap table.wide, .table-wrap table.wide tbody, .table-wrap table.wide tr { display: block; }
+  .table-wrap table.wide tr { padding: 12px 14px; border-bottom: 1px solid var(--line); }
+  .table-wrap table.wide tbody tr:last-child { border-bottom: 0; }
+  .table-wrap table.wide td { display: grid; grid-template-columns: 9rem minmax(0, 1fr); gap: 10px; padding: 3px 0; border: 0; }
+  .table-wrap table.wide td::before { content: attr(data-label); color: var(--muted); font-size: .85rem; line-height: 1.5; }
+  .table-wrap table.wide td:first-child { display: block; padding: 0 0 6px; font-weight: 700; }
+  .table-wrap table.wide td:first-child::before { content: none; }
+}
+
+/* symptom lists: red-pen marks */
+.symptoms { margin: 0 0 20px; border-top: 1px solid var(--line); }
+.symptoms > div { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; padding: 12px 0 12px 16px; border-bottom: 1px solid var(--line); }
+.symptoms > div::before { content: ""; position: absolute; left: 0; top: 14px; bottom: 14px; width: 3px; border-radius: 2px; background: var(--pen); }
+.symptoms dt { font-family: var(--font-mono); font-size: .88rem; font-weight: 600; color: var(--pen); overflow-wrap: anywhere; }
+.symptoms dd { margin: 0; }
+@media (min-width: 720px) { .symptoms > div { grid-template-columns: 16rem minmax(0, 1fr); column-gap: 24px; } }
+
+/* steps */
+ol.steps { margin: 0 0 20px; padding-left: 1.5em; max-width: 68ch; }
+ol.steps li { margin: 0 0 10px; padding-left: .3em; }
+ol.steps li::marker { font-weight: 700; color: var(--muted); }
+
+/* practice files */
+details.file { margin: 0 0 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+details.file > summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 14px; padding: 14px 16px; cursor: pointer; list-style: none; border-radius: 10px; }
+details.file > summary::-webkit-details-marker { display: none; }
+details.file > summary::after { content: "+"; margin-left: auto; font-family: var(--font-mono); font-weight: 600; color: var(--muted); }
+details.file[open] > summary::after { content: "\2212"; }
+.fname { font-family: var(--font-mono); font-weight: 600; }
+.meta { color: var(--muted); font-size: .92rem; }
+.file-body { padding: 0 16px 16px; }
+.file-body pre.code { margin: 0; max-height: 75vh; overflow: auto; }
+.copy { font: inherit; font-size: .88rem; font-weight: 700; color: var(--ink); background: var(--inline-code-bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; margin: 0 0 10px; cursor: pointer; }
+.copy:hover { border-color: var(--muted); }
+
+/* back to contents (mobile) */
+.to-top-wrap { position: fixed; right: 0; bottom: 0; padding: 0 16px calc(16px + env(safe-area-inset-bottom, 0px)) 0; pointer-events: none; z-index: 10; }
+.to-top { pointer-events: auto; display: grid; place-items: center; width: 44px; height: 44px; font-weight: 700; font-size: 1.15rem; color: var(--ink); background: var(--surface); border: 1px solid var(--line); border-radius: 50%; text-decoration: none; box-shadow: 0 2px 12px var(--shadow); opacity: 0; visibility: hidden; transform: translateY(6px); transition: opacity .2s ease, transform .2s ease, visibility 0s linear .2s; }
+.to-top.show { opacity: 1; visibility: visible; transform: none; transition: opacity .2s ease, transform .2s ease, visibility 0s; }
+@media (prefers-reduced-motion: reduce) { .to-top, .to-top.show { transition: none; } }
+@media (min-width: 1024px) { .to-top-wrap { display: none; } }
+
+a:focus-visible, button:focus-visible, summary:focus-visible, [tabindex="0"]:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+/* syntax colours (Prism tokens) */
+.token.comment, .token.prolog, .token.doc-comment { color: var(--tk-comment); font-style: italic; }
+.token.keyword, .token.boolean { color: var(--tk-keyword); }
+.token.string, .token.char { color: var(--tk-string); }
+.token.number, .token.annotation, .token.constant { color: var(--tk-number); }
+.token.class-name, .token.namespace { color: var(--tk-class); }
+.token.function { color: var(--tk-fn); font-weight: 600; }
+.token.operator, .token.punctuation { color: var(--tk-punct); }
+</style>
+</head>
+<body>
+<header class="hero" id="top"><h1>Java Streams &amp; Map</h1><p class="lede">Karat debugging round ki taiyari ke liye is chat ke saare notes, ek jagah.</p><div class="rail" tabindex="0" role="region" aria-label="Type tracking ka example"><div class="rail-inner"><div class="rail-row"><code class="language-java">emps.stream()</code><span class="type" style="--i:0"><span class="sr-only">Type: </span>Stream&lt;Emp&gt;</span></div><div class="rail-row"><code class="language-java">    .filter(e -&gt; e.salary &gt; 50000)</code><span class="type" style="--i:1"><span class="sr-only">Type: </span>Stream&lt;Emp&gt;</span></div><div class="rail-row"><code class="language-java">    .map(e -&gt; e.dept)</code><span class="type" style="--i:2"><span class="sr-only">Type: </span>Stream&lt;String&gt;</span></div><div class="rail-row no-type"><code class="language-java">    .collect(groupingBy(d -&gt; d,</code></div><div class="rail-row"><code class="language-java">             counting()));</code><span class="type" style="--i:3"><span class="sr-only">Type: </span>Map&lt;String, Long&gt;</span></div></div></div><div class="rule"><p><strong>Sabse powerful trick:</strong> har step ke baad type track karo. Collectors aur <code>map</code> ki zyada tar confusion yahin khatam hoti hai, aur debugging me bug aksar wahi hota hai jahan type expected se alag ho jaata hai.</p></div><p class="note">Examples me <code>import static java.util.stream.Collectors.*;</code> maana hai.</p></header>
+<div class="layout">
+
+<nav class="toc" id="contents" aria-labelledby="toc-title">
+  <h2 class="toc-title" id="toc-title">Is page me</h2>
+  <div class="toc-group"><p class="toc-label">Streams</p><ul>
+    <li><a href="#map-op">map()</a></li>
+    <li><a href="#grouping">groupingBy</a></li>
+    <li><a href="#tomap">toMap</a></li>
+    <li><a href="#which">Kaunsa collector kab?</a></li>
+    <li><a href="#stream-bugs">Streams debugging</a></li>
+  </ul></div>
+  <div class="toc-group"><p class="toc-label">Map methods</p><ul>
+    <li><a href="#map-methods">Kaise kaam karte hain</a></li>
+    <li><a href="#map-patterns">4 patterns</a></li>
+    <li><a href="#map-traps">Debugging traps</a></li>
+  </ul></div>
+  <div class="toc-group"><p class="toc-label">Practice</p><ul>
+    <li><a href="#practice">Practice files</a></li>
+    <li><a href="#plan">Expert tak plan</a></li>
+  </ul></div>
+</nav>
+
+<main id="main">
+<section id="map-op" aria-labelledby="map-op-h"><h2 id="map-op-h">map(): 1 in, 1 out</h2><p><code>map</code> har element ko badalta hai. Count same rehta hai, sirf value ya type badalti hai. Ek element se kai elements nikalne hon (jaise List of Lists), tab <code>flatMap</code> lagta hai.</p><p>Java ka <code>Map</code> process karna ho to uska <code>entrySet()</code> stream karo. Har element ek <code>Map.Entry</code> hota hai. Interview ka sabse common pattern:</p><div class="rail" tabindex="0" role="region" aria-label="Map entrySet example aur types"><div class="rail-inner"><div class="rail-row no-type"><code class="language-java">// sabse zyada count wali key</code></div><div class="rail-row"><code class="language-java">String top = counts.entrySet().stream()</code><span class="type"><span class="sr-only">Type: </span>Stream&lt;Entry&lt;String, Long&gt;&gt;</span></div><div class="rail-row"><code class="language-java">    .max(Map.Entry.comparingByValue())</code><span class="type"><span class="sr-only">Type: </span>Optional&lt;Entry&lt;String, Long&gt;&gt;</span></div><div class="rail-row"><code class="language-java">    .map(Map.Entry::getKey)</code><span class="type"><span class="sr-only">Type: </span>Optional&lt;String&gt;</span></div><div class="rail-row"><code class="language-java">    .orElse(null);</code><span class="type"><span class="sr-only">Type: </span>String</span></div></div></div></section>
+<section id="grouping" aria-labelledby="grouping-h"><h2 id="grouping-h">groupingBy: buckets banao</h2><p>1 key → kai values. Default me har bucket ek <code>List</code> hoti hai.</p><pre class="code" tabindex="0"><code class="language-java">List&lt;String&gt; words = List.of("apple", "avocado", "banana");
+Map&lt;Character, List&lt;String&gt;&gt; m = words.stream()
+    .collect(groupingBy(w -&gt; w.charAt(0)));
+// {a=[apple, avocado], b=[banana]}</code></pre><p>Doosra argument (downstream) decide karta hai ki har bucket ke andar kya banega:</p><div class="rail" tabindex="0" role="region" aria-label="groupingBy downstream aur result types"><div class="rail-inner"><div class="rail-row"><code class="language-java">groupingBy(k, counting())</code><span class="type"><span class="sr-only">Type: </span>Map&lt;K, Long&gt;</span></div><div class="rail-row"><code class="language-java">groupingBy(k, mapping(f, toList()))</code><span class="type"><span class="sr-only">Type: </span>Map&lt;K, List&lt;R&gt;&gt;</span></div><div class="rail-row"><code class="language-java">groupingBy(k, summingInt(f))</code><span class="type"><span class="sr-only">Type: </span>Map&lt;K, Integer&gt;</span></div><div class="rail-row"><code class="language-java">groupingBy(k, TreeMap::new, toList())</code><span class="type"><span class="sr-only">Type: </span>TreeMap&lt;K, List&lt;T&gt;&gt;</span></div></div></div><p>Aakhri wale me keys sorted rehti hain.</p><h3>Loop se jodo</h3><p><code>groupingBy(key)</code> andar se wahi karta hai jo loop me <code>map.computeIfAbsent(key, x -&gt; new ArrayList&lt;&gt;()).add(item)</code> karta hai. Aur <code>groupingBy(key, counting())</code> wahi karta hai jo <code>map.merge(key, 1L, Long::sum)</code> karta hai.</p></section>
+<section id="tomap" aria-labelledby="tomap-h"><h2 id="tomap-h">toMap: 1 key → 1 value</h2><pre class="code" tabindex="0"><code class="language-java">Map&lt;String, Integer&gt; total = orders.stream()
+    .collect(toMap(o -&gt; o.user,     // key
+                   o -&gt; o.amount,   // value
+                   Integer::sum));  // same key aaye to jodo</code></pre><p>Teesra argument (merge function) na ho aur same key dobara aaye, to exception aata hai. Order chahiye to chautha argument do: <code>LinkedHashMap::new</code> ya <code>TreeMap::new</code>.</p><div class="rule"><p><strong>Yaad rakhne ka tareeka:</strong> groupingBy = key ki list, toMap = key ki ek value. Asal me <code>groupingBy(k, counting())</code> aur <code>toMap(k, x -&gt; 1L, Long::sum)</code> same result dete hain.</p></div></section>
+<section id="which" aria-labelledby="which-h"><h2 id="which-h">Kaunsa collector kab?</h2><p>Output dekh ke decide karo.</p><div class="table-wrap" tabindex="0" role="region" aria-label="Kaunsa collector kab"><table class=""><thead><tr><th scope="col">Output chahiye</th><th scope="col">Collector</th></tr></thead><tbody><tr><td data-label="Output chahiye"><span class="cell">Sirf list</span></td><td data-label="Collector"><span class="cell"><code>toList()</code></span></td></tr><tr><td data-label="Output chahiye"><span class="cell">Har key ki ek value</span></td><td data-label="Collector"><span class="cell"><code>toMap</code> (duplicate key ho sakti hai to merge function bhi do)</span></td></tr><tr><td data-label="Output chahiye"><span class="cell">Har key ki list, count ya sum</span></td><td data-label="Collector"><span class="cell"><code>groupingBy</code> + downstream</span></td></tr><tr><td data-label="Output chahiye"><span class="cell">Do groups (true/false)</span></td><td data-label="Collector"><span class="cell"><code>partitioningBy</code></span></td></tr><tr><td data-label="Output chahiye"><span class="cell">Ek number</span></td><td data-label="Collector"><span class="cell"><code>count()</code>, <code>max()</code> ya <code>mapToInt(f).sum()</code></span></td></tr><tr><td data-label="Output chahiye"><span class="cell">Ek String</span></td><td data-label="Collector"><span class="cell"><code>joining(", ")</code></span></td></tr></tbody></table></div></section>
+<section id="stream-bugs" aria-labelledby="stream-bugs-h"><h2 id="stream-bugs-h">Streams debugging: symptom se bug pehchano</h2><h3>Exception aaye to</h3><dl class="symptoms"><div><dt>Duplicate key</dt><dd><code>toMap</code> me merge function missing hai.</dd></div><div><dt>NullPointerException (toMap me)</dt><dd>Koi value null hai. <code>toMap</code> null values allow nahi karta.</dd></div><div><dt>stream has already been operated upon or closed</dt><dd>Ek hi stream do baar use hua hai.</dd></div><div><dt>NoSuchElementException</dt><dd>Empty <code>Optional</code> pe <code>.get()</code> lagaya gaya hai.</dd></div></dl><h3>Output galat aaye, par error nahi</h3><dl class="symptoms"><div><dt>a == b (boxed)</dt><dd>Do boxed <code>Integer</code>/<code>Long</code> ko <code>==</code> se compare kiya gaya hai. 127 se bade values pe ye false deta hai, isliye <code>.equals()</code> chahiye.</dd></div><div><dt>counting()</dt><dd>Ye <code>Long</code> deta hai, isliye <code>count.equals(1)</code> hamesha false hoga.</dd></div><div><dt>HashMap order</dt><dd>Order maan liya gaya hai. Sorted output ke liye <code>TreeMap::new</code> ya <code>sorted()</code> chahiye.</dd></div><div><dt>.reversed()</dt><dd><code>comparing(a).thenComparing(b).reversed()</code> dono ko ulta kar deta hai, sirf <code>b</code> ko nahi.</dd></div><div><dt>Terminal operation missing</dt><dd>Streams lazy hote hain, isliye pipeline chala hi nahi.</dd></div></dl></section>
+<section id="map-methods" aria-labelledby="map-methods-h"><h2 id="map-methods-h">Map methods kaise kaam karte hain</h2><div class="rule"><p>Ye saare methods sirf 2 cheezein check karte hain: <strong>key map me hai ya nahi</strong>, aur <strong>aapka function kya return karta hai</strong>.</p><p><strong>Golden rule:</strong> function ne <code>null</code> return kiya to entry delete ho jaati hai, ya add hi nahi hoti.</p></div><div class="table-wrap" tabindex="0" role="region" aria-label="Map methods ki conditions"><table class="wide"><thead><tr><th scope="col">Method</th><th scope="col">Function kab chalta hai</th><th scope="col">Function ko kya milta hai</th></tr></thead><tbody><tr><td data-label="Method"><span class="cell"><code>computeIfAbsent</code></span></td><td data-label="Function kab chalta hai"><span class="cell">Key nahi hai tab</span></td><td data-label="Function ko kya milta hai"><span class="cell"><code>key</code></span></td></tr><tr><td data-label="Method"><span class="cell"><code>computeIfPresent</code></span></td><td data-label="Function kab chalta hai"><span class="cell">Key hai tab</span></td><td data-label="Function ko kya milta hai"><span class="cell"><code>key, oldValue</code></span></td></tr><tr><td data-label="Method"><span class="cell"><code>compute</code></span></td><td data-label="Function kab chalta hai"><span class="cell">Hamesha</span></td><td data-label="Function ko kya milta hai"><span class="cell"><code>key, oldValue</code> (ya <code>null</code>)</span></td></tr><tr><td data-label="Method"><span class="cell"><code>merge</code></span></td><td data-label="Function kab chalta hai"><span class="cell">Key hai tab</span></td><td data-label="Function ko kya milta hai"><span class="cell"><code>oldValue, newValue</code></span></td></tr></tbody></table></div><p>Neeche har line alag se <code>m = {a=1}</code> pe chalti hai.</p><h3>getOrDefault aur putIfAbsent</h3><pre class="code" tabindex="0"><code class="language-java">m.getOrDefault("b", 0);  // 0 deta hai, par map abhi bhi {a=1}
+m.putIfAbsent("a", 5);   // {a=1}, "a" pehle se hai
+m.putIfAbsent("b", 5);   // {a=1, b=5}</code></pre><h3>computeIfAbsent</h3><p>Key nahi hai tabhi function chalta hai. Ye current value return karta hai, isliye iske baad <code>.add()</code> chain kar sakte ho.</p><pre class="code" tabindex="0"><code class="language-java">m.computeIfAbsent("a", k -&gt; 99);    // {a=1}, function chala hi nahi
+m.computeIfAbsent("b", k -&gt; 99);    // {a=1, b=99}
+m.computeIfAbsent("c", k -&gt; null);  // {a=1}, null tha to add nahi hua</code></pre><h3>computeIfPresent</h3><p>Key hai tabhi function chalta hai.</p><pre class="code" tabindex="0"><code class="language-java">m.computeIfPresent("a", (k, v) -&gt; v + 10);  // {a=11}
+m.computeIfPresent("b", (k, v) -&gt; v + 10);  // {a=1}, "b" hai hi nahi
+m.computeIfPresent("a", (k, v) -&gt; null);    // {}, "a" delete</code></pre><h3>compute</h3><p>Function hamesha chalta hai. Key nahi hai to <code>v</code> null aata hai, aur uska check aapko khud karna hai.</p><pre class="code" tabindex="0"><code class="language-java">m.compute("a", (k, v) -&gt; v == null ? 1 : v + 1);  // {a=2}
+m.compute("b", (k, v) -&gt; v == null ? 1 : v + 1);  // {a=1, b=1}</code></pre><h3>merge</h3><p>Key nahi hai to di hui value seedha daal deta hai, function nahi chalta. Key hai to <code>function(oldValue, newValue)</code> chalta hai. Yahan function ko key nahi milti.</p><pre class="code" tabindex="0"><code class="language-java">m.merge("a", 5, Integer::sum);          // {a=6}
+m.merge("b", 5, Integer::sum);          // {a=1, b=5}
+m.merge("a", 5, (oldV, newV) -&gt; null);  // {}, "a" delete</code></pre></section>
+<section id="map-patterns" aria-labelledby="map-patterns-h"><h2 id="map-patterns-h">Asli code ke 4 patterns</h2><pre class="code" tabindex="0"><code class="language-java">// grouping
+map.computeIfAbsent(dept, k -&gt; new ArrayList&lt;&gt;()).add(emp);
+// counting
+map.merge(word, 1, Integer::sum);
+// count ghatao, 0 hote hi key hatao
+map.computeIfPresent(ch, (k, v) -&gt; v == 1 ? null : v - 1);
+// safe read
+map.getOrDefault(word, 0);</code></pre><p>Streams se connection: <code>groupingBy</code> andar se pehla pattern chalata hai, aur <code>groupingBy(k, counting())</code> doosra. <code>toMap(k, v, fn)</code> bhi andar se <code>merge()</code> hi call karta hai. Isi wajah se toMap null value pe NPE deta hai.</p></section>
+<section id="map-traps" aria-labelledby="map-traps-h"><h2 id="map-traps-h">Map debugging traps</h2><dl class="symptoms"><div><dt>putIfAbsent(k, new ArrayList&lt;&gt;()).add(x)</dt><dd>Pehli baar NPE dega. Key nahi thi, to <code>putIfAbsent</code> ne <code>null</code> return kiya.</dd></div><div><dt>getOrDefault(k, new ArrayList&lt;&gt;()).add(x)</dt><dd>Koi error nahi deta, par list map me kabhi jaati hi nahi. Data chupchaap gayab ho jaata hai.</dd></div><div><dt>compute(...) bina v == null check</dt><dd>Key na hone pe NPE aayega.</dd></div><div><dt>Function se null return</dt><dd>Galti se <code>null</code> return hua to entry chupchaap delete ho jaayegi.</dd></div><div><dt>computeIfAbsent ke andar map modify</dt><dd>Usi map ko function ke andar modify kiya (jaise recursive memoization me), to <code>ConcurrentModificationException</code> aata hai.</dd></div></dl></section>
+<section id="practice" aria-labelledby="practice-h"><h2 id="practice-h">Practice files</h2><p>Do files, har file me 3 bugs. <code>main()</code> ke tests batate hain ki sab theek hua ya nahi: buggy code pe 3 tests fail hote hain, aur sahi fix ke baad 8/8 pass.</p><ol class="steps"><li>Laptop pe <code>java PageVisitStats.java</code> chalao (Java 11+ chahiye). Online compiler use karo to class ka naam <code>Main</code> karna pad sakta hai.</li><li>Karat jaisa feel chahiye to har file ke liye 20 minute ka timer lagao.</li><li>Har FAIL ke liye expected aur actual dekho. Phir us method ki har line ke aage type likho aur symptom list se match karo.</li><li>Tests mat badlo, sirf methods fix karo.</li><li>Pehle PageVisitStats karo, phir GameLeaderboard.</li></ol><details class="file"><summary><span class="fname">PageVisitStats.java</span><span class="meta">4 methods, 3 bugs, 8 tests</span></summary><div class="file-body"><button type="button" class="copy" data-copy="code-pvs">Copy code</button><pre class="code" tabindex="0" id="code-pvs"><code class="language-java">import java.util.*;
+import java.util.function.*;
+import java.util.stream.*;
+import static java.util.stream.Collectors.*;
+
+/*
+ * PRACTICE 1: Page Visit Stats
+ *
+ * Each Visit is one page view: which user opened which page,
+ * and how many seconds they stayed there.
+ *
+ * Some methods below have bugs (3 bugs in total).
+ * Run the file, read the failing tests, and fix the code
+ * so that ALL tests pass. Do not change the tests.
+ *
+ * Run (Java 11+):  java PageVisitStats.java
+ */
+public class PageVisitStats {
+
+    static class Visit {
+        final String user;
+        final String page;
+        final int seconds;
+
+        Visit(String user, String page, int seconds) {
+            this.user = user;
+            this.page = page;
+            this.seconds = seconds;
+        }
+    }
+
+    /**
+     * How many times each page was visited.
+     * The map must be sorted by page name (A to Z).
+     */
+    static Map&lt;String, Long&gt; visitsPerPage(List&lt;Visit&gt; visits) {
+        return visits.stream()
+                .collect(groupingBy(v -&gt; v.page, counting()));
+    }
+
+    /**
+     * Total seconds each user spent on the site.
+     */
+    static Map&lt;String, Integer&gt; totalTimePerUser(List&lt;Visit&gt; visits) {
+        return visits.stream()
+                .collect(toMap(v -&gt; v.user, v -&gt; v.seconds));
+    }
+
+    /**
+     * Users who visited the site exactly once, sorted A to Z.
+     */
+    static List&lt;String&gt; oneVisitUsers(List&lt;Visit&gt; visits) {
+        return visits.stream()
+                .collect(groupingBy(v -&gt; v.user, counting()))
+                .entrySet().stream()
+                .filter(e -&gt; e.getValue().equals(1))
+                .map(Map.Entry::getKey)
+                .sorted()
+                .collect(toList());
+    }
+
+    /**
+     * Distinct pages opened by the given user, sorted A to Z.
+     */
+    static List&lt;String&gt; pagesOf(List&lt;Visit&gt; visits, String user) {
+        return visits.stream()
+                .filter(v -&gt; v.user.equals(user))
+                .map(v -&gt; v.page)
+                .distinct()
+                .sorted()
+                .collect(toList());
+    }
+
+    // ==================== TESTS: do not change ====================
+
+    static int passed = 0, failed = 0;
+
+    static void check(String name, Object expected, Supplier&lt;Object&gt; actual) {
+        try {
+            Object got = actual.get();
+            if (String.valueOf(expected).equals(String.valueOf(got))) {
+                passed++;
+                System.out.println("PASS  " + name);
+            } else {
+                failed++;
+                System.out.println("FAIL  " + name);
+                System.out.println("      expected: " + expected);
+                System.out.println("      actual:   " + got);
+            }
+        } catch (Exception ex) {
+            failed++;
+            System.out.println("FAIL  " + name);
+            System.out.println("      exception: " + ex);
+        }
+    }
+
+    public static void main(String[] args) {
+        List&lt;Visit&gt; visits = List.of(
+                new Visit("ravi",  "home",    30),
+                new Visit("neha",  "pricing", 45),
+                new Visit("ravi",  "blog",    120),
+                new Visit("amit",  "home",    15),
+                new Visit("neha",  "home",    60),
+                new Visit("kabir", "about",   20),
+                new Visit("ravi",  "pricing", 10));
+        List&lt;Visit&gt; oneVisit = List.of(new Visit("amit", "home", 15));
+        List&lt;Visit&gt; repeatUser = List.of(
+                new Visit("ravi", "home", 5),
+                new Visit("ravi", "blog", 5));
+
+        check("visitsPerPage: sample",
+                "{about=1, blog=1, home=3, pricing=2}",
+                () -&gt; visitsPerPage(visits));
+        check("visitsPerPage: one visit",
+                "{home=1}",
+                () -&gt; visitsPerPage(oneVisit));
+        check("totalTimePerUser: sample",
+                "{amit=15, kabir=20, neha=105, ravi=160}",
+                () -&gt; new TreeMap&lt;&gt;(totalTimePerUser(visits)));
+        check("totalTimePerUser: one visit",
+                "{amit=15}",
+                () -&gt; new TreeMap&lt;&gt;(totalTimePerUser(oneVisit)));
+        check("oneVisitUsers: sample",
+                "[amit, kabir]",
+                () -&gt; oneVisitUsers(visits));
+        check("oneVisitUsers: nobody",
+                "[]",
+                () -&gt; oneVisitUsers(repeatUser));
+        check("pagesOf: ravi",
+                "[blog, home, pricing]",
+                () -&gt; pagesOf(visits, "ravi"));
+        check("pagesOf: unknown user",
+                "[]",
+                () -&gt; pagesOf(visits, "zoya"));
+
+        System.out.println();
+        System.out.println(passed + " passed, " + failed + " failed");
+        if (failed == 0) System.out.println("ALL TESTS PASSED. Well done!");
+    }
+}</code></pre></div></details><details class="file"><summary><span class="fname">GameLeaderboard.java</span><span class="meta">4 methods, 3 bugs, 8 tests</span></summary><div class="file-body"><button type="button" class="copy" data-copy="code-gl">Copy code</button><pre class="code" tabindex="0" id="code-gl"><code class="language-java">import java.util.*;
+import java.util.function.*;
+import java.util.stream.*;
+import static java.util.stream.Collectors.*;
+
+/*
+ * PRACTICE 2: Game Leaderboard
+ *
+ * Each Score is one attempt: which player played which level,
+ * and how many points they got.
+ *
+ * Some methods below have bugs (3 bugs in total).
+ * Run the file, read the failing tests, and fix the code
+ * so that ALL tests pass. Do not change the tests.
+ *
+ * Run (Java 11+):  java GameLeaderboard.java
+ */
+public class GameLeaderboard {
+
+    static class Score {
+        final String player;
+        final int level;
+        final int points;
+
+        Score(String player, int level, int points) {
+            this.player = player;
+            this.level = level;
+            this.points = points;
+        }
+    }
+
+    /**
+     * Players sorted by their TOTAL points, highest first.
+     * If two players have the same total, sort them by name (A to Z).
+     */
+    static List&lt;String&gt; leaderboard(List&lt;Score&gt; scores) {
+        Map&lt;String, Integer&gt; totals = scores.stream()
+                .collect(groupingBy(s -&gt; s.player, summingInt(s -&gt; s.points)));
+
+        Comparator&lt;Map.Entry&lt;String, Integer&gt;&gt; byPoints = Map.Entry.comparingByValue();
+        Comparator&lt;Map.Entry&lt;String, Integer&gt;&gt; byName = Map.Entry.comparingByKey();
+
+        return totals.entrySet().stream()
+                .sorted(byPoints.thenComparing(byName).reversed())
+                .map(Map.Entry::getKey)
+                .collect(toList());
+    }
+
+    /**
+     * Every player whose BEST single score equals the highest
+     * single score in the game, sorted A to Z.
+     * No scores -&gt; empty list.
+     */
+    static List&lt;String&gt; topScorers(List&lt;Score&gt; scores) {
+        Map&lt;String, Integer&gt; best = scores.stream()
+                .collect(toMap(s -&gt; s.player, s -&gt; s.points, Math::max));
+
+        Integer highest = best.values().stream()
+                .max(Integer::compare)
+                .orElse(null);
+
+        return best.entrySet().stream()
+                .filter(e -&gt; e.getValue() == highest)
+                .map(Map.Entry::getKey)
+                .sorted()
+                .collect(toList());
+    }
+
+    /**
+     * The player with the most points on the given level.
+     * If nobody played that level, return "" (empty string).
+     */
+    static String bestOfLevel(List&lt;Score&gt; scores, int level) {
+        return scores.stream()
+                .filter(s -&gt; s.level == level)
+                .max(Comparator.comparingInt(s -&gt; s.points))
+                .get()
+                .player;
+    }
+
+    /**
+     * Average points for each level, sorted by level number.
+     */
+    static Map&lt;Integer, Double&gt; averagePerLevel(List&lt;Score&gt; scores) {
+        return scores.stream()
+                .collect(groupingBy(s -&gt; s.level, TreeMap::new,
+                        averagingInt(s -&gt; s.points)));
+    }
+
+    // ==================== TESTS: do not change ====================
+
+    static int passed = 0, failed = 0;
+
+    static void check(String name, Object expected, Supplier&lt;Object&gt; actual) {
+        try {
+            Object got = actual.get();
+            if (String.valueOf(expected).equals(String.valueOf(got))) {
+                passed++;
+                System.out.println("PASS  " + name);
+            } else {
+                failed++;
+                System.out.println("FAIL  " + name);
+                System.out.println("      expected: " + expected);
+                System.out.println("      actual:   " + got);
+            }
+        } catch (Exception ex) {
+            failed++;
+            System.out.println("FAIL  " + name);
+            System.out.println("      exception: " + ex);
+        }
+    }
+
+    public static void main(String[] args) {
+        List&lt;Score&gt; scores = List.of(
+                new Score("zoya",  1, 300),
+                new Score("arjun", 1, 240),
+                new Score("meera", 2, 500),
+                new Score("arjun", 2, 500),
+                new Score("zoya",  2, 200),
+                new Score("dev",   1, 120));
+        List&lt;Score&gt; noTies = List.of(
+                new Score("amit", 1, 10),
+                new Score("neha", 1, 20));
+        List&lt;Score&gt; smallTie = List.of(
+                new Score("amit", 1, 90),
+                new Score("neha", 1, 90),
+                new Score("ravi", 1, 50));
+
+        check("leaderboard: no ties",
+                "[neha, amit]",
+                () -&gt; leaderboard(noTies));
+        check("leaderboard: with ties",
+                "[arjun, meera, zoya, dev]",
+                () -&gt; leaderboard(scores));
+        check("topScorers: small scores",
+                "[amit, neha]",
+                () -&gt; topScorers(smallTie));
+        check("topScorers: big scores",
+                "[arjun, meera]",
+                () -&gt; topScorers(scores));
+        check("topScorers: no scores",
+                "[]",
+                () -&gt; topScorers(List.of()));
+        check("bestOfLevel: level 1",
+                "zoya",
+                () -&gt; bestOfLevel(scores, 1));
+        check("bestOfLevel: nobody played",
+                "",
+                () -&gt; bestOfLevel(scores, 3));
+        check("averagePerLevel: sample",
+                "{1=220.0, 2=400.0}",
+                () -&gt; averagePerLevel(scores));
+
+        System.out.println();
+        System.out.println(passed + " passed, " + failed + " failed");
+        if (failed == 0) System.out.println("ALL TESTS PASSED. Well done!");
+    }
+}</code></pre></div></details></section>
+<section id="plan" aria-labelledby="plan-h"><h2 id="plan-h">Expert level tak practice plan</h2><ol class="steps"><li>Har collector ka loop version aur stream version side-by-side likho, aur dono ka output match karo.</li><li>Koi bhi stream code padho to har line ke aage type likho, jab tak ye aadat na ban jaaye.</li><li>Run karne se pehle output predict karo. Debugging round ka core skill yahi hai.</li><li>Bugs khud code me daalo aur exception message dekho. Isse interview me message dekhte hi cause pakad loge.</li><li>Bina IDE autocomplete ke practice karo. Ek candidate ke experience ke mutabik Karat me code compile aur run karwaya jaata hai, aur imports tak khud likhne pad sakte hain.</li><li>Expert level ke liye <code>flatMap</code>, <code>collectingAndThen</code>, laziness aur short-circuiting (<code>anyMatch</code>, <code>findFirst</code>) seekho, aur khud ka <code>Collector.of(...)</code> likh ke dekho.</li></ol></section>
+</main>
+</div>
+<div class="to-top-wrap"><a class="to-top" href="#contents" aria-label="Contents pe jao">↑</a></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/prism.min.js" data-manual></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-clike.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/prism/1.29.0/components/prism-java.min.js"></script>
+<script>
+(function () {
+  try { if (window.Prism) { window.Prism.highlightAll(); } } catch (e) {}
+
+  function selectNode(node) {
+    try {
+      var r = document.createRange(); r.selectNodeContents(node);
+      var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+    } catch (e) {}
+  }
+  document.querySelectorAll('[data-copy]').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var pre = document.getElementById(btn.getAttribute('data-copy'));
+      if (!pre) return;
+      var text = pre.textContent;
+      function done(ok) {
+        btn.textContent = ok ? 'Copied' : 'Code select ho gaya, ab copy karo';
+        setTimeout(function () { btn.textContent = 'Copy code'; }, 2200);
+      }
+      function fallback() {
+        var ok = false;
+        try {
+          var ta = document.createElement('textarea');
+          ta.value = text; ta.setAttribute('readonly', '');
+          ta.style.position = 'fixed'; ta.style.opacity = '0';
+          document.body.appendChild(ta); ta.select();
+          ok = document.execCommand('copy');
+          document.body.removeChild(ta);
+        } catch (e) { ok = false; }
+        if (!ok) selectNode(pre);
+        done(ok);
+      }
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(text).then(function () { done(true); }, fallback);
+        } else { fallback(); }
+      } catch (e) { fallback(); }
+    });
+  });
+
+  var toc = document.getElementById('contents');
+  var back = document.querySelector('.to-top');
+  if (toc && back && 'IntersectionObserver' in window) {
+    new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        back.classList.toggle('show', !en.isIntersecting && en.boundingClientRect.top < 0);
+      });
+    }).observe(toc);
+  }
+})();
+</script>
+</body>
+</html>

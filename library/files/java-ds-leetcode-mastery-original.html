@@ -1,0 +1,1378 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Java DS for LeetCode – Deep Dive</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#08090f;--surface:#0f1520;--surface2:#16202e;
+    --border:#1c2b3d;--accent:#06d6a0;--a2:#3b82f6;--a3:#f59e0b;
+    --a4:#ec4899;--a5:#7c3aed;--a6:#f97316;
+    --text:#e2e8f0;--muted:#64748b;--code-bg:#0d1117;
+    --green:#22c55e;--red:#ef4444;--purple:#a78bfa;
+    --teal:#2dd4bf;--cyan:#06b6d4;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;line-height:1.7;font-size:15px}
+
+  nav{position:sticky;top:0;z-index:100;background:rgba(8,9,15,.96);backdrop-filter:blur(14px);border-bottom:1px solid var(--border);padding:0 1.5rem;display:flex;align-items:center;gap:1.2rem;height:52px;overflow-x:auto;scrollbar-width:none}
+  nav::-webkit-scrollbar{display:none}
+  .nav-logo{color:var(--accent);font-weight:800;font-size:12px;letter-spacing:.04em;margin-right:auto;white-space:nowrap;flex-shrink:0}
+  nav a{color:var(--muted);text-decoration:none;font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;white-space:nowrap;transition:color .2s;padding:.2rem .4rem;border-radius:4px}
+  nav a:hover{color:var(--accent)}
+
+  .hero{padding:4.5rem 2rem 3.5rem;max-width:960px;margin:0 auto;text-align:center}
+  .hero-badge{display:inline-block;background:linear-gradient(135deg,#06d6a022,#3b82f622);border:1px solid #06d6a040;color:var(--accent);font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;padding:.3rem .9rem;border-radius:999px;margin-bottom:1.4rem}
+  .hero h1{font-size:clamp(2rem,5.5vw,3.4rem);font-weight:800;line-height:1.1;background:linear-gradient(135deg,#e2e8f0 25%,#06d6a0 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:1rem}
+  .hero p{color:var(--muted);font-size:1rem;max-width:680px;margin:0 auto}
+
+  .container{max-width:960px;margin:0 auto;padding:0 1.5rem 6rem}
+  section{margin-bottom:4.5rem;scroll-margin-top:60px}
+  .sh{display:flex;align-items:center;gap:1rem;margin-bottom:1.8rem;padding-bottom:.8rem;border-bottom:1px solid var(--border)}
+  .sn{width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0;color:#000}
+  .sh h2{font-size:1.4rem;font-weight:700;color:#fff}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.4rem;margin-bottom:1.1rem}
+  .ct{font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.7rem}
+  .card.ag{border-left:3px solid var(--green)}
+  .card.ar{border-left:3px solid var(--red)}
+  .card.ay{border-left:3px solid var(--a3)}
+  .card.ab{border-left:3px solid var(--a2)}
+  .card.ap{border-left:3px solid var(--purple)}
+  .card.at{border-left:3px solid var(--accent)}
+  .card.ao{border-left:3px solid var(--a6)}
+  .card.ak{border-left:3px solid var(--a4)}
+  .card.ac{border-left:3px solid var(--cyan)}
+
+  .g2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+  .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:.9rem}
+  .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:.8rem}
+  @media(max-width:680px){.g2,.g3,.g4{grid-template-columns:1fr}}
+
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:1.3rem;overflow-x:auto;margin:1rem 0 1.3rem;position:relative;font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.85}
+  .cl{position:absolute;top:.6rem;right:.8rem;font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-family:'JetBrains Mono',monospace}
+  .kw{color:#ff79c6}.an{color:#50fa7b}.ty{color:#8be9fd}.st{color:#f1fa8c}
+  .cm{color:#6272a4;font-style:italic}.nu{color:#bd93f9}.mt{color:#ffb86c}
+  .en{color:#ff5555}.op{color:#06d6a0}
+
+  table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin:1rem 0 1.4rem;font-size:12.5px}
+  th{background:var(--surface2);padding:.65rem 1rem;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:700;border-bottom:1px solid var(--border)}
+  td{padding:.6rem 1rem;border-bottom:1px solid var(--border);vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:var(--surface2)}
+  code{background:#fff1;border:1px solid #fff2;border-radius:4px;padding:.1rem .4rem;font-family:'JetBrains Mono',monospace;font-size:.84em;color:var(--accent)}
+
+  .cl-box{border-radius:10px;padding:.9rem 1.1rem;margin:1rem 0;display:flex;gap:.7rem;align-items:flex-start;font-size:.89rem}
+  .ci{font-size:1rem;flex-shrink:0;margin-top:.05rem}
+  .cl-box.tip{background:#06d6a010;border:1px solid #06d6a030}
+  .cl-box.warn{background:#f59e0b15;border:1px solid #f59e0b30}
+  .cl-box.danger{background:#ef444415;border:1px solid #ef444430}
+  .cl-box.info{background:#3b82f615;border:1px solid #3b82f630}
+  .cl-box.lc{background:#f9731615;border:1px solid #f9731630}
+
+  .flow{background:var(--code-bg);border:1px solid var(--border);border-radius:11px;padding:1.3rem;margin:1rem 0 1.3rem;font-family:'JetBrains Mono',monospace;font-size:11.5px;overflow-x:auto}
+  .fr{display:flex;align-items:center;gap:.5rem;padding:.28rem 0;flex-wrap:wrap}
+  .bx{background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:.25rem .7rem;white-space:nowrap;font-weight:600;font-size:11px}
+  .bx.g{background:#14532d30;border-color:var(--green);color:var(--green)}
+  .bx.b{background:#1e3a5f30;border-color:var(--a2);color:var(--a2)}
+  .bx.v{background:#3b076430;border-color:var(--purple);color:var(--purple)}
+  .bx.y{background:#78350f30;border-color:var(--a3);color:var(--a3)}
+  .bx.r{background:#7f1d1d30;border-color:var(--red);color:var(--red)}
+  .bx.t{background:#0d393630;border-color:var(--teal);color:var(--teal)}
+  .bx.o{background:#7c2d1230;border-color:var(--a6);color:var(--a6)}
+  .bx.a{background:#06d6a010;border-color:var(--accent);color:var(--accent)}
+  .bx.c{background:#0d3a4030;border-color:var(--cyan);color:var(--cyan)}
+  .fa{color:var(--muted);font-size:12px}
+
+  .pl{display:inline-flex;align-items:center;font-size:10px;font-weight:700;padding:.12rem .5rem;border-radius:999px;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
+  .pl-g{background:#14532d50;color:var(--green);border:1px solid #22c55e40}
+  .pl-r{background:#7f1d1d50;color:var(--red);border:1px solid #ef444440}
+  .pl-y{background:#78350f50;color:var(--a3);border:1px solid #f59e0b40}
+  .pl-b{background:#1e3a5f50;color:var(--a2);border:1px solid #3b82f640}
+  .pl-o{background:#7c2d1250;color:var(--a6);border:1px solid #f9731640}
+
+  /* LC Problem Tag */
+  .lc-tag{display:inline-flex;align-items:center;gap:.3rem;font-size:10px;font-weight:700;padding:.15rem .55rem;border-radius:999px;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap;margin:.15rem .1rem;font-family:'JetBrains Mono',monospace}
+  .lc-e{background:#14532d50;color:#4ade80;border:1px solid #22c55e40}
+  .lc-m{background:#78350f50;color:#fbbf24;border:1px solid #f59e0b40}
+  .lc-h{background:#7f1d1d50;color:#f87171;border:1px solid #ef444440}
+
+  /* DS Node diagram */
+  .ds-diagram{background:var(--code-bg);border:1px solid var(--border);border-radius:12px;padding:1.5rem;margin:1rem 0;font-family:'JetBrains Mono',monospace;font-size:11.5px;overflow-x:auto}
+  .node-row{display:flex;align-items:center;gap:.3rem;flex-wrap:nowrap;min-width:max-content}
+  .node{border:1.5px solid var(--border);border-radius:6px;padding:.3rem .6rem;font-size:11px;font-weight:700;white-space:nowrap}
+  .node.head{border-color:var(--green);color:var(--green);background:#14532d20}
+  .node.body{border-color:var(--a2);color:var(--a2);background:#1e3a5f20}
+  .node.tail{border-color:var(--purple);color:var(--purple);background:#3b076420}
+  .node.null{border-color:var(--muted);color:var(--muted);background:#1c2b3d20}
+  .ptr{color:var(--muted);font-size:14px;padding:0 .1rem}
+
+  p{margin-bottom:.85rem;color:#cbd5e1}
+  ul,ol{padding-left:1.4rem;color:#cbd5e1}
+  li{margin-bottom:.35rem}
+  strong{color:#fff}
+  .muted{color:var(--muted);font-size:.87em}
+  h3{color:#fff;font-size:1rem;font-weight:700;margin:.9rem 0 .4rem}
+
+  .topic-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.6rem;margin:1.5rem 0 3rem}
+  .tp{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.6rem .8rem;font-size:11px;font-weight:700;text-align:center;text-decoration:none;color:var(--text);display:block;transition:all .2s}
+  .tp:hover{border-color:var(--accent);color:var(--accent);background:#06d6a010;transform:translateY(-1px)}
+
+  .complexity-table td:nth-child(2),.complexity-table td:nth-child(3){font-family:'JetBrains Mono',monospace;font-size:12px}
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="nav-logo">🧩 Java DS · LeetCode Mastery</span>
+  <a href="#set">Set</a>
+  <a href="#linkedlist">LinkedList</a>
+  <a href="#queue">Queue All Types</a>
+  <a href="#thread-queue">Thread + Queue</a>
+  <a href="#threadpool">ThreadPool</a>
+  <a href="#map">Map All Types</a>
+  <a href="#patterns">LC Patterns</a>
+  <a href="#problems">LC Problems</a>
+</nav>
+
+<div class="hero">
+  <div class="hero-badge">Java 17/21 · LeetCode · DSA · Threads · Concurrency</div>
+  <h1>Java Data Structures<br/>LeetCode Mastery</h1>
+  <p>Set, LinkedList, Queue, Map — all types, internal workings, thread problems, ThreadPool patterns, and 50+ LeetCode problem solutions.</p>
+</div>
+
+<div class="container">
+
+<div class="topic-grid">
+  <a class="tp" href="#set">🔵 Set (All Types)</a>
+  <a class="tp" href="#linkedlist">🔗 LinkedList</a>
+  <a class="tp" href="#queue">📬 Queue Types</a>
+  <a class="tp" href="#thread-queue">🧵 Thread+Queue</a>
+  <a class="tp" href="#threadpool">⚙️ ThreadPool</a>
+  <a class="tp" href="#map">🗺 Map Types</a>
+  <a class="tp" href="#patterns">🎯 LC Patterns</a>
+  <a class="tp" href="#problems">💡 LC Problems</a>
+</div>
+
+<!-- ══════════════════════════════════════════
+     1. SET
+══════════════════════════════════════════ -->
+<section id="set">
+  <div class="sh"><div class="sn" style="background:var(--accent)">1</div><h2>Set — All Types, Internals & LeetCode Usage</h2></div>
+
+  <p>A <strong>Set</strong> stores <strong>unique elements only</strong>. Duplicates are silently ignored. The key question is: do you need ordering?</p>
+
+  <table>
+    <thead><tr><th>Set Type</th><th>Order</th><th>Null</th><th>add/contains/remove</th><th>Thread-safe</th><th>Backed By</th></tr></thead>
+    <tbody>
+      <tr><td><code>HashSet</code></td><td>❌ None</td><td>1 null</td><td>O(1) avg</td><td>❌</td><td>HashMap</td></tr>
+      <tr><td><code>LinkedHashSet</code></td><td>✅ Insertion</td><td>1 null</td><td>O(1) avg</td><td>❌</td><td>LinkedHashMap</td></tr>
+      <tr><td><code>TreeSet</code></td><td>✅ Sorted</td><td>❌</td><td>O(log n)</td><td>❌</td><td>TreeMap (Red-Black)</td></tr>
+      <tr><td><code>EnumSet</code></td><td>Enum order</td><td>❌</td><td>O(1)</td><td>❌</td><td>Bit vector</td></tr>
+      <tr><td><code>CopyOnWriteArraySet</code></td><td>Insertion</td><td>✅</td><td>O(n)</td><td>✅</td><td>CopyOnWriteArrayList</td></tr>
+      <tr><td><code>ConcurrentSkipListSet</code></td><td>✅ Sorted</td><td>❌</td><td>O(log n)</td><td>✅</td><td>Skip list</td></tr>
+      <tr><td><code>Collections.synchronizedSet</code></td><td>Delegated</td><td>Delegated</td><td>Delegated</td><td>✅</td><td>Any Set wrapper</td></tr>
+    </tbody>
+  </table>
+
+<pre><span class="cm">// ── HashSet — O(1) operations, no order ─────────────────────────────</span>
+<span class="ty">Set</span>&lt;<span class="ty">String</span>&gt; hs = <span class="kw">new</span> <span class="ty">HashSet</span>&lt;&gt;();
+hs.<span class="mt">add</span>(<span class="st">"apple"</span>);
+hs.<span class="mt">add</span>(<span class="st">"apple"</span>);           <span class="cm">// ignored — duplicate</span>
+hs.<span class="mt">add</span>(<span class="kw">null</span>);              <span class="cm">// one null allowed</span>
+hs.<span class="mt">contains</span>(<span class="st">"apple"</span>);     <span class="cm">// O(1) — backed by HashMap key lookup</span>
+hs.<span class="mt">remove</span>(<span class="st">"apple"</span>);       <span class="cm">// O(1)</span>
+hs.<span class="mt">size</span>();                  <span class="cm">// 1 (null + apple, but apple removed)</span>
+
+<span class="cm">// ── LinkedHashSet — insertion order preserved ─────────────────────</span>
+<span class="ty">Set</span>&lt;<span class="ty">String</span>&gt; lhs = <span class="kw">new</span> <span class="ty">LinkedHashSet</span>&lt;&gt;();
+lhs.<span class="mt">addAll</span>(<span class="ty">List</span>.<span class="mt">of</span>(<span class="st">"c"</span>, <span class="st">"a"</span>, <span class="st">"b"</span>));
+<span class="ty">System</span>.out.<span class="mt">println</span>(lhs);   <span class="cm">// [c, a, b] — insertion order kept</span>
+
+<span class="cm">// ── TreeSet — sorted, O(log n), navigable ─────────────────────────</span>
+<span class="ty">TreeSet</span>&lt;<span class="ty">Integer</span>&gt; ts = <span class="kw">new</span> <span class="ty">TreeSet</span>&lt;&gt;(<span class="ty">Set</span>.<span class="mt">of</span>(<span class="nu">5</span>,<span class="nu">1</span>,<span class="nu">8</span>,<span class="nu">3</span>,<span class="nu">2</span>));
+ts.<span class="mt">first</span>();                 <span class="cm">// 1  — smallest</span>
+ts.<span class="mt">last</span>();                  <span class="cm">// 8  — largest</span>
+ts.<span class="mt">floor</span>(<span class="nu">4</span>);               <span class="cm">// 3  — greatest element ≤ 4</span>
+ts.<span class="mt">ceiling</span>(<span class="nu">4</span>);             <span class="cm">// 5  — smallest element ≥ 4</span>
+ts.<span class="mt">lower</span>(<span class="nu">5</span>);               <span class="cm">// 3  — greatest element strictly &lt; 5</span>
+ts.<span class="mt">higher</span>(<span class="nu">5</span>);              <span class="cm">// 8  — smallest element strictly > 5</span>
+ts.<span class="mt">headSet</span>(<span class="nu">5</span>);             <span class="cm">// [1,2,3] — elements &lt; 5</span>
+ts.<span class="mt">tailSet</span>(<span class="nu">5</span>);             <span class="cm">// [5,8]   — elements ≥ 5</span>
+ts.<span class="mt">subSet</span>(<span class="nu">2</span>, <span class="nu">6</span>);           <span class="cm">// [2,3,5] — elements in [2,6)</span>
+ts.<span class="mt">descendingSet</span>();         <span class="cm">// [8,5,3,2,1]</span>
+
+<span class="cm">// Custom Comparator in TreeSet</span>
+<span class="ty">TreeSet</span>&lt;<span class="ty">String</span>&gt; byLen = <span class="kw">new</span> <span class="ty">TreeSet</span>&lt;&gt;(
+    <span class="ty">Comparator</span>.<span class="mt">comparingInt</span>(<span class="ty">String</span>::<span class="mt">length</span>).<span class="mt">thenComparing</span>(<span class="ty">Comparator</span>.<span class="mt">naturalOrder</span>())
+);
+byLen.<span class="mt">addAll</span>(<span class="ty">List</span>.<span class="mt">of</span>(<span class="st">"banana"</span>, <span class="st">"hi"</span>, <span class="st">"cat"</span>));
+<span class="ty">System</span>.out.<span class="mt">println</span>(byLen); <span class="cm">// [hi, cat, banana]</span>
+
+<span class="cm">// ── EnumSet — fastest Set for enum values (bit-vector internally) ──</span>
+<span class="kw">enum</span> <span class="ty">Day</span> { <span class="en">MON</span>,<span class="en">TUE</span>,<span class="en">WED</span>,<span class="en">THU</span>,<span class="en">FRI</span>,<span class="en">SAT</span>,<span class="en">SUN</span> }
+<span class="ty">Set</span>&lt;<span class="ty">Day</span>&gt; weekdays = <span class="ty">EnumSet</span>.<span class="mt">range</span>(<span class="ty">Day</span>.<span class="en">MON</span>, <span class="ty">Day</span>.<span class="en">FRI</span>);
+<span class="ty">Set</span>&lt;<span class="ty">Day</span>&gt; weekend  = <span class="ty">EnumSet</span>.<span class="mt">of</span>(<span class="ty">Day</span>.<span class="en">SAT</span>, <span class="ty">Day</span>.<span class="en">SUN</span>);
+<span class="ty">Set</span>&lt;<span class="ty">Day</span>&gt; all      = <span class="ty">EnumSet</span>.<span class="mt">allOf</span>(<span class="ty">Day</span>.<span class="kw">class</span>);
+
+<span class="cm">// ── ConcurrentSkipListSet — sorted + thread-safe ───────────────────</span>
+<span class="ty">Set</span>&lt;<span class="ty">Integer</span>&gt; skipSet = <span class="kw">new</span> <span class="ty">ConcurrentSkipListSet</span>&lt;&gt;();
+<span class="cm">// Multiple threads can add/remove safely — backed by skip list O(log n)</span>
+<div class="code-label">Java 17</div></pre>
+
+  <div class="cl-box lc"><div class="ci">🎯</div><div><strong>LeetCode Set Patterns:</strong> Duplicate detection, visited nodes in BFS/DFS, "contains" O(1) lookup, sliding window unique chars, two-sum pair checking, cycle detection.</div></div>
+
+<pre><span class="cm">// ── LeetCode: 217. Contains Duplicate ─────────────────── Easy ──────</span>
+<span class="kw">public boolean</span> <span class="mt">containsDuplicate</span>(<span class="kw">int</span>[] nums) {
+    <span class="ty">Set</span>&lt;<span class="ty">Integer</span>&gt; seen = <span class="kw">new</span> <span class="ty">HashSet</span>&lt;&gt;();
+    <span class="kw">for</span> (<span class="kw">int</span> n : nums) {
+        <span class="kw">if</span> (!seen.<span class="mt">add</span>(n)) <span class="kw">return true</span>; <span class="cm">// add returns false if already present</span>
+    }
+    <span class="kw">return false</span>;
+}
+
+<span class="cm">// ── LeetCode: 128. Longest Consecutive Sequence ────────── Hard ──────</span>
+<span class="kw">public int</span> <span class="mt">longestConsecutive</span>(<span class="kw">int</span>[] nums) {
+    <span class="ty">Set</span>&lt;<span class="ty">Integer</span>&gt; set = <span class="kw">new</span> <span class="ty">HashSet</span>&lt;&gt;();
+    <span class="kw">for</span> (<span class="kw">int</span> n : nums) set.<span class="mt">add</span>(n);
+
+    <span class="kw">int</span> max = <span class="nu">0</span>;
+    <span class="kw">for</span> (<span class="kw">int</span> n : set) {
+        <span class="kw">if</span> (!set.<span class="mt">contains</span>(n - <span class="nu">1</span>)) {   <span class="cm">// start of a sequence</span>
+            <span class="kw">int</span> curr = n, len = <span class="nu">1</span>;
+            <span class="kw">while</span> (set.<span class="mt">contains</span>(curr + <span class="nu">1</span>)) { curr++; len++; }
+            max = <span class="ty">Math</span>.<span class="mt">max</span>(max, len);
+        }
+    }
+    <span class="kw">return</span> max;
+}
+
+<span class="cm">// ── LeetCode: 3. Longest Substring Without Repeating Chars ── Medium ─</span>
+<span class="kw">public int</span> <span class="mt">lengthOfLongestSubstring</span>(<span class="ty">String</span> s) {
+    <span class="ty">Set</span>&lt;<span class="ty">Character</span>&gt; window = <span class="kw">new</span> <span class="ty">HashSet</span>&lt;&gt;();
+    <span class="kw">int</span> left = <span class="nu">0</span>, max = <span class="nu">0</span>;
+    <span class="kw">for</span> (<span class="kw">int</span> right = <span class="nu">0</span>; right < s.<span class="mt">length</span>(); right++) {
+        <span class="kw">while</span> (window.<span class="mt">contains</span>(s.<span class="mt">charAt</span>(right))) {
+            window.<span class="mt">remove</span>(s.<span class="mt">charAt</span>(left++));
+        }
+        window.<span class="mt">add</span>(s.<span class="mt">charAt</span>(right));
+        max = <span class="ty">Math</span>.<span class="mt">max</span>(max, right - left + <span class="nu">1</span>);
+    }
+    <span class="kw">return</span> max;
+}
+
+<span class="cm">// ── LeetCode: 349. Intersection of Two Arrays ─────────── Easy ──────</span>
+<span class="kw">public int</span>[] <span class="mt">intersection</span>(<span class="kw">int</span>[] a, <span class="kw">int</span>[] b) {
+    <span class="ty">Set</span>&lt;<span class="ty">Integer</span>&gt; setA = <span class="kw">new</span> <span class="ty">HashSet</span>&lt;&gt;();
+    <span class="kw">for</span> (<span class="kw">int</span> n : a) setA.<span class="mt">add</span>(n);
+    <span class="ty">Set</span>&lt;<span class="ty">Integer</span>&gt; res = <span class="kw">new</span> <span class="ty">HashSet</span>&lt;&gt;();
+    <span class="kw">for</span> (<span class="kw">int</span> n : b) <span class="kw">if</span> (setA.<span class="mt">contains</span>(n)) res.<span class="mt">add</span>(n);
+    <span class="kw">return</span> res.<span class="mt">stream</span>().<span class="mt">mapToInt</span>(<span class="ty">Integer</span>::<span class="mt">intValue</span>).<span class="mt">toArray</span>();
+}
+<div class="code-label">Java 17 — LeetCode Set</div></pre>
+</section>
+
+<!-- ══════════════════════════════════════════
+     2. LINKEDLIST
+══════════════════════════════════════════ -->
+<section id="linkedlist">
+  <div class="sh"><div class="sn" style="background:var(--a2)">2</div><h2>LinkedList — Singly, Doubly, Circular & Node Pattern</h2></div>
+
+  <div class="ds-diagram">
+    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.8rem">Singly Linked List</div>
+    <div class="node-row">
+      <div class="node head">HEAD<br/>val=1 | next→</div><div class="ptr">──▶</div>
+      <div class="node body">val=2 | next→</div><div class="ptr">──▶</div>
+      <div class="node body">val=3 | next→</div><div class="ptr">──▶</div>
+      <div class="node tail">val=4 | next→</div><div class="ptr">──▶</div>
+      <div class="node null">null</div>
+    </div>
+    <div style="margin-top:.8rem;color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em">Doubly Linked List</div>
+    <div class="node-row" style="margin-top:.5rem">
+      <div class="node null">null</div><div class="ptr">◀──</div>
+      <div class="node head">←prev | HEAD val=1 | next→</div><div class="ptr">⇌</div>
+      <div class="node body">←prev | val=2 | next→</div><div class="ptr">⇌</div>
+      <div class="node tail">←prev | TAIL val=3 | next→</div><div class="ptr">──▶</div>
+      <div class="node null">null</div>
+    </div>
+  </div>
+
+<pre><span class="cm">// ── ListNode — the building block for all LC linked list problems ────</span>
+<span class="kw">public class</span> <span class="ty">ListNode</span> {
+    <span class="kw">int</span>      val;
+    <span class="ty">ListNode</span> next;
+    <span class="ty">ListNode</span>(<span class="kw">int</span> val)                       { <span class="kw">this</span>.val = val; }
+    <span class="ty">ListNode</span>(<span class="kw">int</span> val, <span class="ty">ListNode</span> next)      { <span class="kw">this</span>.val = val; <span class="kw">this</span>.next = next; }
+}
+
+<span class="cm">// ── Build & traverse ─────────────────────────────────────────────────</span>
+<span class="kw">static</span> <span class="ty">ListNode</span> <span class="mt">build</span>(<span class="kw">int</span>... vals) {
+    <span class="ty">ListNode</span> dummy = <span class="kw">new</span> <span class="ty">ListNode</span>(<span class="nu">0</span>), cur = dummy;
+    <span class="kw">for</span> (<span class="kw">int</span> v : vals) { cur.next = <span class="kw">new</span> <span class="ty">ListNode</span>(v); cur = cur.next; }
+    <span class="kw">return</span> dummy.next;
+}
+
+<span class="kw">static void</span> <span class="mt">print</span>(<span class="ty">ListNode</span> head) {
+    <span class="kw">for</span> (<span class="ty">ListNode</span> cur = head; cur != <span class="kw">null</span>; cur = cur.next)
+        <span class="ty">System</span>.out.<span class="mt">print</span>(cur.val + (cur.next != <span class="kw">null</span> ? <span class="st">" → "</span> : <span class="st">"\n"</span>));
+}
+<div class="code-label">Java 17 — ListNode</div></pre>
+
+<pre><span class="cm">// ── LeetCode: 206. Reverse Linked List ────────────── Easy ───────────</span>
+<span class="cm">// Iterative — O(n) time, O(1) space</span>
+<span class="kw">public</span> <span class="ty">ListNode</span> <span class="mt">reverseList</span>(<span class="ty">ListNode</span> head) {
+    <span class="ty">ListNode</span> prev = <span class="kw">null</span>, curr = head;
+    <span class="kw">while</span> (curr != <span class="kw">null</span>) {
+        <span class="ty">ListNode</span> next = curr.next; <span class="cm">// save next</span>
+        curr.next = prev;           <span class="cm">// reverse pointer</span>
+        prev = curr;                <span class="cm">// advance prev</span>
+        curr = next;                <span class="cm">// advance curr</span>
+    }
+    <span class="kw">return</span> prev;
+}
+
+<span class="cm">// Recursive — O(n) time, O(n) stack space</span>
+<span class="kw">public</span> <span class="ty">ListNode</span> <span class="mt">reverseListRec</span>(<span class="ty">ListNode</span> head) {
+    <span class="kw">if</span> (head == <span class="kw">null</span> || head.next == <span class="kw">null</span>) <span class="kw">return</span> head;
+    <span class="ty">ListNode</span> newHead = <span class="mt">reverseListRec</span>(head.next);
+    head.next.next = head;
+    head.next = <span class="kw">null</span>;
+    <span class="kw">return</span> newHead;
+}
+
+<span class="cm">// ── LeetCode: 141. Linked List Cycle ──────────────── Easy ───────────</span>
+<span class="cm">// Floyd's Two-Pointer (fast & slow) — O(n) time O(1) space</span>
+<span class="kw">public boolean</span> <span class="mt">hasCycle</span>(<span class="ty">ListNode</span> head) {
+    <span class="ty">ListNode</span> slow = head, fast = head;
+    <span class="kw">while</span> (fast != <span class="kw">null</span> && fast.next != <span class="kw">null</span>) {
+        slow = slow.next;
+        fast = fast.next.next;
+        <span class="kw">if</span> (slow == fast) <span class="kw">return true</span>; <span class="cm">// they meet → cycle!</span>
+    }
+    <span class="kw">return false</span>;
+}
+
+<span class="cm">// ── LeetCode: 142. Linked List Cycle II — find cycle start ── Medium ─</span>
+<span class="kw">public</span> <span class="ty">ListNode</span> <span class="mt">detectCycle</span>(<span class="ty">ListNode</span> head) {
+    <span class="ty">ListNode</span> slow = head, fast = head;
+    <span class="kw">while</span> (fast != <span class="kw">null</span> && fast.next != <span class="kw">null</span>) {
+        slow = slow.next; fast = fast.next.next;
+        <span class="kw">if</span> (slow == fast) {
+            <span class="ty">ListNode</span> ptr = head;
+            <span class="kw">while</span> (ptr != slow) { ptr = ptr.next; slow = slow.next; }
+            <span class="kw">return</span> ptr; <span class="cm">// cycle start</span>
+        }
+    }
+    <span class="kw">return null</span>;
+}
+
+<span class="cm">// ── LeetCode: 21. Merge Two Sorted Lists ─────────── Easy ───────────</span>
+<span class="kw">public</span> <span class="ty">ListNode</span> <span class="mt">mergeTwoLists</span>(<span class="ty">ListNode</span> l1, <span class="ty">ListNode</span> l2) {
+    <span class="ty">ListNode</span> dummy = <span class="kw">new</span> <span class="ty">ListNode</span>(<span class="nu">0</span>), cur = dummy;
+    <span class="kw">while</span> (l1 != <span class="kw">null</span> && l2 != <span class="kw">null</span>) {
+        <span class="kw">if</span> (l1.val <= l2.val) { cur.next = l1; l1 = l1.next; }
+        <span class="kw">else</span>                   { cur.next = l2; l2 = l2.next; }
+        cur = cur.next;
+    }
+    cur.next = (l1 != <span class="kw">null</span>) ? l1 : l2;
+    <span class="kw">return</span> dummy.next;
+}
+
+<span class="cm">// ── LeetCode: 19. Remove Nth Node From End ──────── Medium ───────────</span>
+<span class="kw">public</span> <span class="ty">ListNode</span> <span class="mt">removeNthFromEnd</span>(<span class="ty">ListNode</span> head, <span class="kw">int</span> n) {
+    <span class="ty">ListNode</span> dummy = <span class="kw">new</span> <span class="ty">ListNode</span>(<span class="nu">0</span>, head);
+    <span class="ty">ListNode</span> fast = dummy, slow = dummy;
+    <span class="kw">for</span> (<span class="kw">int</span> i = <span class="nu">0</span>; i <= n; i++) fast = fast.next; <span class="cm">// advance fast n+1 steps</span>
+    <span class="kw">while</span> (fast != <span class="kw">null</span>) { fast = fast.next; slow = slow.next; }
+    slow.next = slow.next.next; <span class="cm">// remove the nth node</span>
+    <span class="kw">return</span> dummy.next;
+}
+
+<span class="cm">// ── LeetCode: 23. Merge K Sorted Lists ─────────── Hard ─────────────</span>
+<span class="kw">public</span> <span class="ty">ListNode</span> <span class="mt">mergeKLists</span>(<span class="ty">ListNode</span>[] lists) {
+    <span class="ty">PriorityQueue</span>&lt;<span class="ty">ListNode</span>&gt; pq =
+        <span class="kw">new</span> <span class="ty">PriorityQueue</span>&lt;&gt;(<span class="ty">Comparator</span>.<span class="mt">comparingInt</span>(n -> n.val));
+    <span class="kw">for</span> (<span class="ty">ListNode</span> node : lists) <span class="kw">if</span> (node != <span class="kw">null</span>) pq.<span class="mt">offer</span>(node);
+
+    <span class="ty">ListNode</span> dummy = <span class="kw">new</span> <span class="ty">ListNode</span>(<span class="nu">0</span>), cur = dummy;
+    <span class="kw">while</span> (!pq.<span class="mt">isEmpty</span>()) {
+        cur.next = pq.<span class="mt">poll</span>();
+        cur = cur.next;
+        <span class="kw">if</span> (cur.next != <span class="kw">null</span>) pq.<span class="mt">offer</span>(cur.next);
+    }
+    <span class="kw">return</span> dummy.next;
+}
+
+<span class="cm">// ── LeetCode: 146. LRU Cache ─────────────────────── Medium ─────────</span>
+<span class="cm">// Uses: HashMap + Doubly Linked List (O(1) get + put)</span>
+<span class="kw">class</span> <span class="ty">LRUCache</span> {
+
+    <span class="kw">private static class</span> <span class="ty">Node</span> {
+        <span class="kw">int</span> key, val;
+        <span class="ty">Node</span> prev, next;
+        <span class="ty">Node</span>(<span class="kw">int</span> k, <span class="kw">int</span> v) { key = k; val = v; }
+    }
+
+    <span class="kw">private final int</span>               cap;
+    <span class="kw">private final</span> <span class="ty">Map</span>&lt;<span class="ty">Integer</span>, <span class="ty">Node</span>&gt;  map  = <span class="kw">new</span> <span class="ty">HashMap</span>&lt;&gt;();
+    <span class="kw">private final</span> <span class="ty">Node</span>               head = <span class="kw">new</span> <span class="ty">Node</span>(<span class="nu">0</span>, <span class="nu">0</span>); <span class="cm">// dummy head</span>
+    <span class="kw">private final</span> <span class="ty">Node</span>               tail = <span class="kw">new</span> <span class="ty">Node</span>(<span class="nu">0</span>, <span class="nu">0</span>); <span class="cm">// dummy tail</span>
+
+    <span class="ty">LRUCache</span>(<span class="kw">int</span> capacity) {
+        cap = capacity;
+        head.next = tail; tail.prev = head;  <span class="cm">// sentinel doubly linked list</span>
+    }
+
+    <span class="kw">public int</span> <span class="mt">get</span>(<span class="kw">int</span> key) {
+        <span class="kw">if</span> (!map.<span class="mt">containsKey</span>(key)) <span class="kw">return</span> -<span class="nu">1</span>;
+        <span class="ty">Node</span> n = map.<span class="mt">get</span>(key);
+        <span class="mt">remove</span>(n); <span class="mt">addToFront</span>(n); <span class="cm">// move to most recently used</span>
+        <span class="kw">return</span> n.val;
+    }
+
+    <span class="kw">public void</span> <span class="mt">put</span>(<span class="kw">int</span> key, <span class="kw">int</span> value) {
+        <span class="kw">if</span> (map.<span class="mt">containsKey</span>(key)) <span class="mt">remove</span>(map.<span class="mt">get</span>(key));
+        <span class="ty">Node</span> n = <span class="kw">new</span> <span class="ty">Node</span>(key, value);
+        map.<span class="mt">put</span>(key, n); <span class="mt">addToFront</span>(n);
+        <span class="kw">if</span> (map.<span class="mt">size</span>() > cap) {
+            <span class="ty">Node</span> lru = tail.prev;
+            <span class="mt">remove</span>(lru);
+            map.<span class="mt">remove</span>(lru.key);
+        }
+    }
+
+    <span class="kw">private void</span> <span class="mt">remove</span>(<span class="ty">Node</span> n) {
+        n.prev.next = n.next; n.next.prev = n.prev;
+    }
+    <span class="kw">private void</span> <span class="mt">addToFront</span>(<span class="ty">Node</span> n) {
+        n.next = head.next; n.prev = head;
+        head.next.prev = n; head.next = n;
+    }
+}
+<div class="code-label">Java 17 — LinkedList LeetCode</div></pre>
+</section>
+
+<!-- ══════════════════════════════════════════
+     3. QUEUE ALL TYPES
+══════════════════════════════════════════ -->
+<section id="queue">
+  <div class="sh"><div class="sn" style="background:var(--a3)">3</div><h2>Queue — All Types, Internals & LeetCode Patterns</h2></div>
+
+  <table>
+    <thead><tr><th>Queue Type</th><th>Order</th><th>Blocking</th><th>Bounded</th><th>Thread-safe</th><th>Use Case</th></tr></thead>
+    <tbody>
+      <tr><td><code>ArrayDeque</code> ⭐</td><td>FIFO/LIFO</td><td>❌</td><td>❌</td><td>❌</td><td>BFS, Stack, General queue</td></tr>
+      <tr><td><code>LinkedList</code></td><td>FIFO</td><td>❌</td><td>❌</td><td>❌</td><td>Queue/Deque (slower than ArrayDeque)</td></tr>
+      <tr><td><code>PriorityQueue</code></td><td>Priority (min-heap)</td><td>❌</td><td>❌</td><td>❌</td><td>Dijkstra, Top-K, scheduling</td></tr>
+      <tr><td><code>LinkedBlockingQueue</code></td><td>FIFO</td><td>✅</td><td>Optional</td><td>✅</td><td>Producer-Consumer</td></tr>
+      <tr><td><code>ArrayBlockingQueue</code></td><td>FIFO</td><td>✅</td><td>✅</td><td>✅</td><td>Bounded producer-consumer</td></tr>
+      <tr><td><code>PriorityBlockingQueue</code></td><td>Priority</td><td>✅</td><td>❌</td><td>✅</td><td>Thread-safe priority scheduling</td></tr>
+      <tr><td><code>DelayQueue</code></td><td>Delay expiry</td><td>✅</td><td>❌</td><td>✅</td><td>Scheduled tasks, TTL caches</td></tr>
+      <tr><td><code>SynchronousQueue</code></td><td>Direct handoff</td><td>✅</td><td>0 (!) </td><td>✅</td><td>CachedThreadPool's work queue</td></tr>
+      <tr><td><code>ConcurrentLinkedQueue</code></td><td>FIFO</td><td>❌</td><td>❌</td><td>✅</td><td>Lock-free high-throughput queue</td></tr>
+      <tr><td><code>LinkedTransferQueue</code></td><td>FIFO</td><td>✅</td><td>❌</td><td>✅</td><td>Transfer directly to waiting consumer</td></tr>
+    </tbody>
+  </table>
+
+<pre><span class="cm">// ── Queue API — offer/poll/peek vs add/remove/element ────────────────</span>
+<span class="cm">// Prefer offer/poll/peek — they return null/false instead of throwing</span>
+
+<span class="ty">Queue</span>&lt;<span class="ty">String</span>&gt; q = <span class="kw">new</span> <span class="ty">ArrayDeque</span>&lt;&gt;();
+
+<span class="cm">// Enqueue</span>
+q.<span class="mt">offer</span>(<span class="st">"first"</span>);   <span class="cm">// returns false if full (non-throwing)</span>
+q.<span class="mt">add</span>(<span class="st">"second"</span>);   <span class="cm">// throws IllegalStateException if full</span>
+
+<span class="cm">// Dequeue</span>
+<span class="ty">String</span> head = q.<span class="mt">poll</span>();    <span class="cm">// returns null if empty  ← use this</span>
+<span class="ty">String</span> head2 = q.<span class="mt">remove</span>(); <span class="cm">// throws NoSuchElementException if empty</span>
+
+<span class="cm">// Peek (no remove)</span>
+<span class="ty">String</span> front = q.<span class="mt">peek</span>();   <span class="cm">// returns null if empty  ← use this</span>
+<span class="ty">String</span> front2 = q.<span class="mt">element</span>(); <span class="cm">// throws if empty</span>
+
+<span class="cm">// ── Deque — double-ended queue (use as both Stack and Queue) ─────────</span>
+<span class="ty">Deque</span>&lt;<span class="ty">Integer</span>&gt; deque = <span class="kw">new</span> <span class="ty">ArrayDeque</span>&lt;&gt;();
+deque.<span class="mt">offerFirst</span>(<span class="nu">1</span>);  deque.<span class="mt">offerLast</span>(<span class="nu">2</span>);  <span class="cm">// add to front/back</span>
+deque.<span class="mt">pollFirst</span>();   deque.<span class="mt">pollLast</span>();    <span class="cm">// remove from front/back</span>
+deque.<span class="mt">peekFirst</span>();   deque.<span class="mt">peekLast</span>();   <span class="cm">// view front/back</span>
+deque.<span class="mt">push</span>(<span class="nu">3</span>);       deque.<span class="mt">pop</span>();        <span class="cm">// stack ops = offerFirst/pollFirst</span>
+
+<span class="cm">// ── PriorityQueue — min-heap (lowest value polled first) ─────────────</span>
+<span class="ty">PriorityQueue</span>&lt;<span class="ty">Integer</span>&gt; minH = <span class="kw">new</span> <span class="ty">PriorityQueue</span>&lt;&gt;();
+<span class="ty">PriorityQueue</span>&lt;<span class="ty">Integer</span>&gt; maxH = <span class="kw">new</span> <span class="ty">PriorityQueue</span>&lt;&gt;(<span class="ty">Comparator</span>.<span class="mt">reverseOrder</span>());
+
+<span class="cm">// Custom comparator PQ</span>
+<span class="ty">PriorityQueue</span>&lt;<span class="kw">int</span>[]&gt; pq = <span class="kw">new</span> <span class="ty">PriorityQueue</span>&lt;&gt;((a, b) -> a[<span class="nu">0</span>] - b[<span class="nu">0</span>]);
+pq.<span class="mt">offer</span>(<span class="kw">new int</span>[]{<span class="nu">3</span>, <span class="nu">0</span>});  <span class="cm">// [distance, node] for Dijkstra</span>
+pq.<span class="mt">offer</span>(<span class="kw">new int</span>[]{<span class="nu">1</span>, <span class="nu">2</span>});
+<span class="kw">int</span>[] top = pq.<span class="mt">poll</span>();       <span class="cm">// [1, 2] — smallest distance first</span>
+<div class="code-label">Java 17 — Queue API</div></pre>
+
+<pre><span class="cm">// ── LeetCode: 102. Binary Tree Level Order Traversal ── Medium ───────</span>
+<span class="cm">// BFS with Queue — the most common Queue pattern</span>
+<span class="kw">public</span> <span class="ty">List</span>&lt;<span class="ty">List</span>&lt;<span class="ty">Integer</span>&gt;&gt; <span class="mt">levelOrder</span>(<span class="ty">TreeNode</span> root) {
+    <span class="ty">List</span>&lt;<span class="ty">List</span>&lt;<span class="ty">Integer</span>&gt;&gt; result = <span class="kw">new</span> <span class="ty">ArrayList</span>&lt;&gt;();
+    <span class="kw">if</span> (root == <span class="kw">null</span>) <span class="kw">return</span> result;
+
+    <span class="ty">Queue</span>&lt;<span class="ty">TreeNode</span>&gt; q = <span class="kw">new</span> <span class="ty">ArrayDeque</span>&lt;&gt;();
+    q.<span class="mt">offer</span>(root);
+
+    <span class="kw">while</span> (!q.<span class="mt">isEmpty</span>()) {
+        <span class="kw">int</span> size = q.<span class="mt">size</span>();              <span class="cm">// snapshot this level's count</span>
+        <span class="ty">List</span>&lt;<span class="ty">Integer</span>&gt; level = <span class="kw">new</span> <span class="ty">ArrayList</span>&lt;&gt;();
+        <span class="kw">for</span> (<span class="kw">int</span> i = <span class="nu">0</span>; i < size; i++) {
+            <span class="ty">TreeNode</span> node = q.<span class="mt">poll</span>();
+            level.<span class="mt">add</span>(node.val);
+            <span class="kw">if</span> (node.left  != <span class="kw">null</span>) q.<span class="mt">offer</span>(node.left);
+            <span class="kw">if</span> (node.right != <span class="kw">null</span>) q.<span class="mt">offer</span>(node.right);
+        }
+        result.<span class="mt">add</span>(level);
+    }
+    <span class="kw">return</span> result;
+}
+
+<span class="cm">// ── LeetCode: 239. Sliding Window Maximum ────────── Hard ────────────</span>
+<span class="cm">// Monotonic Deque — O(n) time</span>
+<span class="kw">public int</span>[] <span class="mt">maxSlidingWindow</span>(<span class="kw">int</span>[] nums, <span class="kw">int</span> k) {
+    <span class="ty">Deque</span>&lt;<span class="ty">Integer</span>&gt; deque = <span class="kw">new</span> <span class="ty">ArrayDeque</span>&lt;&gt;(); <span class="cm">// stores INDICES</span>
+    <span class="kw">int</span>[] res = <span class="kw">new int</span>[nums.length - k + <span class="nu">1</span>];
+
+    <span class="kw">for</span> (<span class="kw">int</span> i = <span class="nu">0</span>; i < nums.length; i++) {
+        <span class="cm">// Remove elements outside window</span>
+        <span class="kw">while</span> (!deque.<span class="mt">isEmpty</span>() && deque.<span class="mt">peekFirst</span>() < i - k + <span class="nu">1</span>)
+            deque.<span class="mt">pollFirst</span>();
+        <span class="cm">// Maintain decreasing deque</span>
+        <span class="kw">while</span> (!deque.<span class="mt">isEmpty</span>() && nums[deque.<span class="mt">peekLast</span>()] < nums[i])
+            deque.<span class="mt">pollLast</span>();
+
+        deque.<span class="mt">offerLast</span>(i);
+        <span class="kw">if</span> (i >= k - <span class="nu">1</span>) res[i - k + <span class="nu">1</span>] = nums[deque.<span class="mt">peekFirst</span>()];
+    }
+    <span class="kw">return</span> res;
+}
+
+<span class="cm">// ── LeetCode: 215. Kth Largest Element ─────────── Medium ───────────</span>
+<span class="cm">// Min-heap of size k — O(n log k)</span>
+<span class="kw">public int</span> <span class="mt">findKthLargest</span>(<span class="kw">int</span>[] nums, <span class="kw">int</span> k) {
+    <span class="ty">PriorityQueue</span>&lt;<span class="ty">Integer</span>&gt; minH = <span class="kw">new</span> <span class="ty">PriorityQueue</span>&lt;&gt;();
+    <span class="kw">for</span> (<span class="kw">int</span> n : nums) {
+        minH.<span class="mt">offer</span>(n);
+        <span class="kw">if</span> (minH.<span class="mt">size</span>() > k) minH.<span class="mt">poll</span>(); <span class="cm">// evict smallest</span>
+    }
+    <span class="kw">return</span> minH.<span class="mt">peek</span>(); <span class="cm">// top of min-heap = kth largest</span>
+}
+
+<span class="cm">// ── LeetCode: 295. Find Median from Data Stream ─── Hard ────────────</span>
+<span class="cm">// Two heaps: maxHeap (lower half) + minHeap (upper half)</span>
+<span class="kw">class</span> <span class="ty">MedianFinder</span> {
+    <span class="ty">PriorityQueue</span>&lt;<span class="ty">Integer</span>&gt; lo = <span class="kw">new</span> <span class="ty">PriorityQueue</span>&lt;&gt;(<span class="ty">Collections</span>.<span class="mt">reverseOrder</span>()); <span class="cm">// max-heap</span>
+    <span class="ty">PriorityQueue</span>&lt;<span class="ty">Integer</span>&gt; hi = <span class="kw">new</span> <span class="ty">PriorityQueue</span>&lt;&gt;();                             <span class="cm">// min-heap</span>
+
+    <span class="kw">public void</span> <span class="mt">addNum</span>(<span class="kw">int</span> num) {
+        lo.<span class="mt">offer</span>(num);
+        hi.<span class="mt">offer</span>(lo.<span class="mt">poll</span>());           <span class="cm">// balance: push lo's max to hi</span>
+        <span class="kw">if</span> (lo.<span class="mt">size</span>() < hi.<span class="mt">size</span>()) lo.<span class="mt">offer</span>(hi.<span class="mt">poll</span>()); <span class="cm">// keep lo ≥ hi size</span>
+    }
+
+    <span class="kw">public double</span> <span class="mt">findMedian</span>() {
+        <span class="kw">return</span> lo.<span class="mt">size</span>() > hi.<span class="mt">size</span>()
+            ? lo.<span class="mt">peek</span>()
+            : (lo.<span class="mt">peek</span>() + hi.<span class="mt">peek</span>()) / <span class="nu">2.0</span>;
+    }
+}
+
+<span class="cm">// ── LeetCode: 200. Number of Islands ─────────────── Medium ─────────</span>
+<span class="cm">// BFS with Queue — flood fill pattern</span>
+<span class="kw">public int</span> <span class="mt">numIslands</span>(<span class="kw">char</span>[][] grid) {
+    <span class="kw">int</span> islands = <span class="nu">0</span>;
+    <span class="kw">int</span>[] dx = {<span class="nu">0</span>,<span class="nu">0</span>,<span class="nu">1</span>,-<span class="nu">1</span>}, dy = {<span class="nu">1</span>,-<span class="nu">1</span>,<span class="nu">0</span>,<span class="nu">0</span>};
+
+    <span class="kw">for</span> (<span class="kw">int</span> r = <span class="nu">0</span>; r < grid.length; r++) {
+        <span class="kw">for</span> (<span class="kw">int</span> c = <span class="nu">0</span>; c < grid[<span class="nu">0</span>].length; c++) {
+            <span class="kw">if</span> (grid[r][c] == <span class="st">'1'</span>) {
+                islands++;
+                <span class="ty">Queue</span>&lt;<span class="kw">int</span>[]&gt; q = <span class="kw">new</span> <span class="ty">ArrayDeque</span>&lt;&gt;();
+                q.<span class="mt">offer</span>(<span class="kw">new int</span>[]{r, c});
+                grid[r][c] = <span class="st">'0'</span>; <span class="cm">// mark visited</span>
+                <span class="kw">while</span> (!q.<span class="mt">isEmpty</span>()) {
+                    <span class="kw">int</span>[] cur = q.<span class="mt">poll</span>();
+                    <span class="kw">for</span> (<span class="kw">int</span> d = <span class="nu">0</span>; d < <span class="nu">4</span>; d++) {
+                        <span class="kw">int</span> nr = cur[<span class="nu">0</span>] + dx[d], nc = cur[<span class="nu">1</span>] + dy[d];
+                        <span class="kw">if</span> (nr >= <span class="nu">0</span> && nr < grid.length && nc >= <span class="nu">0</span>
+                                && nc < grid[<span class="nu">0</span>].length && grid[nr][nc] == <span class="st">'1'</span>) {
+                            grid[nr][nc] = <span class="st">'0'</span>;
+                            q.<span class="mt">offer</span>(<span class="kw">new int</span>[]{nr, nc});
+                        }
+                    }
+                }
+            }
+        }
+    }
+    <span class="kw">return</span> islands;
+}
+<div class="code-label">Java 17 — Queue LeetCode</div></pre>
+</section>
+
+<!-- ══════════════════════════════════════════
+     4. THREAD PROBLEMS USING QUEUE
+══════════════════════════════════════════ -->
+<section id="thread-queue">
+  <div class="sh"><div class="sn" style="background:var(--a4)">4</div><h2>Thread Problems Using Queue</h2></div>
+
+<pre><span class="cm">// ── 1. Classic Producer-Consumer with BlockingQueue ──────────────────</span>
+
+<span class="kw">public class</span> <span class="ty">ProducerConsumer</span> {
+
+    <span class="kw">private static final</span> <span class="kw">int</span>    CAPACITY = <span class="nu">10</span>;
+    <span class="kw">private static final</span> <span class="ty">Object</span> POISON   = <span class="kw">new</span> <span class="ty">Object</span>(); <span class="cm">// sentinel</span>
+
+    <span class="kw">private final</span> <span class="ty">BlockingQueue</span>&lt;<span class="ty">Object</span>&gt; queue =
+        <span class="kw">new</span> <span class="ty">LinkedBlockingQueue</span>&lt;&gt;(CAPACITY);
+
+    <span class="kw">class</span> <span class="ty">Producer</span> <span class="kw">implements</span> <span class="ty">Runnable</span> {
+        <span class="kw">private final int</span> id;
+        <span class="ty">Producer</span>(<span class="kw">int</span> id) { <span class="kw">this</span>.id = id; }
+
+        <span class="an">@Override</span>
+        <span class="kw">public void</span> <span class="mt">run</span>() {
+            <span class="kw">try</span> {
+                <span class="kw">for</span> (<span class="kw">int</span> i = <span class="nu">0</span>; i < <span class="nu">5</span>; i++) {
+                    <span class="ty">Object</span> item = <span class="st">"P"</span> + id + <span class="st">"-item-"</span> + i;
+                    queue.<span class="mt">put</span>(item);   <span class="cm">// BLOCKS if queue is full</span>
+                    log.<span class="mt">info</span>(<span class="st">"Produced: {}"</span>, item);
+                }
+                queue.<span class="mt">put</span>(POISON);    <span class="cm">// signal done</span>
+            } <span class="kw">catch</span> (<span class="ty">InterruptedException</span> e) {
+                <span class="ty">Thread</span>.<span class="mt">currentThread</span>().<span class="mt">interrupt</span>();
+            }
+        }
+    }
+
+    <span class="kw">class</span> <span class="ty">Consumer</span> <span class="kw">implements</span> <span class="ty">Runnable</span> {
+        <span class="an">@Override</span>
+        <span class="kw">public void</span> <span class="mt">run</span>() {
+            <span class="kw">try</span> {
+                <span class="kw">while</span> (<span class="kw">true</span>) {
+                    <span class="ty">Object</span> item = queue.<span class="mt">take</span>();  <span class="cm">// BLOCKS if queue is empty</span>
+                    <span class="kw">if</span> (item == POISON) <span class="kw">break</span>;   <span class="cm">// received shutdown signal</span>
+                    <span class="mt">process</span>(item);
+                    log.<span class="mt">info</span>(<span class="st">"Consumed: {}"</span>, item);
+                }
+            } <span class="kw">catch</span> (<span class="ty">InterruptedException</span> e) {
+                <span class="ty">Thread</span>.<span class="mt">currentThread</span>().<span class="mt">interrupt</span>();
+            }
+        }
+    }
+
+    <span class="kw">public void</span> <span class="mt">run</span>(<span class="kw">int</span> producerCount, <span class="kw">int</span> consumerCount) <span class="kw">throws</span> <span class="ty">InterruptedException</span> {
+        <span class="ty">List</span>&lt;<span class="ty">Thread</span>&gt; all = <span class="kw">new</span> <span class="ty">ArrayList</span>&lt;&gt;();
+        <span class="ty">IntStream</span>.<span class="mt">range</span>(<span class="nu">0</span>, producerCount)
+            .<span class="mt">forEach</span>(i -> all.<span class="mt">add</span>(<span class="ty">Thread</span>.<span class="mt">ofVirtual</span>().<span class="mt">start</span>(<span class="kw">new</span> <span class="ty">Producer</span>(i))));
+        <span class="ty">IntStream</span>.<span class="mt">range</span>(<span class="nu">0</span>, consumerCount)
+            .<span class="mt">forEach</span>(i -> all.<span class="mt">add</span>(<span class="ty">Thread</span>.<span class="mt">ofVirtual</span>().<span class="mt">start</span>(<span class="kw">new</span> <span class="ty">Consumer</span>())));
+        <span class="kw">for</span> (<span class="ty">Thread</span> t : all) t.<span class="mt">join</span>();
+    }
+}
+<div class="code-label">Java 21 — Producer Consumer</div></pre>
+
+<pre><span class="cm">// ── 2. LeetCode: 1114. Print in Order ────────────── Easy ────────────</span>
+<span class="cm">// Three threads must print in order: first, second, third</span>
+
+<span class="kw">class</span> <span class="ty">Foo</span> {
+    <span class="kw">private final</span> <span class="ty">SynchronousQueue</span>&lt;<span class="ty">String</span>&gt; q1 = <span class="kw">new</span> <span class="ty">SynchronousQueue</span>&lt;&gt;();
+    <span class="kw">private final</span> <span class="ty">SynchronousQueue</span>&lt;<span class="ty">String</span>&gt; q2 = <span class="kw">new</span> <span class="ty">SynchronousQueue</span>&lt;&gt;();
+
+    <span class="kw">public void</span> <span class="mt">first</span>(<span class="ty">Runnable</span> printFirst) <span class="kw">throws</span> <span class="ty">InterruptedException</span> {
+        printFirst.<span class="mt">run</span>();
+        q1.<span class="mt">put</span>(<span class="st">"go"</span>);   <span class="cm">// unblocks second</span>
+    }
+    <span class="kw">public void</span> <span class="mt">second</span>(<span class="ty">Runnable</span> printSecond) <span class="kw">throws</span> <span class="ty">InterruptedException</span> {
+        q1.<span class="mt">take</span>();       <span class="cm">// waits for first to signal</span>
+        printSecond.<span class="mt">run</span>();
+        q2.<span class="mt">put</span>(<span class="st">"go"</span>);   <span class="cm">// unblocks third</span>
+    }
+    <span class="kw">public void</span> <span class="mt">third</span>(<span class="ty">Runnable</span> printThird) <span class="kw">throws</span> <span class="ty">InterruptedException</span> {
+        q2.<span class="mt">take</span>();       <span class="cm">// waits for second to signal</span>
+        printThird.<span class="mt">run</span>();
+    }
+}
+
+<span class="cm">// ── 3. LeetCode: 1115. Print FooBar Alternately ─── Medium ───────────</span>
+<span class="cm">// Two threads: Foo prints "foo", Bar prints "bar" — alternating</span>
+
+<span class="kw">class</span> <span class="ty">FooBar</span> {
+    <span class="kw">private final int</span> n;
+    <span class="kw">private final</span> <span class="ty">SynchronousQueue</span>&lt;<span class="ty">String</span>&gt; fooQ = <span class="kw">new</span> <span class="ty">SynchronousQueue</span>&lt;&gt;();
+    <span class="kw">private final</span> <span class="ty">SynchronousQueue</span>&lt;<span class="ty">String</span>&gt; barQ = <span class="kw">new</span> <span class="ty">SynchronousQueue</span>&lt;&gt;();
+
+    <span class="ty">FooBar</span>(<span class="kw">int</span> n) <span class="kw">throws</span> <span class="ty">InterruptedException</span> {
+        <span class="kw">this</span>.n = n;
+        barQ.<span class="mt">put</span>(<span class="st">"start"</span>); <span class="cm">// foo goes first, so init barQ</span>
+    }
+
+    <span class="kw">public void</span> <span class="mt">foo</span>(<span class="ty">Runnable</span> printFoo) <span class="kw">throws</span> <span class="ty">InterruptedException</span> {
+        <span class="kw">for</span> (<span class="kw">int</span> i = <span class="nu">0</span>; i < n; i++) {
+            barQ.<span class="mt">take</span>();   printFoo.<span class="mt">run</span>();   fooQ.<span class="mt">put</span>(<span class="st">"go"</span>);
+        }
+    }
+    <span class="kw">public void</span> <span class="mt">bar</span>(<span class="ty">Runnable</span> printBar) <span class="kw">throws</span> <span class="ty">InterruptedException</span> {
+        <span class="kw">for</span> (<span class="kw">int</span> i = <span class="nu">0</span>; i < n; i++) {
+            fooQ.<span class="mt">take</span>();   printBar.<span class="mt">run</span>();   barQ.<span class="mt">put</span>(<span class="st">"go"</span>);
+        }
+    }
+}
+
+<span class="cm">// ── 4. Rate Limiter using DelayQueue ─────────────────────────────────</span>
+
+<span class="kw">class</span> <span class="ty">RateLimiter</span> {
+
+    <span class="kw">static class</span> <span class="ty">Token</span> <span class="kw">implements</span> <span class="ty">Delayed</span> {
+        <span class="kw">private final long</span> availableAt;
+        <span class="ty">Token</span>(<span class="kw">long</span> delayMs) { availableAt = <span class="ty">System</span>.<span class="mt">currentTimeMillis</span>() + delayMs; }
+
+        <span class="an">@Override</span> <span class="kw">public long</span> <span class="mt">getDelay</span>(<span class="ty">TimeUnit</span> unit) {
+            <span class="kw">return</span> unit.<span class="mt">convert</span>(availableAt - <span class="ty">System</span>.<span class="mt">currentTimeMillis</span>(), <span class="ty">TimeUnit</span>.<span class="en">MILLISECONDS</span>);
+        }
+        <span class="an">@Override</span> <span class="kw">public int</span> <span class="mt">compareTo</span>(<span class="ty">Delayed</span> o) {
+            <span class="kw">return</span> <span class="ty">Long</span>.<span class="mt">compare</span>(<span class="kw">this</span>.availableAt, ((<span class="ty">Token</span>)o).availableAt);
+        }
+    }
+
+    <span class="kw">private final</span> <span class="ty">DelayQueue</span>&lt;<span class="ty">Token</span>&gt; tokens = <span class="kw">new</span> <span class="ty">DelayQueue</span>&lt;&gt;();
+    <span class="kw">private final int</span> ratePerSecond;
+
+    <span class="ty">RateLimiter</span>(<span class="kw">int</span> ratePerSecond) {
+        <span class="kw">this</span>.ratePerSecond = ratePerSecond;
+        <span class="cm">// pre-fill tokens</span>
+        <span class="ty">IntStream</span>.<span class="mt">range</span>(<span class="nu">0</span>, ratePerSecond).<span class="mt">forEach</span>(i -> tokens.<span class="mt">offer</span>(<span class="kw">new</span> <span class="ty">Token</span>(<span class="nu">0</span>)));
+    }
+
+    <span class="kw">public void</span> <span class="mt">acquire</span>() <span class="kw">throws</span> <span class="ty">InterruptedException</span> {
+        tokens.<span class="mt">take</span>(); <span class="cm">// blocks until a token's delay expires</span>
+        <span class="cm">// schedule next token 1 second from now</span>
+        tokens.<span class="mt">offer</span>(<span class="kw">new</span> <span class="ty">Token</span>(<span class="nu">1000</span>));
+    }
+}
+<div class="code-label">Java 17/21 — Thread + Queue Problems</div></pre>
+
+<pre><span class="cm">// ── 5. Bounded Buffer (wait/notify pattern — classic interview Q) ─────</span>
+
+<span class="kw">public class</span> <span class="ty">BoundedBuffer</span>&lt;<span class="ty">T</span>&gt; {
+
+    <span class="kw">private final</span> <span class="ty">Queue</span>&lt;<span class="ty">T</span>&gt; buffer;
+    <span class="kw">private final int</span>      capacity;
+
+    <span class="ty">BoundedBuffer</span>(<span class="kw">int</span> capacity) {
+        <span class="kw">this</span>.capacity = capacity;
+        <span class="kw">this</span>.buffer   = <span class="kw">new</span> <span class="ty">ArrayDeque</span>&lt;&gt;(capacity);
+    }
+
+    <span class="kw">public synchronized void</span> <span class="mt">put</span>(<span class="ty">T</span> item) <span class="kw">throws</span> <span class="ty">InterruptedException</span> {
+        <span class="kw">while</span> (buffer.<span class="mt">size</span>() == capacity) {
+            <span class="mt">wait</span>(); <span class="cm">// release lock, wait until space available</span>
+        }
+        buffer.<span class="mt">offer</span>(item);
+        <span class="mt">notifyAll</span>(); <span class="cm">// wake waiting consumers</span>
+    }
+
+    <span class="kw">public synchronized</span> <span class="ty">T</span> <span class="mt">take</span>() <span class="kw">throws</span> <span class="ty">InterruptedException</span> {
+        <span class="kw">while</span> (buffer.<span class="mt">isEmpty</span>()) {
+            <span class="mt">wait</span>(); <span class="cm">// release lock, wait until item available</span>
+        }
+        <span class="ty">T</span> item = buffer.<span class="mt">poll</span>();
+        <span class="mt">notifyAll</span>(); <span class="cm">// wake waiting producers</span>
+        <span class="kw">return</span> item;
+    }
+}
+<div class="code-label">Java 17 — Bounded Buffer</div></pre>
+</section>
+
+<!-- ══════════════════════════════════════════
+     5. THREADPOOL USING QUEUE
+══════════════════════════════════════════ -->
+<section id="threadpool">
+  <div class="sh"><div class="sn" style="background:var(--a5)">5</div><h2>ThreadPool — Build One Using Queue</h2></div>
+
+  <div class="flow">
+    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.7rem">ThreadPool Internal Architecture</div>
+    <div class="fr">
+      <div class="bx b">Client threads</div><div class="fa">→ submit(Runnable)</div>
+      <div class="bx a">Work Queue (BlockingQueue)</div>
+    </div>
+    <div class="fr" style="margin-top:.3rem">
+      <div class="bx a">Work Queue</div><div class="fa">→ Worker threads poll()</div>
+      <div class="bx g">Worker 1</div><div class="bx g">Worker 2</div><div class="bx g">Worker N</div>
+    </div>
+    <div class="fr" style="margin-top:.3rem">
+      <div style="color:var(--muted);font-size:10.5px">Queue full → RejectedExecutionHandler (Abort / CallerRuns / Discard / DiscardOldest)</div>
+    </div>
+  </div>
+
+<pre><span class="cm">// ── Build a ThreadPool from scratch using BlockingQueue ──────────────</span>
+
+<span class="kw">public class</span> <span class="ty">SimpleThreadPool</span> {
+
+    <span class="kw">private final</span> <span class="ty">BlockingQueue</span>&lt;<span class="ty">Runnable</span>&gt; workQueue;
+    <span class="kw">private final</span> <span class="ty">List</span>&lt;<span class="ty">Worker</span>&gt;           workers;
+    <span class="kw">private volatile boolean</span>              shutdown = <span class="kw">false</span>;
+
+    <span class="kw">public</span> <span class="ty">SimpleThreadPool</span>(<span class="kw">int</span> threads, <span class="kw">int</span> queueCapacity) {
+        workQueue = <span class="kw">new</span> <span class="ty">LinkedBlockingQueue</span>&lt;&gt;(queueCapacity);
+        workers   = <span class="ty">IntStream</span>.<span class="mt">range</span>(<span class="nu">0</span>, threads)
+            .<span class="mt">mapToObj</span>(i -> <span class="kw">new</span> <span class="ty">Worker</span>(<span class="st">"pool-worker-"</span> + i))
+            .<span class="mt">collect</span>(<span class="ty">Collectors</span>.<span class="mt">toList</span>());
+        workers.<span class="mt">forEach</span>(<span class="ty">Thread</span>::<span class="mt">start</span>);
+    }
+
+    <span class="kw">public void</span> <span class="mt">submit</span>(<span class="ty">Runnable</span> task) {
+        <span class="kw">if</span> (shutdown) <span class="kw">throw new</span> <span class="ty">RejectedExecutionException</span>(<span class="st">"Pool is shut down"</span>);
+        <span class="kw">if</span> (!workQueue.<span class="mt">offer</span>(task)) {
+            <span class="kw">throw new</span> <span class="ty">RejectedExecutionException</span>(<span class="st">"Queue is full"</span>);
+        }
+    }
+
+    <span class="kw">public void</span> <span class="mt">shutdown</span>() {
+        shutdown = <span class="kw">true</span>;
+        workers.<span class="mt">forEach</span>(<span class="ty">Thread</span>::<span class="mt">interrupt</span>);
+    }
+
+    <span class="kw">private class</span> <span class="ty">Worker</span> <span class="kw">extends</span> <span class="ty">Thread</span> {
+        <span class="ty">Worker</span>(<span class="ty">String</span> name) {
+            <span class="kw">super</span>(name);
+            <span class="mt">setDaemon</span>(<span class="kw">true</span>); <span class="cm">// dies when main thread dies</span>
+        }
+
+        <span class="an">@Override</span>
+        <span class="kw">public void</span> <span class="mt">run</span>() {
+            <span class="kw">while</span> (!<span class="mt">isInterrupted</span>()) {
+                <span class="kw">try</span> {
+                    <span class="ty">Runnable</span> task = workQueue.<span class="mt">poll</span>(<span class="nu">1</span>, <span class="ty">TimeUnit</span>.<span class="en">SECONDS</span>);
+                    <span class="kw">if</span> (task != <span class="kw">null</span>) task.<span class="mt">run</span>();
+                } <span class="kw">catch</span> (<span class="ty">InterruptedException</span> e) {
+                    <span class="ty">Thread</span>.<span class="mt">currentThread</span>().<span class="mt">interrupt</span>(); <span class="cm">// restore flag</span>
+                } <span class="kw">catch</span> (<span class="ty">Exception</span> e) {
+                    log.<span class="mt">error</span>(<span class="st">"Task failed in {}: {}"</span>, <span class="mt">getName</span>(), e.<span class="mt">getMessage</span>());
+                    <span class="cm">// Don't let one bad task kill the worker thread</span>
+                }
+            }
+        }
+    }
+}
+
+<span class="cm">// Usage:</span>
+<span class="ty">SimpleThreadPool</span> pool = <span class="kw">new</span> <span class="ty">SimpleThreadPool</span>(<span class="nu">4</span>, <span class="nu">100</span>);
+<span class="ty">IntStream</span>.<span class="mt">range</span>(<span class="nu">0</span>, <span class="nu">20</span>).<span class="mt">forEach</span>(i ->
+    pool.<span class="mt">submit</span>(() -> <span class="ty">System</span>.out.<span class="mt">println</span>(<span class="st">"Task "</span> + i + <span class="st">" on "</span> + <span class="ty">Thread</span>.<span class="mt">currentThread</span>()))
+);
+pool.<span class="mt">shutdown</span>();
+<div class="code-label">Java 17 — Custom ThreadPool</div></pre>
+
+<pre><span class="cm">// ── ThreadPoolExecutor — full control over all parameters ────────────</span>
+
+<span class="ty">ThreadPoolExecutor</span> executor = <span class="kw">new</span> <span class="ty">ThreadPoolExecutor</span>(
+    <span class="nu">4</span>,                                           <span class="cm">// corePoolSize</span>
+    <span class="nu">8</span>,                                           <span class="cm">// maximumPoolSize</span>
+    <span class="nu">60</span>, <span class="ty">TimeUnit</span>.<span class="en">SECONDS</span>,                        <span class="cm">// keepAliveTime for idle threads</span>
+    <span class="kw">new</span> <span class="ty">ArrayBlockingQueue</span>&lt;&gt;(<span class="nu">100</span>),              <span class="cm">// work queue (bounded!)</span>
+    <span class="kw">new</span> <span class="ty">ThreadFactory</span>() {                        <span class="cm">// custom thread naming</span>
+        <span class="kw">private final</span> <span class="ty">AtomicInteger</span> count = <span class="kw">new</span> <span class="ty">AtomicInteger</span>();
+        <span class="kw">public</span> <span class="ty">Thread</span> <span class="mt">newThread</span>(<span class="ty">Runnable</span> r) {
+            <span class="ty">Thread</span> t = <span class="kw">new</span> <span class="ty">Thread</span>(r, <span class="st">"myPool-worker-"</span> + count.<span class="mt">incrementAndGet</span>());
+            t.<span class="mt">setDaemon</span>(<span class="kw">false</span>);
+            <span class="kw">return</span> t;
+        }
+    },
+    <span class="kw">new</span> <span class="ty">ThreadPoolExecutor</span>.<span class="ty">CallerRunsPolicy</span>()  <span class="cm">// rejection: caller thread runs task</span>
+    <span class="cm">// Alternatives:</span>
+    <span class="cm">// AbortPolicy       → throw RejectedExecutionException (default)</span>
+    <span class="cm">// DiscardPolicy     → silently discard</span>
+    <span class="cm">// DiscardOldestPolicy → drop oldest queue entry, retry</span>
+);
+
+executor.<span class="mt">prestartAllCoreThreads</span>(); <span class="cm">// start core threads immediately</span>
+executor.<span class="mt">allowCoreThreadTimeOut</span>(<span class="kw">true</span>); <span class="cm">// let core threads also time out</span>
+
+<span class="cm">// Monitor pool state</span>
+log.<span class="mt">info</span>(<span class="st">"Active: {}, Queue: {}, Pool: {}"</span>,
+    executor.<span class="mt">getActiveCount</span>(),
+    executor.<span class="mt">getQueue</span>().<span class="mt">size</span>(),
+    executor.<span class="mt">getPoolSize</span>()
+);
+
+<span class="cm">// Clean shutdown</span>
+executor.<span class="mt">shutdown</span>();
+<span class="kw">if</span> (!executor.<span class="mt">awaitTermination</span>(<span class="nu">30</span>, <span class="ty">TimeUnit</span>.<span class="en">SECONDS</span>)) {
+    executor.<span class="mt">shutdownNow</span>(); <span class="cm">// force-interrupt remaining</span>
+}
+<div class="code-label">Java 17 — ThreadPoolExecutor</div></pre>
+
+<pre><span class="cm">// ── Work-Stealing ThreadPool (ForkJoinPool) — Java 21 ────────────────</span>
+<span class="cm">// Each worker has its own deque. Idle workers STEAL from busy ones.</span>
+
+<span class="ty">ForkJoinPool</span> fjPool = <span class="kw">new</span> <span class="ty">ForkJoinPool</span>(<span class="nu">4</span>); <span class="cm">// 4 worker threads</span>
+
+<span class="cm">// Submit recursive task (divide-and-conquer)</span>
+<span class="kw">class</span> <span class="ty">SumTask</span> <span class="kw">extends</span> <span class="ty">RecursiveTask</span>&lt;<span class="ty">Long</span>&gt; {
+    <span class="kw">private final int</span>[] arr;
+    <span class="kw">private final int</span>   lo, hi;
+    <span class="kw">static final int</span>    THRESHOLD = <span class="nu">1000</span>;
+
+    <span class="ty">SumTask</span>(<span class="kw">int</span>[] arr, <span class="kw">int</span> lo, <span class="kw">int</span> hi) { <span class="kw">this</span>.arr=arr; <span class="kw">this</span>.lo=lo; <span class="kw">this</span>.hi=hi; }
+
+    <span class="an">@Override</span>
+    <span class="kw">protected</span> <span class="ty">Long</span> <span class="mt">compute</span>() {
+        <span class="kw">if</span> (hi - lo <= THRESHOLD) {
+            <span class="kw">long</span> sum = <span class="nu">0</span>;
+            <span class="kw">for</span> (<span class="kw">int</span> i = lo; i < hi; i++) sum += arr[i];
+            <span class="kw">return</span> sum;
+        }
+        <span class="kw">int</span> mid = (lo + hi) / <span class="nu">2</span>;
+        <span class="ty">SumTask</span> left  = <span class="kw">new</span> <span class="ty">SumTask</span>(arr, lo, mid);
+        <span class="ty">SumTask</span> right = <span class="kw">new</span> <span class="ty">SumTask</span>(arr, mid, hi);
+        left.<span class="mt">fork</span>();                    <span class="cm">// push left to own deque (async)</span>
+        <span class="kw">return</span> right.<span class="mt">compute</span>() + left.<span class="mt">join</span>(); <span class="cm">// right inline, then get left</span>
+    }
+}
+
+<span class="kw">int</span>[] data = <span class="ty">IntStream</span>.<span class="mt">range</span>(<span class="nu">0</span>, <span class="nu">1_000_000</span>).<span class="mt">toArray</span>();
+<span class="kw">long</span> total = fjPool.<span class="mt">invoke</span>(<span class="kw">new</span> <span class="ty">SumTask</span>(data, <span class="nu">0</span>, data.length));
+
+<span class="cm">// Java 21: Virtual Threads + Executor (simplest high-concurrency pattern)</span>
+<span class="kw">try</span> (<span class="kw">var</span> exec = <span class="ty">Executors</span>.<span class="mt">newVirtualThreadPerTaskExecutor</span>()) {
+    <span class="ty">List</span>&lt;<span class="ty">Future</span>&lt;<span class="ty">String</span>&gt;&gt; futures = <span class="ty">IntStream</span>.<span class="mt">range</span>(<span class="nu">0</span>, <span class="nu">10_000</span>)
+        .<span class="mt">mapToObj</span>(i -> exec.<span class="mt">submit</span>(() -> <span class="mt">blockingDbCall</span>(i)))
+        .<span class="mt">toList</span>();
+    futures.<span class="mt">forEach</span>(f -> { <span class="kw">try</span> { f.<span class="mt">get</span>(); } <span class="kw">catch</span> (<span class="ty">Exception</span> e) {} });
+}
+<div class="code-label">Java 21 — ForkJoinPool + Virtual Threads</div></pre>
+</section>
+
+<!-- ══════════════════════════════════════════
+     6. MAP — ALL TYPES
+══════════════════════════════════════════ -->
+<section id="map">
+  <div class="sh"><div class="sn" style="background:var(--a6)">6</div><h2>Map — All Types, Internals & LeetCode Usage</h2></div>
+
+  <table>
+    <thead><tr><th>Map Type</th><th>Order</th><th>Null key</th><th>get/put</th><th>Thread-safe</th><th>Best for</th></tr></thead>
+    <tbody>
+      <tr><td><code>HashMap</code> ⭐</td><td>❌ None</td><td>1 null</td><td>O(1) avg</td><td>❌</td><td>General purpose, frequency count</td></tr>
+      <tr><td><code>LinkedHashMap</code></td><td>Insertion/Access</td><td>1 null</td><td>O(1) avg</td><td>❌</td><td>LRU cache, ordered iteration</td></tr>
+      <tr><td><code>TreeMap</code></td><td>Key sorted</td><td>❌</td><td>O(log n)</td><td>❌</td><td>Range queries, floor/ceiling</td></tr>
+      <tr><td><code>EnumMap</code></td><td>Enum order</td><td>❌</td><td>O(1)</td><td>❌</td><td>Enum key maps (fastest)</td></tr>
+      <tr><td><code>IdentityHashMap</code></td><td>❌</td><td>✅</td><td>O(1)</td><td>❌</td><td>== equality (not .equals())</td></tr>
+      <tr><td><code>WeakHashMap</code></td><td>❌</td><td>1 null</td><td>O(1)</td><td>❌</td><td>Cache — entries GC'd when key unreachable</td></tr>
+      <tr><td><code>ConcurrentHashMap</code></td><td>❌</td><td>❌</td><td>O(1)</td><td>✅</td><td>Thread-safe, high-concurrency</td></tr>
+      <tr><td><code>ConcurrentSkipListMap</code></td><td>Key sorted</td><td>❌</td><td>O(log n)</td><td>✅</td><td>Thread-safe sorted map</td></tr>
+    </tbody>
+  </table>
+
+<pre><span class="cm">// ── HashMap — all important operations ───────────────────────────────</span>
+<span class="ty">Map</span>&lt;<span class="ty">String</span>, <span class="ty">Integer</span>&gt; map = <span class="kw">new</span> <span class="ty">HashMap</span>&lt;&gt;(<span class="nu">16</span>, <span class="nu">0.75f</span>); <span class="cm">// initial capacity, load factor</span>
+map.<span class="mt">put</span>(<span class="st">"a"</span>, <span class="nu">1</span>);
+map.<span class="mt">putIfAbsent</span>(<span class="st">"b"</span>, <span class="nu">2</span>);                       <span class="cm">// only if key absent</span>
+map.<span class="mt">putAll</span>(<span class="ty">Map</span>.<span class="mt">of</span>(<span class="st">"c"</span>, <span class="nu">3</span>, <span class="st">"d"</span>, <span class="nu">4</span>));
+
+map.<span class="mt">get</span>(<span class="st">"a"</span>);                                    <span class="cm">// 1 (null if missing)</span>
+map.<span class="mt">getOrDefault</span>(<span class="st">"z"</span>, <span class="nu">0</span>);                       <span class="cm">// 0 — safe get</span>
+map.<span class="mt">containsKey</span>(<span class="st">"a"</span>);
+map.<span class="mt">containsValue</span>(<span class="nu">1</span>);
+
+map.<span class="mt">remove</span>(<span class="st">"a"</span>);
+map.<span class="mt">remove</span>(<span class="st">"b"</span>, <span class="nu">2</span>);                             <span class="cm">// remove only if value matches</span>
+map.<span class="mt">replace</span>(<span class="st">"c"</span>, <span class="nu">99</span>);
+map.<span class="mt">replace</span>(<span class="st">"d"</span>, <span class="nu">4</span>, <span class="nu">100</span>);                       <span class="cm">// replace only if old value matches</span>
+
+<span class="cm">// Functional updates</span>
+map.<span class="mt">computeIfAbsent</span>(<span class="st">"e"</span>, k -> k.<span class="mt">length</span>());      <span class="cm">// compute and store if missing</span>
+map.<span class="mt">computeIfPresent</span>(<span class="st">"c"</span>, (k, v) -> v * <span class="nu">2</span>);    <span class="cm">// update only if present</span>
+map.<span class="mt">compute</span>(<span class="st">"c"</span>, (k, v) -> v == <span class="kw">null</span> ? <span class="nu">1</span> : v + <span class="nu">1</span>); <span class="cm">// create or update</span>
+map.<span class="mt">merge</span>(<span class="st">"c"</span>, <span class="nu">1</span>, <span class="ty">Integer</span>::<span class="mt">sum</span>);              <span class="cm">// frequency counter pattern!</span>
+
+<span class="cm">// Iteration</span>
+map.<span class="mt">forEach</span>((k, v) -> <span class="ty">System</span>.out.<span class="mt">println</span>(k + <span class="st">"="</span> + v));
+<span class="kw">for</span> (<span class="ty">Map</span>.<span class="ty">Entry</span>&lt;<span class="ty">String</span>, <span class="ty">Integer</span>&gt; e : map.<span class="mt">entrySet</span>()) {}
+map.<span class="mt">entrySet</span>().<span class="mt">stream</span>()
+    .<span class="mt">sorted</span>(<span class="ty">Map</span>.<span class="ty">Entry</span>.<span class="mt">comparingByValue</span>(<span class="ty">Comparator</span>.<span class="mt">reverseOrder</span>()))
+    .<span class="mt">limit</span>(<span class="nu">5</span>).<span class="mt">forEach</span>(System.out::<span class="mt">println</span>);
+
+<span class="cm">// ── TreeMap — floor/ceiling/range queries ─────────────────────────────</span>
+<span class="ty">TreeMap</span>&lt;<span class="ty">Integer</span>, <span class="ty">String</span>&gt; tm = <span class="kw">new</span> <span class="ty">TreeMap</span>&lt;&gt;();
+tm.<span class="mt">put</span>(<span class="nu">1</span>, <span class="st">"a"</span>); tm.<span class="mt">put</span>(<span class="nu">3</span>, <span class="st">"b"</span>); tm.<span class="mt">put</span>(<span class="nu">5</span>, <span class="st">"c"</span>);
+tm.<span class="mt">floorKey</span>(<span class="nu">4</span>);        <span class="cm">// 3 — greatest key ≤ 4</span>
+tm.<span class="mt">ceilingKey</span>(<span class="nu">4</span>);      <span class="cm">// 5 — smallest key ≥ 4</span>
+tm.<span class="mt">lowerKey</span>(<span class="nu">3</span>);        <span class="cm">// 1 — strictly &lt; 3</span>
+tm.<span class="mt">higherKey</span>(<span class="nu">3</span>);       <span class="cm">// 5 — strictly > 3</span>
+tm.<span class="mt">firstKey</span>();          <span class="cm">// 1</span>
+tm.<span class="mt">lastKey</span>();           <span class="cm">// 5</span>
+tm.<span class="mt">headMap</span>(<span class="nu">3</span>);          <span class="cm">// {1:a} — keys &lt; 3</span>
+tm.<span class="mt">tailMap</span>(<span class="nu">3</span>);          <span class="cm">// {3:b, 5:c} — keys ≥ 3</span>
+tm.<span class="mt">subMap</span>(<span class="nu">1</span>, <span class="nu">5</span>);        <span class="cm">// {1:a, 3:b} — keys in [1,5)</span>
+
+<span class="cm">// ── LinkedHashMap — LRU Cache pattern ─────────────────────────────────</span>
+<span class="ty">Map</span>&lt;<span class="ty">Integer</span>, <span class="ty">Integer</span>&gt; lruCache = <span class="kw">new</span> <span class="ty">LinkedHashMap</span>&lt;&gt;(<span class="nu">16</span>, <span class="nu">0.75f</span>, <span class="kw">true</span>) {
+    <span class="cm">// accessOrder=true: recently accessed entries move to end</span>
+    <span class="an">@Override</span>
+    <span class="kw">protected boolean</span> <span class="mt">removeEldestEntry</span>(<span class="ty">Map</span>.<span class="ty">Entry</span>&lt;<span class="ty">Integer</span>,<span class="ty">Integer</span>&gt; eldest) {
+        <span class="kw">return</span> <span class="mt">size</span>() > <span class="nu">100</span>; <span class="cm">// evict when over capacity</span>
+    }
+};
+
+<span class="cm">// ── ConcurrentHashMap — thread-safe operations ─────────────────────── </span>
+<span class="ty">ConcurrentHashMap</span>&lt;<span class="ty">String</span>, <span class="ty">Integer</span>&gt; chm = <span class="kw">new</span> <span class="ty">ConcurrentHashMap</span>&lt;&gt;();
+chm.<span class="mt">putIfAbsent</span>(<span class="st">"key"</span>, <span class="nu">0</span>);
+chm.<span class="mt">computeIfAbsent</span>(<span class="st">"key"</span>, k -> <span class="kw">new</span> <span class="ty">ArrayList</span>&lt;&gt;()); <span class="cm">// atomic</span>
+chm.<span class="mt">merge</span>(<span class="st">"counter"</span>, <span class="nu">1</span>, <span class="ty">Integer</span>::<span class="mt">sum</span>);             <span class="cm">// atomic increment</span>
+<span class="cm">// Java 8 parallel operations:</span>
+chm.<span class="mt">forEach</span>(<span class="nu">4</span>, (k, v) -> <span class="ty">System</span>.out.<span class="mt">println</span>(k)); <span class="cm">// parallelism threshold=4</span>
+<span class="ty">Integer</span> max = chm.<span class="mt">reduceValues</span>(<span class="nu">4</span>, <span class="ty">Integer</span>::<span class="mt">max</span>);
+<div class="code-label">Java 17 — Map API</div></pre>
+
+<pre><span class="cm">// ── LeetCode: 1. Two Sum ──────────────────────────── Easy ───────────</span>
+<span class="kw">public int</span>[] <span class="mt">twoSum</span>(<span class="kw">int</span>[] nums, <span class="kw">int</span> target) {
+    <span class="ty">Map</span>&lt;<span class="ty">Integer</span>, <span class="ty">Integer</span>&gt; map = <span class="kw">new</span> <span class="ty">HashMap</span>&lt;&gt;(); <span class="cm">// val → index</span>
+    <span class="kw">for</span> (<span class="kw">int</span> i = <span class="nu">0</span>; i < nums.length; i++) {
+        <span class="kw">int</span> complement = target - nums[i];
+        <span class="kw">if</span> (map.<span class="mt">containsKey</span>(complement))
+            <span class="kw">return new int</span>[]{map.<span class="mt">get</span>(complement), i};
+        map.<span class="mt">put</span>(nums[i], i);
+    }
+    <span class="kw">return new int</span>[]{};
+}
+
+<span class="cm">// ── LeetCode: 49. Group Anagrams ─────────────────── Medium ─────────</span>
+<span class="kw">public</span> <span class="ty">List</span>&lt;<span class="ty">List</span>&lt;<span class="ty">String</span>&gt;&gt; <span class="mt">groupAnagrams</span>(<span class="ty">String</span>[] strs) {
+    <span class="ty">Map</span>&lt;<span class="ty">String</span>, <span class="ty">List</span>&lt;<span class="ty">String</span>&gt;&gt; map = <span class="kw">new</span> <span class="ty">HashMap</span>&lt;&gt;();
+    <span class="kw">for</span> (<span class="ty">String</span> s : strs) {
+        <span class="kw">char</span>[] ca = s.<span class="mt">toCharArray</span>();
+        <span class="ty">Arrays</span>.<span class="mt">sort</span>(ca);
+        <span class="ty">String</span> key = <span class="kw">new</span> <span class="ty">String</span>(ca);
+        map.<span class="mt">computeIfAbsent</span>(key, k -> <span class="kw">new</span> <span class="ty">ArrayList</span>&lt;&gt;()).<span class="mt">add</span>(s);
+    }
+    <span class="kw">return new</span> <span class="ty">ArrayList</span>&lt;&gt;(map.<span class="mt">values</span>());
+}
+
+<span class="cm">// ── LeetCode: 347. Top K Frequent Elements ───────── Medium ─────────</span>
+<span class="kw">public int</span>[] <span class="mt">topKFrequent</span>(<span class="kw">int</span>[] nums, <span class="kw">int</span> k) {
+    <span class="ty">Map</span>&lt;<span class="ty">Integer</span>, <span class="ty">Integer</span>&gt; freq = <span class="kw">new</span> <span class="ty">HashMap</span>&lt;&gt;();
+    <span class="kw">for</span> (<span class="kw">int</span> n : nums) freq.<span class="mt">merge</span>(n, <span class="nu">1</span>, <span class="ty">Integer</span>::<span class="mt">sum</span>);
+
+    <span class="ty">PriorityQueue</span>&lt;<span class="ty">Integer</span>&gt; minH =
+        <span class="kw">new</span> <span class="ty">PriorityQueue</span>&lt;&gt;(<span class="ty">Comparator</span>.<span class="mt">comparingInt</span>(freq::get));
+    <span class="kw">for</span> (<span class="kw">int</span> key : freq.<span class="mt">keySet</span>()) {
+        minH.<span class="mt">offer</span>(key);
+        <span class="kw">if</span> (minH.<span class="mt">size</span>() > k) minH.<span class="mt">poll</span>();
+    }
+    <span class="kw">return</span> minH.<span class="mt">stream</span>().<span class="mt">mapToInt</span>(<span class="ty">Integer</span>::<span class="mt">intValue</span>).<span class="mt">toArray</span>();
+}
+
+<span class="cm">// ── LeetCode: 560. Subarray Sum Equals K ─────────── Medium ─────────</span>
+<span class="cm">// Prefix sum + HashMap — O(n)</span>
+<span class="kw">public int</span> <span class="mt">subarraySum</span>(<span class="kw">int</span>[] nums, <span class="kw">int</span> k) {
+    <span class="ty">Map</span>&lt;<span class="ty">Integer</span>, <span class="ty">Integer</span>&gt; prefixCount = <span class="kw">new</span> <span class="ty">HashMap</span>&lt;&gt;();
+    prefixCount.<span class="mt">put</span>(<span class="nu">0</span>, <span class="nu">1</span>); <span class="cm">// empty prefix</span>
+    <span class="kw">int</span> sum = <span class="nu">0</span>, result = <span class="nu">0</span>;
+    <span class="kw">for</span> (<span class="kw">int</span> n : nums) {
+        sum += n;
+        result += prefixCount.<span class="mt">getOrDefault</span>(sum - k, <span class="nu">0</span>);
+        prefixCount.<span class="mt">merge</span>(sum, <span class="nu">1</span>, <span class="ty">Integer</span>::<span class="mt">sum</span>);
+    }
+    <span class="kw">return</span> result;
+}
+
+<span class="cm">// ── LeetCode: 76. Minimum Window Substring ────────── Hard ───────────</span>
+<span class="cm">// Sliding window with HashMap — O(n)</span>
+<span class="kw">public</span> <span class="ty">String</span> <span class="mt">minWindow</span>(<span class="ty">String</span> s, <span class="ty">String</span> t) {
+    <span class="ty">Map</span>&lt;<span class="ty">Character</span>, <span class="ty">Integer</span>&gt; need = <span class="kw">new</span> <span class="ty">HashMap</span>&lt;&gt;();
+    <span class="kw">for</span> (<span class="kw">char</span> c : t.<span class="mt">toCharArray</span>()) need.<span class="mt">merge</span>(c, <span class="nu">1</span>, <span class="ty">Integer</span>::<span class="mt">sum</span>);
+
+    <span class="ty">Map</span>&lt;<span class="ty">Character</span>, <span class="ty">Integer</span>&gt; window = <span class="kw">new</span> <span class="ty">HashMap</span>&lt;&gt;();
+    <span class="kw">int</span> have = <span class="nu">0</span>, need_cnt = need.<span class="mt">size</span>();
+    <span class="kw">int</span>[] ans = {-<span class="nu">1</span>, <span class="nu">0</span>, <span class="nu">0</span>}; <span class="cm">// length, left, right</span>
+    <span class="kw">int</span> left = <span class="nu">0</span>;
+
+    <span class="kw">for</span> (<span class="kw">int</span> right = <span class="nu">0</span>; right < s.<span class="mt">length</span>(); right++) {
+        <span class="kw">char</span> c = s.<span class="mt">charAt</span>(right);
+        window.<span class="mt">merge</span>(c, <span class="nu">1</span>, <span class="ty">Integer</span>::<span class="mt">sum</span>);
+        <span class="kw">if</span> (need.<span class="mt">containsKey</span>(c) && window.<span class="mt">get</span>(c).<span class="mt">equals</span>(need.<span class="mt">get</span>(c))) have++;
+
+        <span class="kw">while</span> (have == need_cnt) {
+            <span class="kw">if</span> (ans[<span class="nu">0</span>] == -<span class="nu">1</span> || right - left + <span class="nu">1</span> < ans[<span class="nu">0</span>])
+                ans = <span class="kw">new int</span>[]{right - left + <span class="nu">1</span>, left, right};
+            <span class="kw">char</span> lc = s.<span class="mt">charAt</span>(left++);
+            window.<span class="mt">merge</span>(lc, -<span class="nu">1</span>, <span class="ty">Integer</span>::<span class="mt">sum</span>);
+            <span class="kw">if</span> (need.<span class="mt">containsKey</span>(lc) && window.<span class="mt">get</span>(lc) < need.<span class="mt">get</span>(lc)) have--;
+        }
+    }
+    <span class="kw">return</span> ans[<span class="nu">0</span>] == -<span class="nu">1</span> ? <span class="st">""</span> : s.<span class="mt">substring</span>(ans[<span class="nu">1</span>], ans[<span class="nu">2</span>] + <span class="nu">1</span>);
+}
+<div class="code-label">Java 17 — Map LeetCode</div></pre>
+</section>
+
+<!-- ══════════════════════════════════════════
+     7. LEETCODE PATTERNS
+══════════════════════════════════════════ -->
+<section id="patterns">
+  <div class="sh"><div class="sn" style="background:var(--teal)">7</div><h2>LeetCode Problem Patterns — Which DS to Use</h2></div>
+
+  <table>
+    <thead><tr><th>Pattern</th><th>Data Structure</th><th>Key Operation</th><th>Example Problems</th></tr></thead>
+    <tbody>
+      <tr><td>Frequency Count</td><td><code>HashMap</code></td><td><code>merge(k,1,Integer::sum)</code></td><td>49, 242, 347</td></tr>
+      <tr><td>Sliding Window Unique</td><td><code>HashSet</code></td><td><code>add/contains/remove</code></td><td>3, 159, 340</td></tr>
+      <tr><td>Sliding Window Max/Min</td><td><code>ArrayDeque</code> (monotonic)</td><td><code>peekFirst/peekLast</code></td><td>239, 1438</td></tr>
+      <tr><td>BFS / Level Order</td><td><code>ArrayDeque</code> as Queue</td><td><code>offer/poll/size</code></td><td>102, 127, 200, 994</td></tr>
+      <tr><td>Top K Elements</td><td><code>PriorityQueue</code> (min-heap)</td><td><code>offer+poll when >k</code></td><td>215, 347, 373</td></tr>
+      <tr><td>Merge K Sorted</td><td><code>PriorityQueue</code></td><td><code>offer head, poll top</code></td><td>23, 378, 632</td></tr>
+      <tr><td>Two Heaps / Median</td><td>Two <code>PriorityQueue</code></td><td>maxHeap + minHeap</td><td>295, 480</td></tr>
+      <tr><td>Cycle Detection</td><td><code>HashSet</code> or slow/fast ptr</td><td><code>contains</code> / Floyd</td><td>141, 142, 287</td></tr>
+      <tr><td>Consecutive Sequence</td><td><code>HashSet</code></td><td>start-of-sequence check</td><td>128, 298</td></tr>
+      <tr><td>Prefix Sum</td><td><code>HashMap</code></td><td><code>sum → count</code></td><td>560, 974, 523</td></tr>
+      <tr><td>LRU Cache</td><td><code>LinkedHashMap</code> or DLL+Map</td><td>access order</td><td>146</td></tr>
+      <tr><td>Monotonic Stack</td><td><code>ArrayDeque</code> as Stack</td><td><code>push/peek/pop</code></td><td>84, 85, 739, 496</td></tr>
+      <tr><td>Graph BFS/DFS Visited</td><td><code>HashSet</code></td><td><code>add/contains</code></td><td>207, 210, 133</td></tr>
+      <tr><td>Range Query</td><td><code>TreeMap</code></td><td><code>floor/ceiling/subMap</code></td><td>729, 732, 981</td></tr>
+      <tr><td>Trie (Prefix Tree)</td><td><code>HashMap</code> / array in Node</td><td>26-char children</td><td>208, 212, 648</td></tr>
+      <tr><td>Union Find</td><td><code>int[]</code> parent array</td><td>find + union</td><td>200, 684, 721</td></tr>
+      <tr><td>Multi-source BFS</td><td><code>ArrayDeque</code>, init all sources</td><td>level order from many</td><td>994, 286, 1162</td></tr>
+      <tr><td>Interval Merge</td><td><code>int[][]</code> + sort</td><td>sort by start, merge</td><td>56, 57, 435</td></tr>
+    </tbody>
+  </table>
+
+<pre><span class="cm">// ── Pattern: Monotonic Stack — Next Greater Element ──────────────────</span>
+<span class="cm">// LeetCode 496. Next Greater Element I — Easy</span>
+<span class="kw">public int</span>[] <span class="mt">nextGreaterElement</span>(<span class="kw">int</span>[] nums1, <span class="kw">int</span>[] nums2) {
+    <span class="ty">Map</span>&lt;<span class="ty">Integer</span>, <span class="ty">Integer</span>&gt; nge = <span class="kw">new</span> <span class="ty">HashMap</span>&lt;&gt;();
+    <span class="ty">Deque</span>&lt;<span class="ty">Integer</span>&gt; stack = <span class="kw">new</span> <span class="ty">ArrayDeque</span>&lt;&gt;(); <span class="cm">// stores nums2 values</span>
+
+    <span class="kw">for</span> (<span class="kw">int</span> n : nums2) {
+        <span class="kw">while</span> (!stack.<span class="mt">isEmpty</span>() && stack.<span class="mt">peek</span>() < n)
+            nge.<span class="mt">put</span>(stack.<span class="mt">pop</span>(), n);          <span class="cm">// n is the next greater</span>
+        stack.<span class="mt">push</span>(n);
+    }
+    <span class="kw">return</span> <span class="ty">Arrays</span>.<span class="mt">stream</span>(nums1)
+        .<span class="mt">map</span>(n -> nge.<span class="mt">getOrDefault</span>(n, -<span class="nu">1</span>))
+        .<span class="mt">toArray</span>();
+}
+
+<span class="cm">// ── Pattern: Trie — Word Search ──────────────────────────────────────</span>
+<span class="cm">// LeetCode 208. Implement Trie — Medium</span>
+<span class="kw">class</span> <span class="ty">Trie</span> {
+    <span class="kw">private</span> <span class="ty">Map</span>&lt;<span class="ty">Character</span>, <span class="ty">Trie</span>&gt; children = <span class="kw">new</span> <span class="ty">HashMap</span>&lt;&gt;();
+    <span class="kw">private boolean</span> isEnd = <span class="kw">false</span>;
+
+    <span class="kw">public void</span> <span class="mt">insert</span>(<span class="ty">String</span> word) {
+        <span class="ty">Trie</span> node = <span class="kw">this</span>;
+        <span class="kw">for</span> (<span class="kw">char</span> c : word.<span class="mt">toCharArray</span>()) {
+            node.children.<span class="mt">putIfAbsent</span>(c, <span class="kw">new</span> <span class="ty">Trie</span>());
+            node = node.children.<span class="mt">get</span>(c);
+        }
+        node.isEnd = <span class="kw">true</span>;
+    }
+
+    <span class="kw">public boolean</span> <span class="mt">search</span>(<span class="ty">String</span> word) {
+        <span class="ty">Trie</span> node = <span class="mt">find</span>(word);
+        <span class="kw">return</span> node != <span class="kw">null</span> && node.isEnd;
+    }
+
+    <span class="kw">public boolean</span> <span class="mt">startsWith</span>(<span class="ty">String</span> prefix) {
+        <span class="kw">return</span> <span class="mt">find</span>(prefix) != <span class="kw">null</span>;
+    }
+
+    <span class="kw">private</span> <span class="ty">Trie</span> <span class="mt">find</span>(<span class="ty">String</span> s) {
+        <span class="ty">Trie</span> node = <span class="kw">this</span>;
+        <span class="kw">for</span> (<span class="kw">char</span> c : s.<span class="mt">toCharArray</span>()) {
+            <span class="kw">if</span> (!node.children.<span class="mt">containsKey</span>(c)) <span class="kw">return null</span>;
+            node = node.children.<span class="mt">get</span>(c);
+        }
+        <span class="kw">return</span> node;
+    }
+}
+
+<span class="cm">// ── Pattern: Union-Find (Disjoint Set) ───────────────────────────────</span>
+<span class="cm">// LeetCode 200. Number of Islands — also solvable with Union-Find</span>
+<span class="kw">class</span> <span class="ty">UnionFind</span> {
+    <span class="kw">private final int</span>[] parent, rank;
+
+    <span class="ty">UnionFind</span>(<span class="kw">int</span> n) {
+        parent = <span class="kw">new int</span>[n];
+        rank   = <span class="kw">new int</span>[n];
+        <span class="ty">Arrays</span>.<span class="mt">setAll</span>(parent, i -> i); <span class="cm">// each node is its own parent</span>
+    }
+
+    <span class="kw">public int</span> <span class="mt">find</span>(<span class="kw">int</span> x) {
+        <span class="kw">if</span> (parent[x] != x) parent[x] = <span class="mt">find</span>(parent[x]); <span class="cm">// path compression</span>
+        <span class="kw">return</span> parent[x];
+    }
+
+    <span class="kw">public boolean</span> <span class="mt">union</span>(<span class="kw">int</span> x, <span class="kw">int</span> y) {
+        <span class="kw">int</span> px = <span class="mt">find</span>(x), py = <span class="mt">find</span>(y);
+        <span class="kw">if</span> (px == py) <span class="kw">return false</span>; <span class="cm">// already connected</span>
+        <span class="kw">if</span> (rank[px] < rank[py]) { <span class="kw">int</span> t = px; px = py; py = t; }
+        parent[py] = px;
+        <span class="kw">if</span> (rank[px] == rank[py]) rank[px]++;
+        <span class="kw">return true</span>;
+    }
+}
+<div class="code-label">Java 17 — LeetCode Patterns</div></pre>
+</section>
+
+<!-- ══════════════════════════════════════════
+     8. 30 PROBLEMS WITH DS CHOICES
+══════════════════════════════════════════ -->
+<section id="problems">
+  <div class="sh"><div class="sn" style="background:var(--a4)">8</div><h2>30 Classic LeetCode Problems — DS Choice + Solution</h2></div>
+
+  <table>
+    <thead><tr><th>#</th><th>Problem</th><th>Difficulty</th><th>DS Used</th><th>Key Idea</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Two Sum</td><td><span class="lc-tag lc-e">Easy</span></td><td>HashMap</td><td>Complement lookup</td></tr>
+      <tr><td>3</td><td>Longest Substring No Repeat</td><td><span class="lc-tag lc-m">Medium</span></td><td>HashSet + Two ptr</td><td>Sliding window</td></tr>
+      <tr><td>20</td><td>Valid Parentheses</td><td><span class="lc-tag lc-e">Easy</span></td><td>Stack (ArrayDeque)</td><td>Match brackets</td></tr>
+      <tr><td>21</td><td>Merge Two Sorted Lists</td><td><span class="lc-tag lc-e">Easy</span></td><td>LinkedList + dummy</td><td>Two-pointer merge</td></tr>
+      <tr><td>23</td><td>Merge K Sorted Lists</td><td><span class="lc-tag lc-h">Hard</span></td><td>PriorityQueue</td><td>Min-heap heads</td></tr>
+      <tr><td>49</td><td>Group Anagrams</td><td><span class="lc-tag lc-m">Medium</span></td><td>HashMap</td><td>Sorted key</td></tr>
+      <tr><td>84</td><td>Largest Rectangle in Histogram</td><td><span class="lc-tag lc-h">Hard</span></td><td>Monotonic Stack</td><td>Next smaller left/right</td></tr>
+      <tr><td>102</td><td>Binary Tree Level Order</td><td><span class="lc-tag lc-m">Medium</span></td><td>Queue (ArrayDeque)</td><td>BFS level snapshot</td></tr>
+      <tr><td>128</td><td>Longest Consecutive Sequence</td><td><span class="lc-tag lc-m">Medium</span></td><td>HashSet</td><td>Sequence start check</td></tr>
+      <tr><td>141</td><td>Linked List Cycle</td><td><span class="lc-tag lc-e">Easy</span></td><td>Two pointers</td><td>Floyd's algorithm</td></tr>
+      <tr><td>146</td><td>LRU Cache</td><td><span class="lc-tag lc-m">Medium</span></td><td>HashMap + DLL</td><td>O(1) get+put</td></tr>
+      <tr><td>200</td><td>Number of Islands</td><td><span class="lc-tag lc-m">Medium</span></td><td>Queue BFS / DFS</td><td>Flood fill</td></tr>
+      <tr><td>206</td><td>Reverse Linked List</td><td><span class="lc-tag lc-e">Easy</span></td><td>ListNode prev/curr</td><td>Pointer reversal</td></tr>
+      <tr><td>207</td><td>Course Schedule</td><td><span class="lc-tag lc-m">Medium</span></td><td>Queue BFS / visited Set</td><td>Topological sort</td></tr>
+      <tr><td>208</td><td>Implement Trie</td><td><span class="lc-tag lc-m">Medium</span></td><td>HashMap in Node</td><td>Char-by-char insert</td></tr>
+      <tr><td>215</td><td>Kth Largest Element</td><td><span class="lc-tag lc-m">Medium</span></td><td>PriorityQueue (minH)</td><td>Min-heap size k</td></tr>
+      <tr><td>239</td><td>Sliding Window Maximum</td><td><span class="lc-tag lc-h">Hard</span></td><td>Deque (monotonic)</td><td>Decreasing deque</td></tr>
+      <tr><td>242</td><td>Valid Anagram</td><td><span class="lc-tag lc-e">Easy</span></td><td>int[26] or HashMap</td><td>Frequency compare</td></tr>
+      <tr><td>295</td><td>Find Median Data Stream</td><td><span class="lc-tag lc-h">Hard</span></td><td>Two PriorityQueues</td><td>maxH + minH balance</td></tr>
+      <tr><td>347</td><td>Top K Frequent</td><td><span class="lc-tag lc-m">Medium</span></td><td>HashMap + PQ</td><td>freq map + minH</td></tr>
+      <tr><td>380</td><td>Insert Delete GetRandom O(1)</td><td><span class="lc-tag lc-m">Medium</span></td><td>HashMap + ArrayList</td><td>Index swap on delete</td></tr>
+      <tr><td>496</td><td>Next Greater Element</td><td><span class="lc-tag lc-e">Easy</span></td><td>Stack + HashMap</td><td>Monotonic stack</td></tr>
+      <tr><td>560</td><td>Subarray Sum = K</td><td><span class="lc-tag lc-m">Medium</span></td><td>HashMap prefix sum</td><td>Count (sum-k)</td></tr>
+      <tr><td>621</td><td>Task Scheduler</td><td><span class="lc-tag lc-m">Medium</span></td><td>PriorityQueue + Queue</td><td>Cooldown simulation</td></tr>
+      <tr><td>739</td><td>Daily Temperatures</td><td><span class="lc-tag lc-m">Medium</span></td><td>Monotonic Stack</td><td>Next warmer day</td></tr>
+      <tr><td>895</td><td>Maximum Frequency Stack</td><td><span class="lc-tag lc-h">Hard</span></td><td>HashMap of Stacks</td><td>freq → stack of vals</td></tr>
+      <tr><td>937</td><td>Reorder Log Files</td><td><span class="lc-tag lc-m">Medium</span></td><td>List + Custom sort</td><td>Stable comparator</td></tr>
+      <tr><td>994</td><td>Rotting Oranges</td><td><span class="lc-tag lc-m">Medium</span></td><td>Queue Multi-source BFS</td><td>BFS from all rotten</td></tr>
+      <tr><td>1046</td><td>Last Stone Weight</td><td><span class="lc-tag lc-e">Easy</span></td><td>PriorityQueue (maxH)</td><td>Greedy max-heap</td></tr>
+      <tr><td>1114</td><td>Print in Order</td><td><span class="lc-tag lc-e">Easy</span></td><td>SynchronousQueue</td><td>Thread signaling</td></tr>
+    </tbody>
+  </table>
+
+<pre><span class="cm">// ── LeetCode: 621. Task Scheduler ────────────── Medium ──────────────</span>
+<span class="cm">// PriorityQueue (max-heap) + Queue (cooldown) — greedy simulation</span>
+<span class="kw">public int</span> <span class="mt">leastInterval</span>(<span class="kw">char</span>[] tasks, <span class="kw">int</span> n) {
+    <span class="kw">int</span>[] freq = <span class="kw">new int</span>[<span class="nu">26</span>];
+    <span class="kw">for</span> (<span class="kw">char</span> c : tasks) freq[c - <span class="st">'A'</span>]++;
+
+    <span class="cm">// Max-heap: always pick most frequent available task</span>
+    <span class="ty">PriorityQueue</span>&lt;<span class="ty">Integer</span>&gt; maxH = <span class="kw">new</span> <span class="ty">PriorityQueue</span>&lt;&gt;(<span class="ty">Collections</span>.<span class="mt">reverseOrder</span>());
+    <span class="kw">for</span> (<span class="kw">int</span> f : freq) <span class="kw">if</span> (f > <span class="nu">0</span>) maxH.<span class="mt">offer</span>(f);
+
+    <span class="cm">// Queue: [remaining_count, time_when_available]</span>
+    <span class="ty">Queue</span>&lt;<span class="kw">int</span>[]&gt; cooldown = <span class="kw">new</span> <span class="ty">ArrayDeque</span>&lt;&gt;();
+    <span class="kw">int</span> time = <span class="nu">0</span>;
+
+    <span class="kw">while</span> (!maxH.<span class="mt">isEmpty</span>() || !cooldown.<span class="mt">isEmpty</span>()) {
+        time++;
+        <span class="kw">if</span> (!maxH.<span class="mt">isEmpty</span>()) {
+            <span class="kw">int</span> remaining = maxH.<span class="mt">poll</span>() - <span class="nu">1</span>;
+            <span class="kw">if</span> (remaining > <span class="nu">0</span>) cooldown.<span class="mt">offer</span>(<span class="kw">new int</span>[]{remaining, time + n});
+        }
+        <span class="kw">if</span> (!cooldown.<span class="mt">isEmpty</span>() && cooldown.<span class="mt">peek</span>()[<span class="nu">1</span>] == time)
+            maxH.<span class="mt">offer</span>(cooldown.<span class="mt">poll</span>()[<span class="nu">0</span>]);
+    }
+    <span class="kw">return</span> time;
+}
+
+<span class="cm">// ── LeetCode: 380. Insert Delete GetRandom O(1) ── Medium ───────────</span>
+<span class="kw">class</span> <span class="ty">RandomizedSet</span> {
+    <span class="kw">private final</span> <span class="ty">Map</span>&lt;<span class="ty">Integer</span>, <span class="ty">Integer</span>&gt; map  = <span class="kw">new</span> <span class="ty">HashMap</span>&lt;&gt;(); <span class="cm">// val → index</span>
+    <span class="kw">private final</span> <span class="ty">List</span>&lt;<span class="ty">Integer</span>&gt;        list = <span class="kw">new</span> <span class="ty">ArrayList</span>&lt;&gt;();
+    <span class="kw">private final</span> <span class="ty">Random</span>               rand = <span class="kw">new</span> <span class="ty">Random</span>();
+
+    <span class="kw">public boolean</span> <span class="mt">insert</span>(<span class="kw">int</span> val) {
+        <span class="kw">if</span> (map.<span class="mt">containsKey</span>(val)) <span class="kw">return false</span>;
+        list.<span class="mt">add</span>(val);
+        map.<span class="mt">put</span>(val, list.<span class="mt">size</span>() - <span class="nu">1</span>);
+        <span class="kw">return true</span>;
+    }
+
+    <span class="kw">public boolean</span> <span class="mt">remove</span>(<span class="kw">int</span> val) {
+        <span class="kw">if</span> (!map.<span class="mt">containsKey</span>(val)) <span class="kw">return false</span>;
+        <span class="kw">int</span> idx  = map.<span class="mt">get</span>(val);
+        <span class="kw">int</span> last = list.<span class="mt">get</span>(list.<span class="mt">size</span>() - <span class="nu">1</span>);
+        list.<span class="mt">set</span>(idx, last);                  <span class="cm">// swap with last</span>
+        map.<span class="mt">put</span>(last, idx);                    <span class="cm">// update last's index</span>
+        list.<span class="mt">remove</span>(list.<span class="mt">size</span>() - <span class="nu">1</span>);         <span class="cm">// remove last O(1)</span>
+        map.<span class="mt">remove</span>(val);
+        <span class="kw">return true</span>;
+    }
+
+    <span class="kw">public int</span> <span class="mt">getRandom</span>() {
+        <span class="kw">return</span> list.<span class="mt">get</span>(rand.<span class="mt">nextInt</span>(list.<span class="mt">size</span>())); <span class="cm">// O(1) random access</span>
+    }
+}
+
+<span class="cm">// ── LeetCode: 895. Maximum Frequency Stack ────── Hard ───────────────</span>
+<span class="cm">// Map of stacks keyed by frequency</span>
+<span class="kw">class</span> <span class="ty">FreqStack</span> {
+    <span class="kw">private final</span> <span class="ty">Map</span>&lt;<span class="ty">Integer</span>, <span class="ty">Integer</span>&gt;        freq    = <span class="kw">new</span> <span class="ty">HashMap</span>&lt;&gt;();
+    <span class="kw">private final</span> <span class="ty">Map</span>&lt;<span class="ty">Integer</span>, <span class="ty">Deque</span>&lt;<span class="ty">Integer</span>&gt;&gt; group   = <span class="kw">new</span> <span class="ty">HashMap</span>&lt;&gt;();
+    <span class="kw">private int</span>                                  maxFreq = <span class="nu">0</span>;
+
+    <span class="kw">public void</span> <span class="mt">push</span>(<span class="kw">int</span> val) {
+        <span class="kw">int</span> f = freq.<span class="mt">merge</span>(val, <span class="nu">1</span>, <span class="ty">Integer</span>::<span class="mt">sum</span>);
+        maxFreq = <span class="ty">Math</span>.<span class="mt">max</span>(maxFreq, f);
+        group.<span class="mt">computeIfAbsent</span>(f, k -> <span class="kw">new</span> <span class="ty">ArrayDeque</span>&lt;&gt;()).<span class="mt">push</span>(val);
+    }
+
+    <span class="kw">public int</span> <span class="mt">pop</span>() {
+        <span class="ty">Deque</span>&lt;<span class="ty">Integer</span>&gt; stack = group.<span class="mt">get</span>(maxFreq);
+        <span class="kw">int</span> val = stack.<span class="mt">pop</span>();
+        <span class="kw">if</span> (stack.<span class="mt">isEmpty</span>()) { group.<span class="mt">remove</span>(maxFreq); maxFreq--; }
+        freq.<span class="mt">merge</span>(val, -<span class="nu">1</span>, <span class="ty">Integer</span>::<span class="mt">sum</span>);
+        <span class="kw">return</span> val;
+    }
+}
+<div class="code-label">Java 17 — LeetCode Hard Problems</div></pre>
+
+  <div class="cl-box tip"><div class="ci">💡</div><div>
+    <strong>Quick decision guide for LeetCode interviews:</strong><br/>
+    • Need O(1) lookup/membership? → <code>HashSet</code> or <code>HashMap</code><br/>
+    • Need sorted order with range queries? → <code>TreeSet</code> / <code>TreeMap</code><br/>
+    • Need min/max element efficiently? → <code>PriorityQueue</code><br/>
+    • Need FIFO order (BFS)? → <code>ArrayDeque</code> as Queue<br/>
+    • Need LIFO order (DFS, bracket matching)? → <code>ArrayDeque</code> as Stack<br/>
+    • Need sliding window max/min? → Monotonic <code>ArrayDeque</code><br/>
+    • Thread communication? → <code>BlockingQueue</code> / <code>SynchronousQueue</code>
+  </div></div>
+</section>
+
+<!-- MASTER COMPLEXITY TABLE -->
+<section>
+  <div class="sh"><div class="sn" style="background:var(--accent)">✓</div><h2>Master Complexity Reference</h2></div>
+
+  <table class="complexity-table">
+    <thead><tr><th>Operation</th><th>ArrayList</th><th>LinkedList</th><th>HashSet/Map</th><th>TreeSet/Map</th><th>PriorityQueue</th><th>ArrayDeque</th></tr></thead>
+    <tbody>
+      <tr><td>Access by index</td><td>O(1)</td><td>O(n)</td><td>—</td><td>—</td><td>—</td><td>O(1)</td></tr>
+      <tr><td>Search</td><td>O(n)</td><td>O(n)</td><td>O(1) avg</td><td>O(log n)</td><td>O(n)</td><td>O(n)</td></tr>
+      <tr><td>Insert at end</td><td>O(1) amort</td><td>O(1)</td><td>O(1) avg</td><td>O(log n)</td><td>O(log n)</td><td>O(1)</td></tr>
+      <tr><td>Insert at front</td><td>O(n)</td><td>O(1)</td><td>—</td><td>—</td><td>—</td><td>O(1)</td></tr>
+      <tr><td>Insert at middle</td><td>O(n)</td><td>O(n)</td><td>—</td><td>—</td><td>—</td><td>O(n)</td></tr>
+      <tr><td>Delete by value</td><td>O(n)</td><td>O(n)</td><td>O(1) avg</td><td>O(log n)</td><td>O(n)</td><td>O(n)</td></tr>
+      <tr><td>Delete head/tail</td><td>O(n)/O(1)</td><td>O(1)/O(1)</td><td>—</td><td>—</td><td>—</td><td>O(1)</td></tr>
+      <tr><td>Min/Max</td><td>O(n)</td><td>O(n)</td><td>O(n)</td><td>O(1)</td><td>O(1) peek</td><td>O(n)</td></tr>
+      <tr><td>Floor/Ceiling</td><td>—</td><td>—</td><td>—</td><td>O(log n)</td><td>—</td><td>—</td></tr>
+      <tr><td>Space</td><td>O(n)</td><td>O(n) 2× ptrs</td><td>O(n)</td><td>O(n)</td><td>O(n)</td><td>O(n)</td></tr>
+    </tbody>
+  </table>
+</section>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,1178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spring Bean Lifecycle – Deep Dive</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg:#07080e;--surface:#0e1520;--surface2:#141e2e;--border:#1a2a3e;
+    --accent:#6db33f;--a2:#3b82f6;--a3:#f59e0b;--a4:#ec4899;--a5:#8b5cf6;
+    --a6:#f97316;--text:#e2e8f0;--muted:#64748b;--code-bg:#0c1017;
+    --green:#22c55e;--red:#ef4444;--purple:#a78bfa;--teal:#2dd4bf;--cyan:#06b6d4;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;line-height:1.7;font-size:15px}
+
+  nav{position:sticky;top:0;z-index:100;background:rgba(7,8,14,.97);backdrop-filter:blur(14px);border-bottom:1px solid var(--border);padding:0 1.5rem;display:flex;align-items:center;gap:.9rem;height:52px;overflow-x:auto;scrollbar-width:none}
+  nav::-webkit-scrollbar{display:none}
+  .nav-logo{color:var(--accent);font-weight:800;font-size:12px;letter-spacing:.04em;margin-right:auto;white-space:nowrap;flex-shrink:0}
+  nav a{color:var(--muted);text-decoration:none;font-size:10px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;white-space:nowrap;padding:.2rem .4rem;border-radius:4px;transition:color .2s}
+  nav a:hover{color:var(--accent)}
+
+  .hero{padding:4rem 2rem 3rem;max-width:980px;margin:0 auto;text-align:center}
+  .hero-badge{display:inline-block;background:linear-gradient(135deg,#6db33f22,#3b82f622);border:1px solid #6db33f40;color:var(--accent);font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;padding:.3rem .9rem;border-radius:999px;margin-bottom:1.4rem}
+  .hero h1{font-size:clamp(2rem,5.5vw,3.4rem);font-weight:800;line-height:1.1;background:linear-gradient(135deg,#e2e8f0 20%,#6db33f 60%,#3b82f6 100%);-webkit-background-clip:text;-webkit-text-fill-color:transparent;background-clip:text;margin-bottom:1rem}
+  .hero p{color:var(--muted);font-size:1rem;max-width:700px;margin:0 auto}
+
+  .container{max-width:980px;margin:0 auto;padding:0 1.5rem 6rem}
+  section{margin-bottom:4.5rem;scroll-margin-top:60px}
+  .sh{display:flex;align-items:center;gap:1rem;margin-bottom:1.8rem;padding-bottom:.8rem;border-bottom:1px solid var(--border)}
+  .sn{width:32px;height:32px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex-shrink:0;color:#000}
+  .sh h2{font-size:1.4rem;font-weight:700;color:#fff}
+
+  .card{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:1.4rem;margin-bottom:1.1rem}
+  .ct{font-size:.78rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;margin-bottom:.7rem}
+  .card.ag{border-left:3px solid var(--green)}.card.ar{border-left:3px solid var(--red)}
+  .card.ay{border-left:3px solid var(--a3)}.card.ab{border-left:3px solid var(--a2)}
+  .card.ap{border-left:3px solid var(--purple)}.card.at{border-left:3px solid var(--accent)}
+  .card.ao{border-left:3px solid var(--a6)}.card.ak{border-left:3px solid var(--a4)}
+  .card.ac{border-left:3px solid var(--teal)}
+
+  .g2{display:grid;grid-template-columns:1fr 1fr;gap:1rem}
+  .g3{display:grid;grid-template-columns:repeat(3,1fr);gap:.9rem}
+  .g4{display:grid;grid-template-columns:repeat(4,1fr);gap:.8rem}
+  @media(max-width:680px){.g2,.g3,.g4{grid-template-columns:1fr}}
+
+  pre{background:var(--code-bg);border:1px solid var(--border);border-radius:10px;padding:1.3rem;overflow-x:auto;margin:1rem 0 1.3rem;position:relative;font-family:'JetBrains Mono',monospace;font-size:12.5px;line-height:1.85}
+  .cl{position:absolute;top:.6rem;right:.8rem;font-size:9.5px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-family:'JetBrains Mono',monospace}
+  .kw{color:#ff79c6}.an{color:#50fa7b}.ty{color:#8be9fd}.st{color:#f1fa8c}
+  .cm{color:#6272a4;font-style:italic}.nu{color:#bd93f9}.mt{color:#ffb86c}.en{color:#ff5555}
+
+  table{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden;margin:1rem 0 1.4rem;font-size:13px}
+  th{background:var(--surface2);padding:.65rem 1rem;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);font-weight:700;border-bottom:1px solid var(--border)}
+  td{padding:.6rem 1rem;border-bottom:1px solid var(--border);vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  tr:hover td{background:var(--surface2)}
+  code{background:#fff1;border:1px solid #fff2;border-radius:4px;padding:.1rem .4rem;font-family:'JetBrains Mono',monospace;font-size:.84em;color:var(--accent)}
+
+  .cl-box{border-radius:10px;padding:.9rem 1.1rem;margin:1rem 0;display:flex;gap:.7rem;align-items:flex-start;font-size:.89rem}
+  .ci{font-size:1rem;flex-shrink:0;margin-top:.05rem}
+  .cl-box.tip{background:#6db33f10;border:1px solid #6db33f30}
+  .cl-box.warn{background:#f59e0b15;border:1px solid #f59e0b30}
+  .cl-box.danger{background:#ef444415;border:1px solid #ef444430}
+  .cl-box.info{background:#3b82f615;border:1px solid #3b82f630}
+
+  /* LIFECYCLE PIPELINE */
+  .lifecycle{background:var(--code-bg);border:1px solid var(--border);border-radius:14px;padding:1.8rem;margin:1rem 0 1.5rem;overflow-x:auto;font-family:'JetBrains Mono',monospace;font-size:11.5px}
+  .lc-phase{margin-bottom:1rem}
+  .lc-title{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:var(--muted);margin-bottom:.4rem}
+  .lc-steps{display:flex;gap:.35rem;flex-wrap:wrap;align-items:center}
+  .lc-step{border:1.5px solid;border-radius:6px;padding:.28rem .75rem;font-size:11px;font-weight:700;white-space:nowrap;cursor:default}
+  .lc-step:hover{opacity:.85}
+  .s-new{border-color:var(--muted);color:var(--muted);background:transparent}
+  .s-inst{border-color:#06b6d4;color:#06b6d4;background:#06b6d415}
+  .s-pop{border-color:#3b82f6;color:#3b82f6;background:#3b82f615}
+  .s-aware{border-color:#8b5cf6;color:#8b5cf6;background:#8b5cf615}
+  .s-bpp{border-color:#f59e0b;color:#f59e0b;background:#f59e0b15}
+  .s-init{border-color:#22c55e;color:#22c55e;background:#22c55e15}
+  .s-ready{border-color:#6db33f;color:#6db33f;background:#6db33f15}
+  .s-dest{border-color:#ef4444;color:#ef4444;background:#ef444415}
+  .lc-arrow{color:var(--muted);font-size:16px;font-weight:900}
+
+  .flow{background:var(--code-bg);border:1px solid var(--border);border-radius:11px;padding:1.3rem;margin:1rem 0 1.3rem;font-family:'JetBrains Mono',monospace;font-size:11.5px;overflow-x:auto}
+  .fr{display:flex;align-items:center;gap:.5rem;padding:.28rem 0;flex-wrap:wrap}
+  .bx{background:var(--surface2);border:1px solid var(--border);border-radius:5px;padding:.25rem .7rem;white-space:nowrap;font-weight:600;font-size:11px}
+  .bx.g{background:#14532d30;border-color:var(--green);color:var(--green)}
+  .bx.b{background:#1e3a5f30;border-color:var(--a2);color:var(--a2)}
+  .bx.v{background:#3b076430;border-color:var(--purple);color:var(--purple)}
+  .bx.y{background:#78350f30;border-color:var(--a3);color:var(--a3)}
+  .bx.r{background:#7f1d1d30;border-color:var(--red);color:var(--red)}
+  .bx.t{background:#0d393630;border-color:var(--teal);color:var(--teal)}
+  .bx.o{background:#7c2d1230;border-color:var(--a6);color:var(--a6)}
+  .bx.a{background:#6db33f15;border-color:var(--accent);color:var(--accent)}
+  .bx.c{background:#0d3a4030;border-color:var(--cyan);color:var(--cyan)}
+  .fa{color:var(--muted);font-size:12px}
+
+  .pl{display:inline-flex;font-size:10px;font-weight:700;padding:.12rem .5rem;border-radius:999px;text-transform:uppercase;letter-spacing:.06em;white-space:nowrap}
+  .pl-g{background:#14532d50;color:var(--green);border:1px solid #22c55e40}
+  .pl-r{background:#7f1d1d50;color:var(--red);border:1px solid #ef444440}
+  .pl-y{background:#78350f50;color:var(--a3);border:1px solid #f59e0b40}
+  .pl-b{background:#1e3a5f50;color:var(--a2);border:1px solid #3b82f640}
+  .pl-v{background:#3b076450;color:var(--purple);border:1px solid #8b5cf640}
+
+  /* step numbers */
+  .step-num{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--accent);color:#000;font-size:10px;font-weight:800;flex-shrink:0;margin-right:.4rem}
+
+  p{margin-bottom:.85rem;color:#cbd5e1}
+  ul,ol{padding-left:1.4rem;color:#cbd5e1}
+  li{margin-bottom:.35rem}
+  strong{color:#fff}
+  .muted{color:var(--muted);font-size:.87em}
+  h3{color:#fff;font-size:1rem;font-weight:700;margin:.9rem 0 .4rem}
+
+  .tp-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.6rem;margin:1.5rem 0 3rem}
+  .tp{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:.6rem .8rem;font-size:11px;font-weight:700;text-align:center;text-decoration:none;color:var(--text);display:block;transition:all .2s}
+  .tp:hover{border-color:var(--accent);color:var(--accent);background:#6db33f08;transform:translateY(-1px)}
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="nav-logo">🌱 Spring Bean Lifecycle</span>
+  <a href="#overview">Overview</a>
+  <a href="#phases">All Phases</a>
+  <a href="#instantiation">Instantiation</a>
+  <a href="#injection">Injection</a>
+  <a href="#aware">Aware Interfaces</a>
+  <a href="#bpp">BeanPostProcessor</a>
+  <a href="#init">Init Methods</a>
+  <a href="#destroy">Destroy Methods</a>
+  <a href="#scopes">Scopes</a>
+  <a href="#lazy">Lazy & Conditional</a>
+  <a href="#context">Context Events</a>
+  <a href="#pitfalls">Pitfalls</a>
+</nav>
+
+<div class="hero">
+  <div class="hero-badge">Spring Boot · Java 17 · Deep Dive</div>
+  <h1>Spring Bean Lifecycle<br/>Complete Mastery</h1>
+  <p>Every phase from class loading to destruction — instantiation, dependency injection, Aware interfaces, BeanPostProcessor, init/destroy hooks, scopes, lazy beans, and common pitfalls.</p>
+</div>
+
+<div class="container">
+
+<div class="tp-grid">
+  <a class="tp" href="#overview">🗺 Overview</a>
+  <a class="tp" href="#phases">📋 All 14 Phases</a>
+  <a class="tp" href="#instantiation">🏗 Instantiation</a>
+  <a class="tp" href="#injection">💉 Injection</a>
+  <a class="tp" href="#aware">👁 Aware Interfaces</a>
+  <a class="tp" href="#bpp">⚙️ BeanPostProcessor</a>
+  <a class="tp" href="#init">▶️ Init Methods</a>
+  <a class="tp" href="#destroy">🛑 Destroy Methods</a>
+  <a class="tp" href="#scopes">🔭 Bean Scopes</a>
+  <a class="tp" href="#lazy">😴 Lazy & Conditional</a>
+  <a class="tp" href="#context">📣 Context Events</a>
+  <a class="tp" href="#pitfalls">⚠️ Pitfalls</a>
+</div>
+
+<!-- ══════════════════════════════════════
+     1. OVERVIEW
+══════════════════════════════════════ -->
+<section id="overview">
+  <div class="sh"><div class="sn" style="background:var(--accent)">1</div><h2>What is the Bean Lifecycle?</h2></div>
+
+  <p>The <strong>Spring Bean Lifecycle</strong> is the sequence of steps Spring follows from the moment it decides to create a bean to the moment the application context is closed. Understanding it lets you hook into any phase for custom initialization, resource setup, validation, and cleanup.</p>
+
+  <div class="g2">
+    <div class="card at">
+      <div class="ct" style="color:var(--accent)">Why It Matters</div>
+      <ul>
+        <li>Open DB connections after all properties injected</li>
+        <li>Validate required config before serving traffic</li>
+        <li>Register listeners/metrics/caches at startup</li>
+        <li>Close file handles / connections on shutdown</li>
+        <li>Implement AOP proxies at the right moment</li>
+        <li>Control bean creation order (dependencies)</li>
+      </ul>
+    </div>
+    <div class="card ab">
+      <div class="ct" style="color:var(--a2)">The 3 Big Phases</div>
+      <div class="flow" style="margin:0;border:none;padding:.4rem 0;background:transparent">
+        <div class="fr"><div class="bx c">1. INITIALIZATION</div><div class="fa">→ Create + Wire + Init hooks</div></div>
+        <div class="fr"><div class="bx a">2. USE</div><div class="fa">→ Application uses the bean</div></div>
+        <div class="fr"><div class="bx r">3. DESTRUCTION</div><div class="fa">→ Context closes + cleanup</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════════════════════════════
+     2. ALL 14 PHASES — MASTER DIAGRAM
+══════════════════════════════════════ -->
+<section id="phases">
+  <div class="sh"><div class="sn" style="background:var(--a2)">2</div><h2>All 14 Lifecycle Phases — Master Diagram</h2></div>
+
+  <div class="lifecycle">
+    <div style="color:var(--muted);font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.12em;margin-bottom:1.2rem">Spring Bean Lifecycle — Complete Flow</div>
+
+    <div class="lc-phase">
+      <div class="lc-title">📦 Phase 1 — Class Loading & Bean Definition</div>
+      <div class="lc-steps">
+        <div class="lc-step s-new">ClassLoader loads .class</div>
+        <div class="lc-arrow">→</div>
+        <div class="lc-step s-new">@Component / @Bean scanned</div>
+        <div class="lc-arrow">→</div>
+        <div class="lc-step s-new">BeanDefinition registered in BeanFactory</div>
+      </div>
+    </div>
+
+    <div class="lc-phase">
+      <div class="lc-title">🏗 Phase 2 — Instantiation</div>
+      <div class="lc-steps">
+        <div class="lc-step s-inst">BeanFactoryPostProcessor (modify definitions)</div>
+        <div class="lc-arrow">→</div>
+        <div class="lc-step s-inst">Constructor called (new instance)</div>
+      </div>
+    </div>
+
+    <div class="lc-phase">
+      <div class="lc-title">💉 Phase 3 — Dependency Injection</div>
+      <div class="lc-steps">
+        <div class="lc-step s-pop">@Autowired field injection</div>
+        <div class="lc-arrow">→</div>
+        <div class="lc-step s-pop">@Autowired setter injection</div>
+        <div class="lc-arrow">→</div>
+        <div class="lc-step s-pop">@Value property injection</div>
+      </div>
+    </div>
+
+    <div class="lc-phase">
+      <div class="lc-title">👁 Phase 4 — Aware Interfaces (in order)</div>
+      <div class="lc-steps">
+        <div class="lc-step s-aware">BeanNameAware.setBeanName()</div>
+        <div class="lc-arrow">→</div>
+        <div class="lc-step s-aware">BeanClassLoaderAware.setBeanClassLoader()</div>
+        <div class="lc-arrow">→</div>
+        <div class="lc-step s-aware">BeanFactoryAware.setBeanFactory()</div>
+        <div class="lc-arrow">→</div>
+        <div class="lc-step s-aware">ApplicationContextAware.setApplicationContext()</div>
+      </div>
+    </div>
+
+    <div class="lc-phase">
+      <div class="lc-title">⚙️ Phase 5 — BeanPostProcessor BEFORE Initialization</div>
+      <div class="lc-steps">
+        <div class="lc-step s-bpp">BPP.postProcessBeforeInitialization()</div>
+        <div class="lc-arrow">→ for EVERY bean</div>
+        <div class="lc-step s-bpp" style="opacity:.7">(AOP proxy wrapping happens here for @Transactional, @Async...)</div>
+      </div>
+    </div>
+
+    <div class="lc-phase">
+      <div class="lc-title">✅ Phase 6 — Initialization (in order)</div>
+      <div class="lc-steps">
+        <div class="lc-step s-init">@PostConstruct method</div>
+        <div class="lc-arrow">→</div>
+        <div class="lc-step s-init">InitializingBean.afterPropertiesSet()</div>
+        <div class="lc-arrow">→</div>
+        <div class="lc-step s-init">@Bean(initMethod="...") / init-method XML</div>
+      </div>
+    </div>
+
+    <div class="lc-phase">
+      <div class="lc-title">⚙️ Phase 7 — BeanPostProcessor AFTER Initialization</div>
+      <div class="lc-steps">
+        <div class="lc-step s-bpp">BPP.postProcessAfterInitialization()</div>
+        <div class="lc-arrow">→ can REPLACE the bean with a proxy!</div>
+        <div class="lc-step s-bpp" style="opacity:.7">(AOP final proxy created here if needed)</div>
+      </div>
+    </div>
+
+    <div class="lc-phase">
+      <div class="lc-title">🟢 Phase 8 — Bean Ready for Use</div>
+      <div class="lc-steps">
+        <div class="lc-step s-ready">Bean placed in singleton cache (ApplicationContext)</div>
+        <div class="lc-arrow">→</div>
+        <div class="lc-step s-ready">ApplicationContext.getBean() returns it</div>
+        <div class="lc-arrow">→</div>
+        <div class="lc-step s-ready">Application runs...</div>
+      </div>
+    </div>
+
+    <div class="lc-phase">
+      <div class="lc-title">🛑 Phase 9 — Destruction (context.close() / SIGTERM)</div>
+      <div class="lc-steps">
+        <div class="lc-step s-dest">@PreDestroy method</div>
+        <div class="lc-arrow">→</div>
+        <div class="lc-step s-dest">DisposableBean.destroy()</div>
+        <div class="lc-arrow">→</div>
+        <div class="lc-step s-dest">@Bean(destroyMethod="...") / destroy-method XML</div>
+      </div>
+    </div>
+  </div>
+
+  <table>
+    <thead><tr><th>#</th><th>Phase</th><th>Interface / Annotation</th><th>When to use</th><th>Order</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Bean Definition</td><td><code>@Component</code>, <code>@Bean</code>, XML</td><td>Always — how Spring discovers beans</td><td>Startup scan</td></tr>
+      <tr><td>2</td><td>BeanFactoryPostProcessor</td><td><code>BeanFactoryPostProcessor</code></td><td>Modify bean definitions before instantiation</td><td>Before any bean created</td></tr>
+      <tr><td>3</td><td>Constructor</td><td>Constructor injection</td><td>Create instance (preferred injection style)</td><td>1st</td></tr>
+      <tr><td>4</td><td>Field / Setter Injection</td><td><code>@Autowired</code>, <code>@Value</code></td><td>Inject dependencies</td><td>2nd</td></tr>
+      <tr><td>5</td><td>BeanNameAware</td><td><code>BeanNameAware.setBeanName()</code></td><td>Get the bean's name in the context</td><td>3rd</td></tr>
+      <tr><td>6</td><td>BeanFactoryAware</td><td><code>BeanFactoryAware.setBeanFactory()</code></td><td>Get reference to BeanFactory</td><td>4th</td></tr>
+      <tr><td>7</td><td>ApplicationContextAware</td><td><code>ApplicationContextAware.setApplicationContext()</code></td><td>Get ApplicationContext reference</td><td>5th</td></tr>
+      <tr><td>8</td><td>BPP Before Init</td><td><code>BeanPostProcessor.postProcessBeforeInitialization()</code></td><td>Custom pre-init logic, annotation processing</td><td>6th</td></tr>
+      <tr><td>9</td><td>@PostConstruct</td><td><code>@PostConstruct</code> (JSR-250)</td><td>Init after all dependencies injected</td><td>7th ← use this</td></tr>
+      <tr><td>10</td><td>InitializingBean</td><td><code>InitializingBean.afterPropertiesSet()</code></td><td>Init — Spring-specific, avoid if possible</td><td>8th</td></tr>
+      <tr><td>11</td><td>Custom initMethod</td><td><code>@Bean(initMethod="start")</code></td><td>Init for third-party beans you don't control</td><td>9th</td></tr>
+      <tr><td>12</td><td>BPP After Init</td><td><code>BeanPostProcessor.postProcessAfterInitialization()</code></td><td>Wrap in proxy (AOP), final decoration</td><td>10th</td></tr>
+      <tr><td>13</td><td>@PreDestroy</td><td><code>@PreDestroy</code> (JSR-250)</td><td>Cleanup before bean destroyed</td><td>On shutdown ← use this</td></tr>
+      <tr><td>14</td><td>DisposableBean</td><td><code>DisposableBean.destroy()</code></td><td>Cleanup — Spring-specific</td><td>On shutdown</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ══════════════════════════════════════
+     3. INSTANTIATION
+══════════════════════════════════════ -->
+<section id="instantiation">
+  <div class="sh"><div class="sn" style="background:var(--cyan)">3</div><h2>Instantiation — How Spring Creates Beans</h2></div>
+
+<pre><span class="cm">// ── 3 ways Spring instantiates beans ─────────────────────────────────</span>
+
+<span class="cm">// 1. Component scanning — most common</span>
+<span class="an">@Service</span>                   <span class="cm">// shortcut for @Component + "service layer" semantics</span>
+<span class="an">@Repository</span>               <span class="cm">// @Component + translates persistence exceptions</span>
+<span class="an">@Controller</span>               <span class="cm">// @Component + web layer</span>
+<span class="an">@RestController</span>           <span class="cm">// @Controller + @ResponseBody</span>
+<span class="an">@Component</span>                <span class="cm">// base annotation — generic bean</span>
+<span class="kw">public class</span> <span class="ty">OrderService</span> {}
+
+<span class="cm">// 2. @Configuration + @Bean — for beans you DON'T own (third-party libs)</span>
+<span class="an">@Configuration</span>
+<span class="kw">public class</span> <span class="ty">AppConfig</span> {
+
+    <span class="an">@Bean</span>                          <span class="cm">// method name = bean name by default</span>
+    <span class="kw">public</span> <span class="ty">ObjectMapper</span> <span class="mt">objectMapper</span>() {
+        <span class="kw">return new</span> <span class="ty">ObjectMapper</span>()
+            .<span class="mt">findAndRegisterModules</span>();
+    }
+
+    <span class="an">@Bean</span>(<span class="st">"myDataSource"</span>)        <span class="cm">// explicit bean name</span>
+    <span class="an">@Primary</span>                       <span class="cm">// preferred when multiple DataSources</span>
+    <span class="kw">public</span> <span class="ty">DataSource</span> <span class="mt">dataSource</span>() {
+        <span class="kw">return new</span> <span class="ty">HikariDataSource</span>(config());
+    }
+}
+
+<span class="cm">// 3. @Import — import other @Configuration classes</span>
+<span class="an">@SpringBootApplication</span>
+<span class="an">@Import</span>({<span class="ty">SecurityConfig</span>.<span class="kw">class</span>, <span class="ty">CacheConfig</span>.<span class="kw">class</span>})
+<span class="kw">public class</span> <span class="ty">App</span> {}
+<div class="cl">Instantiation</div></pre>
+
+  <div class="g2">
+    <div class="card at">
+      <div class="ct" style="color:var(--accent)">Constructor Injection — PREFERRED ✅</div>
+<pre style="margin:0;border:none;padding:.4rem 0;background:transparent;font-size:12px">
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">OrderService</span> {
+    <span class="kw">private final</span> <span class="ty">OrderRepo</span>    repo;   <span class="cm">// final!</span>
+    <span class="kw">private final</span> <span class="ty">EmailService</span> email;  <span class="cm">// final!</span>
+
+    <span class="cm">// @Autowired not needed if only 1 constructor (Spring 4.3+)</span>
+    <span class="kw">public</span> <span class="ty">OrderService</span>(<span class="ty">OrderRepo</span> r, <span class="ty">EmailService</span> e) {
+        <span class="kw">this</span>.repo  = r;
+        <span class="kw">this</span>.email = e;
+    }
+}</pre>
+      <ul style="margin-top:.5rem">
+        <li>Dependencies are <code>final</code> — immutable</li>
+        <li>Fails fast at startup if dep missing</li>
+        <li>Easy to unit test (plain <code>new</code>)</li>
+        <li>No circular dependency surprises</li>
+      </ul>
+    </div>
+    <div class="card ay">
+      <div class="ct" style="color:var(--a3)">Field Injection — AVOID ❌</div>
+<pre style="margin:0;border:none;padding:.4rem 0;background:transparent;font-size:12px">
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">OrderService</span> {
+    <span class="an">@Autowired</span>
+    <span class="kw">private</span> <span class="ty">OrderRepo</span> repo;     <span class="cm">// ❌ not final</span>
+    <span class="an">@Autowired</span>
+    <span class="kw">private</span> <span class="ty">EmailService</span> email; <span class="cm">// ❌ null in tests!</span>
+}</pre>
+      <ul style="margin-top:.5rem">
+        <li>Can't unit test without Spring context</li>
+        <li>Can't make fields <code>final</code></li>
+        <li>Hides dependencies — hard to see what's needed</li>
+        <li>Circular dep errors surface later (runtime)</li>
+      </ul>
+    </div>
+  </div>
+
+<pre><span class="cm">// ── BeanFactoryPostProcessor — modify definitions BEFORE creation ─────</span>
+<span class="cm">// Runs before ANY beans are instantiated</span>
+<span class="cm">// Use: custom property placeholders, bean definition modification</span>
+
+<span class="an">@Component</span>
+<span class="kw">public class</span> <span class="ty">CustomBFPP</span> <span class="kw">implements</span> <span class="ty">BeanFactoryPostProcessor</span> {
+
+    <span class="an">@Override</span>
+    <span class="kw">public void</span> <span class="mt">postProcessBeanFactory</span>(<span class="ty">ConfigurableListableBeanFactory</span> factory) {
+        <span class="cm">// View all registered bean definitions</span>
+        <span class="ty">String</span>[] names = factory.<span class="mt">getBeanDefinitionNames</span>();
+
+        <span class="cm">// Modify a specific bean definition</span>
+        <span class="ty">BeanDefinition</span> bd = factory.<span class="mt">getBeanDefinition</span>(<span class="st">"orderService"</span>);
+        bd.<span class="mt">setScope</span>(<span class="ty">BeanDefinition</span>.<span class="en">SCOPE_PROTOTYPE</span>); <span class="cm">// change scope dynamically</span>
+
+        <span class="cm">// Built-in BFPP: PropertySourcesPlaceholderConfigurer</span>
+        <span class="cm">// resolves ${spring.datasource.url} in @Value — runs as BFPP</span>
+    }
+}
+<div class="cl">BeanFactoryPostProcessor</div></pre>
+</section>
+
+<!-- ══════════════════════════════════════
+     4. DEPENDENCY INJECTION
+══════════════════════════════════════ -->
+<section id="injection">
+  <div class="sh"><div class="sn" style="background:var(--a3)">4</div><h2>Dependency Injection — All Types</h2></div>
+
+<pre><span class="cm">// ── @Autowired resolution order ──────────────────────────────────────</span>
+<span class="cm">// Spring tries in this order:</span>
+<span class="cm">// 1. Match by TYPE — if exactly one bean of that type → inject it</span>
+<span class="cm">// 2. Match by NAME — if multiple beans of same type → match by parameter name</span>
+<span class="cm">// 3. @Qualifier — explicitly specify which bean to inject</span>
+<span class="cm">// 4. @Primary — one bean marked @Primary → preferred in ambiguous cases</span>
+
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">NotificationService</span> {
+
+    <span class="cm">// Multiple EmailSender beans → use @Qualifier to disambiguate</span>
+    <span class="kw">private final</span> <span class="ty">EmailSender</span> primarySender;
+    <span class="kw">private final</span> <span class="ty">EmailSender</span> backupSender;
+
+    <span class="kw">public</span> <span class="ty">NotificationService</span>(
+            <span class="an">@Qualifier</span>(<span class="st">"smtpSender"</span>)   <span class="ty">EmailSender</span> primarySender,
+            <span class="an">@Qualifier</span>(<span class="st">"sendGridSender"</span>) <span class="ty">EmailSender</span> backupSender) {
+        <span class="kw">this</span>.primarySender = primarySender;
+        <span class="kw">this</span>.backupSender  = backupSender;
+    }
+}
+
+<span class="cm">// ── Inject all beans of a type into a List ───────────────────────────</span>
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">PaymentService</span> {
+    <span class="kw">private final</span> <span class="ty">List</span>&lt;<span class="ty">PaymentGateway</span>&gt; gateways; <span class="cm">// Spring injects ALL PaymentGateway beans</span>
+
+    <span class="kw">public</span> <span class="ty">PaymentService</span>(<span class="ty">List</span>&lt;<span class="ty">PaymentGateway</span>&gt; gateways) {
+        <span class="kw">this</span>.gateways = gateways;
+    }
+}
+
+<span class="cm">// ── @Value — inject from application.yml ─────────────────────────────</span>
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">FeeCalculator</span> {
+    <span class="an">@Value</span>(<span class="st">"${app.fee.percentage:2.5}"</span>)   <span class="cm">// with default value</span>
+    <span class="kw">private double</span> feePercentage;
+
+    <span class="an">@Value</span>(<span class="st">"#{systemProperties['user.timezone']}"</span>) <span class="cm">// SpEL expression</span>
+    <span class="kw">private</span> <span class="ty">String</span> timezone;
+
+    <span class="an">@Value</span>(<span class="st">"${app.allowed-currencies}"</span>)   <span class="cm">// comma-separated list</span>
+    <span class="kw">private</span> <span class="ty">List</span>&lt;<span class="ty">String</span>&gt; allowedCurrencies;
+}
+
+<span class="cm">// ── @ConfigurationProperties — type-safe config (preferred over @Value) ─</span>
+<span class="an">@ConfigurationProperties</span>(prefix = <span class="st">"app.payment"</span>)
+<span class="kw">public record</span> <span class="ty">PaymentConfig</span>(
+    <span class="ty">String</span>   gatewayUrl,
+    <span class="kw">int</span>      timeoutMs,
+    <span class="kw">int</span>      retryCount,
+    <span class="ty">String</span>   apiKey,
+    <span class="ty">List</span>&lt;<span class="ty">String</span>&gt; supportedCurrencies
+) {}
+<span class="cm">// application.yml:
+// app.payment.gateway-url: https://stripe.com
+// app.payment.timeout-ms: 5000</span>
+<div class="cl">Dependency Injection</div></pre>
+
+  <table>
+    <thead><tr><th>Injection Type</th><th>How</th><th>Recommended</th><th>Why</th></tr></thead>
+    <tbody>
+      <tr><td>Constructor</td><td><code>public Service(Dep dep)</code></td><td><span class="pl pl-g">✅ Best</span></td><td>Immutable, testable, fail-fast</td></tr>
+      <tr><td>Setter</td><td><code>@Autowired void setDep(Dep d)</code></td><td><span class="pl pl-y">Optional deps</span></td><td>For optional/configurable deps</td></tr>
+      <tr><td>Field</td><td><code>@Autowired private Dep dep</code></td><td><span class="pl pl-r">❌ Avoid</span></td><td>Hard to test, hides deps</td></tr>
+      <tr><td>@Value</td><td><code>@Value("${key}")</code></td><td><span class="pl pl-y">OK for simple</span></td><td>Use @ConfigurationProperties for complex</td></tr>
+      <tr><td>@Qualifier</td><td><code>@Qualifier("name")</code></td><td><span class="pl pl-g">When needed</span></td><td>Multiple beans of same type</td></tr>
+      <tr><td>@Primary</td><td><code>@Primary @Bean</code></td><td><span class="pl pl-g">Default bean</span></td><td>Marks preferred bean when ambiguous</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ══════════════════════════════════════
+     5. AWARE INTERFACES
+══════════════════════════════════════ -->
+<section id="aware">
+  <div class="sh"><div class="sn" style="background:var(--a5)">5</div><h2>Aware Interfaces — Access Spring Infrastructure</h2></div>
+
+  <p>Aware interfaces let your bean access parts of the Spring infrastructure it's running in. They are called <em>after injection but before @PostConstruct</em>.</p>
+
+<pre><span class="cm">// ── All important Aware interfaces ───────────────────────────────────</span>
+
+<span class="an">@Component</span>
+<span class="kw">public class</span> <span class="ty">AwareDemo</span> <span class="kw">implements</span>
+        <span class="ty">BeanNameAware</span>,            <span class="cm">// get this bean's name in ApplicationContext</span>
+        <span class="ty">BeanFactoryAware</span>,         <span class="cm">// access BeanFactory to get other beans programmatically</span>
+        <span class="ty">ApplicationContextAware</span>,  <span class="cm">// access full ApplicationContext</span>
+        <span class="ty">EnvironmentAware</span>,         <span class="cm">// access Environment (profiles, properties)</span>
+        <span class="ty">ResourceLoaderAware</span>,      <span class="cm">// access classpath resources</span>
+        <span class="ty">MessageSourceAware</span> {       <span class="cm">// access i18n messages</span>
+
+    <span class="kw">private</span> <span class="ty">String</span>             beanName;
+    <span class="kw">private</span> <span class="ty">BeanFactory</span>        factory;
+    <span class="kw">private</span> <span class="ty">ApplicationContext</span> context;
+    <span class="kw">private</span> <span class="ty">Environment</span>        env;
+
+    <span class="an">@Override</span>
+    <span class="kw">public void</span> <span class="mt">setBeanName</span>(<span class="ty">String</span> name) {
+        <span class="kw">this</span>.beanName = name;
+        log.<span class="mt">info</span>(<span class="st">"My bean name: {}"</span>, name); <span class="cm">// "awareDemo"</span>
+    }
+
+    <span class="an">@Override</span>
+    <span class="kw">public void</span> <span class="mt">setBeanFactory</span>(<span class="ty">BeanFactory</span> beanFactory) {
+        <span class="kw">this</span>.factory = beanFactory;
+        <span class="cm">// Can now do: factory.getBean(SomeService.class)</span>
+        <span class="cm">// But prefer constructor injection — this is for special cases</span>
+    }
+
+    <span class="an">@Override</span>
+    <span class="kw">public void</span> <span class="mt">setApplicationContext</span>(<span class="ty">ApplicationContext</span> ctx) {
+        <span class="kw">this</span>.context = ctx;
+        <span class="cm">// Access any bean, publish events, check environment</span>
+        <span class="kw">boolean</span> isWeb = ctx <span class="kw">instanceof</span> <span class="ty">WebApplicationContext</span>;
+    }
+
+    <span class="an">@Override</span>
+    <span class="kw">public void</span> <span class="mt">setEnvironment</span>(<span class="ty">Environment</span> env) {
+        <span class="kw">this</span>.env = env;
+        <span class="ty">String</span> profile = env.<span class="mt">getActiveProfiles</span>()[<span class="nu">0</span>]; <span class="cm">// "prod", "dev"</span>
+        <span class="ty">String</span> url     = env.<span class="mt">getProperty</span>(<span class="st">"spring.datasource.url"</span>);
+    }
+}
+
+<span class="cm">// ── REAL USE CASE: ApplicationContextAware for dynamic bean lookup ────</span>
+<span class="cm">// Sometimes you need to look up beans dynamically at runtime</span>
+<span class="cm">// (e.g. strategy pattern, plugin system)</span>
+
+<span class="an">@Component</span>
+<span class="kw">public class</span> <span class="ty">PaymentStrategyFactory</span> <span class="kw">implements</span> <span class="ty">ApplicationContextAware</span> {
+
+    <span class="kw">private</span> <span class="ty">ApplicationContext</span> context;
+
+    <span class="an">@Override</span>
+    <span class="kw">public void</span> <span class="mt">setApplicationContext</span>(<span class="ty">ApplicationContext</span> ctx) {
+        <span class="kw">this</span>.context = ctx;
+    }
+
+    <span class="kw">public</span> <span class="ty">PaymentGateway</span> <span class="mt">getGateway</span>(<span class="ty">String</span> type) {
+        <span class="cm">// Dynamically get bean by name at runtime (can't inject at construction)</span>
+        <span class="kw">return</span> context.<span class="mt">getBean</span>(type + <span class="st">"Gateway"</span>, <span class="ty">PaymentGateway</span>.<span class="kw">class</span>);
+    }
+}
+<div class="cl">Aware Interfaces</div></pre>
+
+  <div class="cl-box warn"><div class="ci">⚠️</div><div>Prefer constructor injection over <code>ApplicationContextAware</code>. Using <code>ApplicationContext.getBean()</code> everywhere is the <strong>service locator anti-pattern</strong> — it hides dependencies and makes code hard to test. Only use Aware interfaces when truly necessary (plugin systems, framework code).</div></div>
+</section>
+
+<!-- ══════════════════════════════════════
+     6. BEANPOSTPROCESSOR
+══════════════════════════════════════ -->
+<section id="bpp">
+  <div class="sh"><div class="sn" style="background:var(--a4)">6</div><h2>BeanPostProcessor — The Most Powerful Extension Point</h2></div>
+
+  <p><code>BeanPostProcessor</code> (BPP) is called for <strong>every single bean</strong> in the context — before and after initialization. It's how Spring implements <code>@Transactional</code>, <code>@Async</code>, <code>@Cacheable</code>, and all AOP features.</p>
+
+<pre><span class="cm">// ── BPP signature ────────────────────────────────────────────────────</span>
+<span class="kw">public interface</span> <span class="ty">BeanPostProcessor</span> {
+
+    <span class="cm">// Called BEFORE @PostConstruct / afterPropertiesSet / initMethod</span>
+    <span class="kw">default</span> <span class="ty">Object</span> <span class="mt">postProcessBeforeInitialization</span>(<span class="ty">Object</span> bean, <span class="ty">String</span> beanName) {
+        <span class="kw">return</span> bean; <span class="cm">// return SAME bean (or a modified/wrapped version)</span>
+    }
+
+    <span class="cm">// Called AFTER @PostConstruct / afterPropertiesSet / initMethod</span>
+    <span class="kw">default</span> <span class="ty">Object</span> <span class="mt">postProcessAfterInitialization</span>(<span class="ty">Object</span> bean, <span class="ty">String</span> beanName) {
+        <span class="kw">return</span> bean; <span class="cm">// return PROXY instead of original bean for AOP!</span>
+    }
+}
+
+<span class="cm">// ── Custom BPP: validate all beans with @RequiredConfig ───────────────</span>
+<span class="an">@Component</span>
+<span class="kw">public class</span> <span class="ty">RequiredConfigBPP</span> <span class="kw">implements</span> <span class="ty">BeanPostProcessor</span> {
+
+    <span class="an">@Override</span>
+    <span class="kw">public</span> <span class="ty">Object</span> <span class="mt">postProcessBeforeInitialization</span>(<span class="ty">Object</span> bean, <span class="ty">String</span> name) {
+        <span class="cm">// Check all @RequiredProperty fields are not null</span>
+        <span class="ty">Field</span>[] fields = bean.<span class="mt">getClass</span>().<span class="mt">getDeclaredFields</span>();
+        <span class="kw">for</span> (<span class="ty">Field</span> f : fields) {
+            <span class="kw">if</span> (f.<span class="mt">isAnnotationPresent</span>(<span class="ty">RequiredProperty</span>.<span class="kw">class</span>)) {
+                f.<span class="mt">setAccessible</span>(<span class="kw">true</span>);
+                <span class="kw">try</span> {
+                    <span class="kw">if</span> (f.<span class="mt">get</span>(bean) == <span class="kw">null</span>)
+                        <span class="kw">throw new</span> <span class="ty">BeanCreationException</span>(name,
+                            <span class="st">"Required property '"</span> + f.<span class="mt">getName</span>() + <span class="st">"' is null"</span>);
+                } <span class="kw">catch</span> (<span class="ty">IllegalAccessException</span> e) { <span class="kw">throw new</span> <span class="ty">RuntimeException</span>(e); }
+            }
+        }
+        <span class="kw">return</span> bean;
+    }
+}
+
+<span class="cm">// ── Custom BPP: wrap beans with timing proxy ─────────────────────────</span>
+<span class="an">@Component</span>
+<span class="kw">public class</span> <span class="ty">TimingBPP</span> <span class="kw">implements</span> <span class="ty">BeanPostProcessor</span> {
+
+    <span class="an">@Override</span>
+    <span class="kw">public</span> <span class="ty">Object</span> <span class="mt">postProcessAfterInitialization</span>(<span class="ty">Object</span> bean, <span class="ty">String</span> name) {
+        <span class="cm">// Wrap beans with @Timed annotation in a timing proxy</span>
+        <span class="kw">if</span> (!bean.<span class="mt">getClass</span>().<span class="mt">isAnnotationPresent</span>(<span class="ty">Timed</span>.<span class="kw">class</span>)) <span class="kw">return</span> bean;
+
+        <span class="kw">return</span> <span class="ty">Proxy</span>.<span class="mt">newProxyInstance</span>(
+            bean.<span class="mt">getClass</span>().<span class="mt">getClassLoader</span>(),
+            bean.<span class="mt">getClass</span>().<span class="mt">getInterfaces</span>(),
+            (proxy, method, args) -> {
+                <span class="kw">long</span> start = <span class="ty">System</span>.<span class="mt">nanoTime</span>();
+                <span class="kw">try</span> {
+                    <span class="kw">return</span> method.<span class="mt">invoke</span>(bean, args);
+                } <span class="kw">finally</span> {
+                    <span class="kw">long</span> ms = (<span class="ty">System</span>.<span class="mt">nanoTime</span>() - start) / <span class="nu">1_000_000</span>;
+                    log.<span class="mt">info</span>(<span class="st">"{}.{}() took {}ms"</span>, name, method.<span class="mt">getName</span>(), ms);
+                }
+            }
+        );
+    }
+}
+
+<span class="cm">// ── How @Transactional actually works via BPP ─────────────────────────</span>
+<span class="cm">// Spring's InfrastructureAdvisorAutoProxyCreator (a BPP):
+// 1. postProcessAfterInitialization() is called for your OrderService
+// 2. Detects @Transactional on methods
+// 3. Creates a CGLIB subclass proxy of OrderService
+// 4. Returns the PROXY, NOT the original OrderService
+// 5. Your bean reference in other services = the PROXY
+// 6. Every method call goes through the proxy's transaction interceptor</span>
+<div class="cl">BeanPostProcessor</div></pre>
+</section>
+
+<!-- ══════════════════════════════════════
+     7. INIT METHODS
+══════════════════════════════════════ -->
+<section id="init">
+  <div class="sh"><div class="sn" style="background:var(--green)">7</div><h2>Initialization Methods — @PostConstruct, InitializingBean, initMethod</h2></div>
+
+<pre><span class="cm">// ── All 3 init mechanisms — execution order within init phase ─────────</span>
+
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">CacheService</span> <span class="kw">implements</span> <span class="ty">InitializingBean</span> {
+
+    <span class="kw">private final</span> <span class="ty">CacheRepository</span> repo;
+    <span class="kw">private final</span> <span class="ty">String</span> region;
+
+    <span class="kw">public</span> <span class="ty">CacheService</span>(<span class="ty">CacheRepository</span> repo, <span class="an">@Value</span>(<span class="st">"${cache.region}"</span>) <span class="ty">String</span> region) {
+        <span class="kw">this</span>.repo   = repo;
+        <span class="kw">this</span>.region = region;
+        <span class="cm">// ⚠️ Do NOT use @Value fields here — they're injected AFTER constructor</span>
+        <span class="cm">// @Autowired fields also null here — use @PostConstruct instead</span>
+    }
+
+    <span class="cm">// 1. @PostConstruct — runs FIRST (JSR-250, not Spring-specific)</span>
+    <span class="cm">// ✅ All dependencies + @Value already injected at this point</span>
+    <span class="cm">// ✅ Use this for most initialization logic</span>
+    <span class="an">@PostConstruct</span>
+    <span class="kw">public void</span> <span class="mt">init</span>() {
+        log.<span class="mt">info</span>(<span class="st">"Loading cache for region: {}"</span>, region);
+        repo.<span class="mt">warmUp</span>(region);                   <span class="cm">// safe: repo is injected</span>
+    }
+
+    <span class="cm">// 2. afterPropertiesSet — runs SECOND (Spring-specific)</span>
+    <span class="cm">// ⚠️ Tightly couples to Spring — prefer @PostConstruct</span>
+    <span class="an">@Override</span>
+    <span class="kw">public void</span> <span class="mt">afterPropertiesSet</span>() {
+        <span class="kw">if</span> (region == <span class="kw">null</span> || region.<span class="mt">isBlank</span>())
+            <span class="kw">throw new</span> <span class="ty">IllegalStateException</span>(<span class="st">"cache.region must not be empty"</span>);
+    }
+}
+
+<span class="cm">// 3. initMethod — runs THIRD (specified in @Bean)</span>
+<span class="cm">// ✅ Best for third-party classes you don't control</span>
+<span class="an">@Configuration</span>
+<span class="kw">public class</span> <span class="ty">ThirdPartyConfig</span> {
+
+    <span class="an">@Bean</span>(initMethod = <span class="st">"connect"</span>)   <span class="cm">// "connect()" called after BPP</span>
+    <span class="kw">public</span> <span class="ty">RedisClient</span> <span class="mt">redisClient</span>() {
+        <span class="kw">return new</span> <span class="ty">RedisClient</span>(<span class="st">"localhost"</span>, <span class="nu">6379</span>);
+    }
+}
+
+<span class="cm">// ── REAL USE CASE: @PostConstruct for startup validation ──────────────</span>
+<span class="an">@Component</span>
+<span class="an">@ConfigurationProperties</span>(prefix = <span class="st">"payment"</span>)
+<span class="kw">public class</span> <span class="ty">PaymentConfigValidator</span> {
+
+    <span class="kw">private</span> <span class="ty">String</span> apiKey;
+    <span class="kw">private</span> <span class="ty">String</span> webhookSecret;
+    <span class="kw">private</span> <span class="ty">String</span> gatewayUrl;
+
+    <span class="an">@PostConstruct</span>
+    <span class="kw">public void</span> <span class="mt">validate</span>() {
+        <span class="cm">// App fails to start if payment config is invalid — better than runtime NPE</span>
+        <span class="ty">Assert</span>.<span class="mt">hasText</span>(apiKey,         <span class="st">"payment.api-key must not be empty"</span>);
+        <span class="ty">Assert</span>.<span class="mt">hasText</span>(webhookSecret,  <span class="st">"payment.webhook-secret must not be empty"</span>);
+        <span class="ty">Assert</span>.<span class="mt">hasText</span>(gatewayUrl,     <span class="st">"payment.gateway-url must not be empty"</span>);
+        <span class="kw">if</span> (!gatewayUrl.<span class="mt">startsWith</span>(<span class="st">"https"</span>))
+            <span class="kw">throw new</span> <span class="ty">IllegalStateException</span>(<span class="st">"payment.gateway-url must use HTTPS"</span>);
+        log.<span class="mt">info</span>(<span class="st">"Payment config validated ✓ gateway={}"</span>, gatewayUrl);
+    }
+}
+
+<span class="cm">// ── REAL USE CASE: @PostConstruct for cache warm-up ──────────────────</span>
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">ProductCacheService</span> {
+
+    <span class="kw">private final</span> <span class="ty">ProductRepository</span> repo;
+    <span class="kw">private</span> <span class="ty">Map</span>&lt;<span class="ty">Long</span>, <span class="ty">Product</span>&gt;    cache;
+
+    <span class="an">@PostConstruct</span>
+    <span class="kw">public void</span> <span class="mt">warmUpCache</span>() {
+        log.<span class="mt">info</span>(<span class="st">"Warming up product cache..."</span>);
+        cache = repo.<span class="mt">findAll</span>().<span class="mt">stream</span>()
+            .<span class="mt">collect</span>(<span class="ty">Collectors</span>.<span class="mt">toMap</span>(<span class="ty">Product</span>::<span class="mt">getId</span>, p -> p));
+        log.<span class="mt">info</span>(<span class="st">"Cache warmed with {} products"</span>, cache.<span class="mt">size</span>());
+    }
+
+    <span class="kw">public</span> <span class="ty">Optional</span>&lt;<span class="ty">Product</span>&gt; <span class="mt">findById</span>(<span class="kw">long</span> id) {
+        <span class="kw">return</span> <span class="ty">Optional</span>.<span class="mt">ofNullable</span>(cache.<span class="mt">get</span>(id)); <span class="cm">// O(1) from cache</span>
+    }
+}
+<div class="cl">Init Methods</div></pre>
+
+  <div class="cl-box tip"><div class="ci">💡</div><div><strong>Rule of thumb:</strong> Use <code>@PostConstruct</code> for most initialization. Use <code>@Bean(initMethod=...)</code> for third-party classes. Avoid <code>InitializingBean</code> — it couples your code to Spring API unnecessarily.</div></div>
+</section>
+
+<!-- ══════════════════════════════════════
+     8. DESTROY METHODS
+══════════════════════════════════════ -->
+<section id="destroy">
+  <div class="sh"><div class="sn" style="background:var(--red)">8</div><h2>Destruction Methods — @PreDestroy, DisposableBean, destroyMethod</h2></div>
+
+<pre><span class="cm">// ── All 3 destroy mechanisms — execution order ────────────────────────</span>
+
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">DatabaseConnectionPool</span> <span class="kw">implements</span> <span class="ty">DisposableBean</span> {
+
+    <span class="kw">private</span> <span class="ty">HikariDataSource</span>     dataSource;
+    <span class="kw">private</span> <span class="ty">ScheduledExecutorService</span> healthChecker;
+
+    <span class="an">@PostConstruct</span>
+    <span class="kw">public void</span> <span class="mt">init</span>() {
+        dataSource    = <span class="kw">new</span> <span class="ty">HikariDataSource</span>(config);
+        healthChecker = <span class="ty">Executors</span>.<span class="mt">newScheduledThreadPool</span>(<span class="nu">1</span>);
+        healthChecker.<span class="mt">scheduleAtFixedRate</span>(<span class="kw">this</span>::<span class="mt">checkHealth</span>, <span class="nu">0</span>, <span class="nu">30</span>, <span class="ty">TimeUnit</span>.<span class="en">SECONDS</span>);
+    }
+
+    <span class="cm">// 1. @PreDestroy — runs FIRST on shutdown (JSR-250)</span>
+    <span class="cm">// ✅ Use this for most cleanup</span>
+    <span class="an">@PreDestroy</span>
+    <span class="kw">public void</span> <span class="mt">preDestroy</span>() {
+        log.<span class="mt">info</span>(<span class="st">"Stopping health checker thread..."</span>);
+        healthChecker.<span class="mt">shutdown</span>();
+        <span class="kw">try</span> { healthChecker.<span class="mt">awaitTermination</span>(<span class="nu">5</span>, <span class="ty">TimeUnit</span>.<span class="en">SECONDS</span>); }
+        <span class="kw">catch</span> (<span class="ty">InterruptedException</span> e) { <span class="ty">Thread</span>.<span class="mt">currentThread</span>().<span class="mt">interrupt</span>(); }
+    }
+
+    <span class="cm">// 2. DisposableBean.destroy() — runs SECOND</span>
+    <span class="cm">// ⚠️ Tightly couples to Spring — prefer @PreDestroy</span>
+    <span class="an">@Override</span>
+    <span class="kw">public void</span> <span class="mt">destroy</span>() {
+        log.<span class="mt">info</span>(<span class="st">"Closing connection pool..."</span>);
+        <span class="kw">if</span> (dataSource != <span class="kw">null</span>) dataSource.<span class="mt">close</span>();
+    }
+}
+
+<span class="cm">// 3. @Bean destroyMethod — runs THIRD (for third-party beans)</span>
+<span class="an">@Bean</span>(destroyMethod = <span class="st">"disconnect"</span>)  <span class="cm">// "disconnect()" called on context close</span>
+<span class="kw">public</span> <span class="ty">KafkaProducer</span>&lt;<span class="ty">String</span>, <span class="ty">String</span>&gt; <span class="mt">kafkaProducer</span>() {
+    <span class="kw">return new</span> <span class="ty">KafkaProducer</span>&lt;&gt;(props);
+}
+<span class="cm">// Note: Spring auto-detects close() and shutdown() as destroyMethods!</span>
+<span class="cm">// If your bean has close() or shutdown(), Spring calls them automatically.</span>
+<span class="cm">// To DISABLE: @Bean(destroyMethod = "")</span>
+
+<span class="cm">// ── Shutdown hooks — triggered by ────────────────────────────────────</span>
+<span class="cm">// context.close()         — explicit close</span>
+<span class="cm">// context.registerShutdownHook() — JVM shutdown (CTRL+C, SIGTERM)</span>
+<span class="cm">// Spring Boot: registers shutdown hook automatically</span>
+<span class="cm">// server.shutdown=graceful → Tomcat waits for requests, then @PreDestroy fires</span>
+
+<span class="cm">// ⚠️ Prototype beans: Spring does NOT call @PreDestroy on prototypes!</span>
+<span class="cm">// Spring gives prototype instances to caller → caller must destroy them</span>
+<div class="cl">Destroy Methods</div></pre>
+</section>
+
+<!-- ══════════════════════════════════════
+     9. BEAN SCOPES
+══════════════════════════════════════ -->
+<section id="scopes">
+  <div class="sh"><div class="sn" style="background:var(--a3)">9</div><h2>Bean Scopes — Singleton, Prototype, Request, Session</h2></div>
+
+  <table>
+    <thead><tr><th>Scope</th><th>Instances</th><th>Lifecycle</th><th>@PreDestroy called</th><th>Use For</th></tr></thead>
+    <tbody>
+      <tr><td><code>singleton</code> ⭐ default</td><td>ONE per ApplicationContext</td><td>Context lifetime</td><td>✅ Yes</td><td>Stateless services, repositories</td></tr>
+      <tr><td><code>prototype</code></td><td>NEW per <code>getBean()</code> call</td><td>Until garbage collected</td><td>❌ No (caller responsible)</td><td>Stateful, mutable beans</td></tr>
+      <tr><td><code>request</code></td><td>NEW per HTTP request</td><td>HTTP request</td><td>✅ Yes (end of request)</td><td>Request-scoped data (userId)</td></tr>
+      <tr><td><code>session</code></td><td>NEW per HTTP session</td><td>HTTP session</td><td>✅ Yes (session invalidated)</td><td>Shopping cart, user preferences</td></tr>
+      <tr><td><code>application</code></td><td>ONE per ServletContext</td><td>App lifetime</td><td>✅ Yes</td><td>App-wide shared state</td></tr>
+      <tr><td><code>websocket</code></td><td>NEW per WebSocket</td><td>WebSocket lifetime</td><td>✅ Yes</td><td>WebSocket-scoped state</td></tr>
+    </tbody>
+  </table>
+
+<pre><span class="cm">// ── Scope annotations ─────────────────────────────────────────────────</span>
+<span class="an">@Component</span>
+<span class="an">@Scope</span>(<span class="st">"singleton"</span>)              <span class="cm">// default — can omit</span>
+<span class="kw">public class</span> <span class="ty">OrderService</span> {}
+
+<span class="an">@Component</span>
+<span class="an">@Scope</span>(<span class="st">"prototype"</span>)
+<span class="kw">public class</span> <span class="ty">ReportBuilder</span> {}    <span class="cm">// new instance every time it's injected/requested</span>
+
+<span class="an">@Component</span>
+<span class="an">@RequestScope</span>                     <span class="cm">// shortcut for @Scope("request")</span>
+<span class="kw">public class</span> <span class="ty">RequestContext</span> {
+    <span class="kw">private</span> <span class="ty">String</span> traceId;
+    <span class="kw">private</span> <span class="ty">String</span> userId;
+}
+
+<span class="an">@Component</span>
+<span class="an">@SessionScope</span>                     <span class="cm">// shortcut for @Scope("session")</span>
+<span class="kw">public class</span> <span class="ty">ShoppingCart</span> {
+    <span class="kw">private</span> <span class="ty">List</span>&lt;<span class="ty">CartItem</span>&gt; items = <span class="kw">new</span> <span class="ty">ArrayList</span>&lt;&gt;();
+}
+
+<span class="cm">// ── Singleton injecting Prototype — the scoped-proxy problem ──────────</span>
+<span class="cm">// PROBLEM: Singleton holds ONE reference. It gets the FIRST prototype.</span>
+<span class="cm">// Every call reuses the SAME prototype instance. Defeats the purpose!</span>
+
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">ReportService</span> {
+    <span class="kw">private final</span> <span class="ty">ReportBuilder</span> builder; <span class="cm">// ❌ SAME instance every time!</span>
+    <span class="kw">public</span> <span class="ty">ReportService</span>(<span class="ty">ReportBuilder</span> b) { <span class="kw">this</span>.builder = b; }
+}
+
+<span class="cm">// FIX 1: @Scope with proxyMode — scoped proxy injects a stub</span>
+<span class="cm">// Each call to stub.method() → gets a FRESH ReportBuilder</span>
+<span class="an">@Component</span>
+<span class="an">@Scope</span>(value = <span class="st">"prototype"</span>, proxyMode = <span class="ty">ScopedProxyMode</span>.<span class="en">TARGET_CLASS</span>)
+<span class="kw">public class</span> <span class="ty">ReportBuilder</span> {}
+<span class="cm">// Now injection works: singleton holds a PROXY, each call → new instance</span>
+
+<span class="cm">// FIX 2: ApplicationContext.getBean() (provider pattern)</span>
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">ReportService</span> {
+    <span class="kw">private final</span> <span class="ty">ObjectProvider</span>&lt;<span class="ty">ReportBuilder</span>&gt; builderProvider;
+    <span class="kw">public</span> <span class="ty">ReportService</span>(<span class="ty">ObjectProvider</span>&lt;<span class="ty">ReportBuilder</span>&gt; p) { builderProvider = p; }
+
+    <span class="kw">public</span> <span class="ty">Report</span> <span class="mt">generate</span>() {
+        <span class="ty">ReportBuilder</span> freshBuilder = builderProvider.<span class="mt">getObject</span>(); <span class="cm">// NEW every call</span>
+        <span class="kw">return</span> freshBuilder.<span class="mt">build</span>();
+    }
+}
+<div class="cl">Bean Scopes</div></pre>
+</section>
+
+<!-- ══════════════════════════════════════
+     10. LAZY + CONDITIONAL
+══════════════════════════════════════ -->
+<section id="lazy">
+  <div class="sh"><div class="sn" style="background:var(--teal)">10</div><h2>Lazy Beans, @Conditional & @Profile</h2></div>
+
+<pre><span class="cm">// ── @Lazy — don't create until first use ─────────────────────────────</span>
+<span class="cm">// Default: singleton beans created at startup (ApplicationContext refresh)</span>
+<span class="cm">// @Lazy: bean created only when first requested</span>
+
+<span class="an">@Service</span>
+<span class="an">@Lazy</span>
+<span class="kw">public class</span> <span class="ty">HeavyAnalyticsService</span> {
+    <span class="an">@PostConstruct</span>
+    <span class="kw">public void</span> <span class="mt">init</span>() { <span class="cm">/* expensive ML model loading */</span> }
+}
+<span class="cm">// Not initialized at startup — only when someone calls getBean() or injects it</span>
+
+<span class="cm">// @Lazy on injection point — even if the bean is eager, inject it lazily</span>
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">OrderController</span> {
+    <span class="an">@Lazy</span>
+    <span class="kw">private final</span> <span class="ty">HeavyAnalyticsService</span> analytics;
+}
+
+<span class="cm">// Global lazy initialization (Spring Boot 2.2+):</span>
+<span class="cm"># application.yml:
+# spring.main.lazy-initialization: true
+# ✅ Faster startup, but first request slow (first access creates beans)</span>
+
+<span class="cm">// ── @Conditional — create bean only if condition met ─────────────────</span>
+
+<span class="cm">// @Profile — create bean only for specific environment</span>
+<span class="an">@Bean</span>
+<span class="an">@Profile</span>(<span class="st">"prod"</span>)
+<span class="kw">public</span> <span class="ty">EmailService</span> <span class="mt">realEmailService</span>() { <span class="kw">return new</span> <span class="ty">SmtpEmailService</span>(); }
+
+<span class="an">@Bean</span>
+<span class="an">@Profile</span>(<span class="st">"!prod"</span>)                <span class="cm">// NOT prod (dev, test)</span>
+<span class="kw">public</span> <span class="ty">EmailService</span> <span class="mt">fakeEmailService</span>() { <span class="kw">return new</span> <span class="ty">NoOpEmailService</span>(); }
+
+<span class="cm">// @ConditionalOnProperty — create only if property has specific value</span>
+<span class="an">@Bean</span>
+<span class="an">@ConditionalOnProperty</span>(name = <span class="st">"feature.fraud-detection.enabled"</span>, havingValue = <span class="st">"true"</span>)
+<span class="kw">public</span> <span class="ty">FraudDetectionService</span> <span class="mt">fraudDetection</span>() { <span class="kw">return new</span> <span class="ty">MLFraudDetector</span>(); }
+
+<span class="cm">// @ConditionalOnMissingBean — create only if no other bean of this type exists</span>
+<span class="an">@Bean</span>
+<span class="an">@ConditionalOnMissingBean</span>(<span class="ty">CacheManager</span>.<span class="kw">class</span>)  <span class="cm">// fallback if user didn't configure one</span>
+<span class="kw">public</span> <span class="ty">CacheManager</span> <span class="mt">defaultCacheManager</span>() { <span class="kw">return new</span> <span class="ty">ConcurrentMapCacheManager</span>(); }
+
+<span class="cm">// @ConditionalOnClass — create only if class is on the classpath</span>
+<span class="an">@Bean</span>
+<span class="an">@ConditionalOnClass</span>(name = <span class="st">"io.lettuce.core.RedisClient"</span>) <span class="cm">// only if Lettuce on classpath</span>
+<span class="kw">public</span> <span class="ty">RedisCacheManager</span> <span class="mt">redisCacheManager</span>() { ... }
+
+<span class="cm">// Custom @Conditional — fully flexible</span>
+<span class="kw">public class</span> <span class="ty">OnWeekdayCondition</span> <span class="kw">implements</span> <span class="ty">Condition</span> {
+    <span class="an">@Override</span>
+    <span class="kw">public boolean</span> <span class="mt">matches</span>(<span class="ty">ConditionContext</span> ctx, <span class="ty">AnnotatedTypeMetadata</span> meta) {
+        <span class="ty">DayOfWeek</span> day = <span class="ty">LocalDate</span>.<span class="mt">now</span>().<span class="mt">getDayOfWeek</span>();
+        <span class="kw">return</span> day != <span class="ty">DayOfWeek</span>.<span class="en">SATURDAY</span> && day != <span class="ty">DayOfWeek</span>.<span class="en">SUNDAY</span>;
+    }
+}
+
+<span class="an">@Bean</span>
+<span class="an">@Conditional</span>(<span class="ty">OnWeekdayCondition</span>.<span class="kw">class</span>)
+<span class="kw">public</span> <span class="ty">BatchJobScheduler</span> <span class="mt">scheduler</span>() { <span class="kw">return new</span> <span class="ty">BatchJobScheduler</span>(); }
+<div class="cl">Lazy + Conditional</div></pre>
+</section>
+
+<!-- ══════════════════════════════════════
+     11. CONTEXT EVENTS
+══════════════════════════════════════ -->
+<section id="context">
+  <div class="sh"><div class="sn" style="background:var(--a2)">11</div><h2>Application Context Events — Lifecycle Hooks</h2></div>
+
+<pre><span class="cm">// ── Built-in Application Events (in order) ───────────────────────────</span>
+<span class="cm">//</span>
+<span class="cm">// ApplicationStartingEvent   → very early, before almost anything</span>
+<span class="cm">// ApplicationEnvironmentPreparedEvent → Environment ready, before context created</span>
+<span class="cm">// ApplicationContextInitializedEvent  → context created, but not refreshed</span>
+<span class="cm">// ApplicationPreparedEvent           → context loaded, not refreshed yet</span>
+<span class="cm">// ContextRefreshedEvent      → context fully initialized (all beans ready)</span>
+<span class="cm">// ApplicationStartedEvent    → Spring Boot app started</span>
+<span class="cm">// ApplicationReadyEvent      → app ready to serve requests (after CommandLineRunner)</span>
+<span class="cm">// ContextClosedEvent         → context is closing</span>
+<span class="cm">// ContextStoppedEvent        → context is stopped</span>
+
+<span class="cm">// ── Listen to events — 3 ways ─────────────────────────────────────────</span>
+
+<span class="cm">// 1. Implement ApplicationListener (old way)</span>
+<span class="an">@Component</span>
+<span class="kw">public class</span> <span class="ty">StartupListener</span> <span class="kw">implements</span> <span class="ty">ApplicationListener</span>&lt;<span class="ty">ApplicationReadyEvent</span>&gt; {
+    <span class="an">@Override</span>
+    <span class="kw">public void</span> <span class="mt">onApplicationEvent</span>(<span class="ty">ApplicationReadyEvent</span> event) {
+        log.<span class="mt">info</span>(<span class="st">"Application is READY to serve requests!"</span>);
+        <span class="mt">registerWithServiceDiscovery</span>(); <span class="cm">// e.g. register with Eureka</span>
+    }
+}
+
+<span class="cm">// 2. @EventListener (modern, cleaner)</span>
+<span class="an">@Component</span>
+<span class="kw">public class</span> <span class="ty">EventHandler</span> {
+
+    <span class="an">@EventListener</span>(<span class="ty">ContextRefreshedEvent</span>.<span class="kw">class</span>)
+    <span class="kw">public void</span> <span class="mt">onContextRefreshed</span>() {
+        log.<span class="mt">info</span>(<span class="st">"All beans initialized — loading initial data..."</span>);
+    }
+
+    <span class="an">@EventListener</span>(<span class="ty">ApplicationReadyEvent</span>.<span class="kw">class</span>)
+    <span class="kw">public void</span> <span class="mt">onReady</span>() {
+        log.<span class="mt">info</span>(<span class="st">"Application READY!"</span>);
+    }
+
+    <span class="an">@EventListener</span>(<span class="ty">ContextClosedEvent</span>.<span class="kw">class</span>)
+    <span class="kw">public void</span> <span class="mt">onShutdown</span>() {
+        log.<span class="mt">info</span>(<span class="st">"Context closing — deregistering from service discovery..."</span>);
+    }
+}
+
+<span class="cm">// 3. CommandLineRunner / ApplicationRunner (run code after startup)</span>
+<span class="an">@Component</span>
+<span class="an">@Order</span>(<span class="nu">1</span>)   <span class="cm">// if multiple runners, controls order</span>
+<span class="kw">public class</span> <span class="ty">DataSeeder</span> <span class="kw">implements</span> <span class="ty">CommandLineRunner</span> {
+    <span class="kw">private final</span> <span class="ty">UserRepository</span> userRepo;
+
+    <span class="an">@Override</span>
+    <span class="kw">public void</span> <span class="mt">run</span>(<span class="ty">String</span>... args) {
+        <span class="kw">if</span> (userRepo.<span class="mt">count</span>() == <span class="nu">0</span>) {
+            userRepo.<span class="mt">save</span>(<span class="kw">new</span> <span class="ty">User</span>(<span class="st">"admin"</span>, <span class="st">"admin@app.com"</span>, <span class="st">"ADMIN"</span>));
+            log.<span class="mt">info</span>(<span class="st">"Seeded admin user"</span>);
+        }
+    }
+}
+
+<span class="cm">// ApplicationRunner — same but gets ApplicationArguments (typed args)</span>
+<span class="an">@Component</span>
+<span class="an">@Order</span>(<span class="nu">2</span>)
+<span class="kw">public class</span> <span class="ty">CacheWarmer</span> <span class="kw">implements</span> <span class="ty">ApplicationRunner</span> {
+    <span class="an">@Override</span>
+    <span class="kw">public void</span> <span class="mt">run</span>(<span class="ty">ApplicationArguments</span> args) {
+        <span class="kw">if</span> (args.<span class="mt">containsOption</span>(<span class="st">"warm-cache"</span>)) {
+            cacheService.<span class="mt">warmUp</span>();
+        }
+    }
+}
+
+<span class="cm">// ── Publish custom events ─────────────────────────────────────────────</span>
+<span class="kw">public record</span> <span class="ty">OrderCreatedEvent</span>(<span class="ty">Order</span> order) {}
+
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">OrderService</span> {
+    <span class="kw">private final</span> <span class="ty">ApplicationEventPublisher</span> publisher;
+
+    <span class="kw">public</span> <span class="ty">Order</span> <span class="mt">createOrder</span>(<span class="ty">OrderRequest</span> req) {
+        <span class="ty">Order</span> order = orderRepo.<span class="mt">save</span>(<span class="mt">buildOrder</span>(req));
+        publisher.<span class="mt">publishEvent</span>(<span class="kw">new</span> <span class="ty">OrderCreatedEvent</span>(order)); <span class="cm">// decouple side effects</span>
+        <span class="kw">return</span> order;
+    }
+}
+
+<span class="an">@Component</span>
+<span class="kw">public class</span> <span class="ty">OrderNotifier</span> {
+    <span class="an">@EventListener</span>
+    <span class="an">@Async</span>                           <span class="cm">// fire-and-forget — don't slow down order creation</span>
+    <span class="kw">public void</span> <span class="mt">onOrderCreated</span>(<span class="ty">OrderCreatedEvent</span> event) {
+        emailService.<span class="mt">sendConfirmation</span>(event.<span class="mt">order</span>());
+    }
+}
+<div class="cl">Context Events</div></pre>
+</section>
+
+<!-- ══════════════════════════════════════
+     12. COMMON PITFALLS
+══════════════════════════════════════ -->
+<section id="pitfalls">
+  <div class="sh"><div class="sn" style="background:var(--red)">12</div><h2>Common Pitfalls — Lifecycle Anti-Patterns</h2></div>
+
+<pre><span class="cm">// ── Pitfall 1: Using @Autowired fields in constructor ────────────────</span>
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">BadService</span> {
+    <span class="an">@Value</span>(<span class="st">"${app.name}"</span>)
+    <span class="kw">private</span> <span class="ty">String</span> appName;
+
+    <span class="kw">public</span> <span class="ty">BadService</span>() {
+        log.<span class="mt">info</span>(appName); <span class="cm">// ❌ NULL! @Value injected AFTER constructor</span>
+    }
+
+    <span class="an">@PostConstruct</span>
+    <span class="kw">public void</span> <span class="mt">init</span>() {
+        log.<span class="mt">info</span>(appName); <span class="cm">// ✅ Safe — all injection done before @PostConstruct</span>
+    }
+}
+
+<span class="cm">// ── Pitfall 2: Circular dependency ───────────────────────────────────</span>
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">ServiceA</span> {
+    <span class="kw">public</span> <span class="ty">ServiceA</span>(<span class="ty">ServiceB</span> b) {} <span class="cm">// ❌ A needs B</span>
+}
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">ServiceB</span> {
+    <span class="kw">public</span> <span class="ty">ServiceB</span>(<span class="ty">ServiceA</span> a) {} <span class="cm">// ❌ B needs A → UnsatisfiedDependencyException!</span>
+}
+
+<span class="cm">// Fix options:</span>
+<span class="cm">// 1. Redesign — break the cycle (usually the right answer)</span>
+<span class="cm">// 2. @Lazy on one injection point — defer one bean's creation</span>
+<span class="cm">// 3. Extract shared dependency into a third bean</span>
+<span class="cm">// 4. Setter injection (not constructor) — allows cyclic deps (but ugly)</span>
+
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">ServiceA</span> {
+    <span class="kw">public</span> <span class="ty">ServiceA</span>(<span class="an">@Lazy</span> <span class="ty">ServiceB</span> b) {} <span class="cm">// ✅ @Lazy breaks the cycle</span>
+}
+
+<span class="cm">// ── Pitfall 3: @Transactional on private/final methods ───────────────</span>
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">OrderService</span> {
+
+    <span class="an">@Transactional</span>
+    <span class="kw">private void</span> <span class="mt">saveOrder</span>(<span class="ty">Order</span> o) { <span class="cm">// ❌ private — proxy can't intercept</span>
+        repo.<span class="mt">save</span>(o);                     <span class="cm">// @Transactional silently IGNORED</span>
+    }
+
+    <span class="kw">public void</span> <span class="mt">process</span>(<span class="ty">Order</span> o) {
+        <span class="mt">saveOrder</span>(o); <span class="cm">// ❌ self-invocation — bypasses proxy!</span>
+    }
+}
+
+<span class="cm">// ── Pitfall 4: @PostConstruct throws before context fully started ─────</span>
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">BadInitService</span> {
+    <span class="an">@PostConstruct</span>
+    <span class="kw">public void</span> <span class="mt">init</span>() {
+        <span class="kw">throw new</span> <span class="ty">RuntimeException</span>(<span class="st">"Init failed!"</span>);
+        <span class="cm">// Application context refresh FAILS — app doesn't start</span>
+        <span class="cm">// All beans partially created — potential resource leaks</span>
+    }
+}
+<span class="cm">// Wrap in try-catch and log instead of letting it propagate (unless mandatory)</span>
+
+<span class="cm">// ── Pitfall 5: Prototype bean injected into Singleton ────────────────</span>
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">SingletonService</span> {
+    <span class="kw">private final</span> <span class="ty">PrototypeBean</span> proto; <span class="cm">// ❌ SAME prototype forever</span>
+    <span class="kw">public</span> <span class="ty">SingletonService</span>(<span class="ty">PrototypeBean</span> p) { <span class="kw">this</span>.proto = p; }
+}
+<span class="cm">// Fix: use ObjectProvider&lt;PrototypeBean&gt; or @Scope proxyMode</span>
+
+<span class="cm">// ── Pitfall 6: @EventListener + @Transactional ────────────────────────</span>
+<span class="an">@EventListener</span>
+<span class="an">@Transactional</span>
+<span class="kw">public void</span> <span class="mt">onEvent</span>(<span class="ty">MyEvent</span> e) {
+    <span class="cm">// ⚠️ This creates a NEW transaction — not part of the publishing transaction</span>
+    <span class="cm">// Use @TransactionalEventListener(phase=AFTER_COMMIT) instead</span>
+}
+
+<span class="an">@TransactionalEventListener</span>(phase = <span class="ty">TransactionPhase</span>.<span class="en">AFTER_COMMIT</span>) <span class="cm">// ✅</span>
+<span class="kw">public void</span> <span class="mt">onOrderCreated</span>(<span class="ty">OrderCreatedEvent</span> e) {
+    <span class="cm">// Fires only AFTER the publishing transaction commits</span>
+    <span class="cm">// Safe to send email — order definitely saved</span>
+    emailService.<span class="mt">send</span>(e.<span class="mt">order</span>());
+}
+<div class="cl">Pitfalls</div></pre>
+
+  <h3>Quick Summary Table</h3>
+  <table>
+    <thead><tr><th>Phase</th><th>Mechanism</th><th>Use when</th><th>Order</th></tr></thead>
+    <tbody>
+      <tr><td>Bean definition</td><td><code>@Component</code>, <code>@Bean</code></td><td>Always</td><td>Scan time</td></tr>
+      <tr><td>Pre-instantiation</td><td><code>BeanFactoryPostProcessor</code></td><td>Modify bean definitions</td><td>Before all beans</td></tr>
+      <tr><td>Construction</td><td>Constructor injection</td><td>All dependencies</td><td>1st</td></tr>
+      <tr><td>Aware</td><td><code>ApplicationContextAware</code> etc</td><td>Access Spring infrastructure</td><td>After injection</td></tr>
+      <tr><td>Pre-init BPP</td><td><code>BPP.postProcessBeforeInitialization</code></td><td>Annotation processing</td><td>Before @PostConstruct</td></tr>
+      <tr><td>Initialization</td><td><code>@PostConstruct</code> ← use this</td><td>Startup logic, validation</td><td>After all injection</td></tr>
+      <tr><td>Post-init BPP</td><td><code>BPP.postProcessAfterInitialization</code></td><td>AOP proxy creation</td><td>After @PostConstruct</td></tr>
+      <tr><td>Events</td><td><code>@EventListener</code>, <code>CommandLineRunner</code></td><td>After context is fully ready</td><td>After all beans</td></tr>
+      <tr><td>Destruction</td><td><code>@PreDestroy</code> ← use this</td><td>Resource cleanup</td><td>On shutdown</td></tr>
+    </tbody>
+  </table>
+
+  <div class="cl-box tip"><div class="ci">💡</div><div>
+    <strong>Golden rules:</strong>
+    <ul style="margin-top:.5rem">
+      <li>Always use <strong>constructor injection</strong> — never field injection</li>
+      <li>Use <strong>@PostConstruct</strong> for init logic — never do it in the constructor</li>
+      <li>Use <strong>@PreDestroy</strong> for cleanup — close connections, stop threads</li>
+      <li>Use <strong>ApplicationReadyEvent</strong> for code that needs the full app ready (CommandLineRunner also works)</li>
+      <li>Remember: <strong>@Transactional on private methods</strong> is silently ignored — proxy can't intercept them</li>
+      <li>Prototype beans' <strong>@PreDestroy is NOT called</strong> by Spring — you manage cleanup yourself</li>
+    </ul>
+  </div></div>
+</section>
+
+</div>
+</body>
+</html>

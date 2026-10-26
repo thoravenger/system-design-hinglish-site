@@ -1,0 +1,2796 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Java Streams 8 se 21 tak (+ Java 24 Gatherers) | Problem ⇄ Solution, HLD, LLD, Mock Q&amp;A</title>
+<meta name="description" content="Java Streams ke Java 8 se 21 tak ke changes, Hinglish me: problem vs solution, HLD, LLD, trade-offs, memory tricks, mock interview aur internals animation.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Overpass:ital,wght@0,400;0,600;0,700;0,800;0,900;1,400&family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#EEF2F6; --card:#FFFFFF; --chip:#F4F7FA; --bar:rgba(238,242,246,.94);
+  --ink:#15202B; --ink-2:#44515F; --ink-3:#687684; --rule:#D3DBE3; --rule-2:#E3E9EF;
+  --bad:#B83A30; --bad-bg:#FBECEA; --good:#0C7A54; --good-bg:#E5F4EC; --warn:#9A6A00;
+  --code-bg:#0F1B27; --code-ink:#D9E4EE; --code-ln:#5F7386; --code-hl:rgba(255,205,102,.17);
+  --t-kw:#FF93A7; --t-type:#80C8FF; --t-str:#A9E5A0; --t-num:#FFC86B; --t-com:#8397AB; --t-fn:#FFD98A; --t-ann:#C8ADFF;
+  --v8:#D9432A; --v9:#DB7A0E; --v10:#B08700; --v11:#16915F; --v12:#1B73C4; --v16:#7046CF; --v17:#7D8B99; --v21:#C22F77; --v24:#0A8494;
+  --on-accent:#FFFFFF; --focus:#1B73C4; --pulse:rgba(255,196,77,.35);
+  --font:"Overpass","Segoe UI",system-ui,-apple-system,"Helvetica Neue",Arial,sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,"Liberation Mono",monospace;
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#0D141C; --card:#152029; --chip:#1A2630; --bar:rgba(13,20,28,.94);
+    --ink:#E4ECF3; --ink-2:#B1BFCC; --ink-3:#8898A8; --rule:#283746; --rule-2:#1E2B37;
+    --bad:#FF8074; --bad-bg:#2B1A1A; --good:#4ED3A0; --good-bg:#12271F; --warn:#F2C14E;
+    --code-bg:#09111A; --code-ink:#D9E4EE; --code-ln:#50657A; --code-hl:rgba(255,205,102,.13);
+    --v8:#FF6B4E; --v9:#FFA640; --v10:#EFC63A; --v11:#3CCB8E; --v12:#58A9FF; --v16:#A485FF; --v17:#9DAAB8; --v21:#FF62AE; --v24:#2FCFE0;
+    --on-accent:#0D141C; --focus:#58A9FF; --pulse:rgba(255,196,77,.22);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0D141C; --card:#152029; --chip:#1A2630; --bar:rgba(13,20,28,.94);
+  --ink:#E4ECF3; --ink-2:#B1BFCC; --ink-3:#8898A8; --rule:#283746; --rule-2:#1E2B37;
+  --bad:#FF8074; --bad-bg:#2B1A1A; --good:#4ED3A0; --good-bg:#12271F; --warn:#F2C14E;
+  --code-bg:#09111A; --code-ink:#D9E4EE; --code-ln:#50657A; --code-hl:rgba(255,205,102,.13);
+  --v8:#FF6B4E; --v9:#FFA640; --v10:#EFC63A; --v11:#3CCB8E; --v12:#58A9FF; --v16:#A485FF; --v17:#9DAAB8; --v21:#FF62AE; --v24:#2FCFE0;
+  --on-accent:#0D141C; --focus:#58A9FF; --pulse:rgba(255,196,77,.22);
+  color-scheme:dark;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:calc(env(safe-area-inset-top,0px) + 64px);-webkit-text-size-adjust:100%;text-size-adjust:100%}
+@media (prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 1rem/1.62 var(--font);-webkit-font-smoothing:antialiased}
+a{color:var(--v12)}
+img,svg{max-width:100%}
+p{margin:0 0 .8em}
+h1,h2,h3,h4,h5{font-family:var(--font);line-height:1.15;margin:0}
+code,pre,kbd{font-family:var(--mono)}
+:not(pre)>code{font-size:.84em;background:var(--chip);border:1px solid var(--rule-2);padding:.06em .36em;border-radius:5px;overflow-wrap:anywhere}
+strong{font-weight:800}
+:focus-visible{outline:3px solid var(--focus);outline-offset:2px;border-radius:4px}
+button{font-family:inherit}
+.wrap{max-width:1180px;margin:0 auto;padding:0 16px}
+@media (min-width:720px){.wrap{padding:0 28px}}
+.muted{color:var(--ink-3)}
+.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* top bar */
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:30;background:var(--bar);backdrop-filter:saturate(1.3) blur(10px);-webkit-backdrop-filter:saturate(1.3) blur(10px);border-bottom:1px solid var(--rule)}
+.bar-in{display:flex;align-items:center;gap:12px;max-width:1180px;margin:0 auto;padding:8px 16px}
+@media (min-width:720px){.bar-in{padding:8px 28px}}
+.brand{font-weight:900;text-decoration:none;color:var(--ink);white-space:nowrap;letter-spacing:-.01em}
+.bar-links{display:flex;gap:2px;overflow-x:auto;scrollbar-width:none;flex:1;min-width:0;mask-image:linear-gradient(90deg,#000 88%,transparent);-webkit-mask-image:linear-gradient(90deg,#000 88%,transparent)}
+.bar-links::-webkit-scrollbar{display:none}
+.bar-links a{flex:none;text-decoration:none;color:var(--ink-2);font-weight:700;font-size:.9rem;padding:6px 10px;border-radius:8px}
+.bar-links a:hover{background:var(--chip);color:var(--ink)}
+.progress{font-weight:800;font-size:.82rem;color:var(--ink-2);white-space:nowrap;font-variant-numeric:tabular-nums}
+@media (max-width:560px){.progress{display:none}}
+.theme{flex:none;font:800 .8rem var(--font);border:1.5px solid var(--rule);background:var(--card);color:var(--ink);border-radius:999px;padding:5px 12px;cursor:pointer;min-width:62px}
+
+/* hero */
+.hero{padding:40px 0 30px}
+.hero h1{font-size:clamp(2.5rem,8.2vw,5.4rem);font-weight:900;letter-spacing:-.035em;line-height:.98;max-width:12ch;text-wrap:balance}
+.lede{font-size:clamp(1.02rem,2.1vw,1.2rem);color:var(--ink-2);max-width:62ch;margin-top:16px}
+.route-wrap{overflow-x:auto;margin:30px -16px 0;padding:0 16px 10px;scrollbar-width:thin}
+@media (min-width:720px){.route-wrap{margin:34px -28px 0;padding:0 28px 10px}}
+.route{display:flex;list-style:none;margin:0;padding:0;min-width:1000px}
+.stop{flex:1 1 0;position:relative;min-width:84px}
+.stop::before{content:"";position:absolute;top:19px;left:50%;right:-50%;height:10px;background:var(--c)}
+.stop:last-child::before{display:none}
+.stop.to-bonus::before{background:repeating-linear-gradient(90deg,var(--c) 0 12px,transparent 12px 20px)}
+.stop>a,.stop>div{display:flex;flex-direction:column;align-items:center;text-align:center;color:inherit;text-decoration:none;padding:0 4px 4px;position:relative;border-radius:10px}
+.stop>a:hover .dot{transform:scale(1.08)}
+.dot{width:34px;height:34px;border-radius:50%;background:var(--card);border:7px solid var(--c);position:relative;z-index:1;margin-top:7px;transition:transform .15s}
+.stop.lts .dot{box-shadow:0 0 0 3px var(--card),0 0 0 6px var(--c)}
+.stop b{font-size:1.65rem;font-weight:900;line-height:1;margin-top:12px;letter-spacing:-.02em}
+.stop .key{font-weight:800;font-size:.95rem;margin-top:3px;border-bottom:3px solid var(--c);line-height:1.25}
+.stop small{color:var(--ink-2);font-size:.76rem;line-height:1.3;margin-top:5px;max-width:16ch;overflow-wrap:anywhere}
+.route-note{font-size:.88rem;color:var(--ink-3);margin-top:6px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center;margin-top:12px;font-size:.9rem;color:var(--ink-2)}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.lvl{display:inline-flex;gap:3px;align-items:center;vertical-align:middle}
+.lvl i{width:9px;height:9px;border-radius:50%;border:1.6px solid var(--ink-2)}
+.lvl i.f{background:var(--ink-2)}
+
+/* sections */
+.sec{padding:52px 0 28px;border-top:1px solid var(--rule)}
+.sec h2{font-size:clamp(1.7rem,4.4vw,2.6rem);font-weight:900;letter-spacing:-.025em;max-width:24ch;text-wrap:balance}
+.sec-lede{color:var(--ink-2);max-width:66ch;margin-top:10px;font-size:1.03rem}
+.sub{font-size:1.35rem;font-weight:800;margin:34px 0 12px}
+.qa{display:grid;gap:34px;margin-top:26px}
+.qa>article{min-width:0}
+.qa h3{font-size:clamp(1.15rem,2.4vw,1.35rem);font-weight:800;margin:0 0 10px;display:flex;gap:10px;align-items:baseline}
+.qa h3 .q{flex:none;font-size:.8em;font-weight:900;color:var(--card);background:var(--ink);border-radius:6px;padding:1px 7px}
+.qa p,.qa li{max-width:74ch}
+.facts{margin:16px 0 0;padding-left:1.1em}
+.facts li{margin:4px 0}
+
+/* HLD flow */
+.flow{display:flex;flex-direction:column;margin:18px 0 8px}
+.node{border:2px solid var(--ink);background:var(--card);border-radius:12px;padding:10px 12px;display:flex;flex-direction:column;gap:2px}
+.node b{font-size:1rem;font-weight:800}
+.node span{font-size:.88rem;color:var(--ink-2);line-height:1.4}
+.node.term{background:var(--ink);color:var(--paper)}
+.node.term span{color:var(--paper);opacity:.85}
+.arr{align-self:center;width:2px;height:24px;background:var(--ink-3);position:relative;flex:none}
+.arr::after{content:"";position:absolute;left:-5px;bottom:-2px;border:6px solid transparent;border-top:8px solid var(--ink-3)}
+@media (min-width:960px){
+  .flow{flex-direction:row;align-items:stretch}
+  .node{flex:1 1 0}
+  .arr{width:24px;height:2px}
+  .arr::after{left:auto;right:-3px;bottom:-5px;border:6px solid transparent;border-left:8px solid var(--ink-3)}
+}
+.split{display:grid;gap:6px;margin:14px 0 6px;max-width:560px}
+.sp-row{display:flex;gap:8px;justify-content:center}
+.sp-chunk{flex:1;text-align:center;border:1.5px solid var(--v12);background:var(--card);border-radius:8px;padding:4px 6px;font:600 .82rem var(--mono);white-space:nowrap}
+.sp-chunk.r{border-color:var(--v16)}
+.sp-chunk.big{flex:0 1 50%;border-width:2.5px;border-color:var(--v21);font-weight:800}
+.sp-label{text-align:center;font-size:.8rem;color:var(--ink-3);font-weight:700}
+.cap{font-size:.88rem;color:var(--ink-3)}
+.changes{list-style:none;padding:0;margin:10px 0 0;display:grid;gap:8px}
+.changes li{border-left:5px solid var(--c);padding:4px 0 4px 12px}
+.changes b{display:inline-block;min-width:5.2em}
+.tbl-wrap{overflow-x:auto;margin:10px 0;border:1px solid var(--rule);border-radius:10px;background:var(--card)}
+table{border-collapse:collapse;width:100%;min-width:560px;font-size:.92rem}
+th,td{text-align:left;padding:9px 12px;border-bottom:1px solid var(--rule-2);vertical-align:top}
+th{font-weight:800;background:var(--chip)}
+tr:last-child td{border-bottom:0}
+.rules{padding-left:1.3em;margin:8px 0 0}
+.rules li{margin:6px 0}
+
+/* code blocks */
+.code{background:var(--code-bg);color:var(--code-ink);border-radius:9px;margin:10px 0;overflow:hidden;border:1px solid rgba(255,255,255,.04)}
+.code-bar{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:6px 8px 6px 12px;font:700 .74rem var(--font);color:var(--code-ln);border-bottom:1px solid rgba(255,255,255,.07)}
+.copy{font:700 .74rem var(--font);color:var(--code-ink);background:transparent;border:1px solid rgba(255,255,255,.2);border-radius:6px;padding:3px 9px;cursor:pointer}
+.copy:hover{background:rgba(255,255,255,.08)}
+.code pre{margin:0;overflow-x:auto;padding:10px 0;font-size:12.5px;line-height:1.66;tab-size:4}
+@media (min-width:720px){.code pre{font-size:13px}}
+.code code{display:block;min-width:max-content}
+.ln{display:block;padding-right:16px;transition:background .15s}
+.ln.hl{background:var(--code-hl);box-shadow:inset 3px 0 0 var(--t-num)}
+.ln .n{display:inline-block;width:2.7em;padding-right:1.1em;text-align:right;color:var(--code-ln);user-select:none;-webkit-user-select:none}
+.code.plain .ln{padding-left:14px}
+.t-kw{color:var(--t-kw)}.t-type{color:var(--t-type)}.t-str{color:var(--t-str)}.t-num{color:var(--t-num)}.t-com{color:var(--t-com);font-style:italic}.t-fn{color:var(--t-fn)}.t-ann{color:var(--t-ann)}
+
+/* topics */
+.filters{display:grid;gap:10px;margin:20px 0 6px}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font:700 .86rem var(--font);padding:6px 12px;border-radius:999px;border:1.5px solid var(--rule);background:var(--card);color:var(--ink);cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.chip i{width:10px;height:10px;border-radius:50%;background:var(--c)}
+.chip[aria-pressed="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.count{font-size:.88rem;color:var(--ink-3);margin:8px 0 0;font-weight:700}
+details.domain{margin-top:16px;background:var(--card);border:1px solid var(--rule);border-radius:10px;padding:10px 14px}
+details.domain summary{cursor:pointer;font-weight:800}
+.topic-list{margin-top:10px}
+.topic{display:grid;grid-template-columns:16px minmax(0,1fr);column-gap:8px}
+@media (min-width:720px){.topic{grid-template-columns:34px minmax(0,1fr);column-gap:16px}}
+.topic[hidden]{display:none}
+.rail{position:relative}
+.rail::before{content:"";position:absolute;left:5px;top:0;bottom:0;width:5px;background:var(--c)}
+.tdot{position:absolute;left:0;top:24px;width:16px;height:16px;border-radius:50%;background:var(--card);border:4px solid var(--c)}
+@media (min-width:720px){.rail::before{left:13px;width:8px}.tdot{left:2px;top:22px;width:30px;height:30px;border-width:7px}}
+.tbody{padding:18px 0 40px;min-width:0}
+.thead{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px}
+.tnum{font-weight:900;color:var(--ink-3);font-variant-numeric:tabular-nums}
+.vtag{font-weight:800;font-size:.82rem;padding:1px 10px;border-radius:999px;border:2px solid var(--c);background:var(--card)}
+.lvl-name{font-size:.82rem;color:var(--ink-2);font-weight:700}
+.done{margin-left:auto;display:inline-flex;align-items:center;gap:6px;font-size:.85rem;font-weight:700;color:var(--ink-2);cursor:pointer}
+.done input{width:18px;height:18px;accent-color:var(--good)}
+.thead h3{flex-basis:100%;font-size:clamp(1.25rem,2.8vw,1.6rem);font-weight:900;letter-spacing:-.015em;margin-top:4px}
+.apis{flex-basis:100%;margin:2px 0 0;display:flex;flex-wrap:wrap;gap:6px}
+.ps{display:grid;gap:14px;margin-top:14px}
+@media (min-width:820px){.ps{grid-template-columns:minmax(0,1fr) minmax(0,1.22fr);align-items:start}}
+.panel{background:var(--card);border:1px solid var(--rule);border-radius:12px;padding:12px;min-width:0}
+@media (min-width:720px){.panel{padding:14px}}
+.panel.problem{border-top:5px solid var(--bad)}
+.panel.solution{border-top:5px solid var(--good)}
+.panel h4{font-size:1.02rem;font-weight:900;display:flex;align-items:center;gap:8px;margin:0 0 8px}
+.panel h4::before{content:"";width:11px;height:11px;border-radius:50%;background:currentColor;box-shadow:0 0 0 3px var(--card),0 0 0 4.5px currentColor}
+.panel.problem h4{color:var(--bad)}
+.panel.solution h4{color:var(--good)}
+.panel>p{font-size:.97rem}
+.pains{margin:8px 0 0;padding:0;list-style:none;display:grid;gap:6px}
+.pains li{position:relative;padding-left:18px;font-size:.93rem;color:var(--ink-2)}
+.pains li::before{content:"";position:absolute;left:2px;top:.62em;width:9px;height:3px;background:var(--bad);border-radius:2px}
+.out{display:flex;gap:10px;align-items:baseline;background:var(--good-bg);border-radius:8px;padding:8px 10px;overflow-x:auto;margin:10px 0 2px}
+.out b{flex:none;font-weight:900;color:var(--good);font-size:.85rem}
+.out code{background:none;border:0;padding:0;white-space:pre;font-size:.82rem;color:var(--ink)}
+.lbl-lines{font-size:.92rem;font-weight:900;margin:14px 0 6px}
+.explain{list-style:none;margin:0;padding:0;display:grid;gap:4px}
+.explain li{display:grid;grid-template-columns:auto minmax(0,1fr);gap:10px;align-items:start;padding:6px 8px;border-radius:8px;border:1px solid transparent;font-size:.93rem}
+.explain li.hover,.explain li.on{background:var(--chip);border-color:var(--rule)}
+.lref{font:800 .75rem var(--font);font-variant-numeric:tabular-nums;background:var(--card);border:1.5px solid var(--good);color:var(--good);border-radius:6px;padding:2px 6px;cursor:pointer;min-width:3.7em;margin-top:1px}
+.explain li.on .lref{background:var(--good);color:var(--on-accent)}
+.verdict{display:grid;gap:10px;margin-top:12px}
+@media (min-width:820px){.verdict{grid-template-columns:repeat(3,minmax(0,1fr))}}
+.verdict>div{padding:10px 12px;border-left:5px solid var(--rule);background:var(--card);border-radius:0 10px 10px 0}
+.verdict .use{border-color:var(--good)}.verdict .avoid{border-color:var(--bad)}.verdict .mem{border-color:var(--c)}
+.verdict h5{font-size:.86rem;font-weight:900;margin:0 0 3px}
+.verdict p{margin:0;font-size:.92rem;color:var(--ink-2)}
+.empty{background:var(--card);border:1.5px dashed var(--rule);border-radius:12px;padding:18px;margin-top:14px}
+
+/* decide */
+.wizard{background:var(--card);border:2px solid var(--ink);border-radius:16px;padding:18px;margin-top:20px}
+.wiz-path{display:flex;flex-wrap:wrap;gap:6px;align-items:center;font-size:.85rem;color:var(--ink-2)}
+.crumb{background:var(--chip);border:1px solid var(--rule);border-radius:999px;padding:2px 10px;font-weight:700}
+.wiz-q{font-size:clamp(1.15rem,2.6vw,1.45rem);font-weight:900;margin:12px 0 12px;letter-spacing:-.01em}
+.wiz-opts{display:grid;gap:8px}
+@media (min-width:640px){.wiz-opts{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.wiz-opt{text-align:left;font:700 1rem var(--font);padding:12px 14px;border-radius:12px;border:1.5px solid var(--rule);background:var(--paper);color:var(--ink);cursor:pointer}
+.wiz-opt:hover{border-color:var(--ink)}
+.wiz-leaf{margin-top:12px}
+.wiz-k{font-weight:900;margin:0 0 6px}
+.wiz-use{font:600 .92rem var(--mono);background:var(--code-bg);color:var(--code-ink);padding:10px 12px;border-radius:9px;overflow-x:auto;white-space:pre;margin:0 0 10px}
+.since{display:inline-block;font-weight:800;font-size:.8rem;border:2px solid var(--c);border-radius:999px;padding:0 9px;background:var(--card);white-space:nowrap}
+.wiz-nav{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.btn{font:800 .95rem var(--font);padding:9px 16px;border-radius:10px;border:2px solid var(--ink);background:var(--ink);color:var(--paper);cursor:pointer}
+.btn.ghost{background:transparent;color:var(--ink)}
+details.quick{margin-top:14px}
+details.quick summary{cursor:pointer;font-weight:800;padding:6px 0}
+.qp{list-style:none;padding:0;margin:8px 0 0;display:grid;gap:8px}
+.qp li{background:var(--card);border:1px solid var(--rule);border-radius:10px;padding:10px 12px;display:grid;gap:4px}
+.qp .need{font-size:.84rem;color:var(--ink-3);font-weight:700}
+.qp code{justify-self:start}
+.find-grid{display:grid;gap:12px}
+@media (min-width:820px){.find-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.find{background:var(--card);border:1px solid var(--rule);border-radius:12px;padding:14px;min-width:0}
+.find h4{font-size:1.02rem;font-weight:900;margin:0 0 6px}
+.find p{font-size:.94rem;color:var(--ink-2)}
+
+/* trade-offs */
+.tgrid{display:grid;gap:14px;margin-top:20px}
+@media (min-width:860px){.tgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.tcard{background:var(--card);border:1px solid var(--rule);border-radius:14px;padding:14px 16px;min-width:0}
+.tcard h3{font-size:1.1rem;font-weight:900;margin:0 0 10px}
+.tcols{display:grid;gap:10px}
+@media (min-width:560px){.tcols{grid-template-columns:1fr 1fr}}
+.tcols>div{padding-left:10px;font-size:.93rem}
+.tcols .apply{border-left:4px solid var(--good)}
+.tcols .ignore{border-left:4px solid var(--bad)}
+.tcols h4{font-size:.84rem;font-weight:900;margin:0 0 2px}
+.tcols .apply h4{color:var(--good)}.tcols .ignore h4{color:var(--bad)}
+.tcols p{margin:0;color:var(--ink-2)}
+.why{margin:12px 0 0;font-size:.92rem;border-top:1px dashed var(--rule);padding-top:8px}
+
+/* remember */
+.big-mnemo{font-size:clamp(1.35rem,3.6vw,2.2rem);font-weight:800;line-height:1.45;letter-spacing:-.015em;max-width:34ch;margin:22px 0 8px}
+.mk{border-bottom:5px solid var(--c);white-space:nowrap}
+.mk sup{font-size:.5em;font-weight:900;color:var(--ink-3);margin-left:2px}
+.mgrid{display:grid;gap:12px;margin-top:22px}
+@media (min-width:700px){.mgrid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media (min-width:1040px){.mgrid{grid-template-columns:repeat(4,minmax(0,1fr))}}
+.mcard{background:var(--card);border:1px solid var(--rule);border-radius:12px;padding:14px}
+.mcard h4{font-size:1.15rem;font-weight:900;margin:0 0 6px;letter-spacing:-.01em}
+.mcard p{margin:0;font-size:.92rem;color:var(--ink-2)}
+.fc-grid{display:grid;gap:12px;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));margin-top:14px}
+.fc{perspective:1000px;background:none;border:0;padding:0;text-align:left;cursor:pointer;font:inherit;color:inherit;min-height:168px;border-radius:14px}
+.fc .inner{position:relative;display:block;min-height:168px;height:100%;transition:transform .5s;transform-style:preserve-3d}
+.fc[aria-pressed="true"] .inner{transform:rotateY(180deg)}
+.fc .face{position:absolute;inset:0;border-radius:14px;padding:14px;backface-visibility:hidden;-webkit-backface-visibility:hidden;display:flex;flex-direction:column;justify-content:space-between;gap:8px}
+.fc .front{background:var(--card);border:1.5px solid var(--rule)}
+.fc .front strong{font-size:1.08rem;line-height:1.3}
+.fc .back{background:var(--ink);color:var(--paper);transform:rotateY(180deg);font-size:.92rem;line-height:1.45}
+.fc .hint{font-size:.75rem;font-weight:800;color:var(--ink-3)}
+.fc .back .hint{color:var(--paper);opacity:.7}
+@media (prefers-reduced-motion:reduce){.fc .inner{transition:none}}
+
+/* mock */
+.mock-tools{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin-top:18px}
+.mock-tools .btns{display:flex;gap:8px}
+.mock-tools .btn{padding:6px 12px;font-size:.85rem}
+.qlist{margin-top:12px}
+details.q{background:var(--card);border:1px solid var(--rule);border-radius:12px;margin:8px 0}
+details.q[hidden]{display:none}
+details.q summary{cursor:pointer;padding:12px 14px;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:start;font-weight:800;list-style:none}
+details.q summary::-webkit-details-marker{display:none}
+.qn{font-weight:900;color:var(--ink-3);font-variant-numeric:tabular-nums;min-width:2.2em}
+details.q[open] summary{border-bottom:1px dashed var(--rule)}
+.qa-a{padding:12px 14px 14px;color:var(--ink-2);font-size:.96rem}
+
+/* animation */
+.anim-tabs{display:flex;gap:6px;overflow-x:auto;padding:4px 0 8px;margin-top:18px;scrollbar-width:thin}
+.anim-tab{flex:none;font:800 .86rem var(--font);padding:7px 12px;border-radius:999px;border:1.5px solid var(--rule);background:var(--card);color:var(--ink);cursor:pointer}
+.anim-tab[aria-selected="true"]{background:var(--ink);color:var(--paper);border-color:var(--ink)}
+.anim-title{font-size:1.15rem;font-weight:900;margin:8px 0 10px}
+.anim{display:grid;gap:16px}
+@media (min-width:920px){.anim{grid-template-columns:minmax(0,470px) minmax(0,1fr);align-items:start}}
+.anim-left,.anim-right{display:grid;gap:12px;min-width:0}
+@media (max-width:919px){.pbox.mem-first{order:-1}}
+.narr{display:grid;grid-template-columns:54px minmax(0,1fr);gap:12px;align-items:start}
+.mascot{width:54px;height:54px;display:block}
+.mascot .cup{fill:var(--card);stroke:var(--ink);stroke-width:3}
+.mascot .handle{fill:none;stroke:var(--ink);stroke-width:3}
+.mascot .coffee{fill:var(--v9)}
+.mascot .eye{fill:var(--ink)}
+.mascot .smile{fill:none;stroke:var(--ink);stroke-width:2.5;stroke-linecap:round}
+.mascot .steam{fill:none;stroke:var(--v12);stroke-width:2.5;stroke-linecap:round}
+.mascot .saucer{fill:var(--v21)}
+.mascot.talk{animation:bob .45s ease}
+@keyframes bob{50%{transform:translateY(-4px)}}
+@media (prefers-reduced-motion:reduce){.mascot.talk{animation:none}}
+.bubble{background:var(--card);border:2px solid var(--ink);border-radius:14px;padding:9px 12px;position:relative;min-height:96px}
+.bubble::before{content:"";position:absolute;left:-10px;top:16px;border:9px solid transparent;border-right:10px solid var(--ink);border-left:0}
+.bubble b{display:block;font-size:.78rem;font-weight:900;color:var(--ink-3)}
+.bubble p{margin:2px 0 0;font-size:.96rem;line-height:1.5}
+.stage{position:relative;background:var(--card);border:1px solid var(--rule);border-radius:16px;aspect-ratio:360/400;width:100%}
+.stage svg{display:block;width:100%;height:100%}
+.stage.paused::after{content:"Paused";position:absolute;top:10px;right:10px;font:900 .8rem var(--font);background:var(--ink);color:var(--paper);padding:3px 10px;border-radius:999px}
+.anim-controls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.anim-controls label{display:inline-flex;align-items:center;gap:6px;font-weight:700;font-size:.9rem;color:var(--ink-2)}
+.anim-controls select{font:700 .9rem var(--font);padding:6px 8px;border-radius:8px;border:1.5px solid var(--rule);background:var(--card);color:var(--ink)}
+.anim-controls input[type=checkbox]{width:18px;height:18px;accent-color:var(--ink)}
+.pbox{background:var(--card);border:1px solid var(--rule);border-radius:12px;padding:12px;min-width:0}
+.pbox h3{font-size:.92rem;font-weight:900;margin:0 0 8px}
+.anim-code{list-style:none;margin:0;padding:8px 0;background:var(--code-bg);color:var(--code-ink);border-radius:9px;overflow-x:auto;font:12.5px/1.75 var(--mono)}
+.anim-code li{white-space:pre;padding:0 12px;min-width:max-content;opacity:.62}
+.anim-code li.on{opacity:1;background:var(--code-hl);box-shadow:inset 3px 0 0 var(--t-num)}
+.anim-state{margin:0;display:grid;gap:2px}
+.anim-state div{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);gap:10px;padding:5px 8px;border-radius:7px;align-items:baseline}
+.anim-state div:nth-child(odd){background:var(--chip)}
+.anim-state dt{color:var(--ink-2);font-size:.86rem}
+.anim-state dd{margin:0;font:700 .84rem var(--mono);overflow-wrap:anywhere}
+.anim-state div.pulse{animation:pulse 1s ease}
+@keyframes pulse{0%{background:var(--pulse)}100%{background:transparent}}
+.anim-log{list-style:none;margin:0;padding:0;font:.8rem/1.65 var(--mono);color:var(--ink-2);min-height:3em}
+.anim-log li::before{content:"› ";color:var(--ink-3)}
+.anim-log li.bad{color:var(--bad)}
+.anim-log li.warn{color:var(--warn)}
+#animSvg .box rect{fill:var(--card);stroke:var(--rule);stroke-width:1.6}
+#animSvg .box.term rect{stroke:var(--ink-3)}
+#animSvg .box.src rect{stroke:var(--v12)}
+#animSvg .box.wk rect{fill:var(--chip);stroke:var(--v16)}
+#animSvg .box.ok rect{fill:var(--good-bg);stroke:var(--good)}
+#animSvg .box.bad rect{fill:var(--bad-bg);stroke:var(--bad)}
+#animSvg .box-t{font:700 13px var(--mono);fill:var(--ink)}
+#animSvg .box-s{font:400 11px var(--mono);fill:var(--ink-2)}
+#animSvg .lbl{font:800 12.5px var(--font);fill:var(--ink-2)}
+#animSvg .lbl-muted{font:700 11px var(--font);fill:var(--ink-3)}
+#animSvg .link line{stroke:var(--ink-3);stroke-width:1.6}
+#animSvg .link-t{font:700 11px var(--font);fill:var(--ink-3)}
+#animSvg .arrow-head{fill:var(--ink-3)}
+#animSvg .err{font:700 10.5px var(--mono);fill:var(--bad)}
+#animSvg .result{font:900 17px var(--font);fill:var(--ink)}
+#animSvg .ball circle{fill:var(--v12);stroke:var(--card);stroke-width:2}
+#animSvg .ball text{font:900 12px var(--font);fill:var(--on-accent)}
+#animSvg .ball.ok circle{fill:var(--good)}
+#animSvg .ball.bad circle{fill:var(--bad)}
+#animSvg .ball.mapped circle{fill:var(--v16)}
+#animSvg .ball.final circle{fill:var(--v21)}
+#animSvg .ball.idle circle{fill:var(--paper);stroke:var(--ink-3);stroke-dasharray:3 3}
+#animSvg .ball.idle text{fill:var(--ink-3)}
+#animSvg .capsule rect{fill:var(--v24);stroke:var(--card);stroke-width:2}
+#animSvg .capsule text{font:900 12px var(--font);fill:var(--on-accent)}
+.foot{border-top:1px solid var(--rule);padding:28px 0 48px;color:var(--ink-3);font-size:.9rem}
+.foot p{max-width:80ch}
+</style>
+</head>
+<body>
+<div id="sdh-libbar" style="position:relative;z-index:2147483000;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0;padding:8px 16px;background:#0f172a;color:#cbd5e1;font:600 13px/1.5 Inter,'Segoe UI',system-ui,-apple-system,sans-serif;border-bottom:2px solid #4f46e5;box-sizing:border-box;width:100%;text-align:left;letter-spacing:0"><a href="../../index.html" style="color:#fff;text-decoration:none;font-weight:800">SystemDesign<span style="color:#8b8cff">.hinglish</span></a><span style="opacity:.45">/</span><a href="../index.html" style="color:#fff;text-decoration:none">📚 Library</a><span style="opacity:.45">/</span><a href="../index.html#java-streams" style="color:#cbd5e1;text-decoration:none">Java Streams &amp; Bug-Fix</a><a href="../files/java-streams-8-to-21-gatherers-original.html" download style="color:#a5b4fc;text-decoration:none;font-size:12px">⬇ Original</a><span style="margin-left:auto;font-size:11px;padding:2px 9px;border-radius:999px;border:1px solid #6366f1;color:#c7d2fe">📘 HTML ebook</span></div>
+<nav class="bar" aria-label="Sections">
+  <div class="bar-in">
+    <a class="brand" href="#top">☕ Streams 8–21</a>
+    <div class="bar-links">
+      <a href="#hld">HLD</a><a href="#lld">LLD</a><a href="#topics">Topics</a><a href="#decide">Decide</a><a href="#tradeoffs">Trade-offs</a><a href="#remember">Remember</a><a href="#mock">Mock Q&amp;A</a><a href="#anime">Animation</a>
+    </div>
+    <span class="progress" id="progress" aria-live="polite">0/22 done</span>
+    <button class="theme" id="themeBtn" type="button">Auto</button>
+  </div>
+</nav>
+
+<header class="hero" id="top">
+  <div class="wrap">
+    <h1>Java Streams 8&nbsp;se 21&nbsp;tak</h1>
+    <p class="lede">Har topic me left pe problem, right pe solution, aur solution ki har line ka matlab. Saath me HLD, LLD, trade-offs, yaad rakhne ki tricks, mock interview, aur end me ek animation jo dikhata hai ki stream ke andar data kaise save aur update hota hai. Bonus: Java 24 ke Gatherers.</p>
+    <div class="route-wrap"><ol class="route" id="route" aria-label="Java versions route map"></ol></div>
+    <p class="route-note">Har station ek Java version hai. Double ring wale stations LTS hain. Station tap karo, us version ke topics khul jaayenge.</p>
+    <div class="legend" aria-label="Level legend">
+      <span><span class="lvl" aria-hidden="true"><i class="f"></i><i></i><i></i></span>Basic</span>
+      <span><span class="lvl" aria-hidden="true"><i class="f"></i><i class="f"></i><i></i></span>Mid</span>
+      <span><span class="lvl" aria-hidden="true"><i class="f"></i><i class="f"></i><i class="f"></i></span>Senior</span>
+    </div>
+  </div>
+</header>
+
+<section class="sec" id="hld">
+  <div class="wrap">
+    <h2>HLD: stream high level pe kaise kaam karta hai</h2>
+    <p class="sec-lede">Pehle bada picture. Interview me HLD ka matlab hai: kaunse components hain, data kaise behta hai, aur kaunsa kaam kab execute hota hai.</p>
+    <div class="qa">
+      <article>
+        <h3><span class="q">Q1</span><span>Stream asal me hai kya?</span></h3>
+        <p>Stream data <strong>store nahi karta</strong>. Yeh ek pipeline ka plan hai jo kisi source (List, array, file, generator) se data kheench kar steps se guzaarta hai. Teen hisse hote hain: <strong>Source</strong>, <strong>intermediate ops</strong> (0 ya zyada) aur exactly ek <strong>terminal op</strong>.</p>
+        <div class="flow" role="img" aria-label="Source se Spliterator, phir stateless ops, phir stateful ops, phir terminal op">
+          <div class="node"><b>Source</b><span>List, array, Files.lines(), Stream.iterate()</span></div>
+          <div class="arr"></div>
+          <div class="node"><b>Spliterator</b><span>Element nikaalta hai (tryAdvance) aur kaam baantta hai (trySplit)</span></div>
+          <div class="arr"></div>
+          <div class="node"><b>Stateless ops</b><span>filter, map, flatMap, peek, mapMulti. Har element akela decide hota hai.</span></div>
+          <div class="arr"></div>
+          <div class="node"><b>Stateful ops</b><span>sorted, distinct, limit, skip, takeWhile, gather. Doosre elements ki yaad chahiye.</span></div>
+          <div class="arr"></div>
+          <div class="node term"><b>Terminal op</b><span>toList, collect, reduce, forEach, count, findFirst. Yahin se execution shuru.</span></div>
+        </div>
+        <ul class="facts">
+          <li><strong>Lazy:</strong> intermediate ops sirf plan banate hain. Kaam terminal op pe shuru hota hai.</li>
+          <li><strong>Single-use:</strong> ek stream ek hi baar consume hoti hai.</li>
+          <li><strong>Non-interfering:</strong> pipeline chalte waqt source ko modify nahi karna. Result naya banta hai.</li>
+          <li><strong>Infinite bhi ho sakti hai:</strong> <code>iterate</code>/<code>generate</code> se. Short-circuit ops (<code>limit</code>, <code>findFirst</code>, <code>takeWhile</code>) use khatam karte hain.</li>
+          <li><strong>Sequential ya parallel:</strong> code same rehta hai, sirf <code>parallel()</code> ka switch.</li>
+        </ul>
+      </article>
+      <article>
+        <h3><span class="q">Q2</span><span>Data kaise flow hota hai: ek-ek element ya poora batch?</span></h3>
+        <p>Ek-ek element, <strong>poori pipeline se</strong>. Element "a" filter, map aur forEach tak jaata hai, tab jaake "b" shuru hota hai. Ise vertical ya fused processing kehte hain: beech me koi temporary list nahi banti. Exception sirf stateful ops hain jaise <code>sorted()</code>, jo pehle sab elements jama karte hain.</p>
+        <div data-snip="hldTrace"></div>
+      </article>
+      <article>
+        <h3><span class="q">Q3</span><span>Lazy aur single-use ka proof?</span></h3>
+        <p>Terminal op ke bina ek bhi lambda nahi chalta. Aur ek stage ko dobara use karo to exception aata hai, kyunki har stage object pe <code>linkedOrConsumed</code> flag set ho jaata hai (LLD Q2 dekho).</p>
+        <div data-snip="hldLazy"></div>
+      </article>
+      <article>
+        <h3><span class="q">Q4</span><span>Parallel high level pe kaise chalta hai?</span></h3>
+        <p>Spliterator <code>trySplit()</code> se data ko tukdon me baantta hai. Har tukda ForkJoin common pool ke kisi thread pe <strong>same pipeline</strong> sequentially chalata hai. End me partial results combiner se judte hain. Isliye lambdas stateless aur operations associative hone chahiye.</p>
+        <div class="split" role="img" aria-label="1 se 8 tak ke numbers do baar split hote hain, 4 workers squares ka partial sum banate hain: 5, 25, 61, 113. Combiner se 30 aur 174, phir final 204.">
+          <div class="sp-row"><span class="sp-chunk">1 2 3 4 5 6 7 8</span></div>
+          <div class="sp-label">trySplit()</div>
+          <div class="sp-row"><span class="sp-chunk">1 2 3 4</span><span class="sp-chunk">5 6 7 8</span></div>
+          <div class="sp-label">trySplit()</div>
+          <div class="sp-row"><span class="sp-chunk">1 2</span><span class="sp-chunk">3 4</span><span class="sp-chunk">5 6</span><span class="sp-chunk">7 8</span></div>
+          <div class="sp-label">har chunk apne worker thread pe: map(n → n²), phir partial sum</div>
+          <div class="sp-row"><span class="sp-chunk r">5</span><span class="sp-chunk r">25</span><span class="sp-chunk r">61</span><span class="sp-chunk r">113</span></div>
+          <div class="sp-label">combiner</div>
+          <div class="sp-row"><span class="sp-chunk r">30</span><span class="sp-chunk r">174</span></div>
+          <div class="sp-row"><span class="sp-chunk r big">204</span></div>
+        </div>
+        <p class="cap"><code>IntStream.rangeClosed(1, 8).parallel().map(n -&gt; n * n).sum()</code> ka result 204 hai (JDK 25 pe run kiya). Animation ke scene 6 me ise live dekho.</p>
+      </article>
+      <article>
+        <h3><span class="q">Q5</span><span>Java 8 se 24 tak architecture me kya badla?</span></h3>
+        <p>Core design wahi hai: Spliterator, stages ki linked list, aur Sink chain. Badlaav naye operations aur kuch behaviour me hain:</p>
+        <ol class="changes">
+          <li style="--c:var(--v9)"><b>Java 9</b> <code>takeWhile</code>/<code>dropWhile</code> naye stateful ops ke roop me aaye. Aur <code>count()</code> SIZED source pe pipeline skip kar sakta hai (topic #12).</li>
+          <li style="--c:var(--v10)"><b>Java 10</b> <code>flatMap</code> ab short-circuit respect karta hai. Java 8 me <code>findFirst()</code> ke saath bhi inner stream poori chalti thi, aur infinite inner stream pe hang (JDK-8075939, 8u222 me backport).</li>
+          <li style="--c:var(--v16)"><b>Java 16</b> <code>toList()</code> array se seedha unmodifiable list banata hai. <code>mapMulti</code> push-style op hai jo inner stream nahi banata.</li>
+          <li style="--c:var(--v21)"><b>Java 21</b> Sequenced collections ke <code>reversed()</code> views aaye. Virtual threads ne "I/O ke liye parallel stream" wala decision hi badal diya.</li>
+          <li style="--c:var(--v24)"><b>Java 24</b> <code>gather()</code> se naya <code>GathererOp</code> stage aaya: ab apne khud ke intermediate ops likh sakte ho.</li>
+        </ol>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="lld">
+  <div class="wrap">
+    <h2>LLD: andar ki classes aur code</h2>
+    <p class="sec-lede">Ab zoom in. Neeche ka JDK code JDK 25 source se liya gaya hai (thoda chhota karke), taaki interview me "andar kya hota hai" confidently bata sako.</p>
+    <div class="qa">
+      <article>
+        <h3><span class="q">Q1</span><span>Andar kaunsi classes hain?</span></h3>
+        <div data-snip="lldTree"></div>
+        <p>Yaad rakhne ka tareeka: <strong>Pipeline</strong> plan SAVE karta hai, <strong>Sink</strong> data UPDATE karta hai, <strong>Spliterator</strong> data deta hai, <strong>TerminalOp</strong> sab chalata hai.</p>
+      </article>
+      <article>
+        <h3><span class="q">Q2</span><span>Stages kaise SAVE aur link hote hain?</span></h3>
+        <p>Har intermediate op (filter, map…) ek naya stage object banata hai. Constructor pichhle stage ko "consumed" mark karta hai aur doubly linked list banata hai. Yahi single-use ka asli reason hai.</p>
+        <div data-snip="lldCtor"></div>
+      </article>
+      <article>
+        <h3><span class="q">Q3</span><span>Sink chain kaise banti hai?</span></h3>
+        <p>Terminal op aane pe <code>wrapSink()</code> terminal se source ki taraf (ulta) chalta hai. Har stage apna Sink banata hai jo downstream Sink ko pakad ke rakhta hai. filter ka Sink sirf "pass ya stop" karta hai, aur map ka Sink value badal ke aage deta hai.</p>
+        <div data-snip="lldWrap"></div>
+      </article>
+      <article>
+        <h3><span class="q">Q4</span><span>Execution: data kaise push aur UPDATE hota hai?</span></h3>
+        <p><code>copyInto()</code> teen kaam karta hai: <code>begin(size)</code>, har element pe <code>accept()</code>, aur <code>end()</code>. Short-circuit op ho to har element se pehle <code>cancellationRequested()</code> check hota hai.</p>
+        <div data-snip="lldCopy"></div>
+      </article>
+      <article>
+        <h3><span class="q">Q5</span><span>Flags se kaunse optimizations milte hain?</span></h3>
+        <p>Har stage apne bit-flags (<code>StreamOpFlag</code>) pichhle stage ke flags ke saath combine karta hai. JDK in flags ko dekh kar kaam skip kar deta hai:</p>
+        <div class="tbl-wrap"><table>
+          <thead><tr><th>Flag</th><th>Kahan se aata hai</th><th>Kya fayda</th></tr></thead>
+          <tbody>
+            <tr><td><code>SIZED</code></td><td>ArrayList, array, <code>IntStream.range</code></td><td><code>count()</code> pipeline skip kar deta hai (Java 9+). <code>toArray()</code> exact size ka array banata hai.</td></tr>
+            <tr><td><code>SORTED</code></td><td>TreeSet, <code>sorted()</code> ke baad</td><td>Natural order wala <code>sorted()</code> no-op ban jaata hai.</td></tr>
+            <tr><td><code>DISTINCT</code></td><td>HashSet, <code>distinct()</code> ke baad</td><td><code>distinct()</code> no-op ban jaata hai.</td></tr>
+            <tr><td><code>ORDERED</code></td><td>List, array (HashSet nahi)</td><td><code>unordered()</code> se hata do to parallel <code>distinct</code>/<code>limit</code> saste ho jaate hain.</td></tr>
+            <tr><td><code>SHORT_CIRCUIT</code></td><td><code>findFirst</code>, <code>anyMatch</code>, <code>limit</code>, <code>takeWhile</code></td><td>Cancel-aware loop (<code>forEachWithCancel</code>) chalta hai.</td></tr>
+          </tbody>
+        </table></div>
+      </article>
+      <article>
+        <h3><span class="q">Q6</span><span>Collector andar se kaisa hota hai?</span></h3>
+        <p><code>Collector&lt;T, A, R&gt;</code> = 4 functions + characteristics. S-A-C-F yaad rakho: Supplier, Accumulator, Combiner, Finisher. Neeche apna khud ka collector hai, proper naam ke saath:</p>
+        <div data-snip="lldCollector"></div>
+        <p>Characteristics: <code>IDENTITY_FINISH</code> (container hi result hai, finisher skip), <code>UNORDERED</code> (order ki parwah nahi), <code>CONCURRENT</code> (kai threads ek hi container me add kar sakte hain, jaise <code>groupingByConcurrent</code>).</p>
+      </article>
+      <article>
+        <h3><span class="q">Q7</span><span>Gatherer (Java 24) andar se kaisa hota hai?</span></h3>
+        <p>Gatherer = pipeline ke <strong>beech</strong> ka Collector. I-I-C-F: Initializer, Integrator, Combiner, Finisher. Farak yeh hai ki yeh aage elements push kar sakta hai (0, 1 ya many), aur <code>false</code> return karke stream ko rok bhi sakta hai.</p>
+        <div data-snip="lldGatherer"></div>
+      </article>
+      <article>
+        <h3><span class="q">Q8</span><span>Parallel me split size kaise decide hota hai?</span></h3>
+        <div data-snip="lldParallel"></div>
+        <p>Common pool ki default parallelism = <code>availableProcessors() - 1</code> (minimum 1). Ise system property <code>java.util.concurrent.ForkJoinPool.common.parallelism</code> se badal sakte ho. <code>sorted()</code> parallel me full barrier hai: poora upstream array me collect hota hai, phir <code>Arrays.parallelSort</code>.</p>
+      </article>
+      <article>
+        <h3><span class="q">Q9</span><span>Apne project me stream code ka LLD kaisa rakhein?</span></h3>
+        <ol class="rules">
+          <li><strong>Method ka naam intent bataye</strong> (<code>findActiveHighEarnerNames</code>). Stream uska implementation detail hai.</li>
+          <li><strong>Ek line, ek operation.</strong> Method reference jahan readable ho (<code>Employee::name</code>).</li>
+          <li><strong>3+ line ka lambda</strong> private named method me nikaalo (<code>isEligibleForBonus(employee)</code>).</li>
+          <li><strong>Lambdas stateless aur non-interfering:</strong> source modify mat karo, bahar ka mutable state mat chhuo.</li>
+          <li><strong>Side effects sirf <code>forEach</code> me.</strong> <code>peek</code> sirf debugging ke liye.</li>
+          <li><strong>Public API se Stream return mat karo</strong> (single-use trap). List/Set do, ya docs me saaf likho.</li>
+          <li><strong>Checked exceptions</strong> ke liye helper method banao jo wrap kare (topic #20 ka <code>awaitResult</code>).</li>
+          <li><strong>Numbers</strong> ke liye primitive streams. Paise ke liye <code>BigDecimal</code>, <code>double</code> nahi.</li>
+          <li><strong>6–7 ops se lambi pipeline</strong> ko meaningful variables ya methods me todo.</li>
+          <li><strong>Performance ka claim</strong> JMH se measure karke hi karo, andaaze se nahi.</li>
+        </ol>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="topics">
+  <div class="wrap">
+    <h2>Topic by topic: problem ⇄ solution</h2>
+    <p class="sec-lede">22 topics, Java version ke order me. Left pe problem (purana tareeka aur uska dard), right pe solution, ek properly named method ke andar. Explanation me line number pe tap karo, code me woh line highlight hogi.</p>
+    <details class="domain">
+      <summary>Examples ka domain model aur sample data</summary>
+      <p class="muted" style="margin-top:8px">Code chhota rakhne ke liye records use kiye hain (Java 16+). Java 8 me yahi normal class + getters se hoga, jaise <code>employee.getSalary()</code>. Saare outputs isi data se JDK 25 pe run karke nikale gaye hain.</p>
+      <div data-snip="domain"></div>
+    </details>
+    <div class="filters" role="group" aria-label="Topic filters">
+      <div class="chips" id="fVersion" aria-label="Filter by Java version"></div>
+      <div class="chips" id="fLevel" aria-label="Filter by level"></div>
+    </div>
+    <p class="count" id="topicCount" aria-live="polite"></p>
+    <div class="empty" id="topicEmpty" hidden>Is filter me koi topic nahi hai. <button type="button" class="btn ghost" id="clearFilters">Saare topics dikhao</button></div>
+    <div class="topic-list" id="topicList"></div>
+  </div>
+</section>
+
+<section class="sec" id="decide">
+  <div class="wrap">
+    <h2>Kaise decide karein: kaunsa API kab</h2>
+    <p class="sec-lede">Sawaal ka jawab do, answer milega. Har answer ke saath minimum Java version bhi dikhega.</p>
+    <div class="wizard" id="wizard" aria-live="polite"></div>
+    <details class="quick">
+      <summary>Saare decisions ek list me</summary>
+      <ul class="qp" id="quickPicks"></ul>
+    </details>
+    <h3 class="sub">Kaise pata karein kaunsa API kis version me aaya?</h3>
+    <div class="find-grid">
+      <div class="find"><h4>1. Javadoc ka @since</h4><p>Har method ke Javadoc me "Since: 16" jaisa likha hota hai. Is page ke saare version claims isi tarah JDK 25 source ke <code>@since</code> tags se check kiye gaye hain.</p></div>
+      <div class="find"><h4>2. javac --release</h4><p>Build ko target version pe compile karo. Naya API use kiya to compile error milega, production me surprise nahi.</p><div data-snip="findRelease"></div></div>
+      <div class="find"><h4>3. Build tool me version lock karo</h4><p>Maven ya Gradle me release/toolchain set karo, taaki poori team same API level pe rahe.</p><div data-snip="findBuild"></div></div>
+      <div class="find"><h4>4. jshell me turant try karo</h4><p>Java 9+ ke saath jshell aata hai. Koi bhi API ek line me try karo, project banaye bina.</p><div data-snip="findJshell"></div></div>
+      <div class="find"><h4>5. IDE language level</h4><p>IntelliJ me project language level (jaise 17) set karo, naye APIs pe warning milegi. Quick Documentation (Win/Linux: Ctrl+Q, macOS: F1) method ka "Since" dikhata hai.</p></div>
+      <div class="find"><h4>6. Java Almanac</h4><p><a href="https://javaalmanac.io" target="_blank" rel="noopener">javaalmanac.io</a> pe do versions ke beech API diff dekh sakte ho, jaise 17 vs 21. Upgrade planning me kaam aata hai.</p></div>
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="tradeoffs">
+  <div class="wrap">
+    <h2>Trade-offs: kab apply karein, kab ignore</h2>
+    <p class="sec-lede">Har feature ki ek keemat hoti hai. Interview me "kab NAHI use karoge" wala jawab hi senior aur junior me farak dikhata hai.</p>
+    <div class="tgrid" id="tradeGrid"></div>
+  </div>
+</section>
+
+<section class="sec" id="remember">
+  <div class="wrap">
+    <h2>Kaise yaad rakhein</h2>
+    <p class="sec-lede">Ek kahani, kuch shortcuts, aur flip karne wale cards. Upar wala route map bhi isi kahani pe bana hai.</p>
+    <p class="big-mnemo" id="bigMnemo"></p>
+    <div class="mgrid" id="mnemoGrid"></div>
+    <h3 class="sub">Flashcards: tap karke palto</h3>
+    <div class="fc-grid" id="fcGrid"></div>
+  </div>
+</section>
+
+<section class="sec" id="mock">
+  <div class="wrap">
+    <h2>Mock interview: 30 sawaal, jawab ke saath</h2>
+    <p class="sec-lede">Pehle khud jawab socho, phir kholo. Level filter se apne round ke hisaab se practice karo.</p>
+    <div class="mock-tools">
+      <div class="chips" id="mLevel" role="group" aria-label="Filter questions by level"></div>
+      <div class="btns"><button type="button" class="btn ghost" id="openAll">Sab kholo</button><button type="button" class="btn ghost" id="closeAll">Sab band karo</button></div>
+    </div>
+    <p class="count" id="mockCount" aria-live="polite"></p>
+    <div class="qlist" id="mockList"></div>
+  </div>
+</section>
+
+<section class="sec" id="anime">
+  <div class="wrap">
+    <h2>Animation: stream ke andar kya hota hai</h2>
+    <p class="sec-lede">7 scenes: pipeline kaise SAVE hoti hai, Sink chain kaise banti hai, element kaise flow karke buffer UPDATE karta hai, short-circuit, sorted() barrier, parallel split, aur Java 24 Gatherer. Play dabao, Javu samjhayega.</p>
+    <div class="anim-tabs" id="animTabs" role="tablist" aria-label="Animation scenes"></div>
+    <p class="anim-title" id="animTitle"></p>
+    <div class="anim">
+      <div class="anim-left">
+        <div class="narr">
+          <svg class="mascot" viewBox="0 0 64 64" aria-hidden="true">
+            <path class="steam" d="M25 15c-3-4 3-6 0-10M33 15c-3-4 3-6 0-10M41 15c-3-4 3-6 0-10"/>
+            <path class="handle" d="M50 28h4a7 7 0 0 1 0 14h-4"/>
+            <rect class="cup" x="13" y="19" width="38" height="33" rx="9"/>
+            <path class="coffee" d="M16 24h32v3H16z"/>
+            <circle class="eye" cx="26" cy="35" r="3"/>
+            <circle class="eye" cx="39" cy="35" r="3"/>
+            <path class="smile" d="M27 43q5.5 4.5 11 0"/>
+            <rect class="saucer" x="7" y="53" width="50" height="5" rx="2.5"/>
+          </svg>
+          <div class="bubble"><b>Javu</b><p id="animSay" aria-live="polite"></p></div>
+        </div>
+        <div class="stage" id="animStage"><svg id="animSvg" viewBox="0 0 360 400" role="img" aria-label="Stream internals ka animation"></svg></div>
+        <div class="anim-controls">
+          <button type="button" class="btn" id="animPlay">Play</button>
+          <button type="button" class="btn ghost" id="animRestart">Restart scene</button>
+          <label>Speed <select id="animSpeed"><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="1.5">1.5×</option><option value="2">2×</option></select></label>
+          <label><input type="checkbox" id="animAuto" checked> Agla scene auto</label>
+        </div>
+      </div>
+      <div class="anim-right">
+        <div class="pbox"><h3>Abhi ye code chal raha hai</h3><ol class="anim-code" id="animCode"></ol></div>
+        <div class="pbox mem-first"><h3>Memory me kya SAVE hai</h3><dl class="anim-state" id="animState"></dl></div>
+        <div class="pbox"><h3>Event log</h3><ol class="anim-log" id="animLog"></ol></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer class="foot">
+  <div class="wrap">
+    <p>Verification: is page ke saare solution methods JDK 25 pe compile aur run kiye gaye hain (Gatherers ke alawa sab <code>--release 21</code> pe bhi compile hote hain). Har version claim JDK source ke <code>@since</code> tags se check kiya gaya hai. Timing numbers (jaise 219 ms vs 1005 ms) ek chhote test ke hain; aapki machine pe thode alag honge.</p>
+  </div>
+</footer>
+<script>
+const J = String.raw;
+
+const ROUTE = [
+  { v: 8, key: "Birth", lts: true, apis: "Stream, Collectors, Optional" },
+  { v: 9, key: "Stop", apis: "takeWhile, iterate, ofNullable" },
+  { v: 10, key: "Freeze", apis: "toUnmodifiable*, orElseThrow()" },
+  { v: 11, key: "Not", lts: true, apis: "Predicate.not, lines, strip" },
+  { v: 12, key: "Tee", apis: "Collectors.teeing" },
+  { v: 16, key: "List", apis: "toList(), mapMulti" },
+  { v: 17, key: "Pause", lts: true, apis: "Koi naya Stream method nahi", nolink: true },
+  { v: 21, key: "Ends", lts: true, apis: "getFirst, getLast, reversed()", toBonus: true },
+  { v: 24, key: "Gather", apis: "gather() bonus, 25 LTS me bhi" }
+];
+
+const STORY = [["Baby", 8], " chalte-chalte ", ["Stop", 9], " hua, ", ["Freeze", 10], " ho gaya, bola ", ["Not", 11], ", ", ["Tea", 12], " pi, ", ["List", 16], " banayi, thoda ", ["Pause", 17], ", dono ", ["Ends", 21], " dekhe, aur dosto ko ", ["Gather", 24], " kiya."];
+
+const SNIPPETS = {
+  domain: { title: "Domain.java", code: J`record Address(String city, String pincode) {}
+record Employee(int id, String name, String department, double salary,
+                boolean active, Address address) {}
+record OrderLine(String sku, int quantity) {}
+record Order(String orderId, LocalDate orderDate, List<OrderLine> lines) {}
+sealed interface Shape permits Circle, Rectangle, Square {}
+record Circle(double radius) implements Shape {}
+record Rectangle(double width, double height) implements Shape {}
+record Square(double side) implements Shape {}
+
+static final List<Employee> EMPLOYEES = List.of(
+        new Employee(1, "Aman",   "ENG",   85_000, true,  new Address("Pune", "411001")),
+        new Employee(2, "Bhavna", "ENG",   62_000, true,  new Address("Delhi", "110001")),
+        new Employee(3, "Chirag", "HR",    40_000, false, null),
+        new Employee(4, "Divya",  "SALES", 55_000, true,  new Address(null, "560001")),
+        new Employee(5, "Esha",   "ENG",   95_000, true,  new Address("Pune", "411002")),
+        new Employee(6, "Farhan", "HR",    48_000, true,  new Address("Mumbai", "400001")));
+
+static final List<Order> ORDERS = List.of(   // date ke order me sorted
+        new Order("O1", LocalDate.of(2026, 9, 1), List.of(new OrderLine("PEN", 2), new OrderLine("BOOK", 1))),
+        new Order("O2", LocalDate.of(2026, 9, 5), List.of(new OrderLine("PEN", 1), new OrderLine("BAG", 1))),
+        new Order("O3", LocalDate.of(2026, 9, 9), List.of(new OrderLine("LAMP", 3))));` },
+
+  hldTrace: { title: "VerticalFlowDemo.java", code: J`List<String> trace = new ArrayList<>();
+Stream.of("a", "b", "c")
+        .filter(s -> { trace.add("filter " + s); return !s.equals("b"); })
+        .map(s -> { trace.add("map " + s); return s.toUpperCase(); })
+        .forEach(s -> trace.add("forEach " + s));
+// trace = [filter a, map a, forEach A, filter b, filter c, map c, forEach C]` },
+
+  hldLazy: { title: "LazyProof.java", code: J`List<String> seen = new ArrayList<>();
+Stream<String> pipeline = Stream.of("a", "b").peek(seen::add);
+// seen = []  → terminal op nahi laga, isliye kuch nahi chala
+
+pipeline.map(String::toUpperCase);   // OK: naya stage link hua
+pipeline.map(String::toUpperCase);   // 💥 IllegalStateException:
+                                     //    stream has already been operated upon or closed` },
+
+  lldTree: { title: "java.util.stream (simplified)", lang: "plain", code: J`BaseStream<T, S>                    interface: iterator, spliterator, parallel, close
+├─ Stream<T> / IntStream / LongStream / DoubleStream
+
+AbstractPipeline<E_IN, E_OUT, S>    har stage ka base: links + flags + depth
+└─ ReferencePipeline<P_IN, P_OUT>   Stream<T> ka implementation
+   ├─ Head          source stage (depth 0)
+   ├─ StatelessOp   filter, map, flatMap, peek, mapMulti
+   ├─ StatefulOp    sorted, distinct, limit, skip, takeWhile, dropWhile
+   └─ GathererOp    gather()  (Java 24)
+
+Sink<T> extends Consumer<T>         begin(size) → accept(t)… → end(), cancellationRequested()
+└─ Sink.ChainedReference            downstream Sink ka reference rakhta hai
+
+TerminalOp<E_IN, R>                 ReduceOps (collect, reduce, count), ForEachOps, MatchOps, FindOps
+Spliterator<T>                      tryAdvance, forEachRemaining, trySplit, characteristics
+Node<T> / Nodes                     sorted(), toArray(), parallel results ka buffer
+AbstractTask → CountedCompleter     parallel ke ForkJoin tasks
+StreamOpFlag                        DISTINCT, SORTED, ORDERED, SIZED, SHORT_CIRCUIT bits` },
+
+  lldCtor: { title: "AbstractPipeline.java (JDK 25)", code: J`// Har intermediate op (filter, map, ...) ye constructor chalata hai
+AbstractPipeline(AbstractPipeline<?, E_IN, ?> previousStage, int opFlags) {
+    if (previousStage.linkedOrConsumed)
+        throw new IllegalStateException(MSG_STREAM_LINKED); // "stream has already been operated upon or closed"
+    previousStage.linkedOrConsumed = true;   // purana stage ab dobara use nahi hoga
+    previousStage.nextStage = this;          // aage ka pointer
+
+    this.previousStage = previousStage;      // peeche ka pointer: doubly linked list
+    this.sourceOrOpFlags = opFlags & StreamOpFlag.OP_MASK;
+    this.combinedFlags = StreamOpFlag.combineOpFlags(opFlags, previousStage.combinedFlags);
+    this.sourceStage = previousStage.sourceStage;
+    this.depth = previousStage.depth + 1;    // Head = 0, filter = 1, map = 2 ...
+}` },
+
+  lldWrap: { title: "AbstractPipeline + ReferencePipeline (JDK 25, simplified)", code: J`// Terminal se source ki taraf chalta hai (p = p.previousStage)
+final <P_IN> Sink<P_IN> wrapSink(Sink<E_OUT> sink) {
+    for (AbstractPipeline p = AbstractPipeline.this; p.depth > 0; p = p.previousStage) {
+        sink = p.opWrapSink(p.previousStage.combinedFlags, sink);
+    }
+    return (Sink<P_IN>) sink;
+}
+
+// filter() ka Sink: sirf pass ya stop
+return new Sink.ChainedReference<>(sink) {
+    @Override
+    public void begin(long size) {
+        downstream.begin(-1);             // filter ke baad size pata nahi
+    }
+
+    @Override
+    public void accept(P_OUT u) {
+        if (predicate.test(u))
+            downstream.accept(u);         // pass: agle Sink ko do
+    }
+};
+
+// map() ka Sink: value badlo, aage do
+return new Sink.ChainedReference<>(sink) {
+    @Override
+    public void accept(P_OUT u) {
+        downstream.accept(mapper.apply(u));
+    }
+};` },
+
+  lldCopy: { title: "AbstractPipeline + ReferencePipeline (JDK 25)", code: J`final <P_IN> void copyInto(Sink<P_IN> wrappedSink, Spliterator<P_IN> spliterator) {
+    if (!StreamOpFlag.SHORT_CIRCUIT.isKnown(getStreamAndOpFlags())) {
+        wrappedSink.begin(spliterator.getExactSizeIfKnown());
+        spliterator.forEachRemaining(wrappedSink);    // har element push
+        wrappedSink.end();                            // stateful sinks yahan flush karte hain
+    } else {
+        copyIntoWithCancel(wrappedSink, spliterator); // findFirst, anyMatch, limit ...
+    }
+}
+
+// forEachWithCancel: har element se pehle poocho "ruk jaaun?"
+do { } while (!(cancelled = sink.cancellationRequested()) && spliterator.tryAdvance(sink));` },
+
+  lldCollector: { title: "CsvCollector.java", code: J`public static Collector<String, StringJoiner, String> joiningAsCsvLine() {
+    return Collector.of(
+            () -> new StringJoiner(","),   // Supplier: naya khaali container
+            StringJoiner::add,             // Accumulator: element add (UPDATE)
+            StringJoiner::merge,           // Combiner: parallel ke do hisse jodo
+            StringJoiner::toString);       // Finisher: final result
+}
+// Stream.of("id", "name", "salary").collect(joiningAsCsvLine())  →  "id,name,salary"` },
+
+  lldGatherer: { title: "java.util.stream.Gatherer<T, A, R> (Java 24)", code: J`Supplier<A>                          initializer();  // har run ke liye state banao
+Integrator<A, T, R>                  integrator();   // (state, element, downstream) -> boolean
+BinaryOperator<A>                    combiner();     // parallel states jodo (optional)
+BiConsumer<A, Downstream<? super R>> finisher();     // end pe bacha state flush karo
+
+// integrate(...) false return kare  → "ab aur elements mat bhejo" (short-circuit)
+// downstream.push(x) false de       → aage wale ko aur nahi chahiye
+// gatherer1.andThen(gatherer2)      → do gatherers jod ke ek` },
+
+  lldParallel: { title: "AbstractTask.java (JDK 25)", code: J`private static final int LEAF_TARGET = ForkJoinPool.getCommonPoolParallelism() << 2;
+
+public static long suggestTargetSize(long sizeEstimate) {
+    long est = sizeEstimate / getLeafTarget();   // ≈ size / (parallelism × 4)
+    return est > 0L ? est : 1L;
+}
+// getLeafTarget(): current thread kisi ForkJoinPool ka worker hai
+// to USI pool ki parallelism × 4, warna common pool wala LEAF_TARGET` },
+
+  findRelease: { title: "Terminal", lang: "plain", code: J`$ javac --release 21 BatchJob.java
+BatchJob.java:9: error: cannot find symbol
+            .gather(Gatherers.windowFixed(100))
+                    ^
+  symbol:   variable Gatherers` },
+
+  findBuild: { title: "pom.xml / build.gradle.kts", lang: "plain", code: J`<!-- Maven -->
+<properties>
+    <maven.compiler.release>21</maven.compiler.release>
+</properties>
+
+// Gradle (Kotlin DSL)
+java {
+    toolchain { languageVersion = JavaLanguageVersion.of(21) }
+}` },
+
+  findJshell: { title: "jshell", lang: "plain", code: J`$ jshell
+jshell> Stream.of(3, 1, 2).sorted().toList()
+$1 ==> [1, 2, 3]
+
+jshell> Stream.of(1, 2, 3, 4, 5).takeWhile(n -> n < 3).toList()
+$2 ==> [1, 2]` }
+};
+
+const TOPICS = [
+  {
+    id: "t01", v: 8, level: 1,
+    title: "Loop se stream pipeline tak",
+    apis: ["filter", "map", "sorted", "collect"],
+    problem: {
+      story: "Active employees me se jinki salary `minSalary` se zyada hai, unke naam UPPERCASE me aur sorted chahiye. Purana tareeka: for-loop, temp list, phir alag se sort.",
+      code: J`List<String> result = new ArrayList<>();
+for (Employee employee : employees) {
+    if (employee.active() && employee.salary() > minSalary) {
+        result.add(employee.name().toUpperCase());
+    }
+}
+Collections.sort(result);
+return result;`,
+      pains: [
+        "“Kya chahiye” aur “kaise karna hai” dono mix hain, isliye logic padhne me time lagta hai.",
+        "Temp list ko manually mutate karna padta hai. Galti se kahin aur bhi add ho sakta hai.",
+        "Filter, transform aur sort alag jagah hain, naya step jodna mushkil."
+      ]
+    },
+    solution: {
+      code: J`public static List<String> findActiveHighEarnerNames(List<Employee> employees, double minSalary) {
+    return employees.stream()
+            .filter(Employee::active)
+            .filter(employee -> employee.salary() > minSalary)
+            .map(Employee::name)
+            .map(String::toUpperCase)
+            .sorted()
+            .collect(Collectors.toList());
+}`,
+      call: "findActiveHighEarnerNames(employees, 60_000)",
+      output: "[AMAN, BHAVNA, ESHA]",
+      check: "findActiveHighEarnerNames(EMPLOYEES, 60_000)",
+      explain: [
+        ["1", "Method ka naam hi batata hai kya milega: `find…Names`. `minSalary` parameter hai, hardcode nahi."],
+        ["2", "`stream()` source banata hai. Abhi ek bhi element process nahi hua, sirf pipeline ka plan bana."],
+        ["3", "`filter(Employee::active)` method reference hai. Sirf active employees aage jaate hain. Yeh stateless op hai."],
+        ["4", "Lambda `minSalary` ko capture karta hai, isliye woh effectively final hona chahiye."],
+        ["5-6", "`map` type badalta hai: `Stream<Employee>` se `Stream<String>`, phir UPPERCASE string."],
+        ["7", "`sorted()` stateful hai: saare elements buffer me rakhta hai, sort karke aage bhejta hai."],
+        ["8", "Terminal op. Pipeline yahin actually chalti hai aur result list me SAVE hota hai. Java 16+ me `.toList()` likh sakte ho (topic #16)."]
+      ]
+    },
+    use: "Filter, transform, sort, aggregate jaisa data-processing kaam, jahan steps ek chain me naturally padhe ja sakein.",
+    avoid: "Index-based logic (`i - 1`, `i + 1`), bahut saare `break`/`return` wale complex loops, ya jab har step pe checked exception ho.",
+    remember: "SIT: Source, Intermediate, Terminal. Terminal ke bina stream bas ‘baithi’ rehti hai, chalti nahi."
+  },
+  {
+    id: "t02", v: 8, level: 2,
+    title: "groupingBy: manual Map banane ka jhanjhat khatam",
+    apis: ["groupingBy", "counting", "TreeMap::new"],
+    problem: {
+      story: "Har department me kitne employees hain. Report me departments alphabetical order me chahiye.",
+      code: J`Map<String, Long> countByDepartment = new TreeMap<>();
+for (Employee employee : employees) {
+    String department = employee.department();
+    if (!countByDepartment.containsKey(department)) {
+        countByDepartment.put(department, 0L);
+    }
+    countByDepartment.put(department, countByDepartment.get(department) + 1);
+}`,
+      pains: [
+        "`containsKey` + `get` + `put`: har element pe 3 lookups, aur boxing/null bugs ka risk.",
+        "Kal ‘average salary per department’ chahiye to poora loop dobara likhna padega."
+      ]
+    },
+    solution: {
+      code: J`public static Map<String, Long> countEmployeesByDepartment(List<Employee> employees) {
+    return employees.stream()
+            .collect(Collectors.groupingBy(
+                    Employee::department,
+                    TreeMap::new,
+                    Collectors.counting()));
+}`,
+      call: "countEmployeesByDepartment(employees)",
+      output: "{ENG=3, HR=2, SALES=1}",
+      check: "countEmployeesByDepartment(EMPLOYEES)",
+      explain: [
+        ["1", "Return type `Map<String, Long>`: key = department, value = count."],
+        ["3", "`groupingBy` ek Collector hai jo elements ko buckets me daalta hai."],
+        ["4", "Classifier: har employee ki key kya hogi."],
+        ["5", "Map factory: `TreeMap::new` se keys sorted rehti hain. 1-argument version HashMap deta hai, jisme order guaranteed nahi."],
+        ["6", "Downstream collector: har bucket ke andar kya karna hai. Yahan count. Ise `averagingDouble`, `mapping`, `maxBy` se badal sakte ho."]
+      ]
+    },
+    use: "Report ya dashboard wali grouping: har key ka count, sum, average ya list.",
+    avoid: "Sirf do buckets (true/false) chahiye to `partitioningBy` behtar hai, usme dono keys hamesha hoti hain. Loop me hi rehna ho to `map.merge(key, 1L, Long::sum)`.",
+    remember: "groupingBy ke 3 sawaal: key kaise bane, kaunsa map, bucket me kya karna."
+  },
+  {
+    id: "t03", v: 8, level: 1,
+    title: "Null checks ki seedhi: Optional chain",
+    apis: ["Optional.ofNullable", "map", "orElse"],
+    problem: {
+      story: "Employee ki city chahiye. Employee null ho sakta hai, address null ho sakta hai, city bhi null ho sakti hai.",
+      code: J`String city = "UNKNOWN";
+if (employee != null) {
+    Address address = employee.address();
+    if (address != null && address.city() != null) {
+        city = address.city();
+    }
+}
+return city;`,
+      pains: [
+        "Nested `if`: har naye level pe ek aur null check.",
+        "Ek check bhoole to production me NullPointerException."
+      ]
+    },
+    solution: {
+      code: J`public static String findCityOrDefault(Employee employee) {
+    return Optional.ofNullable(employee)
+            .map(Employee::address)
+            .map(Address::city)
+            .orElse("UNKNOWN");
+}`,
+      call: "har employee pe findCityOrDefault(employee)",
+      output: "[Pune, Delhi, UNKNOWN, UNKNOWN, Pune, Mumbai]",
+      check: "EMPLOYEES.stream().map(StreamExamples::findCityOrDefault).toList()",
+      note: "Chirag ka address null hai aur Divya ki city null hai, dono ko UNKNOWN mila. `findCityOrDefault(null)` bhi UNKNOWN deta hai.",
+      explain: [
+        ["2", "`ofNullable`: value null ho to empty Optional, warna value wala box."],
+        ["3", "`map` sirf tab chalta hai jab value present ho. `address()` null de to Optional apne aap empty ho jaata hai."],
+        ["4", "Agle level pe same idea. Koi `if` nahi."],
+        ["5", "Box empty hai to default. Default mehnga ho (DB call) to `orElseGet(() -> …)` lo, kyunki `orElse` ka argument hamesha evaluate hota hai."]
+      ]
+    },
+    use: "Jahan result ‘ho bhi sakta hai, nahi bhi’ (find, lookup) wahan method ka return type.",
+    avoid: "Optional ko field, method parameter ya collection element mat banao. `get()` bina check ke mat bulao; Java 10 ka `orElseThrow()` zyada saaf hai.",
+    remember: "Baad me aaye: 9 me `or`, `ifPresentOrElse`, `stream`; 10 me `orElseThrow()`; 11 me `isEmpty()`."
+  },
+  {
+    id: "t04", v: 8, level: 2,
+    title: "Nested loops ki jagah flatMap",
+    apis: ["flatMap", "Collectors.toCollection"],
+    problem: {
+      story: "Saare orders ki saari order lines se unique SKUs chahiye, sorted.",
+      code: J`Set<String> uniqueSkus = new TreeSet<>();
+for (Order order : orders) {
+    for (OrderLine line : order.lines()) {
+        uniqueSkus.add(line.sku());
+    }
+}
+return uniqueSkus;`,
+      pains: [
+        "Har nesting level pe ek aur loop. Teen level pe code right side me bhaagta hai.",
+        "Beech me filter ya transform jodna ho to loop ke andar aur `if` ghusane padte hain."
+      ]
+    },
+    solution: {
+      code: J`public static Set<String> collectUniqueSkus(List<Order> orders) {
+    return orders.stream()
+            .flatMap(order -> order.lines().stream())
+            .map(OrderLine::sku)
+            .collect(Collectors.toCollection(TreeSet::new));
+}`,
+      call: "collectUniqueSkus(orders)",
+      output: "[BAG, BOOK, LAMP, PEN]",
+      check: "collectUniqueSkus(ORDERS)",
+      explain: [
+        ["2", "`Stream<Order>` se shuruaat."],
+        ["3", "`flatMap`: har order ek chhoti stream (`lines().stream()`) deta hai, aur sab ek hi flat `Stream<OrderLine>` me jud jaati hain."],
+        ["4", "`OrderLine` se SKU string."],
+        ["5", "`toCollection(TreeSet::new)`: collection hum khud chunte hain, unique aur sorted dono ek saath."]
+      ]
+    },
+    use: "One-to-many relations: order se lines, user se roles, file se lines.",
+    avoid: "Har element se sirf 0 ya 1 item nikalna ho aur performance critical ho, to Java 16 ka `mapMulti` (topic #17).",
+    remember: "map = 1 se 1. flatMap = 1 se many, phir flat."
+  },
+  {
+    id: "t05", v: 8, level: 2,
+    title: "Numbers ke liye primitive streams",
+    apis: ["mapToDouble", "summaryStatistics"],
+    problem: {
+      story: "Dashboard ke liye active employees ki salary ka count, sum, min, average aur max chahiye.",
+      code: J`double total = employees.stream()
+        .filter(Employee::active)
+        .map(Employee::salary)                 // Stream<Double>: har value boxed
+        .reduce(0.0, Double::sum);
+double max = employees.stream()                // doosra pass, same filter dobara
+        .filter(Employee::active)
+        .map(Employee::salary)
+        .reduce(Double::max)
+        .orElse(0.0);
+// min, average aur count ke liye 3 aur passes...`,
+      pains: [
+        "`Stream<Double>` me har number ek object hai, boxing aur unboxing ka overhead.",
+        "Har statistic ke liye alag pass, yaani data 5 baar padha jaata hai."
+      ]
+    },
+    solution: {
+      code: J`public static DoubleSummaryStatistics summarizeActiveSalaries(List<Employee> employees) {
+    return employees.stream()
+            .filter(Employee::active)
+            .mapToDouble(Employee::salary)
+            .summaryStatistics();
+}`,
+      call: "summarizeActiveSalaries(employees)",
+      output: "DoubleSummaryStatistics{count=5, sum=345000.000000, min=48000.000000, average=69000.000000, max=95000.000000}",
+      check: "summarizeActiveSalaries(EMPLOYEES)",
+      explain: [
+        ["1", "Return type khud ek ‘stats box’ hai. Caller jo chahe nikaale: `getAverage()`, `getMax()`…"],
+        ["4", "`mapToDouble` se `DoubleStream` milti hai. Ab values primitive `double` hain, boxing nahi."],
+        ["5", "`summaryStatistics()` ek hi pass me count, sum, min, average aur max nikaalta hai."]
+      ]
+    },
+    use: "Numeric aggregation: `sum()`, `average()`, `max()`, aur index loops ke liye `IntStream.range()`.",
+    avoid: "Paise ke calculation me `double` mat lo. `BigDecimal` lo, phir `reduce(BigDecimal.ZERO, BigDecimal::add)`.",
+    remember: "Number dikhe to `mapToInt / mapToLong / mapToDouble` socho. Primitive = fast."
+  },
+  {
+    id: "t06", v: 8, level: 2,
+    title: "toMap ka ‘Duplicate key’ crash",
+    apis: ["toMap", "merge function", "LinkedHashMap::new"],
+    problem: {
+      story: "Har department ka top earner chahiye, Map me.",
+      code: J`Map<String, Employee> topByDepartment = employees.stream()
+        .collect(Collectors.toMap(Employee::department, employee -> employee));
+// 💥 IllegalStateException: Duplicate key ENG
+//    (attempted merging values Employee[id=1, ...] and Employee[id=2, ...])`,
+      pains: [
+        "`toMap` ka 2-argument version maan ke chalta hai ki keys unique hain. Pehla duplicate aate hi exception.",
+        "Java 8 me message me key ki jagah value print hoti thi, debugging aur confusing thi. Java 9+ me key aur dono values dikhti hain."
+      ]
+    },
+    solution: {
+      code: J`public static Map<String, Employee> findTopEarnerByDepartment(List<Employee> employees) {
+    return employees.stream()
+            .collect(Collectors.toMap(
+                    Employee::department,
+                    Function.identity(),
+                    BinaryOperator.maxBy(Comparator.comparingDouble(Employee::salary)),
+                    LinkedHashMap::new));
+}`,
+      call: "findTopEarnerByDepartment(employees), sirf naam dikhaye",
+      output: "[ENG=Esha, HR=Farhan, SALES=Divya]",
+      check: "findTopEarnerByDepartment(EMPLOYEES).entrySet().stream().map(e -> e.getKey() + \"=\" + e.getValue().name()).toList()",
+      explain: [
+        ["4", "Key: department."],
+        ["5", "Value: employee khud (`Function.identity()` matlab `e -> e`)."],
+        ["6", "Merge function: same key pe do values aayi to kaunsi rakhni hai. Yahan jiski salary zyada. Duplicate crash ka fix yahi hai."],
+        ["7", "Map factory: `LinkedHashMap` keys ka pehli baar dikhne wala order preserve karta hai."]
+      ]
+    },
+    use: "Unique-ish key se single value wale lookup maps, jaise id se entity.",
+    avoid: "Ek key pe kai values chahiye to `groupingBy`. Value null ho sakti ho to `toMap` NullPointerException deta hai, pehle filter karo.",
+    remember: "toMap ke 4 hisse: Key, Value, Merge, map Type (K-V-M-T)."
+  },
+  {
+    id: "t07", v: 8, level: 3,
+    title: "parallel(): sirf CPU-heavy aur independent kaam ke liye",
+    apis: ["parallel", "IntStream.rangeClosed", "count"],
+    problem: {
+      story: "1 se 10 lakh tak kitne prime numbers hain. Kaam CPU-heavy hai aur har number independent hai, par code me ek chhupi galti hai.",
+      code: J`List<Integer> primes = new ArrayList<>();
+IntStream.rangeClosed(2, upperLimit)
+        .parallel()
+        .filter(StreamExamples::isPrime)
+        .forEach(primes::add);          // 💥 ArrayList thread-safe nahi hai
+return primes.size();                   // kabhi kam count, kabhi exception`,
+      pains: [
+        "Kai threads ek hi `ArrayList` me add kar rahe hain: race condition, galat result ya exception.",
+        "Shared mutable state + parallel = aise bugs jo har run me alag dikhte hain."
+      ]
+    },
+    solution: {
+      code: J`public static long countPrimesInParallel(int upperLimit) {
+    return IntStream.rangeClosed(2, upperLimit)
+            .parallel()
+            .filter(StreamExamples::isPrime)
+            .count();
+}
+
+static boolean isPrime(int number) {
+    if (number < 2) return false;
+    for (int divisor = 2; (long) divisor * divisor <= number; divisor++) {
+        if (number % divisor == 0) return false;
+    }
+    return true;
+}`,
+      call: "countPrimesInParallel(1_000_000)",
+      output: "78498",
+      check: "countPrimesInParallel(1_000_000)",
+      explain: [
+        ["2", "`IntStream.rangeClosed` SIZED aur aasani se split hone wala source hai, parallel ke liye best. ArrayList aur array bhi achhe hain; LinkedList aur I/O sources bure."],
+        ["3", "`parallel()`: ab kaam `ForkJoinPool.commonPool()` ke threads me baṭega."],
+        ["4", "Har number alag se check hota hai, koi shared state nahi. Stateless lambda = parallel-safe."],
+        ["5", "`count()` ek reduction hai: har thread apna partial count banata hai, end me sab jud jaate hain. Koi shared list nahi."],
+        ["10", "`(long) divisor * divisor` bade numbers pe int overflow se bachata hai. Check sirf √n tak."]
+      ]
+    },
+    use: "CPU-bound kaam, bada data (lakhs+), sasta combine, koi shared state nahi. Hamesha JMH se measure karo.",
+    avoid: "I/O calls, chhota data, `LinkedList`/`Iterator` sources, order wale `findFirst`/`limit`, aur web request threads (common pool poori JVM share karti hai).",
+    remember: "NQ model: N (elements) × Q (har element ka kaam) bada ho, tabhi parallel se fayda."
+  },
+  {
+    id: "t08", v: 9, level: 2,
+    title: "takeWhile / dropWhile: condition toot-te hi ruk jao",
+    apis: ["takeWhile", "dropWhile"],
+    problem: {
+      story: "Logs time ke order me hain: `[INFO boot, INFO db connected, WARN slow query, ERROR payment failed, INFO retry ok]`. Pehle ERROR se pehle ki lines chahiye, aur alag se ERROR se aage ki.",
+      code: J`List<String> beforeError = new ArrayList<>();
+for (String line : logLines) {
+    if (line.startsWith("ERROR")) {
+        break;                          // Java 8 stream me "break" nahi hota tha
+    }
+    beforeError.add(line);
+}
+// filter(line -> !line.startsWith("ERROR")) lagaya to?
+// ERROR ke BAAD wali "INFO retry ok" bhi aa jaati hai`,
+      pains: [
+        "`filter` poori list scan karta hai aur beech me ruk nahi sakta.",
+        "Java 8 streams me ‘break’ ka seedha tareeka nahi tha."
+      ]
+    },
+    solution: {
+      code: J`public static List<String> readLogsBeforeFirstError(List<String> logLines) {
+    return logLines.stream()
+            .takeWhile(line -> !line.startsWith("ERROR"))
+            .collect(Collectors.toList());
+}
+
+public static List<String> readLogsFromFirstError(List<String> logLines) {
+    return logLines.stream()
+            .dropWhile(line -> !line.startsWith("ERROR"))
+            .collect(Collectors.toList());
+}`,
+      call: "readLogsBeforeFirstError(logs) / readLogsFromFirstError(logs)",
+      output: "[INFO boot, INFO db connected, WARN slow query] / [ERROR payment failed, INFO retry ok]",
+      check: "readLogsBeforeFirstError(LOGS) + \" / \" + readLogsFromFirstError(LOGS)",
+      explain: [
+        ["3", "`takeWhile`: jab tak condition true hai, elements lo. Pehli baar false hote hi stream wahin khatam. Baaki elements padhe hi nahi jaate (short-circuit)."],
+        ["4", "Java 9 ka topic hai, isliye `collect(Collectors.toList())`. Java 16+ me `.toList()`."],
+        ["9", "`dropWhile` ulta kaam karta hai: jab tak condition true, elements chhodo. Pehla false aate hi wahan se sab lo."]
+      ]
+    },
+    use: "Sorted ya ordered data: time-series, sorted prices, file ka header skip karna.",
+    avoid: "Unordered source (HashSet) pe result har run me alag ho sakta hai. Parallel ordered stream me yeh mehnga hai.",
+    remember: "Java 9 = STOP: takeWhile, dropWhile, aur stop-condition wala iterate."
+  },
+  {
+    id: "t09", v: 9, level: 1,
+    title: "Stream.iterate me stop-condition",
+    apis: ["Stream.iterate(seed, hasNext, next)"],
+    problem: {
+      story: "1, 2, 4, 8… jab tak value `maxValue` se chhoti ya barabar hai.",
+      code: J`List<Integer> powers = Stream.iterate(1, value -> value * 2)   // infinite stream
+        .filter(value -> value <= maxValue)                    // 💀 kabhi nahi rukega
+        .collect(Collectors.toList());
+// Java 8 workaround: .limit(n), par n pehle se pata hona chahiye`,
+      pains: [
+        "`filter` ko pata hi nahi ki aage ke elements bhi fail honge. Woh infinite stream padhta rehta hai.",
+        "`limit(n)` ke liye count pehle se chahiye, jo aksar pata nahi hota."
+      ]
+    },
+    solution: {
+      code: J`public static List<Integer> generatePowersOfTwoUpTo(int maxValue) {
+    return Stream.iterate(
+                    1,                            // seed: shuruaat
+                    value -> value <= maxValue,   // hasNext: kab tak
+                    value -> value * 2)           // next: agla kaise
+            .collect(Collectors.toList());
+}`,
+      call: "generatePowersOfTwoUpTo(100)",
+      output: "[1, 2, 4, 8, 16, 32, 64]",
+      check: "generatePowersOfTwoUpTo(100)",
+      explain: [
+        ["2", "Bilkul for-loop jaisa: `for (int v = 1; v <= maxValue; v = v * 2)`."],
+        ["3", "Seed: pehla element."],
+        ["4", "hasNext: yeh false hote hi stream khatam. Yahi Java 9 ka naya hissa hai."],
+        ["5", "next: pichhle element se agla kaise banega."],
+        ["6", "Finite stream hai, isliye collect safe hai."]
+      ]
+    },
+    use: "Pagination (`Stream.iterate(firstPage, Objects::nonNull, page -> client.next(page))`), retries, date ranges, non-linear sequences.",
+    avoid: "Simple index range ke liye `IntStream.range(0, n)` lo (SIZED aur parallel-friendly). Condition kabhi false na ho to infinite loop.",
+    remember: "iterate(seed, hasNext, next) = for (init; condition; update)."
+  },
+  {
+    id: "t10", v: 9, level: 2,
+    title: "Optional aur null values ko stream me flatten karo",
+    apis: ["Optional.stream", "Stream.ofNullable"],
+    problem: {
+      story: "Employees ke managers ki emails chahiye. Lookup `Optional` deta hai (jaise Spring Data ka `findById`), aur kuch employees ka manager hai hi nahi. Data: `managerEmailById = {1, 2 → ravi@corp.com, 4, 6 → neha@corp.com}`.",
+      code: J`List<String> managerEmails = employees.stream()
+        .map(employee -> Optional.ofNullable(managerEmailById.get(employee.id())))
+        .filter(Optional::isPresent)            // step 1: empty hatao
+        .map(Optional::get)                     // step 2: unwrap (get() smell)
+        .distinct()
+        .collect(Collectors.toList());`,
+      pains: [
+        "Ek kaam ke liye do steps (`isPresent` + `get`).",
+        "`get()` code review me red flag hai. Kal koi filter hata de to NoSuchElementException."
+      ]
+    },
+    solution: {
+      code: J`public static List<String> findDistinctManagerEmails(List<Employee> employees,
+                                                     Map<Integer, String> managerEmailById) {
+    return employees.stream()
+            .map(Employee::id)
+            .map(id -> Optional.ofNullable(managerEmailById.get(id)))
+            .flatMap(Optional::stream)
+            .distinct()
+            .collect(Collectors.toList());
+}`,
+      call: "findDistinctManagerEmails(employees, managerEmailById)",
+      output: "[ravi@corp.com, neha@corp.com]",
+      check: "findDistinctManagerEmails(EMPLOYEES, MANAGER_EMAIL_BY_ID)",
+      explain: [
+        ["4", "Employee se id."],
+        ["5", "Lookup ka result `Optional<String>`, jaisa repository methods dete hain."],
+        ["6", "`Optional::stream` (Java 9): present ho to 1 element ki stream, empty ho to 0 ki. `flatMap` sabko flat kar deta hai. Filter + get ki zarurat khatam."],
+        ["7", "Ek manager kai employees ka ho sakta hai, isliye `distinct()`."]
+      ]
+    },
+    use: "`Stream<Optional<T>>` ko `Stream<T>` banana. Null wale lookups ke liye shortcut: `.flatMap(id -> Stream.ofNullable(map.get(id)))`.",
+    avoid: "Sirf ek Optional ho, stream nahi, to `ifPresent` ya `orElse` kaafi hai. Uske liye stream mat banao.",
+    remember: "Optional = 0 ya 1 element wali mini stream."
+  },
+  {
+    id: "t11", v: 9, level: 2,
+    title: "Group ke andar filter: Collectors.filtering",
+    apis: ["Collectors.filtering", "Collectors.flatMapping"],
+    problem: {
+      story: "Har department me kitne high earners (salary > 60k) hain. Jin departments me zero hain, woh bhi report me 0 ke saath dikhne chahiye.",
+      code: J`Map<String, Long> highEarnersByDepartment = employees.stream()
+        .filter(employee -> employee.salary() > 60_000)   // pehle filter...
+        .collect(Collectors.groupingBy(Employee::department, Collectors.counting()));
+// {ENG=3}: HR aur SALES gayab! Report me unka 0 dikhana tha`,
+      pains: [
+        "Grouping se pehle filter kiya to jis group ke saare elements hat gaye, woh group banta hi nahi."
+      ]
+    },
+    solution: {
+      code: J`public static Map<String, Long> countHighEarnersPerDepartment(List<Employee> employees, double minSalary) {
+    return employees.stream()
+            .collect(Collectors.groupingBy(
+                    Employee::department,
+                    TreeMap::new,
+                    Collectors.filtering(
+                            employee -> employee.salary() > minSalary,
+                            Collectors.counting())));
+}`,
+      call: "countHighEarnersPerDepartment(employees, 60_000)",
+      output: "{ENG=3, HR=0, SALES=0}",
+      check: "countHighEarnersPerDepartment(EMPLOYEES, 60_000)",
+      explain: [
+        ["4", "Pehle saare employees group hote hain, isliye har department ki key ban jaati hai."],
+        ["6", "`filtering` downstream ke andar chalta hai: group bana, phir us group ke andar filter."],
+        ["7", "Condition fail ho tab bhi group ki key bani rehti hai, count 0 aata hai."],
+        ["8", "Filter ke baad bache elements ka count."]
+      ]
+    },
+    use: "Reports jahan har category dikhni chahiye, chahe value 0 ho. `flatMapping` bhi isi tarah group ke andar 1 se many karta hai.",
+    avoid: "Empty groups ki zarurat nahi to simple `filter` pehle lagao. Kam kaam, simple code.",
+    remember: "Filter BEFORE group = group gayab. Filter INSIDE group = group zinda, count 0."
+  },
+  {
+    id: "t12", v: 9, level: 3,
+    title: "Upgrade trap: count() pipeline skip kar sakta hai",
+    apis: ["count", "peek", "SIZED"],
+    problem: {
+      story: "Java 8 code me `peek` ke andar audit counter badhaya ja raha tha. Java 17 pe upgrade ke baad audit count 0 aane laga.",
+      code: J`AtomicInteger auditedCount = new AtomicInteger();
+long total = employees.stream()
+        .peek(employee -> auditedCount.incrementAndGet())   // side effect 😬
+        .count();
+// Java 8  → total = 6, auditedCount = 6
+// Java 9+ → total = 6, auditedCount = 0  (peek chala hi nahi!)`,
+      pains: [
+        "Java 9+ me agar source ka size pata hai (SIZED) aur beech ke ops size nahi badalte, to `count()` seedha size return kar deta hai. Pipeline chalti hi nahi.",
+        "Spec pehle se kehta tha ki side effects pe bharosa mat karo. Code sirf luck se ‘chal’ raha tha."
+      ]
+    },
+    solution: {
+      code: J`public static long auditActiveEmployees(List<Employee> employees, Consumer<Employee> auditLogger) {
+    List<Employee> activeEmployees = employees.stream()
+            .filter(Employee::active)
+            .collect(Collectors.toList());
+    activeEmployees.forEach(auditLogger);
+    return activeEmployees.size();
+}`,
+      call: "auditActiveEmployees(employees, auditLogger)",
+      output: "5 (auditLogger 5 baar chala)",
+      check: "auditActiveEmployees(EMPLOYEES, e -> AUDIT.incrementAndGet()) + \" (auditLogger \" + AUDIT.get() + \" baar chala)\"",
+      note: "JDK 25 pe verify kiya: `list.stream().peek(...).count()` me peek 0 baar chala. Beech me `filter` ho to size unknown hota hai, tab pipeline chalti hai.",
+      explain: [
+        ["1", "Naam batata hai ki method audit bhi karta hai aur count bhi deta hai. Logger bahar se aata hai (testable)."],
+        ["2-4", "Pehle pure transformation: active employees ki list. Koi side effect nahi."],
+        ["5", "Side effect ab explicit hai. `forEach` har element pe guaranteed chalta hai."],
+        ["6", "Count ke liye stream dobara nahi, list ka `size()`."]
+      ]
+    },
+    use: "Rule: side effects sirf `forEach`/`forEachOrdered` me. `peek` sirf debugging ke liye.",
+    avoid: "`map`, `peek` ya `filter` ke andar logging, counters, DB writes.",
+    remember: "Java 9+ ka `count()` smart hai: size pata ho to ginta nahi, seedha bata deta hai."
+  },
+  {
+    id: "t13", v: 10, level: 1,
+    title: "Read-only results: toUnmodifiableList aur orElseThrow()",
+    apis: ["toUnmodifiableList", "toUnmodifiableSet", "toUnmodifiableMap", "Optional.orElseThrow()"],
+    problem: {
+      story: "Service ek cached list return karti hai. Kisi caller ne `.clear()` kar diya aur cache hi khaali ho gaya.",
+      code: J`class EmployeeDirectory {
+    private final List<String> activeNames;
+
+    EmployeeDirectory(List<Employee> employees) {
+        activeNames = employees.stream()
+                .filter(Employee::active)
+                .map(Employee::name)
+                .collect(Collectors.toList());   // practically ArrayList: mutable
+    }
+
+    List<String> getActiveNames() {
+        return activeNames;                       // caller: getActiveNames().clear() 😱
+    }
+}
+// Java 8 fix: collectingAndThen(toList(), Collections::unmodifiableList). Kaafi lamba!`,
+      pains: [
+        "`Collectors.toList()` mutability ki koi guarantee nahi deta, par practically `ArrayList` deta hai. Log galti se modify kar dete hain.",
+        "Java 8 me read-only banane ka tareeka lamba tha."
+      ]
+    },
+    solution: {
+      code: J`public static List<String> buildReadOnlyActiveNames(List<Employee> employees) {
+    return employees.stream()
+            .filter(Employee::active)
+            .map(Employee::name)
+            .collect(Collectors.toUnmodifiableList());
+}
+
+public static Employee findEmployeeByIdOrThrow(List<Employee> employees, int employeeId) {
+    return employees.stream()
+            .filter(employee -> employee.id() == employeeId)
+            .findFirst()
+            .orElseThrow();
+}`,
+      call: "buildReadOnlyActiveNames(employees) / findEmployeeByIdOrThrow(employees, 5).name()",
+      output: "[Aman, Bhavna, Divya, Esha, Farhan] / Esha",
+      check: "buildReadOnlyActiveNames(EMPLOYEES) + \" / \" + findEmployeeByIdOrThrow(EMPLOYEES, 5).name()",
+      note: "List pe `add()` karo to UnsupportedOperationException. Id 99 ke liye NoSuchElementException: No value present.",
+      explain: [
+        ["5", "`toUnmodifiableList()` (Java 10): koi add, remove ya set nahi. Null element aaya to NullPointerException."],
+        ["10", "Condition wala pehla employee."],
+        ["11", "`findFirst()` Optional deta hai: mila ya nahi mila."],
+        ["12", "Bina argument ka `orElseThrow()` (Java 10) `get()` jaisa hi hai, par naam se saaf dikhta hai ki fail ho sakta hai. Apna exception chahiye to `orElseThrow(() -> new EmployeeNotFoundException(id))`."]
+      ]
+    },
+    use: "Public API se collections return karna, caches, config lists.",
+    avoid: "Data me null aa sakta hai to Java 16 ka `toList()` (nulls allowed). Caller ko modify karna hai to `toCollection(ArrayList::new)`.",
+    remember: "Java 10 = FREEZE: toUnmodifiable* aur orElseThrow()."
+  },
+  {
+    id: "t14", v: 11, level: 1,
+    title: "Predicate.not aur String.lines(): text processing saaf",
+    apis: ["Predicate.not", "String.lines", "strip", "isBlank"],
+    problem: {
+      story: "User ne multi-line text paste kiya. Har line trim karke khaali lines hatani hain.",
+      code: J`List<String> lines = Arrays.stream(text.split("\\r?\\n"))  // regex split, poora array
+        .map(String::trim)                                 // sirf ASCII whitespace hatata hai
+        .filter(line -> !line.isEmpty())                   // negation ke liye lambda likhna pada
+        .collect(Collectors.toList());`,
+      pains: [
+        "`String::isEmpty` jaisi method reference ko negate nahi kar sakte the, lambda likhna padta tha.",
+        "`trim()` sirf `U+0020` tak ke characters hatata hai. `strip()` Unicode whitespace (jaise em space `U+2003`) bhi hatata hai."
+      ]
+    },
+    solution: {
+      code: J`public static List<String> extractMeaningfulLines(String multiLineText) {
+    return multiLineText.lines()
+            .map(String::strip)
+            .filter(Predicate.not(String::isBlank))
+            .collect(Collectors.toList());
+}`,
+      call: J`extractMeaningfulLines("  Hello \n\n  World  \n   \n")`,
+      output: "[Hello, World]",
+      check: J`extractMeaningfulLines("  Hello \n\n  World  \n   \n")`,
+      explain: [
+        ["2", "`lines()` (Java 11): lazy `Stream<String>`. `\\n`, `\\r` aur `\\r\\n` teeno handle karta hai, koi regex nahi."],
+        ["3", "`strip()`: Unicode-aware trim."],
+        ["4", "`Predicate.not(String::isBlank)`: method reference ka negation. `isBlank()` matlab empty ya sirf whitespace."]
+      ]
+    },
+    use: "Text, CSV aur log parsing. `filter(not(Set::isEmpty))` jaisi cheezein.",
+    avoid: "Condition complex ho to named method banao (`isValidLine`). `not(...)` ke andar `not(...)` nest mat karo.",
+    remember: "Java 11 = NOT: Predicate.not, isBlank, strip, lines, Optional.isEmpty, toArray(String[]::new)."
+  },
+  {
+    id: "t15", v: 12, level: 2,
+    title: "teeing: ek pass, do collectors",
+    apis: ["Collectors.teeing", "minBy", "maxBy"],
+    problem: {
+      story: "Sabse kam aur sabse zyada salary wale employee ke naam chahiye, ek hi pass me.",
+      code: J`Optional<Employee> lowest = employees.stream()
+        .min(Comparator.comparingDouble(Employee::salary));
+Optional<Employee> highest = employees.stream()        // doosra pass
+        .max(Comparator.comparingDouble(Employee::salary));
+// source ek hi baar padh sakte ho (file, DB cursor, iterator)? tab doosra pass possible hi nahi`,
+      pains: [
+        "Data do baar traverse hota hai.",
+        "`summaryStatistics()` sirf numbers deta hai, kaunsa employee hai yeh nahi batata."
+      ]
+    },
+    solution: {
+      code: J`record SalaryBand(String lowestPaid, String highestPaid) {}
+
+public static SalaryBand findSalaryBand(List<Employee> employees) {
+    Comparator<Employee> bySalary = Comparator.comparingDouble(Employee::salary);
+    return employees.stream()
+            .collect(Collectors.teeing(
+                    Collectors.minBy(bySalary),
+                    Collectors.maxBy(bySalary),
+                    (lowest, highest) -> new SalaryBand(
+                            lowest.map(Employee::name).orElse("-"),
+                            highest.map(Employee::name).orElse("-"))));
+}`,
+      call: "findSalaryBand(employees)",
+      output: "SalaryBand[lowestPaid=Chirag, highestPaid=Esha]",
+      check: "findSalaryBand(EMPLOYEES)",
+      explain: [
+        ["1", "Result ke liye chhota record: do values, ek naam ke saath."],
+        ["4", "Comparator ek baar banao, dono jagah reuse karo."],
+        ["6", "`teeing` (Java 12): har element DONO collectors ko jaata hai, jaise pipe me T-joint."],
+        ["7-8", "Collector 1 = min, Collector 2 = max. Dono `Optional<Employee>` dete hain, kyunki list khaali bhi ho sakti hai."],
+        ["9-11", "Merger: dono results ko ek final object me jodta hai."]
+      ]
+    },
+    use: "Ek pass me do aggregations: (count, sum) se average, passed/failed lists, (min, max) objects.",
+    avoid: "3 ya zyada aggregations ho to custom collector ya record accumulator zyada readable hai. Sirf numbers chahiye to `summaryStatistics()`.",
+    remember: "TWELVE = TEE: T-joint pipe, ek input, do output, ek merge."
+  },
+  {
+    id: "t16", v: 16, level: 1,
+    title: "Stream.toList(): chhota, read-only, null-friendly",
+    apis: ["Stream.toList"],
+    problem: {
+      story: "Sorted unique departments ki list chahiye, aur code bhi chhota.",
+      code: J`List<String> departments = employees.stream()
+        .map(Employee::department)
+        .distinct()
+        .sorted()
+        .collect(Collectors.toList());      // lamba, aur mutable hai ya nahi? pata nahi
+departments.add("TEMP");                    // chal jaata hai... par kya yeh contract hai?`,
+      pains: [
+        "Har jagah `.collect(Collectors.toList())`: boilerplate.",
+        "Result mutable hoga ya nahi, spec guarantee nahi karta. Team me confusion."
+      ]
+    },
+    solution: {
+      code: J`public static List<String> listDepartmentsAlphabetically(List<Employee> employees) {
+    return employees.stream()
+            .map(Employee::department)
+            .distinct()
+            .sorted()
+            .toList();
+}`,
+      call: "listDepartmentsAlphabetically(employees)",
+      output: "[ENG, HR, SALES]",
+      check: "listDepartmentsAlphabetically(EMPLOYEES)",
+      note: "Is list pe `add()` karo to UnsupportedOperationException. `Stream.of(\"a\", null).toList()` chalta hai: [a, null].",
+      table: {
+        head: ["Tareeka", "Java", "Modify kar sakte ho?", "Null allowed?"],
+        rows: [
+          ["collect(Collectors.toList())", "8", "Haan, par guarantee nahi", "Haan"],
+          ["collect(Collectors.toCollection(ArrayList::new))", "8", "Haan, guaranteed", "Haan"],
+          ["collect(Collectors.toUnmodifiableList())", "10", "Nahi", "Nahi (NPE)"],
+          ["toList()", "16", "Nahi", "Haan"]
+        ]
+      },
+      explain: [
+        ["3", "Employee se department string."],
+        ["4", "`distinct()` `equals/hashCode` se duplicates hatata hai. Stateful hai, andar seen-set rakhta hai."],
+        ["5", "`sorted()`: natural order."],
+        ["6", "`toList()` (Java 16): unmodifiable list, nulls allowed. Andar se array ko seedha trusted list me wrap karta hai."]
+      ]
+    },
+    use: "Java 16+ me default choice, jab result sirf padhna hai.",
+    avoid: "Baad me `add/sort/remove` karna hai to `collect(Collectors.toCollection(ArrayList::new))`. Purane `collect(toList())` ko aankh band karke replace mat karo, jo code list modify karta hai woh runtime pe tootega.",
+    remember: "Teen lists: 8 = mutable-ish, 10 = frozen + no nulls, 16 = frozen + nulls OK."
+  },
+  {
+    id: "t17", v: 16, level: 2,
+    title: "mapMulti: flatMap ka halka bhai",
+    apis: ["mapMulti"],
+    problem: {
+      story: "Label printing ke liye order lines ko units me expand karna hai: PEN × 2 se PEN, PEN.",
+      code: J`List<String> unitSkus = orderLines.stream()
+        .flatMap(line -> Collections.nCopies(line.quantity(), line.sku()).stream())
+        .toList();
+// har line ke liye ek naya List + Stream object: chhote items pe overhead`,
+      pains: [
+        "`flatMap` ko har element ke liye poori Stream chahiye, chahe 0, 1 ya 2 items hi hon.",
+        "Logic imperative ho (loop, if) to stream banana awkward lagta hai."
+      ]
+    },
+    solution: {
+      code: J`public static List<String> expandToUnitSkus(List<OrderLine> orderLines) {
+    return orderLines.stream()
+            .<String>mapMulti((line, downstream) -> {
+                for (int unit = 0; unit < line.quantity(); unit++) {
+                    downstream.accept(line.sku());
+                }
+            })
+            .toList();
+}`,
+      call: "expandToUnitSkus(List.of(new OrderLine(\"PEN\", 2), new OrderLine(\"BOOK\", 1)))",
+      output: "[PEN, PEN, BOOK]",
+      check: "expandToUnitSkus(List.of(new OrderLine(\"PEN\", 2), new OrderLine(\"BOOK\", 1)))",
+      explain: [
+        ["3", "`<String>` type witness hai: compiler ko output type batao, warna woh `Object` samjhega. Lambda ko current element aur `downstream` (ek Consumer) milte hain."],
+        ["4-6", "Jitni baar `downstream.accept()` bulao, utne elements aage jaate hain: 0, 1 ya many. Koi beech wali Stream nahi banti."],
+        ["8", "Java 16 ka `toList()`."]
+      ]
+    },
+    use: "Har element se 0 ya thode outputs. Type filter + cast: `.<Circle>mapMulti((shape, sink) -> { if (shape instanceof Circle c) sink.accept(c); })`.",
+    avoid: "Element ke paas already collection ya stream hai (`order.lines()`), to `flatMap` zyada readable hai.",
+    remember: "flatMap = stream do. mapMulti = items push karo (accept)."
+  },
+  {
+    id: "t18", v: 21, level: 1,
+    title: "SequencedCollection: first, last, reversed, seedhe",
+    apis: ["getFirst", "getLast", "reversed", "firstEntry", "lastEntry"],
+    problem: {
+      story: "Orders date ke order me sorted hain. Latest order chahiye, aur newest-first order IDs.",
+      code: J`Order latest = orders.get(orders.size() - 1);                  // index math
+Order latestViaStream = orders.stream()
+        .reduce((first, second) -> second)
+        .orElseThrow();                                         // O(n): poora traverse!
+List<Order> newestFirst = new ArrayList<>(orders);
+Collections.reverse(newestFirst);                               // copy + reverse
+// LinkedHashSet ka last element? iterate karke hi milta tha`,
+      pains: [
+        "Har collection type ka alag tareeka: List me index, Deque me `peekLast`, LinkedHashSet me loop.",
+        "Reverse ke liye poori copy banani padti thi."
+      ]
+    },
+    solution: {
+      code: J`public static Order findLatestOrder(List<Order> ordersSortedByDate) {
+    return ordersSortedByDate.getLast();
+}
+
+public static List<String> listOrderIdsNewestFirst(List<Order> ordersSortedByDate) {
+    return ordersSortedByDate.reversed()
+            .stream()
+            .map(Order::orderId)
+            .toList();
+}`,
+      call: "findLatestOrder(orders).orderId() / listOrderIdsNewestFirst(orders)",
+      output: "O3 / [O3, O2, O1]",
+      check: "findLatestOrder(ORDERS).orderId() + \" / \" + listOrderIdsNewestFirst(ORDERS)",
+      explain: [
+        ["2", "`getLast()` (Java 21): List, Deque, LinkedHashSet, SortedSet sab pe same method. Khaali pe NoSuchElementException."],
+        ["6", "`reversed()` ek VIEW deta hai: copy nahi banti, original list ko ulta dekhta hai."],
+        ["7-9", "View ko normal stream ki tarah use karo."]
+      ]
+    },
+    use: "LinkedHashMap pe bhi: `firstEntry()`, `lastEntry()`, `pollFirstEntry()`, `sequencedKeySet().reversed()`. LRU cache jaisi cheezon me kaam aata hai.",
+    avoid: "Collection khaali ho sakti hai aur exception nahi chahiye, to `stream().findFirst()` (Optional) ya pehle `isEmpty()` check.",
+    remember: "Java 21 = ENDS: getFirst, getLast, addFirst, addLast, removeFirst, removeLast, reversed."
+  },
+  {
+    id: "t19", v: 21, level: 2,
+    title: "Pattern matching switch aur record patterns, stream ke andar",
+    apis: ["switch patterns", "record patterns", "sealed"],
+    problem: {
+      story: "Mixed shapes (Circle, Rectangle, Square) ka total area chahiye.",
+      code: J`double totalArea = 0;
+for (Shape shape : shapes) {
+    if (shape instanceof Circle) {
+        Circle circle = (Circle) shape;                        // manual cast
+        totalArea += Math.PI * circle.radius() * circle.radius();
+    } else if (shape instanceof Rectangle) {
+        Rectangle rectangle = (Rectangle) shape;
+        totalArea += rectangle.width() * rectangle.height();
+    }                                                          // Square bhool gaye, compiler chup 😶
+}`,
+      pains: [
+        "Har type ke liye `instanceof` + cast.",
+        "Naya subtype (Square) aaya aur handle karna bhool gaye: koi compile error nahi, bas galat total."
+      ]
+    },
+    solution: {
+      code: J`public static double calculateTotalArea(List<Shape> shapes) {
+    return shapes.stream()
+            .mapToDouble(StreamExamples::areaOf)
+            .sum();
+}
+
+static double areaOf(Shape shape) {
+    return switch (shape) {
+        case Circle(double radius)                  -> Math.PI * radius * radius;
+        case Rectangle(double width, double height) -> width * height;
+        case Square(double side)                    -> side * side;
+    };
+}`,
+      call: "calculateTotalArea(List.of(new Circle(1), new Rectangle(2, 3), new Square(2)))",
+      output: "13.141592653589793",
+      check: "calculateTotalArea(List.of(new Circle(1), new Rectangle(2, 3), new Square(2)))",
+      explain: [
+        ["3", "Har shape ko area (double) me map karo. Primitive `DoubleStream`, phir `sum()`."],
+        ["8", "Switch expression type pe match karta hai (Java 21 me final)."],
+        ["9", "Record pattern: `Circle(double radius)` match aur deconstruct ek saath. Koi cast nahi."],
+        ["10-11", "Baaki types ke liye bhi same, har case ek expression."],
+        ["12", "`Shape` sealed hai (`permits Circle, Rectangle, Square`), isliye compiler check karta hai ki saare cases covered hain. `default` ki zarurat nahi, aur naya subtype aaya to compile error."]
+      ]
+    },
+    use: "Sealed hierarchies (events, commands, payment types) ko stream me process karna.",
+    avoid: "Jab behaviour object ka natural hissa ho (har shape apna `area()` jaane), to polymorphism yaani interface method behtar hai.",
+    remember: "17 = sealed (LTS), 21 = switch patterns + record patterns. Sealed + switch = exhaustive."
+  },
+  {
+    id: "t20", v: 21, level: 3,
+    title: "Blocking I/O: parallelStream nahi, virtual threads",
+    apis: ["newVirtualThreadPerTaskExecutor", "Future", "try-with-resources"],
+    problem: {
+      story: "1000 users ki profile HTTP se laani hai. Har call ~200 ms leti hai aur thread ko block karti hai.",
+      code: J`List<String> profiles = userIds.parallelStream()
+        .map(userId -> profileClient.fetchProfile(userId))    // blocking HTTP ~200 ms
+        .toList();
+// common pool me sirf (cores - 1) threads: baaki calls line me wait karti hain
+// aur usi pool pe chalne wale app ke baaki parallel streams bhi atak jaate hain`,
+      pains: [
+        "Threads network ka intezaar karte hue block rehte hain: CPU khaali, throughput kam.",
+        "Common pool poori JVM ka shared resource hai."
+      ]
+    },
+    solution: {
+      code: J`public static List<String> fetchProfilesConcurrently(List<Integer> userIds,
+                                                     Function<Integer, String> blockingFetcher) {
+    try (ExecutorService executor = Executors.newVirtualThreadPerTaskExecutor()) {
+        List<Future<String>> pendingProfiles = userIds.stream()
+                .map(userId -> executor.submit(() -> blockingFetcher.apply(userId)))
+                .toList();
+        return pendingProfiles.stream()
+                .map(StreamExamples::awaitResult)
+                .toList();
+    }
+}
+
+static <T> T awaitResult(Future<T> future) {
+    try {
+        return future.get();
+    } catch (InterruptedException exception) {
+        Thread.currentThread().interrupt();
+        throw new IllegalStateException("Interrupted while waiting", exception);
+    } catch (ExecutionException exception) {
+        throw new IllegalStateException("Task failed", exception.getCause());
+    }
+}`,
+      call: "fetchProfilesConcurrently(List.of(1, 2, 3, 4, 5), slowFetcher)",
+      output: "[profile-1, profile-2, profile-3, profile-4, profile-5]",
+      check: "fetchProfilesConcurrently(List.of(1, 2, 3, 4, 5), id -> \"profile-\" + id)",
+      note: "5 calls × 200 ms: ~219 ms laga. Galti se ek hi pipeline me submit + get likha to ~1005 ms (JDK 25 test).",
+      explain: [
+        ["3", "Har task ke liye naya virtual thread (Java 21). Sasta hai, lakhon bana sakte ho. `try` block khatam hone pe `close()` saare tasks ka intezaar karta hai."],
+        ["4-6", "Step 1: SAARE tasks submit karo aur `toList()` se list me rakho. Yeh terminal op hai, isliye yahan sab submit ho chuke hote hain. Agar `.map(submit).map(get)` ek hi pipeline me likhte, to stream lazy aur element-by-element hone ki wajah se har call ek ke baad ek chalti."],
+        ["7-9", "Step 2: ab results collect karo. Saari calls saath me chal rahi hain."],
+        ["16-18", "Interrupt aaya to flag wapas set karo (best practice), phir unchecked exception."],
+        ["19-20", "Task fail hua to asli cause nikaal ke aage do. Checked exceptions helper me handle hue, lambda saaf raha."]
+      ]
+    },
+    use: "HTTP, DB, file calls jahan thread zyada time intezaar karta hai. Java 24+: `userIds.stream().gather(Gatherers.mapConcurrent(50, fetcher)).toList()` order bhi rakhta hai aur concurrency limit bhi.",
+    avoid: "CPU-heavy kaam me virtual threads se fayda nahi, wahan parallel stream ya fixed pool. Downstream service ko limit chahiye to semaphore ya `mapConcurrent(maxConcurrency, …)`.",
+    remember: "CPU = parallel stream. I/O = virtual threads."
+  },
+  {
+    id: "t21", v: 24, level: 2,
+    title: "Gatherers: batches, running total, sliding window",
+    apis: ["gather", "windowFixed", "scan", "windowSliding", "fold", "mapConcurrent"],
+    problem: {
+      story: "IDs ko 3-3 ke batches me DB me insert karna hai, aur transactions ka running balance chahiye.",
+      code: J`List<List<Integer>> batches = new ArrayList<>();
+for (int start = 0; start < recordIds.size(); start += batchSize) {
+    int end = Math.min(start + batchSize, recordIds.size());
+    batches.add(recordIds.subList(start, end));               // index math 🤯
+}
+double balance = 0;
+List<Double> runningBalance = new ArrayList<>();
+for (double amount : transactionAmounts) {
+    balance += amount;
+    runningBalance.add(balance);                               // mutable state
+}`,
+      pains: [
+        "Java 21 tak Stream API me windowing ya running total ke liye koi built-in intermediate op nahi tha.",
+        "Loop, index math aur mutable variables: off-by-one bugs ka ghar."
+      ]
+    },
+    solution: {
+      code: J`public static List<List<Integer>> splitIntoBatches(List<Integer> recordIds, int batchSize) {
+    return recordIds.stream()
+            .gather(Gatherers.windowFixed(batchSize))
+            .toList();
+}
+
+public static List<Double> computeRunningBalance(List<Double> transactionAmounts) {
+    return transactionAmounts.stream()
+            .gather(Gatherers.scan(() -> 0.0, Double::sum))
+            .toList();
+}`,
+      call: "splitIntoBatches(List.of(1, 2, 3, 4, 5, 6, 7), 3) / computeRunningBalance(List.of(100.0, -30.0, 50.0))",
+      output: "[[1, 2, 3], [4, 5, 6], [7]] / [100.0, 70.0, 120.0]",
+      check: "splitIntoBatches(List.of(1, 2, 3, 4, 5, 6, 7), 3) + \" / \" + computeRunningBalance(List.of(100.0, -30.0, 50.0))",
+      note: "Aur bhi: `windowSliding(2)` on [1, 2, 3, 4] = [[1, 2], [2, 3], [3, 4]]. `fold(() -> 0, Integer::sum)` on [1, 2, 3, 4] = [10].",
+      explain: [
+        ["3", "`gather()` (Java 24) custom intermediate op lagane ka darwaza hai. `windowFixed(3)` 3-3 ki lists banata hai. Aakhri adhoori window bhi aati hai."],
+        ["9", "`scan(initial, fn)` har step ka running result emit karta hai (prefix sum). `fold` sirf aakhri result deta hai."]
+      ]
+    },
+    use: "Batching, moving average (`windowSliding`), running total (`scan`), bounded concurrent I/O (`mapConcurrent`).",
+    avoid: "Project Java 21 LTS pe hai to Gatherers available nahi (22 aur 23 me preview, 24 me final, 25 LTS me stable). Tab loop ya custom collector.",
+    remember: "Gatherer = beech ka Collector: state rakhta hai aur aage 0 se N items push karta hai."
+  },
+  {
+    id: "t22", v: 24, level: 3,
+    title: "Custom Gatherer: distinctByKey",
+    apis: ["Gatherer.ofSequential", "Integrator", "Downstream.push"],
+    problem: {
+      story: "Har department se sirf pehla employee chahiye (distinct by department). `distinct()` sirf pure object ke `equals()` pe kaam karta hai.",
+      code: J`Set<String> seenDepartments = new HashSet<>();
+List<Employee> onePerDepartment = employees.stream()
+        .filter(employee -> seenDepartments.add(employee.department()))   // stateful lambda 😬
+        .toList();
+// parallel me HashSet pe race condition; lambda stream ke bahar ka state badal raha hai`,
+      pains: [
+        "Stream spec kehta hai behavioural parameters stateless hone chahiye. Yeh hack usko todta hai.",
+        "Reuse nahi hota: har jagah naya Set aur naya lambda."
+      ]
+    },
+    solution: {
+      code: J`public static <T, K> Gatherer<T, ?, T> distinctByKey(Function<? super T, ? extends K> keyExtractor) {
+    Supplier<Set<K>> initializer = HashSet::new;
+    Gatherer.Integrator<Set<K>, T, T> integrator = (seenKeys, element, downstream) -> {
+        K key = keyExtractor.apply(element);
+        if (seenKeys.add(key)) {
+            return downstream.push(element);
+        }
+        return true;
+    };
+    return Gatherer.ofSequential(initializer, integrator);
+}`,
+      usage: J`List<String> onePerDepartment = employees.stream()
+        .gather(distinctByKey(Employee::department))
+        .map(Employee::name)
+        .toList();`,
+      call: "upar wala usage code",
+      output: "[Aman, Chirag, Divya]",
+      check: "EMPLOYEES.stream().gather(distinctByKey(Employee::department)).map(Employee::name).toList()",
+      note: "`findFirst()` ke saath short-circuit bhi sahi chalta hai: Optional[Aman].",
+      explain: [
+        ["1", "Generic aur reusable: kisi bhi type `T` aur key `K` ke liye. `Gatherer<T, ?, T>`: input T, output T, state chhupa hua."],
+        ["2", "Initializer: har stream run ke liye naya `HashSet`. State stream ke andar hai, bahar nahi."],
+        ["3", "Integrator har element pe chalta hai aur teen cheezein paata hai: state, element, downstream."],
+        ["4-6", "Key pehli baar dikhi to `push` karke aage bhejo. `push` false de matlab downstream ko aur nahi chahiye (jaise `findFirst`), to hum bhi false return karke ruk jaate hain."],
+        ["8", "Duplicate: skip karo, par `true` return karo taaki aage ke elements aate rahein."],
+        ["10", "`ofSequential`: combiner nahi diya, isliye sequential chalega. Correctness safe."]
+      ]
+    },
+    use: "Reusable stateful intermediate ops: distinctBy, rate limit, consecutive duplicates hatana, take-until-inclusive.",
+    avoid: "Ek baar ka simple kaam ho to built-in (`distinct`, `groupingBy`, `toMap` + values) kaafi hai. Java 21 pe ho to yeh available hi nahi.",
+    remember: "Gatherer: Initializer, Integrator, Combiner, Finisher (I-I-C-F). Collector: Supplier, Accumulator, Combiner, Finisher (S-A-C-F)."
+  }
+];
+
+const DECIDE = {
+  q: "Stream se aapko kya chahiye?",
+  options: [
+    { label: "Ek List", next: {
+      q: "Baad me list modify (add, remove, sort) karoge?",
+      options: [
+        { label: "Haan", leaf: { use: "collect(Collectors.toCollection(ArrayList::new))", since: 8, why: "Mutability guaranteed hai. `Collectors.toList()` sirf practically mutable hai, contract me nahi." } },
+        { label: "Nahi, sirf padhna hai", next: {
+          q: "Null elements aa sakte hain?",
+          options: [
+            { label: "Haan, ya pata nahi", leaf: { use: ".toList()", since: 16, why: "Unmodifiable aur nulls allowed. Java 16 se pehle: `collect(collectingAndThen(toList(), Collections::unmodifiableList))`." } },
+            { label: "Nahi, null aaye to fail ho", leaf: { use: "collect(Collectors.toUnmodifiableList())", since: 10, why: "Unmodifiable, aur null pe turant NullPointerException. Fail fast." } }
+          ] } }
+      ] } },
+    { label: "Map ya grouping", next: {
+      q: "Ek key ke against kitni values?",
+      options: [
+        { label: "Sirf ek value", leaf: { use: "Collectors.toMap(key, value, mergeFn, LinkedHashMap::new)", since: 8, why: "Duplicate key ho sakti ho to merge function zaroori hai, warna IllegalStateException." } },
+        { label: "Kai values (list, count, sum)", next: {
+          q: "Group ke andar filter chahiye, aur khaali groups bhi dikhne chahiye?",
+          options: [
+            { label: "Haan", leaf: { use: "groupingBy(key, Collectors.filtering(predicate, downstream))", since: 9, why: "Filter group banne ke baad lagta hai, isliye key bani rehti hai (count 0)." } },
+            { label: "Nahi", leaf: { use: "groupingBy(key, TreeMap::new, downstream)", since: 8, why: "Downstream: counting, averagingDouble, mapping, maxBy. Order chahiye to map factory do." } }
+          ] } },
+        { label: "Sirf true/false do buckets", leaf: { use: "Collectors.partitioningBy(predicate)", since: 8, why: "Dono keys (true aur false) hamesha present rehti hain." } }
+      ] } },
+    { label: "Ek value (sum, min, max, count)", next: {
+      q: "Kis tarah ki value?",
+      options: [
+        { label: "Numbers ke stats", leaf: { use: "mapToDouble(f).summaryStatistics()   // ya sum(), average()", since: 8, why: "Primitive stream: boxing nahi, ek pass me saare stats." } },
+        { label: "Do alag results ek pass me", leaf: { use: "Collectors.teeing(collector1, collector2, merger)", since: 12, why: "Har element dono collectors ko jaata hai, merger final object banata hai." } },
+        { label: "Custom combine (immutable values)", leaf: { use: "reduce(identity, accumulator)", since: 8, why: "Associative aur immutable values ke liye. Mutable container (StringBuilder, List) ho to `collect`." } }
+      ] } },
+    { label: "Pehla match, ya first/last", next: {
+      q: "Kahan se?",
+      options: [
+        { label: "Condition wala pehla element", leaf: { use: "filter(predicate).findFirst()   // ya anyMatch(predicate)", since: 8, why: "Short-circuit: mil gaya to baaki elements padhe hi nahi jaate." } },
+        { label: "Ordered collection ka first/last", leaf: { use: "list.getFirst() / list.getLast() / list.reversed()", since: 21, why: "Stream ki zarurat hi nahi. Khaali collection pe NoSuchElementException." } }
+      ] } },
+    { label: "Ek element se kai elements", next: {
+      q: "Element ke paas already collection ya stream hai?",
+      options: [
+        { label: "Haan, jaise order.lines()", leaf: { use: "flatMap(order -> order.lines().stream())", since: 8, why: "Seedha aur readable." } },
+        { label: "Nahi, loop ya if se 0-few items", leaf: { use: ".<R>mapMulti((element, sink) -> { ... sink.accept(x); })", since: 16, why: "Push-style: har element ke liye naya Stream object nahi banta." } }
+      ] } },
+    { label: "Condition pe rukna ya generate karna", next: {
+      q: "Kya karna hai?",
+      options: [
+        { label: "Sorted data me boundary tak lena/chhodna", leaf: { use: "takeWhile(predicate) / dropWhile(predicate)", since: 9, why: "Pehla false aate hi ruk jaata hai. `filter` poora scan karta." } },
+        { label: "Condition tak sequence banana", leaf: { use: "Stream.iterate(seed, hasNext, next)", since: 9, why: "for-loop jaisa. Infinite + filter wala trap nahi." } }
+      ] } },
+    { label: "Batch, window, running total, distinctBy", next: {
+      q: "Aapka Java version?",
+      options: [
+        { label: "24 ya upar (25 LTS)", leaf: { use: "gather(Gatherers.windowFixed(n))   // windowSliding, scan, fold, ya custom Gatherer", since: 24, why: "Stateful intermediate ops ka official tareeka." } },
+        { label: "21 ya neeche", leaf: { use: "loop + subList(), ya custom Collector", since: 8, why: "Gatherers available nahi. `filter(seen::add)` jaise stateful lambda se bacho." } }
+      ] } },
+    { label: "Speed badhani hai", next: {
+      q: "Kaam kis tarah ka hai?",
+      options: [
+        { label: "CPU-heavy, bada data", leaf: { use: "parallel()   // pehle JMH se measure", since: 8, why: "ArrayList, array ya range source, stateless ops, sasta combine. Warna parallel slow bhi ho sakta hai." } },
+        { label: "I/O (HTTP, DB, file)", leaf: { use: "Executors.newVirtualThreadPerTaskExecutor()   // 24+: Gatherers.mapConcurrent", since: 21, why: "Intezaar karne wale threads saste hone chahiye. Common pool ko block mat karo." } }
+      ] } }
+  ]
+};
+
+const TRADEOFFS = [
+  { title: "Stream vs for-loop", apply: "Filter, transform, group, aggregate: jab steps ek pipeline me padhe ja sakein.", ignore: "Index logic (`i - 1`), kai early exits wala complex state, bahut hot primitive loops (measure karo), har step pe checked exceptions.", why: "Readability aur composability vs control aur debugging. Lambdas ke stack traces lambe hote hain." },
+  { title: "parallel() vs sequential", apply: "CPU-bound kaam, bada N, splittable source (ArrayList, array, range), stateless + associative ops.", ignore: "I/O, chhota data, LinkedList/Iterator source, order wale ops (`findFirst`, `limit`), shared state, server ke request threads.", why: "Split, merge aur thread coordination ka apna cost hai. Common pool poori JVM share karti hai." },
+  { title: "flatMap vs mapMulti", apply: "`mapMulti` jab har element se 0 ya thode items nikalein, ya type filter + cast karna ho.", ignore: "`mapMulti` jab element ke paas already collection hai. Wahan `flatMap` zyada readable.", why: "Har element pe Stream object banane ka overhead vs code ki clarity." },
+  { title: "toList() vs Collectors.toList() vs toUnmodifiableList()", apply: "`toList()` read-only results ke liye (16+). `toUnmodifiableList()` jab null pe fail chahiye.", ignore: "Result modify karna hai to dono mat lo: `toCollection(ArrayList::new)`.", why: "Mutability aur null ka contract. Blind migration runtime pe UnsupportedOperationException laa sakta hai." },
+  { title: "reduce vs collect", apply: "`reduce` immutable values ke liye (sum, max, `BigDecimal::add`). `collect` mutable containers ke liye (List, Map, StringBuilder).", ignore: "`reduce` me mutable list share karna. Parallel me galat result.", why: "`collect` har thread ko apna container deta hai aur combiner se jodta hai. `reduce` ek hi value ko baar baar naya banata hai." },
+  { title: "orElse vs orElseGet", apply: "`orElse` constants ke liye (`orElse(\"UNKNOWN\")`). `orElseGet` mehnge ya side-effect wale defaults ke liye.", ignore: "`orElse(loadFromDb())`: value present ho tab bhi DB call hogi.", why: "`orElse` ka argument hamesha pehle evaluate hota hai. JDK 25 pe verify kiya." },
+  { title: "sorted().limit(k) vs PriorityQueue", apply: "`sorted().limit(k)` chhote ya medium data pe: simple aur readable.", ignore: "Bahut bade N aur chhote k (top 10 of 1 crore) pe. Bounded PriorityQueue O(n log k) hai.", why: "`sorted()` full barrier hai: pehle SAB elements sort (O(n log n)), phir limit." },
+  { title: "peek()", apply: "Sirf debugging: `peek(e -> log.debug(...))` local run me.", ignore: "Business logic, counters, audit. Java 9+ me `count()` use skip kar sakta hai.", why: "Lazy + optimizations: peek ka chalna guaranteed nahi hai." },
+  { title: "Gatherers vs loop/custom collector", apply: "Java 24+, reusable stateful intermediate logic (windows, distinctBy, rate limit).", ignore: "Java 21 LTS projects (available nahi), ya ek baar ka simple kaam.", why: "API ki power vs team ki familiarity aur runtime version." },
+  { title: "Virtual threads vs parallel stream", apply: "Virtual threads I/O ke liye; parallel stream CPU ke liye.", ignore: "CPU-bound kaam me virtual threads. Java 21 me `synchronized` ke andar blocking I/O virtual thread ko pin karta hai (JDK 24 ke JEP 491 ne fix kiya).", why: "Virtual threads intezaar sasta banate hain, CPU nahi badhaate." },
+  { title: "groupingBy vs groupingByConcurrent", apply: "`groupingByConcurrent` bade, parallel, unordered data pe.", ignore: "Jab group ke andar order chahiye, ya stream sequential hai.", why: "Ek concurrent map pe contention vs har thread ka map banake merge karna." },
+  { title: "Stream return karna vs List return karna", apply: "Stream tab, jab data bahut bada ya lazy ho aur caller compose kare (jaise `Files.lines` + try-with-resources).", ignore: "Normal service methods. List ya Set do.", why: "Stream single-use hai aur resource leak ka risk. List baar baar padhi ja sakti hai." }
+];
+
+const MNEMO = [
+  { t: "SIT", d: "Source, Intermediate, Terminal. Stream ko SIT karao tabhi chalegi: terminal ke bina kuch nahi hota." },
+  { t: "Recipe vs gas", d: "Intermediate ops = recipe likhna. Terminal op = gas on karna. Recipe likhne se khana nahi banta." },
+  { t: "Gatekeeper vs queue manager", d: "Stateless (filter, map) har bande ko akela check karta hai. Stateful (sorted, distinct, limit) ko sabko yaad rakhna padta hai: memory + barrier." },
+  { t: "Jaldi ghar jaane wale", d: "Short-circuit ops: findFirst, findAny, anyMatch, allMatch, noneMatch, limit, takeWhile. Infinite stream pe bhi khatam ho jaate hain." },
+  { t: "Teen lists", d: "8: Collectors.toList() mutable-ish. 10: toUnmodifiableList() frozen, null pe NPE. 16: toList() frozen, null OK." },
+  { t: "S-A-C-F vs I-I-C-F", d: "Collector: Supplier, Accumulator, Combiner, Finisher (end pe). Gatherer: Initializer, Integrator, Combiner, Finisher (beech me, aage push kar sakta hai)." },
+  { t: "NQ rule", d: "Parallel tabhi jab N (elements) × Q (har element ka kaam) bada ho, aur source splittable ho (ArrayList, array, range)." },
+  { t: "CPU = parallel, I/O = virtual", d: "Number crunching bada ho to parallel(). Network ya DB ka intezaar ho to virtual threads ya mapConcurrent." }
+];
+
+const FLASH = [
+  { f: "Java 9 ke ‘stop’ wale APIs?", b: "takeWhile, dropWhile, iterate(seed, hasNext, next), ofNullable. Saath me Optional.stream/or/ifPresentOrElse aur Collectors.filtering/flatMapping." },
+  { f: "Java 10 ka ‘freeze’?", b: "Collectors.toUnmodifiableList/Set/Map, Optional.orElseThrow(), List.copyOf." },
+  { f: "Java 11 ka ‘not’?", b: "Predicate.not, String.lines/strip/isBlank/repeat, Optional.isEmpty, Collection.toArray(String[]::new)." },
+  { f: "Java 12?", b: "Collectors.teeing(c1, c2, merger): ek pass, do collectors." },
+  { f: "Java 16?", b: "Stream.toList() aur mapMulti. Records aur instanceof pattern bhi final hue." },
+  { f: "Java 21?", b: "getFirst/getLast/reversed (SequencedCollection), switch + record patterns, virtual threads." },
+  { f: "Java 24?", b: "Stream.gather + Gatherers: windowFixed, windowSliding, fold, scan, mapConcurrent." },
+  { f: "toList() vs toUnmodifiableList()?", b: "Dono read-only. toList() (16) nulls allow karta hai; toUnmodifiableList() (10) null pe NPE deta hai." },
+  { f: "Stateful intermediate ops?", b: "sorted, distinct, limit, skip, takeWhile, dropWhile, aur stateful gatherers." },
+  { f: "Short-circuit ops?", b: "findFirst, findAny, anyMatch, allMatch, noneMatch, limit, takeWhile." },
+  { f: "Collector ke 4 functions?", b: "supplier, accumulator, combiner, finisher. Plus characteristics: CONCURRENT, UNORDERED, IDENTITY_FINISH." },
+  { f: "Gatherer ke 4 functions?", b: "initializer, integrator, combiner, finisher. Integrator false de to stream ruk jaati hai." },
+  { f: "Stream dobara use kiya to?", b: "IllegalStateException: stream has already been operated upon or closed." },
+  { f: "Common pool ka size?", b: "availableProcessors() - 1 (minimum 1). Property: java.util.concurrent.ForkJoinPool.common.parallelism." }
+];
+
+const MOCK = [
+  { l: 1, q: "Stream aur Collection me kya farak hai?", a: "Collection data **store** karta hai (memory me elements). Stream data **process** karta hai: yeh ek lazy pipeline ka plan hai, single-use hai, aur source ko modify nahi karta. Collection ko baar baar iterate kar sakte ho; stream ek hi baar consume hoti hai." },
+  { l: 1, q: "Intermediate aur terminal operations me farak? Terminal op na ho to kya hoga?", a: "Intermediate ops (filter, map, sorted…) nayi Stream return karte hain aur lazy hain. Terminal ops (collect, toList, forEach, count, reduce…) result ya side effect dete hain aur pipeline ko chalate hain. Terminal op na ho to kuch execute nahi hota, ek bhi lambda nahi chalta." },
+  { l: 1, q: "map aur flatMap me farak?", a: "`map` 1 se 1 hai (Employee se name). `flatMap` 1 se many hai, phir sab ko ek flat stream me jodta hai (Order se uski lines). Example: `orders.stream().flatMap(o -> o.lines().stream())` se `Stream<OrderLine>` milti hai." },
+  { l: 1, q: "Stream.toList() aur collect(Collectors.toList()) me kya farak hai?", a: "`toList()` (Java 16) unmodifiable list deta hai, nulls allow karta hai, aur syntax chhota hai. `Collectors.toList()` (Java 8) type ya mutability ki guarantee nahi deta (practically ArrayList). Blind replace se woh code toot sakta hai jo list ko baad me modify karta hai." },
+  { l: 1, q: "Kya ek stream do baar use kar sakte hain?", a: "Nahi. Doosri baar `IllegalStateException: stream has already been operated upon or closed` aata hai. Andar har stage ka `linkedOrConsumed` flag true ho jaata hai. Dobara chahiye to source se nayi stream banao, ya `Supplier<Stream<T>>` rakho." },
+  { l: 1, q: "findFirst aur findAny me farak?", a: "`findFirst` encounter order ka pehla element deta hai. `findAny` koi bhi element de sakta hai, isliye parallel me sasta hai (order maintain nahi karna padta). Sequential me dono aksar same dete hain, par `findAny` pe iska bharosa mat karo." },
+  { l: 1, q: "Optional.get() kyun avoid karein? Alternatives?", a: "Empty pe NoSuchElementException aata hai aur code me intention saaf nahi dikhta. Use karo: `orElse(default)`, `orElseGet(supplier)`, `orElseThrow()` (Java 10, same behaviour par naam saaf), `orElseThrow(() -> new NotFoundException())`, ya `ifPresentOrElse` (Java 9)." },
+  { l: 1, q: "Predicate.not kab use karte hain?", a: "Method reference ko negate karne ke liye: `filter(Predicate.not(String::isBlank))` instead of `filter(s -> !s.isBlank())`. Java 11 se available hai." },
+  { l: 1, q: "Java 9 me Stream API me kya naya aaya?", a: "`takeWhile`, `dropWhile`, `iterate(seed, hasNext, next)`, `ofNullable`. Collectors me `filtering` aur `flatMapping`. Optional me `stream()`, `or()`, `ifPresentOrElse()`. Behaviour change: `count()` SIZED source pe pipeline skip kar sakta hai." },
+  { l: 1, q: "Records streams ke saath kaise help karte hain?", a: "Chhote immutable data carriers: accessor (`employee.salary()`), aur `equals/hashCode` free milte hain, jo `distinct` aur grouping keys ke liye perfect hai. Java 21 me record patterns se switch ke andar deconstruct bhi kar sakte ho: `case Circle(double r) -> …`." },
+  { l: 2, q: "takeWhile aur filter me kya farak hai? Unordered stream pe kya hota hai?", a: "`filter` har element check karta hai, poori stream. `takeWhile` pehli baar condition false hote hi ruk jaata hai (short-circuit). Unordered source (HashSet) pe result nondeterministic hai, koi bhi subset aa sakta hai. Sorted ya ordered data pe hi use karo." },
+  { l: 2, q: "Collectors.toMap me duplicate key ko kaise handle karein?", a: "Teesra argument merge function do: `toMap(k, v, (oldValue, newValue) -> oldValue)` ya `BinaryOperator.maxBy(comparator)`. Order chahiye to chautha argument `LinkedHashMap::new`. Dhyan rahe: null value pe `toMap` NullPointerException deta hai." },
+  { l: 2, q: "groupingBy se pehle filter vs Collectors.filtering?", a: "Pehle filter karoge to jis group ke saare elements hat gaye, uski key hi nahi banegi. `filtering` group banne ke baad andar filter karta hai, isliye key rehti hai aur count 0 aata hai. Dashboard aur reports ke liye `filtering` (Java 9)." },
+  { l: 2, q: "Java 9+ me `list.stream().peek(...).count()` me peek kyun nahi chalta?", a: "`count()` check karta hai ki output ka size pehle se pata hai ya nahi (source SIZED hai aur beech ke ops size nahi badalte). Pata ho to seedha size return kar deta hai, pipeline execute hi nahi hoti. Beech me `filter` ho to size unknown hai, tab pipeline chalti hai. Lesson: side effects `peek` ya `map` me mat daalo." },
+  { l: 2, q: "mapMulti kab prefer karein flatMap ke upar?", a: "Jab har element se 0 ya thode items nikalne hon aur logic imperative ho (loop, if), ya type filter + cast karna ho. `flatMap` har element ke liye nayi Stream banata hai; `mapMulti` seedha `downstream.accept()` karta hai. Collection pehle se ho to `flatMap` zyada readable hai." },
+  { l: 2, q: "reduce vs collect: kab kaunsa?", a: "`reduce` immutable values ke liye hai (sum, max, `BigDecimal::add`): identity + associative accumulator. `collect` mutable containers ke liye hai (List, Map, StringBuilder): har thread apna container banata hai aur combiner se merge hota hai. `reduce` me mutable list share karoge to parallel me galat result aayega." },
+  { l: 2, q: "Collectors.teeing ka real use-case batao.", a: "Ek hi pass me do aggregations: min aur max employee objects, (count, sum) se average, passed aur failed lists. Example: `teeing(minBy(c), maxBy(c), (min, max) -> new SalaryBand(...))`. Java 12 se." },
+  { l: 2, q: "Java 21 me list ka last element aur reverse iteration kaise karein?", a: "`list.getLast()` aur `list.reversed()` (view hai, copy nahi). LinkedHashMap pe `lastEntry()` aur `sequencedKeySet().reversed()`. Stream se last element (`reduce((a, b) -> b)`) O(n) hai, isse bacho." },
+  { l: 2, q: "orElse aur orElseGet me farak?", a: "`orElse(x)` ka argument hamesha evaluate hota hai, value present ho tab bhi (humne JDK 25 pe verify kiya). `orElseGet(() -> x)` sirf empty hone pe chalta hai. Mehnga default (DB call, bada object) ho to `orElseGet`." },
+  { l: 2, q: "Primitive streams (IntStream wagairah) kyun?", a: "Boxing aur unboxing se bachne ke liye: `Stream<Integer>` me har number ek object hai. Extra methods bhi milte hain: `sum()`, `average()`, `summaryStatistics()`, `range()`. Conversion: `mapToInt`, `boxed()`, `mapToObj`." },
+  { l: 3, q: "Stream pipeline internally kaise build aur execute hoti hai?", a: "Har intermediate op ek naya `AbstractPipeline` stage object banata hai: doubly linked (`previousStage`, `nextStage`), `depth` aur combined flags ke saath. Terminal op aane pe `wrapSink()` terminal se ulta chalke har stage ka `opWrapSink()` bulata hai, aur Sink chain banti hai (FilterSink se MapSink se TerminalSink). Phir `copyInto()`: `begin(size)`, `spliterator.forEachRemaining(sink)`, `end()`. Short-circuit ho to `forEachWithCancel`: har `tryAdvance` se pehle `cancellationRequested()` check." },
+  { l: 3, q: "Parallel stream internally kaise split hoti hai? Pool size kya hota hai?", a: "`ForkJoinPool.commonPool()` use hota hai, parallelism = cores - 1 (property se badal sakte ho). Spliterator `trySplit()` se recursive split hota hai jab tak chunk target se chhota na ho (target ≈ size / (parallelism × 4)). Har leaf same Sink chain sequentially chalata hai, aur `CountedCompleter` tasks results combine karte hain. Custom pool: `pool.submit(() -> list.parallelStream()...).get()` kaam karta hai, par spec me guaranteed nahi." },
+  { l: 3, q: "Blocking I/O ke liye parallel streams kyun nahi? Java 21 aur 24 me kya use karein?", a: "Common pool me threads kam hote hain (cores - 1) aur I/O pe block ho jaate hain: throughput girta hai aur poori JVM ke parallel streams starve hote hain. Java 21: `Executors.newVirtualThreadPerTaskExecutor()`, pehle saare tasks submit karo (`toList()`), phir results lo. Java 24+: `gather(Gatherers.mapConcurrent(maxConcurrency, fn))`, jo order bhi rakhta hai aur concurrency limit bhi." },
+  { l: 3, q: "`.map(submit).map(get)` ek hi pipeline me likhne me kya bug hai?", a: "Stream lazy hai aur element-by-element chalti hai: element 1 submit hua, turant `get()` pe wait, phir element 2 submit. Sab sequential ho gaya. Fix: pehle `toList()` se saare futures banao, phir doosri stream me `get()`. JDK 25 test me 5 calls × 200 ms: ~1005 ms vs ~219 ms." },
+  { l: 3, q: "Spliterator characteristics aur StreamOpFlags se kaunse optimizations milte hain?", a: "SIZED: `count()` shortcut aur `toArray()` exact allocation. SORTED + natural order: `sorted()` no-op. DISTINCT: `distinct()` no-op (jaise HashSet source). ORDERED hata do (`unordered()`) to parallel `distinct/limit` saste. SHORT_CIRCUIT: cancel-aware loop." },
+  { l: 3, q: "`filter(seen::add)` jaise stateful lambda me kya problem hai? Java 24 me sahi tareeka?", a: "Spec kehta hai behavioural parameters stateless hone chahiye. Parallel me HashSet pe race condition hoti hai, aur result execution order pe depend karta hai. Java 24+ me custom Gatherer (`distinctByKey`): state stream ke andar (initializer), sequential ya proper combiner ke saath." },
+  { l: 3, q: "Gatherer kya hai, aur Collector se kaise alag hai?", a: "Gatherer user-defined **intermediate** op hai (Java 24, JEP 485). `Gatherer<T, A, R>`: initializer (state), integrator (har element; `false` = ruk jao), combiner (parallel), finisher (end pe flush). 1 se 1, 1 se N, N se 1, N se M sab possible, infinite streams pe bhi. Collector **terminal** hai aur sirf end me ek result deta hai. Composition: `g1.andThen(g2)`." },
+  { l: 3, q: "Java 8 me flatMap aur short-circuit ka kya issue tha?", a: "`flatMap` inner stream ko poora consume karta tha, chahe `findFirst` ko ek hi element chahiye ho. Infinite inner stream = hang. JDK-8075939 me fix hua (Java 10, aur 8u222 me backport). Ab flatMap ki inner stream bhi `cancellationRequested()` respect karti hai. Dhyan rahe: `iterator()` ke through consume karne pe abhi bhi poori laziness nahi milti." },
+  { l: 3, q: "sorted() parallel stream me kaise kaam karta hai? Top-K ke liye kya behtar hai?", a: "Full barrier hai: upstream ka poora data array me collect hota hai, `Arrays.parallelSort` chalta hai, phir downstream. `sorted().limit(k)` bhi pehle sab sort karta hai (O(n log n)). Bade n aur chhote k ke liye bounded PriorityQueue (O(n log k)) behtar hai." },
+  { l: 3, q: "Collector characteristics: CONCURRENT, UNORDERED, IDENTITY_FINISH ka matlab?", a: "IDENTITY_FINISH: finisher identity hai, skip ho sakta hai (container hi result hai). UNORDERED: collector ko encounter order ki parwah nahi (jaise toSet). CONCURRENT: kai threads ek hi container me accumulate kar sakte hain (jaise `groupingByConcurrent`). Concurrent reduction tabhi hota hai jab stream parallel ho, collector CONCURRENT ho, aur stream unordered ho ya collector UNORDERED ho." }
+];
+(function () {
+  "use strict";
+  const $ = (s, r) => (r || document).querySelector(s);
+  const $$ = (s, r) => Array.from((r || document).querySelectorAll(s));
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (e) { return d; } },
+    set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* storage unavailable */ } }
+  };
+  const esc = s => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  const md = s => esc(s).replace(/`([^`]+)`/g, "<code>$1</code>").replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>").replace(/\n/g, "<br>");
+  const LVL = { 1: "Basic", 2: "Mid", 3: "Senior" };
+  const VNAME = v => (v === 24 ? "Java 24 (bonus)" : "Java " + v);
+  const pips = n => `<span class="lvl" aria-hidden="true">${[1, 2, 3].map(i => `<i class="${i <= n ? "f" : ""}"></i>`).join("")}</span>`;
+
+  /* ---------- Java syntax highlighting ---------- */
+  const KW = new Set(("abstract assert boolean break byte case catch char class continue default do double else enum extends final finally float for if " +
+    "implements import instanceof int interface long new package permits private protected public record return sealed short static super switch " +
+    "synchronized this throw throws try var void volatile while yield true false null").split(" "));
+  function hlLine(line) {
+    const re = /(\/\/.*$)|("(?:\\.|[^"\\])*")|('(?:\\.|[^'\\])')|(@[A-Za-z_]\w*)|(\b\d[\d_]*(?:\.\d+)?[dDfFlL]?\b)|([A-Za-z_$][\w$]*)|(\s+)|([\s\S])/g;
+    let out = "", m, last2 = "";
+    while ((m = re.exec(line)) !== null) {
+      const tok = m[0];
+      if (m[1]) out += `<span class="t-com">${esc(tok)}</span>`;
+      else if (m[2] || m[3]) out += `<span class="t-str">${esc(tok)}</span>`;
+      else if (m[4]) out += `<span class="t-ann">${esc(tok)}</span>`;
+      else if (m[5]) out += `<span class="t-num">${tok}</span>`;
+      else if (m[6]) {
+        const next = /^\s*(\S)/.exec(line.slice(re.lastIndex));
+        if (KW.has(tok)) out += `<span class="t-kw">${tok}</span>`;
+        else if (/^[A-Z]/.test(tok)) out += `<span class="t-type">${tok}</span>`;
+        else if (last2 === "::" || (next && next[1] === "(")) out += `<span class="t-fn">${tok}</span>`;
+        else out += tok;
+      } else out += esc(tok);
+      if (!m[7]) last2 = (last2 + tok).slice(-2);
+    }
+    return out;
+  }
+  const RAW = [];
+  function codeBlock(code, opts) {
+    opts = opts || {};
+    const java = (opts.lang || "java") === "java";
+    const numbers = opts.numbers !== undefined ? opts.numbers : java;
+    const id = RAW.push(code) - 1;
+    const body = code.replace(/\s+$/, "").split("\n").map((line, i) => {
+      const src = java ? hlLine(line) : esc(line);
+      return `<span class="ln" data-n="${i + 1}">${numbers ? `<span class="n">${i + 1}</span>` : ""}${src || " "}</span>`;
+    }).join("");
+    return `<div class="code${numbers ? "" : " plain"}"><div class="code-bar"><span>${esc(opts.title || "Java")}</span>` +
+      `<button type="button" class="copy" data-raw="${id}">Copy</button></div><pre tabindex="0"><code>${body}</code></pre></div>`;
+  }
+  async function doCopy(btn) {
+    const text = RAW[+btn.dataset.raw] || "";
+    let ok = false;
+    try { await navigator.clipboard.writeText(text); ok = true; } catch (e) {
+      try {
+        const ta = document.createElement("textarea");
+        ta.value = text; ta.setAttribute("readonly", ""); ta.style.position = "fixed"; ta.style.opacity = "0";
+        document.body.appendChild(ta); ta.select(); ok = document.execCommand("copy"); ta.remove();
+      } catch (e2) { ok = false; }
+    }
+    btn.textContent = ok ? "Copied" : "Select karke copy karo";
+    setTimeout(() => { btn.textContent = "Copy"; }, 1800);
+  }
+
+  /* ---------- snippets ---------- */
+  $$("[data-snip]").forEach(el => {
+    const s = SNIPPETS[el.dataset.snip];
+    if (!s) return;
+    const wrapper = document.createElement("div");
+    wrapper.innerHTML = codeBlock(s.code, { title: s.title, lang: s.lang || "java" });
+    el.replaceWith(wrapper.firstElementChild);
+  });
+
+  /* ---------- route map + story ---------- */
+  $("#route").innerHTML = ROUTE.map(r => {
+    const inner = `<span class="dot"></span><b>${r.v}</b><span class="key">${esc(r.key)}</span><small>${esc(r.apis)}</small>`;
+    const cls = ["stop", r.lts ? "lts" : "", r.toBonus ? "to-bonus" : ""].join(" ").trim();
+    const label = `Java ${r.v}${r.lts ? " LTS" : ""}: ${r.key}. ${r.apis}`;
+    return `<li class="${cls}" style="--c:var(--v${r.v})">` + (r.nolink
+      ? `<div title="Java 17 me Stream API me koi naya method nahi aaya" aria-label="${esc(label)}">${inner}</div>`
+      : `<a href="#topics" data-route="${r.v}" aria-label="${esc(label)}. Is version ke topics dikhao">${inner}</a>`) + `</li>`;
+  }).join("");
+  const storyHtml = STORY.map(p => Array.isArray(p) ? `<span class="mk" style="--c:var(--v${p[1]})">${esc(p[0])}<sup>${p[1]}</sup></span>` : esc(p)).join("");
+  $("#bigMnemo").innerHTML = storyHtml;
+
+  /* ---------- topics ---------- */
+  const doneSet = new Set(store.get("js821-done", []).filter(id => TOPICS.some(t => t.id === id)));
+  function tableHtml(t) {
+    return `<div class="tbl-wrap"><table><thead><tr>${t.head.map(h => `<th>${esc(h)}</th>`).join("")}</tr></thead><tbody>` +
+      t.rows.map(r => `<tr>${r.map((c, i) => `<td>${i === 0 ? `<code>${esc(c)}</code>` : esc(c)}</td>`).join("")}</tr>`).join("") + `</tbody></table></div>`;
+  }
+  $("#topicList").innerHTML = TOPICS.map((t, idx) => {
+    const s = t.solution;
+    return `<article class="topic" id="${t.id}" data-v="${t.v}" data-level="${t.level}" style="--c:var(--v${t.v})">
+      <div class="rail" aria-hidden="true"><span class="tdot"></span></div>
+      <div class="tbody">
+        <header class="thead">
+          <span class="tnum">#${String(idx + 1).padStart(2, "0")}</span>
+          <span class="vtag">${VNAME(t.v)}</span>
+          ${pips(t.level)}<span class="lvl-name">${LVL[t.level]}</span>
+          <label class="done"><input type="checkbox" data-done="${t.id}"${doneSet.has(t.id) ? " checked" : ""}> Done</label>
+          <h3>${esc(t.title)}</h3>
+          <p class="apis">${t.apis.map(a => `<code>${esc(a)}</code>`).join("")}</p>
+        </header>
+        <div class="ps">
+          <section class="panel problem" aria-label="Problem">
+            <h4>Problem</h4>
+            <p>${md(t.problem.story)}</p>
+            ${codeBlock(t.problem.code, { title: "Pehle aisa likhte the" })}
+            <ul class="pains">${t.problem.pains.map(p => `<li>${md(p)}</li>`).join("")}</ul>
+          </section>
+          <section class="panel solution" aria-label="Solution">
+            <h4>Solution</h4>
+            ${codeBlock(s.code, { title: "Solution.java" })}
+            ${s.usage ? codeBlock(s.usage, { title: "Usage" }) : ""}
+            <div class="out"><b>Output</b><code>${esc(s.call)}\n→ ${esc(s.output)}</code></div>
+            ${s.note ? `<p class="muted" style="font-size:.88rem;margin:6px 0 0">${md(s.note)}</p>` : ""}
+            ${s.table ? tableHtml(s.table) : ""}
+            <h5 class="lbl-lines">Line by line</h5>
+            <ol class="explain">${s.explain.map(([ln, text]) =>
+              `<li data-lines="${ln}"><button type="button" class="lref" aria-pressed="false" aria-label="Line ${ln} highlight karo">L${ln.replace("-", "–")}</button><span>${md(text)}</span></li>`).join("")}</ol>
+          </section>
+        </div>
+        <footer class="verdict">
+          <div class="use"><h5>Use when</h5><p>${md(t.use)}</p></div>
+          <div class="avoid"><h5>Avoid when</h5><p>${md(t.avoid)}</p></div>
+          <div class="mem"><h5>Yaad rakho</h5><p>${md(t.remember)}</p></div>
+        </footer>
+      </div>
+    </article>`;
+  }).join("");
+
+  function updateProgress() { $("#progress").textContent = `${doneSet.size}/${TOPICS.length} done`; }
+  updateProgress();
+
+  /* line highlight: hover (desktop) + tap to pin (mobile) */
+  function paint(explainList) {
+    const sol = explainList.closest(".solution");
+    const code = sol && sol.querySelector(".code");
+    if (!code) return;
+    $$(".ln.hl", code).forEach(l => l.classList.remove("hl"));
+    $$("li.on, li.hover", explainList).forEach(li => {
+      const [a, b] = li.dataset.lines.split("-").map(Number);
+      for (let n = a; n <= (b || a); n++) { const l = code.querySelector(`.ln[data-n="${n}"]`); if (l) l.classList.add("hl"); }
+    });
+  }
+  document.addEventListener("mouseover", e => {
+    const li = e.target.closest && e.target.closest(".explain li");
+    if (li && !li.classList.contains("hover")) { li.classList.add("hover"); paint(li.parentElement); }
+  });
+  document.addEventListener("mouseout", e => {
+    const li = e.target.closest && e.target.closest(".explain li");
+    if (li && !li.contains(e.relatedTarget)) { li.classList.remove("hover"); paint(li.parentElement); }
+  });
+
+  /* ---------- filters ---------- */
+  const F = { v: "all", l: "all" };
+  const VERS = ["all", 8, 9, 10, 11, 12, 16, 21, 24];
+  $("#fVersion").innerHTML = VERS.map(v => `<button type="button" class="chip" data-fv="${v}" aria-pressed="false"${v !== "all" ? ` style="--c:var(--v${v})"` : ""}>` +
+    (v === "all" ? "All versions" : `<i></i>${v === 24 ? "24+" : "Java " + v}`) + `</button>`).join("");
+  $("#fLevel").innerHTML = ["all", 1, 2, 3].map(l => `<button type="button" class="chip" data-fl="${l}" aria-pressed="false">${l === "all" ? "All levels" : LVL[l]}</button>`).join("");
+  function applyFilters() {
+    let shown = 0;
+    $$(".topic").forEach(a => {
+      const ok = (F.v === "all" || a.dataset.v === String(F.v)) && (F.l === "all" || a.dataset.level === String(F.l));
+      a.hidden = !ok;
+      if (ok) shown++;
+    });
+    $("#topicCount").textContent = shown === TOPICS.length ? `${shown} topics` : `${shown} of ${TOPICS.length} topics`;
+    $("#topicEmpty").hidden = shown !== 0;
+    $$("[data-fv]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.fv === String(F.v))));
+    $$("[data-fl]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.fl === String(F.l))));
+  }
+  applyFilters();
+
+  /* ---------- decision wizard ---------- */
+  const W = { stack: [], leaf: null, leafLabel: "" };
+  function wizNode() { return W.stack.length ? W.stack[W.stack.length - 1].node : DECIDE; }
+  function wizDraw() {
+    const crumbs = W.stack.map(s => s.label).concat(W.leaf ? [W.leafLabel] : []);
+    let html = `<div class="wiz-path">${crumbs.length ? crumbs.map(c => `<span class="crumb">${esc(c)}</span>`).join("") : `<span class="crumb">Start</span>`}</div>`;
+    if (W.leaf) {
+      const L = W.leaf;
+      html += `<div class="wiz-leaf"><p class="wiz-k">Yeh use karo</p><pre class="wiz-use">${esc(L.use)}</pre>` +
+        `<p><span class="since" style="--c:var(--v${L.since})">Java ${L.since}+</span></p><p>${md(L.why)}</p></div>`;
+    } else {
+      const node = wizNode();
+      html += `<p class="wiz-q">${esc(node.q)}</p><div class="wiz-opts">${node.options.map((o, i) => `<button type="button" class="wiz-opt" data-opt="${i}">${esc(o.label)}</button>`).join("")}</div>`;
+    }
+    if (W.stack.length || W.leaf) html += `<div class="wiz-nav"><button type="button" class="btn ghost" data-wiz="back">Back</button><button type="button" class="btn ghost" data-wiz="reset">Start over</button></div>`;
+    $("#wizard").innerHTML = html;
+  }
+  wizDraw();
+  const quick = [];
+  (function walk(node, trail) {
+    node.options.forEach(o => { const t = trail.concat(o.label); if (o.leaf) quick.push(Object.assign({ trail: t }, o.leaf)); else walk(o.next, t); });
+  })(DECIDE, []);
+  $("#quickPicks").innerHTML = quick.map(q => `<li><span class="need">${esc(q.trail.join(" › "))}</span><code>${esc(q.use)}</code>` +
+    `<span><span class="since" style="--c:var(--v${q.since})">Java ${q.since}+</span></span></li>`).join("");
+
+  /* ---------- trade-offs, mnemonics, flashcards ---------- */
+  $("#tradeGrid").innerHTML = TRADEOFFS.map(t => `<article class="tcard"><h3>${esc(t.title)}</h3><div class="tcols">` +
+    `<div class="apply"><h4>Apply</h4><p>${md(t.apply)}</p></div><div class="ignore"><h4>Ignore</h4><p>${md(t.ignore)}</p></div></div>` +
+    `<p class="why"><strong>Kyun:</strong> ${md(t.why)}</p></article>`).join("");
+  $("#mnemoGrid").innerHTML = MNEMO.map(m => `<div class="mcard"><h4>${esc(m.t)}</h4><p>${md(m.d)}</p></div>`).join("");
+  $("#fcGrid").innerHTML = FLASH.map((c, i) => `<button type="button" class="fc" aria-pressed="false" aria-label="Flashcard ${i + 1}: ${esc(c.f)}">` +
+    `<span class="inner"><span class="face front"><strong>${esc(c.f)}</strong><span class="hint">Tap: jawab dekho</span></span>` +
+    `<span class="face back" aria-hidden="true"><span>${esc(c.b)}</span><span class="hint">Tap: wapas palto</span></span></span></button>`).join("");
+
+  /* ---------- mock interview ---------- */
+  let mockLevel = "all";
+  $("#mLevel").innerHTML = ["all", 1, 2, 3].map(l => `<button type="button" class="chip" data-ml="${l}" aria-pressed="${l === "all"}">${l === "all" ? "All" : LVL[l]}</button>`).join("");
+  $("#mockList").innerHTML = MOCK.map((m, i) => `<details class="q" data-level="${m.l}"><summary><span class="qn">Q${i + 1}</span><span>${esc(m.q)}</span>` +
+    `<span title="${LVL[m.l]}">${pips(m.l)}<span class="sr-only">${LVL[m.l]}</span></span></summary><div class="qa-a">${md(m.a)}</div></details>`).join("");
+  function applyMock() {
+    let n = 0;
+    $$("#mockList details").forEach(d => { const ok = mockLevel === "all" || d.dataset.level === String(mockLevel); d.hidden = !ok; if (ok) n++; });
+    $("#mockCount").textContent = `${n} sawaal`;
+    $$("[data-ml]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.ml === String(mockLevel))));
+  }
+  applyMock();
+
+  /* ---------- theme ---------- */
+  const THEMES = ["auto", "light", "dark"];
+  let theme = store.get("js821-theme", "auto");
+  if (!THEMES.includes(theme)) theme = "auto";
+  function applyTheme() {
+    if (theme === "auto") document.documentElement.removeAttribute("data-theme");
+    else document.documentElement.setAttribute("data-theme", theme);
+    const name = theme === "auto" ? "Auto" : theme === "light" ? "Light" : "Dark";
+    const btn = $("#themeBtn");
+    btn.textContent = name;
+    btn.setAttribute("aria-label", `Theme: ${name}. Badalne ke liye dabao`);
+  }
+  applyTheme();
+
+  /* ---------- one delegated click handler ---------- */
+  document.addEventListener("click", e => {
+    const t = e.target;
+    const copy = t.closest(".copy");
+    if (copy) { doCopy(copy); return; }
+    const ref = t.closest(".lref");
+    if (ref) {
+      const li = ref.closest("li"), list = li.parentElement;
+      const pin = !li.classList.contains("on");
+      $$("li.on", list).forEach(o => { o.classList.remove("on"); o.querySelector(".lref").setAttribute("aria-pressed", "false"); });
+      if (pin) { li.classList.add("on"); ref.setAttribute("aria-pressed", "true"); }
+      paint(list);
+      return;
+    }
+    const fv = t.closest("[data-fv]");
+    if (fv) { F.v = fv.dataset.fv === "all" ? "all" : Number(fv.dataset.fv); applyFilters(); return; }
+    const fl = t.closest("[data-fl]");
+    if (fl) { F.l = fl.dataset.fl === "all" ? "all" : Number(fl.dataset.fl); applyFilters(); return; }
+    const route = t.closest("[data-route]");
+    if (route) { F.v = Number(route.dataset.route); F.l = "all"; applyFilters(); return; }
+    if (t.closest("#clearFilters")) { F.v = "all"; F.l = "all"; applyFilters(); return; }
+    const opt = t.closest("[data-opt]");
+    if (opt) {
+      const o = wizNode().options[+opt.dataset.opt];
+      if (o.leaf) { W.leaf = o.leaf; W.leafLabel = o.label; } else W.stack.push({ node: o.next, label: o.label });
+      wizDraw();
+      return;
+    }
+    const wz = t.closest("[data-wiz]");
+    if (wz) {
+      if (wz.dataset.wiz === "reset") { W.stack = []; W.leaf = null; }
+      else if (W.leaf) W.leaf = null;
+      else W.stack.pop();
+      wizDraw();
+      return;
+    }
+    const fc = t.closest(".fc");
+    if (fc) {
+      const open = fc.getAttribute("aria-pressed") !== "true";
+      fc.setAttribute("aria-pressed", String(open));
+      fc.querySelector(".front").setAttribute("aria-hidden", String(open));
+      fc.querySelector(".back").setAttribute("aria-hidden", String(!open));
+      return;
+    }
+    const ml = t.closest("[data-ml]");
+    if (ml) { mockLevel = ml.dataset.ml === "all" ? "all" : Number(ml.dataset.ml); applyMock(); return; }
+    if (t.closest("#openAll")) { $$("#mockList details:not([hidden])").forEach(d => { d.open = true; }); return; }
+    if (t.closest("#closeAll")) { $$("#mockList details").forEach(d => { d.open = false; }); return; }
+    if (t.closest("#themeBtn")) { theme = THEMES[(THEMES.indexOf(theme) + 1) % THEMES.length]; store.set("js821-theme", theme); applyTheme(); }
+  });
+  document.addEventListener("change", e => {
+    const cb = e.target.closest && e.target.closest("[data-done]");
+    if (!cb) return;
+    if (cb.checked) doneSet.add(cb.dataset.done); else doneSet.delete(cb.dataset.done);
+    store.set("js821-done", Array.from(doneSet));
+    updateProgress();
+  });
+})();
+(function () {
+  "use strict";
+  const svg = document.getElementById("animSvg");
+  if (!svg) return;
+  const NS = "http://www.w3.org/2000/svg";
+  const REDUCED = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
+  const A = { token: 0, paused: false, speed: 1, state: "idle", scene: 0 };
+  class Stop extends Error {}
+  const ease = t => (t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2);
+  const mv = ms => (REDUCED ? 1 : ms);
+
+  /* pausable, speed-aware tween; aborts when a new scene starts */
+  function tween(ms, fn) {
+    const tok = A.token;
+    return new Promise((resolve, reject) => {
+      let elapsed = 0, last = null;
+      const frame = now => {
+        if (tok !== A.token) { reject(new Stop()); return; }
+        if (last === null) last = now;
+        const dt = Math.min(64, Math.max(0, now - last));
+        last = now;
+        if (!A.paused) elapsed += dt * A.speed;
+        const p = ms <= 0 ? 1 : Math.min(1, elapsed / ms);
+        if (fn) fn(ease(p));
+        if (p >= 1) resolve(); else requestAnimationFrame(frame);
+      };
+      requestAnimationFrame(frame);
+    });
+  }
+  const wait = ms => tween(ms);
+
+  /* ---------- svg helpers ---------- */
+  let layerBack, layerMid, layerTop;
+  function el(tag, attrs, parent) {
+    const n = document.createElementNS(NS, tag);
+    if (attrs) Object.keys(attrs).forEach(k => n.setAttribute(k, attrs[k]));
+    if (parent) parent.appendChild(n);
+    return n;
+  }
+  function txt(parent, x, y, s, cls, anchor) {
+    const t = el("text", { x: x, y: y, class: cls || "", "text-anchor": anchor || "middle" }, parent);
+    t.textContent = s;
+    return t;
+  }
+  function clearStage() {
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+    const defs = el("defs", null, svg);
+    const mk = el("marker", { id: "animArrow", viewBox: "0 0 10 10", refX: "9", refY: "5", markerWidth: "7", markerHeight: "7", orient: "auto-start-reverse" }, defs);
+    el("path", { d: "M0 0L10 5L0 10z", class: "arrow-head" }, mk);
+    layerBack = el("g", null, svg);
+    layerMid = el("g", null, svg);
+    layerTop = el("g", null, svg);
+  }
+  function place(o, x, y) { o.x = x; o.y = y; o.g.setAttribute("transform", "translate(" + x.toFixed(1) + " " + y.toFixed(1) + ")"); }
+  function ball(x, y, label, cls, r) {
+    const g = el("g", { class: "ball " + (cls || "") }, layerTop);
+    el("circle", { r: r || 15 }, g);
+    const t = txt(g, 0, 0, String(label), "", "middle");
+    t.setAttribute("dy", "0.35em");
+    const o = { g: g, t: t, x: x, y: y, label: label, op: 1 };
+    place(o, x, y);
+    return o;
+  }
+  function capsule(x, y, label) {
+    const g = el("g", { class: "capsule" }, layerTop);
+    const w = Math.max(44, label.length * 8 + 18);
+    el("rect", { x: -w / 2, y: -14, width: w, height: 28, rx: 14 }, g);
+    const t = txt(g, 0, 0, label, "", "middle");
+    t.setAttribute("dy", "0.35em");
+    const o = { g: g, t: t, x: x, y: y, label: label, op: 1 };
+    place(o, x, y);
+    return o;
+  }
+  function relabel(o, s) { o.label = s; o.t.textContent = String(s); }
+  function recls(o, cls) { o.g.setAttribute("class", "ball " + cls); }
+  function move(o, x, y, ms) {
+    const x0 = o.x, y0 = o.y;
+    return tween(mv(ms == null ? 650 : ms), p => place(o, x0 + (x - x0) * p, y0 + (y - y0) * p));
+  }
+  function fade(o, to, ms) {
+    const from = o.op;
+    return tween(mv(ms == null ? 350 : ms), p => { o.op = from + (to - from) * p; o.g.setAttribute("opacity", o.op.toFixed(2)); });
+  }
+  function appear(node) {
+    node.setAttribute("opacity", "0");
+    return tween(mv(380), p => node.setAttribute("opacity", p.toFixed(2)));
+  }
+  function box(x, y, w, h, title, sub, cls) {
+    const g = el("g", { class: "box " + (cls || "") }, layerMid);
+    el("rect", { x: x, y: y, width: w, height: h, rx: 10 }, g);
+    txt(g, x + 12, y + 20, title, "box-t", "start");
+    const s = txt(g, x + 12, y + 37, sub || "", "box-s", "start");
+    return { g: g, s: s, x: x, y: y, w: w, h: h, base: cls || "", cy: y + h / 2 };
+  }
+  function boxCls(b, cls) { b.g.setAttribute("class", "box " + (cls || b.base)); }
+  function arrow(x1, y1, x2, y2, label, lx, ly, anchor) {
+    const g = el("g", { class: "link" }, layerBack);
+    el("line", { x1: x1, y1: y1, x2: x2, y2: y2, "marker-end": "url(#animArrow)" }, g);
+    if (label) txt(g, lx != null ? lx : x1 + 7, ly != null ? ly : (y1 + y2) / 2 + 4, label, "link-t", anchor || "start");
+    return g;
+  }
+  const GX = 250;
+  function sourceRow(vals, y, r) {
+    const gap = vals.length > 1 ? 280 / (vals.length - 1) : 0;
+    return vals.map((v, i) => ball(40 + gap * i, y, v, "", r));
+  }
+  function heading(s) { return txt(layerMid, 18, 20, s, "lbl", "start"); }
+  function showResult(s) { return appear(txt(layerMid, 180, 386, s, "result", "middle")); }
+
+  /* ---------- side panels ---------- */
+  const codeEl = document.getElementById("animCode");
+  const stateEl = document.getElementById("animState");
+  const logEl = document.getElementById("animLog");
+  const sayEl = document.getElementById("animSay");
+  const titleEl = document.getElementById("animTitle");
+  const stageEl = document.getElementById("animStage");
+  const mascot = document.querySelector(".mascot");
+  function setCode(lines) {
+    codeEl.innerHTML = "";
+    lines.forEach((l, i) => { const li = document.createElement("li"); li.dataset.i = String(i + 1); li.textContent = l; codeEl.appendChild(li); });
+  }
+  function hl() {
+    const ns = Array.prototype.slice.call(arguments);
+    Array.prototype.forEach.call(codeEl.children, li => li.classList.toggle("on", ns.indexOf(Number(li.dataset.i)) !== -1));
+  }
+  let rows = {};
+  function addRow(k, v) {
+    const d = document.createElement("div"), dt = document.createElement("dt"), dd = document.createElement("dd");
+    dt.textContent = k; dd.textContent = v; d.appendChild(dt); d.appendChild(dd); stateEl.appendChild(d); rows[k] = d;
+  }
+  function setState(obj) { rows = {}; stateEl.innerHTML = ""; Object.keys(obj).forEach(k => addRow(k, obj[k])); }
+  function upd(k, v) {
+    if (!rows[k]) addRow(k, v);
+    const d = rows[k];
+    d.lastChild.textContent = v;
+    d.classList.remove("pulse"); void d.offsetWidth; d.classList.add("pulse");
+  }
+  function log(s, kind) {
+    const li = document.createElement("li");
+    li.textContent = s;
+    if (kind) li.className = kind;
+    logEl.appendChild(li);
+    while (logEl.children.length > 7) logEl.removeChild(logEl.firstChild);
+  }
+  function say(s) {
+    sayEl.textContent = s;
+    if (mascot && !REDUCED) { mascot.classList.remove("talk"); void mascot.getBoundingClientRect(); mascot.classList.add("talk"); }
+  }
+  const readMs = s => Math.min(4800, 1000 + s.length * 30);
+  async function talk(s, extra) { say(s); await wait(readMs(s) + (extra || 0)); }
+  async function rejectBall(b, bx) {
+    recls(b, "bad"); boxCls(bx, "bad");
+    await wait(700);
+    boxCls(bx);
+    await Promise.all([move(b, 338, bx.y + bx.h + 16, 480), fade(b, 0, 480)]);
+  }
+  async function passBall(b, bx) {
+    recls(b, "ok"); boxCls(bx, "ok");
+    await wait(700);
+    boxCls(bx);
+  }
+
+  /* ---------- scenes ---------- */
+  const SCENES = [
+    {
+      tab: "Build", title: "Scene 1: pipeline SAVE hoti hai, chalti nahi (lazy)",
+      intro: "Namaste! Main Javu. Pehle dekhte hain ki stream likhte waqt memory me kya SAVE hota hai. Play dabao.",
+      code: ["List<Integer> nums = List.of(3, 8, 5, 4, 7);", "Stream<Integer> s0 = nums.stream();", "Stream<Integer> s1 = s0.filter(n -> n % 2 == 0);",
+        "Stream<Integer> s2 = s1.map(n -> n * 10);", "s0.map(n -> n);   // s0 dobara use?", "List<Integer> out = s2.toList();"],
+      state: { "stages saved": "0", "elements processed": "0", "s0.linkedOrConsumed": "false", "terminal called": "false" },
+      setup(ctx) { ctx.nums = box(40, 12, 280, 44, "nums = List.of(3, 8, 5, 4, 7)", "source data", "src"); },
+      async run() {
+        hl(1); await talk("Source list ready hai. Abhi tak koi stream nahi bani.");
+        hl(2);
+        const s0 = box(40, 84, 280, 46, "s0: Head (source stage)", "depth = 0");
+        await Promise.all([appear(s0.g), appear(arrow(180, 56, 180, 82, "spliterator()", 187))]);
+        upd("stages saved", "1"); log("new ReferencePipeline.Head(...)");
+        await talk("stream() ne ek Head stage object banaya. Isme sirf source ka reference SAVE hai, data copy nahi hua.");
+        hl(3);
+        const s1 = box(40, 158, 280, 46, "s1: StatelessOp (filter)", "depth = 1, previousStage = s0");
+        await Promise.all([appear(s1.g), appear(arrow(80, 130, 80, 156, "nextStage", 87)), appear(arrow(280, 156, 280, 132, "previousStage", 273, 147, "end"))]);
+        upd("stages saved", "2"); upd("s0.linkedOrConsumed", "true"); log("s0.nextStage = s1; s0.linkedOrConsumed = true");
+        await talk("filter() ne naya stage banaya aur s0 se link kiya: doubly linked list. Lambda sirf SAVE hua, ek bhi element test nahi hua.");
+        hl(4);
+        const s2 = box(40, 232, 280, 46, "s2: StatelessOp (map)", "depth = 2, previousStage = s1");
+        await Promise.all([appear(s2.g), appear(arrow(80, 204, 80, 230, "nextStage", 87)), appear(arrow(280, 230, 280, 206, "previousStage", 273, 221, "end"))]);
+        upd("stages saved", "3"); upd("elements processed", "0"); log("s1.nextStage = s2");
+        await talk("map() bhi ek naya stage. Dekho: elements processed abhi bhi 0 hai. Yahi LAZY evaluation hai.");
+        hl(5);
+        boxCls(s0, "bad");
+        const e1 = txt(layerMid, 180, 298, "IllegalStateException:", "err", "middle");
+        const e2 = txt(layerMid, 180, 313, "stream has already been operated upon or closed", "err", "middle");
+        log("s0.map(...) → IllegalStateException", "bad");
+        await talk("s0 ko dobara use kiya? Constructor check karta hai: previousStage.linkedOrConsumed true hai, to exception. Isliye stream single-use hai.");
+        e1.remove(); e2.remove(); boxCls(s0);
+        hl(6);
+        const t = box(40, 322, 280, 46, "toList(): TerminalOp", "evaluate() → ab pipeline chalegi", "term");
+        await Promise.all([appear(t.g), appear(arrow(180, 278, 180, 320, "evaluate", 187))]);
+        upd("terminal called", "true"); log("s2.toList() → evaluate(terminalOp)");
+        await talk("Terminal op aate hi evaluate() chalta hai. Pehle Sink chain banti hai (scene 2), phir data behta hai (scene 3).", 400);
+      }
+    },
+    {
+      tab: "Sink chain", title: "Scene 2: Sink chain ulti taraf se banti hai",
+      intro: "Terminal op aane ke baad JDK Sinks ki ek chain banata hai. Dekho kis order me.",
+      code: ["Sink<Integer> sink = terminalOp.makeSink();   // ListSink", "sink = mapStage.opWrapSink(flags, sink);    // MapSink",
+        "sink = filterStage.opWrapSink(flags, sink); // FilterSink", "// wrapSink(): terminal se source ki taraf", "spliterator.forEachRemaining(sink);"],
+      state: { "sink chain": "(khaali)", "wrap direction": "terminal → source", "head sink": "-" },
+      setup() {},
+      async run() {
+        hl(1);
+        const ls = box(40, 300, 280, 50, "ListSink (terminal)", "list.add(value)", "term");
+        await appear(ls.g);
+        upd("sink chain", "ListSink"); log("terminalOp.makeSink() → ListSink");
+        await talk("Wrapping terminal se shuru hoti hai. Pehle terminal ka Sink bana: ListSink, jisme result SAVE hoga.");
+        hl(2);
+        const ms = box(40, 210, 280, 50, "MapSink", "downstream.accept(n * 10)");
+        await Promise.all([appear(ms.g), appear(arrow(180, 260, 180, 298, "downstream", 187))]);
+        upd("sink chain", "MapSink → ListSink"); log("map.opWrapSink(ListSink) → MapSink");
+        await talk("Ab peeche jaate hue map stage apna Sink banata hai. Yeh downstream (ListSink) ka reference pakad ke rakhta hai.");
+        hl(3);
+        const fs = box(40, 120, 280, 50, "FilterSink", "if (n % 2 == 0) downstream.accept(n)");
+        await Promise.all([appear(fs.g), appear(arrow(180, 170, 180, 208, "downstream", 187))]);
+        upd("sink chain", "FilterSink → MapSink → ListSink"); upd("head sink", "FilterSink"); log("filter.opWrapSink(MapSink) → FilterSink");
+        await talk("Aakhir me filter ka Sink. Chain ready hai, Russian doll jaisi: bahar FilterSink, andar MapSink, sabse andar ListSink.");
+        hl(4);
+        await talk("Isliye wrapSink() ka loop p = p.previousStage karke ULTA chalta hai. Par data hamesha source se terminal ki taraf behta hai.");
+        hl(5);
+        const sp = box(40, 30, 280, 50, "Spliterator (source)", "forEachRemaining(filterSink)", "src");
+        await Promise.all([appear(sp.g), appear(arrow(180, 80, 180, 118, "accept(e)", 187))]);
+        log("spliterator.forEachRemaining(filterSink)");
+        await showResult("FilterSink → MapSink → ListSink");
+        await talk("Ab spliterator har element ko FilterSink.accept() me push karega. Kaise? Scene 3 me.", 400);
+      }
+    },
+    {
+      tab: "Flow", title: "Scene 3: ek-ek element flow karta hai, buffer UPDATE hota hai",
+      intro: "Ab asli data flow: List.of(3, 8, 5, 4, 7), filter even, map ×10, toList(). Har element akela poori pipeline cross karta hai.",
+      code: ["sink.begin(5);", "// har element: sink.accept(e)", "filter: if (n % 2 == 0) downstream.accept(n);", "map:    downstream.accept(n * 10);",
+        "list:   buffer.add(value);   // SAVE / UPDATE", "sink.end();                  // result ready"],
+      state: { "current element": "-", "buffer (saved)": "[]", "buffer.size": "0", "rejected": "0" },
+      setup(ctx) {
+        heading("Source: List.of(3, 8, 5, 4, 7)");
+        ctx.vals = [3, 8, 5, 4, 7];
+        ctx.balls = sourceRow(ctx.vals, 50);
+        ctx.fb = box(20, 92, 320, 54, "filter(n -> n % 2 == 0)", "FilterSink");
+        ctx.mb = box(20, 176, 320, 54, "map(n -> n * 10)", "MapSink");
+        ctx.cb = box(20, 262, 320, 86, "toList() buffer", "ListSink: ArrayList", "term");
+      },
+      async run(ctx) {
+        hl(1); log("begin(5)");
+        await talk("begin(5): terminal ko bataya ki 5 elements aa sakte hain. Ab loop shuru.");
+        const buf = [];
+        let rejected = 0;
+        for (let i = 0; i < ctx.vals.length; i++) {
+          const v = ctx.vals[i], b = ctx.balls[i];
+          hl(2); upd("current element", String(v));
+          say("Element " + v + " source se nikla.");
+          await move(b, GX, ctx.fb.cy, 700);
+          hl(3);
+          if (v % 2 !== 0) {
+            log(v + " → filter ✗", "bad");
+            say(v + " odd hai, filter ne rok diya. Yeh aage nahi jaayega.");
+            await rejectBall(b, ctx.fb);
+            upd("rejected", String(++rejected));
+            await wait(500);
+          } else {
+            log(v + " → filter ✓");
+            say(v + " even hai, pass. FilterSink ne downstream.accept(" + v + ") bulaya.");
+            await passBall(b, ctx.fb);
+            await wait(300);
+            await move(b, GX, ctx.mb.cy, 550);
+            hl(4); relabel(b, v * 10); recls(b, "mapped"); boxCls(ctx.mb, "ok");
+            log(v + " → map → " + v * 10);
+            say("MapSink ne " + v + " ko " + v * 10 + " bana diya.");
+            await wait(1100); boxCls(ctx.mb);
+            hl(5);
+            await move(b, 60 + buf.length * 56, 322, 600);
+            buf.push(v * 10); boxCls(ctx.cb, "ok");
+            upd("buffer (saved)", "[" + buf.join(", ") + "]"); upd("buffer.size", String(buf.length)); log("buffer.add(" + v * 10 + ")");
+            await talk("ListSink ne " + v * 10 + " buffer me SAVE kiya. Buffer UPDATE hua: [" + buf.join(", ") + "].");
+            boxCls(ctx.cb);
+          }
+        }
+        hl(6); upd("current element", "-"); log("end()");
+        await showResult("Result: [80, 40]");
+        await talk("end() ke baad buffer se final List bani: [80, 40]. Note karo: 8 poori pipeline cross kar gaya, TAB 5 source se nikla. Ise vertical (fused) processing kehte hain.", 600);
+      }
+    },
+    {
+      tab: "Short-circuit", title: "Scene 4: findFirst() baaki elements ko chhoota bhi nahi",
+      intro: "findFirst() ko sirf ek element chahiye. Dekho baaki elements ka kya hota hai.",
+      code: ["// findFirst() short-circuit hai → copyIntoWithCancel()", "do { } while (!(cancelled = sink.cancellationRequested())",
+        "             && spliterator.tryAdvance(sink));", "// FindSink.accept(v): value = v; hasValue = true", "// cancellationRequested() → hasValue"],
+      state: { "cancellationRequested()": "false", "FindSink.value": "-", "pulled from source": "0" },
+      setup(ctx) {
+        heading("Source: List.of(3, 8, 5, 4, 7)");
+        ctx.vals = [3, 8, 5, 4, 7];
+        ctx.balls = sourceRow(ctx.vals, 50);
+        ctx.fb = box(20, 92, 320, 54, "filter(n -> n % 2 == 0)", "FilterSink");
+        ctx.find = box(20, 196, 320, 64, "findFirst(): FindSink", "hasValue = false", "term");
+      },
+      async run(ctx) {
+        hl(1);
+        await talk("findFirst() short-circuit op hai, isliye JDK copyIntoWithCancel() wala loop chalata hai.");
+        let pulled = 0;
+        for (let i = 0; i < 2; i++) {
+          const v = ctx.vals[i], b = ctx.balls[i];
+          hl(2); upd("cancellationRequested()", "false");
+          await talk(i === 0 ? "Har element se pehle poocha jaata hai: cancellationRequested()? Jawab false hai, to tryAdvance()." : "Phir wahi sawaal: cancellationRequested()? Abhi bhi false.");
+          hl(3); upd("pulled from source", String(++pulled));
+          await move(b, GX, ctx.fb.cy, 650);
+          if (v % 2 !== 0) {
+            log(v + " → filter ✗", "bad");
+            say(v + " odd hai, filter ne rok diya.");
+            await rejectBall(b, ctx.fb);
+          } else {
+            log(v + " → filter ✓");
+            await passBall(b, ctx.fb);
+            await move(b, GX, ctx.find.cy + 4, 600);
+            hl(4); recls(b, "mapped"); boxCls(ctx.find, "ok"); ctx.find.s.textContent = "hasValue = true, value = 8";
+            upd("FindSink.value", "8"); log("FindSink.accept(8)");
+            await talk("FindSink ne 8 SAVE kiya aur hasValue = true ho gaya.");
+            hl(5); upd("cancellationRequested()", "true"); log("cancellationRequested() → true", "warn");
+            await talk("Ab loop ka check: cancellationRequested() true hai. Loop wahin ruk gaya.");
+          }
+        }
+        ctx.balls.slice(2).forEach(b => recls(b, "idle"));
+        await appear(txt(layerMid, 250, 83, "5, 4, 7 kabhi nahi nikle", "lbl-muted", "middle"));
+        log("5, 4, 7 → tryAdvance() kabhi call nahi hua");
+        await showResult("Result: Optional[8]");
+        await talk("5, 4 aur 7 source se kabhi nikle hi nahi. Isi wajah se infinite stream pe bhi findFirst() khatam ho jaata hai.", 600);
+      }
+    },
+    {
+      tab: "sorted()", title: "Scene 5: sorted() ek barrier hai",
+      intro: "sorted() ko sort karne ke liye pehle SAB elements chahiye. Dekho yeh pipeline ko kaise rokta hai.",
+      code: ["sorted(): RefSortingSink (StatefulOp)", "accept(n) → list.add(n)       // SAVE, aage nahi bhejta", "end() → list.sort(comparator) // barrier",
+        "      → downstream.begin(5); sab push; downstream.end()", "map(n -> n * 10) → toList()"],
+      state: { "sort buffer (saved)": "[]", "phase": "collecting", "pushed downstream": "0" },
+      setup(ctx) {
+        heading("Source: List.of(3, 8, 5, 4, 7)");
+        ctx.vals = [3, 8, 5, 4, 7];
+        ctx.balls = sourceRow(ctx.vals, 50);
+        ctx.sb = box(20, 88, 320, 86, "sorted(): RefSortingSink", "buffer (ArrayList)");
+        ctx.mb = box(20, 192, 320, 50, "map(n -> n * 10)", "MapSink");
+        ctx.cb = box(20, 262, 320, 86, "toList() buffer", "ListSink", "term");
+      },
+      async run(ctx) {
+        hl(1);
+        await talk("sorted() stateful hai: isko pehle SAB elements chahiye, tabhi sort ho sakta hai.");
+        const buf = [];
+        for (let i = 0; i < ctx.balls.length; i++) {
+          hl(2);
+          await move(ctx.balls[i], 60 + i * 60, 150, 600);
+          buf.push(ctx.vals[i]);
+          upd("sort buffer (saved)", "[" + buf.join(", ") + "]"); log("sortingSink.accept(" + ctx.vals[i] + ") → list.add");
+          if (i === 0) await talk("3 buffer me SAVE hua. Dhyan do: map tak koi nahi gaya.");
+          else await wait(450);
+        }
+        await talk("Saare 5 buffer me hain. Downstream (map) ne abhi tak ek bhi element nahi dekha. Yahi barrier hai.");
+        hl(3); upd("phase", "sorting (end() pe)"); log("end() → list.sort()");
+        const order = ctx.balls.slice().sort((a, b) => a.label - b.label);
+        await Promise.all(order.map((b, k) => move(b, 60 + k * 60, 150, 900)));
+        upd("sort buffer (saved)", "[3, 4, 5, 7, 8]");
+        await talk("end() aaya to buffer sort hua: [3, 4, 5, 7, 8]. Ab downstream.begin(5), phir ek-ek karke push.");
+        hl(4, 5); upd("phase", "pushing downstream");
+        for (let k = 0; k < order.length; k++) {
+          const b = order[k];
+          await move(b, GX, ctx.mb.cy, 520);
+          relabel(b, b.label * 10); recls(b, "mapped");
+          await wait(250);
+          await move(b, 50 + k * 58, 322, 520);
+          upd("pushed downstream", String(k + 1));
+        }
+        log("result = [30, 40, 50, 70, 80]");
+        await showResult("Result: [30, 40, 50, 70, 80]");
+        await talk("Stateful ops memory lete hain, aur infinite stream pe sorted() kabhi khatam nahi hota. Isliye sorted() se pehle limit() socho.", 600);
+      }
+    },
+    {
+      tab: "Parallel", title: "Scene 6: parallel: split, kaam, combine",
+      intro: "parallel() me data tukdon me baṭta hai, workers kaam karte hain, aur combiner results jodta hai.",
+      code: ["IntStream.rangeClosed(1, 8).parallel()", "         .map(n -> n * n).sum();", "// trySplit(): aadha-aadha (ForkJoin tasks)",
+        "// har leaf: same sink chain, sequentially", "// combiner: left + right (associative!)"],
+      state: { "pool": "ForkJoinPool.commonPool()", "parallelism": "cores - 1", "chunks": "1", "partial results": "-" },
+      setup(ctx) {
+        heading("IntStream.rangeClosed(1, 8).parallel()");
+        ctx.balls = sourceRow([1, 2, 3, 4, 5, 6, 7, 8], 50, 13);
+      },
+      async run(ctx) {
+        hl(1, 2);
+        await talk("Parallel me pehle source ko tukdon me baanta jaata hai. Kaam ForkJoin common pool ke threads karenge.");
+        hl(3); log("trySplit() → [1..4] | [5..8]");
+        await Promise.all(ctx.balls.map((b, i) => move(b, i < 4 ? 22 + i * 34 : 236 + (i - 4) * 34, 100, 650)));
+        const splitLbl = txt(layerMid, 180, 104, "trySplit()", "lbl-muted", "middle");
+        upd("chunks", "2");
+        await talk("trySplit(): data aadha-aadha ho gaya, [1..4] aur [5..8].");
+        const lanes = [52, 136, 220, 304];
+        const workers = lanes.map((x, i) => box(x - 40, 136, 80, 64, "worker-" + (i + 1), "", "wk"));
+        splitLbl.remove();
+        log("trySplit() dobara → 4 chunks");
+        await Promise.all(workers.map(w => appear(w.g)).concat(ctx.balls.map((b, i) => move(b, lanes[Math.floor(i / 2)] + (i % 2 === 0 ? -16 : 16), 178, 700))));
+        upd("chunks", "4");
+        await talk("4 chunks, 4 workers. Har worker apne chunk pe SAME sink chain sequentially chalata hai.");
+        hl(4);
+        ctx.balls.forEach(b => { relabel(b, b.label * b.label); recls(b, "mapped"); });
+        log("map(n -> n * n) har worker me");
+        await talk("map(n -> n * n): har worker ne apne numbers square kiye.");
+        const partials = [];
+        for (let w = 0; w < 4; w++) {
+          const a = ctx.balls[w * 2], c = ctx.balls[w * 2 + 1];
+          await Promise.all([move(a, lanes[w], 178, 380), move(c, lanes[w], 178, 380)]);
+          const sum = a.label + c.label;
+          c.g.remove(); relabel(a, sum); recls(a, "ok");
+          partials.push(a);
+        }
+        upd("partial results", partials.map(p => p.label).join(", ")); log("partial sums: " + partials.map(p => p.label).join(", "));
+        await talk("Har worker ka partial result: 5, 25, 61, 113. Ab combiner inhe jodega.");
+        hl(5);
+        [[lanes[0], 94], [lanes[1], 94], [lanes[2], 266], [lanes[3], 266]].forEach(p => arrow(p[0], 204, p[1], 234));
+        await Promise.all([move(partials[0], 94, 250, 600), move(partials[1], 94, 250, 600), move(partials[2], 266, 250, 600), move(partials[3], 266, 250, 600)]);
+        partials[1].g.remove(); partials[3].g.remove();
+        relabel(partials[0], 30); relabel(partials[2], 174);
+        log("combine(5, 25) = 30; combine(61, 113) = 174");
+        await talk("Combiner: 5 + 25 = 30 aur 61 + 113 = 174.");
+        arrow(94, 266, 176, 304); arrow(266, 266, 184, 304);
+        await Promise.all([move(partials[0], 180, 322, 600), move(partials[2], 180, 322, 600)]);
+        partials[2].g.remove(); relabel(partials[0], 204); recls(partials[0], "final");
+        upd("partial results", "204"); log("combine(30, 174) = 204");
+        await showResult("sum = 204");
+        await talk("Final 204. Jodne ka order badal sakta hai, isliye operation associative hona chahiye. Shared ArrayList me add karte to threads aapas me takrate.", 600);
+      }
+    },
+    {
+      tab: "Gatherer", title: "Scene 7 (Java 24): Gatherer apna state rakhta hai",
+      intro: "Java 24 ka Gatherer: windowFixed(3). Yeh beech me state SAVE karta hai aur window bharte hi aage push karta hai.",
+      code: ["Stream.of(1, 2, 3, 4, 5, 6, 7)", "      .gather(Gatherers.windowFixed(3)).toList();", "initializer: state = new ArrayList<>(3)",
+        "integrator:  state.add(e); full? → downstream.push(copy); clear", "finisher:    state khaali nahi? → downstream.push(state)"],
+      state: { "window state (saved)": "[]", "pushed windows": "0" },
+      setup(ctx) {
+        heading("Stream.of(1..7).gather(windowFixed(3))");
+        ctx.balls = sourceRow([1, 2, 3, 4, 5, 6, 7], 50);
+        ctx.wb = box(20, 88, 320, 86, "windowFixed(3): state", "initializer: new ArrayList(3)");
+        ctx.cb = box(20, 262, 320, 86, "toList(): downstream", "windows yahan SAVE", "term");
+      },
+      async run(ctx) {
+        hl(1, 2, 3); log("initializer() → state = []");
+        await talk("Gatherer apna STATE rakhta hai. initializer() ne khaali window banayi.");
+        let state = [], pushed = 0;
+        for (let i = 0; i < ctx.balls.length; i++) {
+          const b = ctx.balls[i];
+          hl(4);
+          await move(b, 190 + state.length * 50, 150, 560);
+          state.push(b);
+          upd("window state (saved)", "[" + state.map(s => s.label).join(", ") + "]"); log("integrate(" + b.label + ") → state.add");
+          if (state.length === 3) {
+            const lbl = "[" + state.map(s => s.label).join(", ") + "]";
+            await talk(pushed === 0 ? "Window full ho gayi! Integrator ne downstream.push(" + lbl + ") kiya aur state clear." : "Phir full: push(" + lbl + ").");
+            const cap = capsule(240, 150, lbl);
+            await Promise.all(state.map(s => fade(s, 0, 300)));
+            state.forEach(s => s.g.remove());
+            state = [];
+            upd("window state (saved)", "[]");
+            await move(cap, 80 + pushed * 100, 322, 650);
+            pushed++;
+            upd("pushed windows", String(pushed)); log("downstream.push(" + lbl + ")");
+          } else if (i === 0) {
+            await talk("1 state me SAVE hua. Window abhi adhoori hai, isliye kuch push nahi hua.");
+          } else {
+            await wait(400);
+          }
+        }
+        hl(5);
+        await talk("Stream khatam, par state me [7] bacha hai. finisher() ne use bhi push kiya.");
+        const lastCap = capsule(240, 150, "[7]");
+        await Promise.all(state.map(s => fade(s, 0, 300)));
+        state.forEach(s => s.g.remove());
+        upd("window state (saved)", "[]");
+        await move(lastCap, 280, 322, 650);
+        upd("pushed windows", "3"); log("finisher → downstream.push([7])");
+        await showResult("[[1, 2, 3], [4, 5, 6], [7]]");
+        await talk("Gatherer = Collector jaisa, par pipeline ke BEECH me: state rakhta hai aur aage items push karta hai. Bas, saare scenes ho gaye!", 600);
+      }
+    }
+  ];
+
+  /* ---------- controller ---------- */
+  const tabs = document.getElementById("animTabs");
+  const btnPlay = document.getElementById("animPlay");
+  const btnRestart = document.getElementById("animRestart");
+  const selSpeed = document.getElementById("animSpeed");
+  const chkAuto = document.getElementById("animAuto");
+  tabs.innerHTML = SCENES.map((s, i) => '<button type="button" role="tab" class="anim-tab" data-scene="' + i + '" aria-selected="false">' + (i + 1) + ". " + s.tab + "</button>").join("");
+  let ctx = {};
+  function sync() {
+    const st = A.state;
+    btnPlay.textContent = st === "playing" ? (A.paused ? "Resume" : "Pause") : st === "done" ? "Replay" : "Play";
+    stageEl.classList.toggle("paused", st === "playing" && A.paused);
+  }
+  function prepare(i) {
+    A.token++;
+    A.paused = false;
+    A.scene = i;
+    A.state = "idle";
+    clearStage();
+    logEl.innerHTML = "";
+    const s = SCENES[i];
+    ctx = {};
+    s.setup(ctx);
+    setCode(s.code);
+    setState(s.state);
+    hl();
+    say(s.intro);
+    titleEl.textContent = s.title;
+    Array.prototype.forEach.call(tabs.children, (b, k) => b.setAttribute("aria-selected", String(k === i)));
+    sync();
+  }
+  async function play(i) {
+    prepare(i);
+    A.state = "playing";
+    sync();
+    const tok = A.token;
+    try {
+      await SCENES[i].run(ctx);
+      if (tok !== A.token) return;
+      A.state = "done";
+      sync();
+      if (chkAuto.checked && i < SCENES.length - 1) {
+        await wait(1600);
+        if (tok === A.token) play(i + 1);
+      }
+    } catch (e) {
+      if (!(e instanceof Stop)) { console.error(e); A.state = "done"; sync(); }
+    }
+  }
+  btnPlay.addEventListener("click", () => {
+    if (A.state === "playing") { A.paused = !A.paused; sync(); return; }
+    play(A.scene);
+  });
+  btnRestart.addEventListener("click", () => play(A.scene));
+  selSpeed.addEventListener("change", () => { A.speed = parseFloat(selSpeed.value) || 1; });
+  tabs.addEventListener("click", e => { const b = e.target.closest("[data-scene]"); if (b) play(Number(b.dataset.scene)); });
+  if ("IntersectionObserver" in window) {
+    new IntersectionObserver(entries => {
+      entries.forEach(en => { if (!en.isIntersecting && A.state === "playing" && !A.paused) { A.paused = true; sync(); } });
+    }, { threshold: 0 }).observe(document.querySelector(".anim"));
+  }
+  prepare(0);
+  window.__streamAnim = { play: play, prepare: prepare, state: A, scenes: SCENES.length };
+})();
+</script>
+</body>
+</html>

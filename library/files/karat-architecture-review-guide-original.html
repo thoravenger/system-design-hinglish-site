@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Karat architecture review: study guide</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+Condensed:wght@500;600&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#EDF1F4; --sheet:#F8FAFB; --ink:#14243A; --muted:#566779; --line:#C9D3DC;
+  --blue:#2B5A87; --blue-soft:#DCE7F1; --red:#B8322A; --red-soft:#F7E1DE; --green:#2D7556; --green-soft:#DDEFE5;
+  --amber:#8A5A0B; --amber-soft:#F6EAD3;
+  --body:"IBM Plex Sans", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --head:"IBM Plex Sans Condensed", "Arial Narrow", "Segoe UI", sans-serif;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --paper:#0E1824; --sheet:#152232; --ink:#E4EBF2; --muted:#9AAABB; --line:#2A3B50;
+    --blue:#8DB6DE; --blue-soft:#1C3048; --red:#F0948B; --red-soft:#3A1E1C; --green:#8ACFAE; --green-soft:#16322A;
+    --amber:#E8C27A; --amber-soft:#35290F;
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#0E1824; --sheet:#152232; --ink:#E4EBF2; --muted:#9AAABB; --line:#2A3B50;
+  --blue:#8DB6DE; --blue-soft:#1C3048; --red:#F0948B; --red-soft:#3A1E1C; --green:#8ACFAE; --green-soft:#16322A;
+  --amber:#E8C27A; --amber-soft:#35290F;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-padding-top:env(safe-area-inset-top,0px); scroll-behavior:smooth}
+@media (prefers-reduced-motion: reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--paper);color:var(--ink);font:400 17px/1.65 var(--body)}
+a{color:var(--blue)}
+:focus-visible{outline:2px solid var(--blue);outline-offset:2px}
+.wrap{max-width:1120px;margin:0 auto;padding:0 20px;display:grid;grid-template-columns:220px minmax(0,1fr);gap:48px}
+nav.toc{position:sticky;top:env(safe-area-inset-top,0px);align-self:start;padding:40px 0;font-size:15px}
+nav.toc p{font-family:var(--head);font-weight:600;margin:0 0 8px;color:var(--muted)}
+nav.toc ol{list-style:none;margin:0;padding:0;border-left:2px solid var(--line)}
+nav.toc li a{display:block;padding:5px 0 5px 14px;text-decoration:none;color:var(--ink)}
+nav.toc li a:hover{color:var(--blue)}
+main{max-width:780px;padding:40px 0 96px;min-width:0}
+header.hero{padding:24px 0 40px;border-bottom:2px solid var(--ink);margin-bottom:40px}
+.formula{font-family:var(--head);font-weight:600;font-size:clamp(34px,7vw,64px);line-height:1.02;margin:0;letter-spacing:-.01em}
+.formula .p{color:var(--red)} .formula .n{color:var(--amber)} .formula .f{color:var(--green)}
+.formula .ar{color:var(--muted);font-weight:500}
+.hero p.lede{font-size:19px;max-width:62ch;margin:20px 0 0;color:var(--muted)}
+h2{font-family:var(--head);font-weight:600;font-size:32px;line-height:1.15;margin:64px 0 16px}
+h3{font-family:var(--head);font-weight:600;font-size:23px;margin:36px 0 10px}
+h4{font-size:17px;font-weight:600;margin:24px 0 8px}
+p,li{max-width:70ch}
+.sheet{background:var(--sheet);border:1px solid var(--line);border-radius:6px;padding:20px 22px;margin:18px 0}
+.scroll{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:15.5px;min-width:560px}
+th,td{text-align:left;vertical-align:top;padding:9px 10px;border-bottom:1px solid var(--line)}
+th{font-family:var(--head);font-weight:600;font-size:15px;color:var(--muted)}
+code{font-family:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-size:.9em;background:var(--blue-soft);padding:1px 5px;border-radius:3px}
+ol.steps{counter-reset:s;list-style:none;padding:0;margin:16px 0}
+ol.steps>li{counter-increment:s;position:relative;padding:0 0 18px 52px}
+ol.steps>li::before{content:counter(s);position:absolute;left:0;top:0;width:36px;height:36px;border:2px solid var(--ink);border-radius:50%;display:grid;place-items:center;font-family:var(--head);font-weight:600}
+ol.steps>li b{display:block}
+ol.issues{list-style:none;margin:12px 0;padding:0;counter-reset:i}
+ol.issues>li{counter-increment:i;display:grid;grid-template-columns:34px 1fr;gap:4px 10px;padding:12px 0;border-bottom:1px solid var(--line);max-width:none}
+ol.issues>li::before{content:counter(i);grid-row:1 / span 3;font-family:var(--head);font-weight:600;color:var(--red);font-size:20px;line-height:1.3}
+.row{display:grid;grid-template-columns:78px 1fr;gap:8px;font-size:15.5px}
+.tag{font-family:var(--head);font-weight:600;font-size:14px;border-radius:3px;padding:0 6px;align-self:start;text-align:center}
+.tp{background:var(--red-soft);color:var(--red)} .tn{background:var(--amber-soft);color:var(--amber)} .tf{background:var(--green-soft);color:var(--green)}
+.src{display:inline-block;font-size:13px;color:var(--muted);border:1px solid var(--line);border-radius:3px;padding:0 6px;margin-left:6px}
+details{border:1px solid var(--line);border-radius:6px;background:var(--sheet);margin:16px 0}
+details>summary{cursor:pointer;padding:14px 18px;font-weight:600;list-style:none}
+details>summary::-webkit-details-marker{display:none}
+details>summary::before{content:"+";display:inline-block;width:22px;font-family:var(--head);color:var(--blue)}
+details[open]>summary::before{content:"−"}
+details>.inner{padding:0 18px 18px}
+pre.mermaid{background:#FFFFFF;border:1px solid var(--line);border-radius:6px;padding:14px;overflow-x:auto;margin:14px 0;color:#14243A}
+.legend{font-size:14px;color:var(--muted)}
+.sw{display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:-1px;margin-right:4px}
+.callout{border-left:4px solid var(--blue);padding:10px 16px;background:var(--blue-soft);margin:18px 0;border-radius:0}
+.callout.warn{border-left-color:var(--red);background:var(--red-soft)}
+.check label{display:flex;gap:10px;align-items:flex-start;padding:6px 0;cursor:pointer}
+.check input{margin-top:6px;width:18px;height:18px;accent-color:var(--green);flex:none}
+.small{font-size:14.5px;color:var(--muted)}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media (max-width:860px){
+  .wrap{grid-template-columns:1fr;gap:0}
+  nav.toc{position:static;padding:24px 0 0}
+  nav.toc ol{display:flex;flex-wrap:wrap;gap:6px;border:0}
+  nav.toc li a{padding:4px 10px;border:1px solid var(--line);border-radius:14px;font-size:14px;background:var(--sheet)}
+  .two{grid-template-columns:1fr}
+  h2{font-size:27px}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<nav class="toc" aria-label="Contents">
+  <p>Is page par</p>
+  <ol>
+    <li><a href="#round">Round kaise hota hai</a></li>
+    <li><a href="#method">Solve karne ka method</a></li>
+    <li><a href="#flags">Red-flag words</a></li>
+    <li><a href="#fixes">Fix cheat sheet</a></li>
+    <li><a href="#q1">Q1 Postal service</a></li>
+    <li><a href="#q2">Q2 Supermarket</a></li>
+    <li><a href="#q3">Q3 Cinema booking</a></li>
+    <li><a href="#compare">Common vs different</a></li>
+    <li><a href="#design">Agar design banana ho</a></li>
+    <li><a href="#check">Self-check</a></li>
+  </ol>
+</nav>
+
+<main>
+<header class="hero">
+  <p class="formula"><span class="p">Problem</span> <span class="ar">→</span> <span class="n">Nuksaan</span> <span class="ar">→</span> <span class="f">Fix</span></p>
+  <p class="lede">Karat ke "what issues do you see" round ki poori taiyari, ek jagah. Method, red-flag words, teen solved questions with diagrams, aur agar interviewer design banane ko bole toh kya karna hai.</p>
+</header>
+
+<section id="round">
+<h2>Round kaise hota hai</h2>
+<p>Karat mein system design wale hisse mein lagbhag 15–20 minute mein kai chhote scenarios aate hain, har ek par 3–4 minute. Poora question (diagram + spec + clarifications) ek saath screen par aata hai. Aapko <b>issues list karne hain, redesign nahi.</b> Interviewer ek-ek issue ko count karta hai, aur dekhta hai ki aapne nuksaan (impact) samjha ya nahi.</p>
+
+<h3>4 minute ka time plan</h3>
+<div class="sheet scroll">
+<table>
+<tr><th>Time</th><th>Kya karna hai</th></tr>
+<tr><td>0:00 – 0:30</td><td>Pehle <b>clarifications</b> padho, phir spec par nazar. Zaroorat ho toh ek clarifying question poochho.</td></tr>
+<tr><td>0:30 – 3:00</td><td>Spec section by section padhte hue issues <b>bolte jao</b>. Sabse bade issues pehle (data loss, leak, galat data).</td></tr>
+<tr><td>3:00 – 4:00</td><td>Checklist sweep: 5 sawal (neeche) mein se kaunsa category abhi tak nahi bola? Diagram vs spec mismatch check karo.</td></tr>
+</table>
+</div>
+
+<div class="callout warn"><b>Aapki teen rounds ki sabse badi galti:</b> (1) redesign kar dena, (2) sirf diagram se issues nikalna aur spec/clarifications chhod dena, (3) fix bolna par nuksaan nahi bolna. Yeh teeno theek karo, score double ho jayega.</div>
+</section>
+
+<section id="method">
+<h2>Solve karne ka method</h2>
+<ol class="steps">
+  <li><b>Clarifications pehle padho.</b> Har clarification line kam se kam ek issue ka hint hoti hai. "No backups", "one data center", "sequential ID", "no load testing" jaisi lines free points hain.</li>
+  <li><b>Spec ko upar se neeche, section by section padho.</b> Har component ke liye poochho: yeh gira toh? zyada load aaya toh? isme kaunsa data hai? isko kaun access kar sakta hai?</li>
+  <li><b>Red-flag words par ruko.</b> "in memory", "single", "dropped", "saves card", "waits", "every 5 minutes", "local file". Neeche poori list hai.</li>
+  <li><b>Diagram ko spec se match karo.</b> Spec mein kuch likha hai jo diagram mein nahi (ya ulta)? Arrow ki direction galat? Yeh mismatch khud ek issue hai, aur interviewers isko jaanbujh kar daalte hain.</li>
+  <li><b>5 sawal ka sweep karo</b> (yeh aapki purani 4-point checklist ka upgraded version hai):
+    <div class="sheet scroll" style="margin-top:10px">
+    <table>
+      <tr><th>Sawal</th><th>Kya dhoondhna hai</th></tr>
+      <tr><td>Kya <b>fail</b> hoga?</td><td>Single instance, single LB/DB/queue, ek data center, bina health check ke routing</td></tr>
+      <tr><td>Kya <b>slow</b> hoga?</td><td>Traffic spike, heavy reports on main DB, sync third-party calls, ML per request, no cache</td></tr>
+      <tr><td>Kya <b>leak</b> hoga?</td><td>PII copy, card/CVV store, PII in URL, public admin panel, guessable IDs, weak kiosk auth</td></tr>
+      <tr><td>Kya <b>galat ya lost</b> hoga?</td><td>Double booking, stale cache, dropped messages, no backups, offline sync conflicts, state in memory</td></tr>
+      <tr><td><b>Pata kaise</b> chalega?</td><td>Monitoring, alerts, centralized logs, replication lag, audit logs</td></tr>
+    </table>
+    </div>
+    <p class="small">"Galat ya lost" nayi category hai. Cinema question mein double booking isi se pakda jaata hai, aur purani checklist mein yeh chhoot raha tha.</p>
+  </li>
+  <li><b>Priority order mein bolo.</b> Pehle data loss + security leak + galat data (business ko sabse zyada nuksaan), phir SPOF, phir performance, phir monitoring.</li>
+</ol>
+
+<h3>Ek issue bolne ka format</h3>
+<div class="sheet">
+<p style="margin:0"><b>"Payment service card ka CVV save karti hai</b> → breach hua toh lakhon cards leak, aur yeh card rules (PCI) ka seedha ulanghan hai → CVV kabhi store mat karo, payment provider ka token use karo."</p>
+</div>
+<p class="small">Ek saans mein, ek line. Fix ek hi bolo, diagram mat banao. Agar interviewer aur detail maange tabhi explain karo.</p>
+
+<h3>Kya nahi karna</h3>
+<ul>
+  <li>Diagram dobara banana ya "main aise design karunga" bolna.</li>
+  <li>Sirf fix bolna ("add more servers") bina problem aur nuksaan ke.</li>
+  <li>Ek issue ko do baar alag shabdon mein ginna (jaise "ek gateway" aur "no load balancer").</li>
+  <li>Strong-consistency data (seats, stock, balance) ke liye cache suggest karna. Isse double booking hoti hai.</li>
+  <li>Spec mein likhi baat assume karna. Pakka nahi ho toh interviewer se poochho.</li>
+</ul>
+</section>
+
+<section id="flags">
+<h2>Red-flag words</h2>
+<p>Spec padhte waqt yeh shabd dikhe toh ruk jao. Har ek ke peeche lagbhag hamesha ek issue hota hai.</p>
+<div class="sheet scroll">
+<table>
+<tr><th>Spec mein dikhe</th><th>Issue</th><th>Standard fix</th></tr>
+<tr><td>"single", "one instance", "only one"</td><td>SPOF</td><td>2+ instances, LB, failover</td></tr>
+<tr><td>"in memory", "its own memory", "local list"</td><td>State lost on crash, servers sync nahi</td><td>Shared store (Redis/DB), stateless servers</td></tr>
+<tr><td>"round-robin"</td><td>Dead server ko bhi traffic</td><td>Health checks</td></tr>
+<tr><td>"dropped", "deleted daily", "local file"</td><td>Data loss</td><td>Retries + DLQ, central storage, retention</td></tr>
+<tr><td>"no backup"</td><td>Permanent data loss</td><td>Backups + point-in-time restore + restore test</td></tr>
+<tr><td>"saves card / CVV / address / phone"</td><td>PII leak, compliance</td><td>Tokenize, encrypt, store kam se kam</td></tr>
+<tr><td>"in the URL", "HTTP", "public internet"</td><td>PII leak, interception</td><td>HTTPS, POST body, auth</td></tr>
+<tr><td>"waits for the response", "calls third party"</td><td>Threads atak jaate hain</td><td>Timeout, retry, circuit breaker</td></tr>
+<tr><td>"every N minutes", "heavy report"</td><td>Main DB slow</td><td>Read replica, off-peak</td></tr>
+<tr><td>"24-hour cache" + "changes during day"</td><td>Stale data</td><td>Invalidate on change, short TTL</td></tr>
+<tr><td>"sequential ID", "client ID only"</td><td>Guessable, doosre ka data</td><td>Random signed token, PIN/OTP</td></tr>
+<tr><td>"one data center", "same region"</td><td>Region SPOF, latency</td><td>DR region, replication</td></tr>
+<tr><td>"opens at 10 AM", "no load testing"</td><td>Spike par crash</td><td>Load test, autoscale, waiting queue</td></tr>
+<tr><td>"uses ML" on request path</td><td>Slow response</td><td>Batch precompute</td></tr>
+<tr><td>"continues offline", "uploads at end of day"</td><td>Conflict, double sale</td><td>Reserved offline stock, immediate sync</td></tr>
+<tr><td>"pharmacy", "health", "kids"</td><td>Sensitive data</td><td>Extra encryption, masking, access control</td></tr>
+</table>
+</div>
+</section>
+
+<section id="fixes">
+<h2>Fix cheat sheet</h2>
+<p>Fix hamesha problem ki category se match karna chahiye. Galat category ka fix (jaise availability ke liye sharding) half credit bhi nahi deta.</p>
+<div class="sheet scroll">
+<table>
+<tr><th>Problem ki category</th><th>Sahi fix</th><th>Galat fix (avoid)</th></tr>
+<tr><td>Availability (gira toh band)</td><td>Replica, failover, 2+ instances, health checks</td><td>Sharding (data baant-ti hai, backup nahi deti)</td></tr>
+<tr><td>Data loss</td><td>Backups, retries, DLQ</td><td>Replication akela (delete bhi copy ho jata hai)</td></tr>
+<tr><td>Scale / speed (reads)</td><td>Cache, CDN, read replica</td><td>Bade server akela</td></tr>
+<tr><td>Scale / speed (writes, data size)</td><td>Sharding, queues</td><td>Cache</td></tr>
+<tr><td>Correctness (double booking)</td><td>DB row lock / shared lock with TTL, idempotency</td><td>Cache se padhna</td></tr>
+<tr><td>Security / PII</td><td>Auth, MFA, RBAC, encryption, tokenization, min data</td><td>"Firewall laga do" bina detail ke</td></tr>
+<tr><td>Third-party dependency</td><td>Timeout, retry with backoff, circuit breaker, fallback</td><td>Aur servers add karna</td></tr>
+<tr><td>Visibility</td><td>Central logs, metrics, alerts, tracing, audit logs</td><td>"Logs check kar lenge"</td></tr>
+</table>
+</div>
+</section>
+
+<section id="q1">
+<h2>Q1 Postal service</h2>
+<p><b>Prompt:</b> Delivery notifications wala postal system, "what issues do you see". Aapka score: 15 mein se lagbhag 3 (redesign kar diya tha).</p>
+<p class="small">Note: yeh diagram aapke notes se reconstruct kiya gaya hai, original se thoda alag ho sakta hai.</p>
+
+<h4>Flawed design (issues laal mein)</h4>
+<div>
+<pre class="mermaid">
+flowchart TD
+  U["Users / app"] --> DNS["DNS: single A record"]:::bad
+  DNS --> WAF["Single WAF"]:::bad
+  WAF --> LB1["LB1"]
+  WAF --> LB2["LB2, 90% uptime"]:::bad
+  LB1 --> RR["Round-robin, no health checks"]:::bad
+  LB2 --> RR
+  RR --> S1["S1: 512MB / 1GHz, local auth list"]:::bad
+  RR --> S2["S2: 512MB / 1GHz, local auth list"]:::bad
+  RR --> S3["S3: failover workaround"]:::bad
+  S1 -. "not connected" .-> DB[("DB in one place, no backups")]:::bad
+  S2 -. "not connected" .-> DB
+  S3 --> DB
+  S3 --> LOG["S6 logging proxy"]:::bad
+  S3 --> MQ["Single message queue"]:::bad
+  MQ --> AH["Single API handler, no retry or DLQ"]:::bad
+  AH --> SMS["SMS over HTTP, phone number in URL, no auth"]:::bad
+  S3 --> LK["3rd-party lockers, no timeout"]:::bad
+  REG["Regions: notifications only NY, packages only LA"]:::bad
+  classDef bad fill:#F7E1DE,stroke:#B8322A,color:#4A100C
+</pre>
+<p class="legend"><span class="sw" style="background:#F7E1DE;border:1px solid #B8322A"></span>Issue wala component</p>
+</div>
+
+<details>
+<summary>Issues with solution (pehle khud try karo)</summary>
+<div class="inner">
+<ol class="issues">
+<li><div class="row"><span class="tag tp">Problem</span><span>Single A record aur single WAF</span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Ek bhi gira toh poori service band</span></div><div class="row"><span class="tag tf">Fix</span><span>Multiple DNS records with health checks, WAF pair</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>LB SPOF, LB2 sirf 90% uptime</span></div><div class="row"><span class="tag tn">Nuksaan</span><span>90% = saal mein ~36 din down</span></div><div class="row"><span class="tag tf">Fix</span><span>Reliable LB pair, active-passive, health checks</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Fake regional resiliency: notifications sirf NY, packages sirf LA, DB ek jagah <span class="src">spec</span></span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Ek region gira toh ek poora feature gayab</span></div><div class="row"><span class="tag tf">Fix</span><span>Har region mein full stack, DB cross-region replication</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Round-robin bina health checks</span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Mare hue server ko bhi traffic, users ko errors</span></div><div class="row"><span class="tag tf">Fix</span><span>Health checks, unhealthy server ko rotation se hatao</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Weak servers 512MB / 1GHz <span class="src">spec</span></span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Load aate hi crash</span></div><div class="row"><span class="tag tf">Fix</span><span>Right-size karo, autoscaling</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Har server par local auth list</span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Round-robin se doosre server par login fail; lists out of sync; security risk</span></div><div class="row"><span class="tag tf">Fix</span><span>Central auth service / identity provider</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>S6 logging proxy single</span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Proxy gira toh logs gayab ya traffic block</span></div><div class="row"><span class="tag tf">Fix</span><span>Har server par log agent, central log store</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Single MQ + single API handler, no retries / DLQ</span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Notifications chupchaap lost</span></div><div class="row"><span class="tag tf">Fix</span><span>MQ cluster, multiple handlers, retries, dead-letter queue</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>SMS call HTTP par, phone number URL mein, no auth, public internet, malformed URL</span></div><div class="row"><span class="tag tn">Nuksaan</span><span>PII leak (URLs logs mein save hote hain), spoofing, SMS fail</span></div><div class="row"><span class="tag tf">Fix</span><span>HTTPS POST, number body mein, API auth, URL validation</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Third-party lockers bina timeout / retry / circuit breaker</span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Locker API slow hua toh hamare servers atak jayenge</span></div><div class="row"><span class="tag tf">Fix</span><span>Timeout, retry with backoff, circuit breaker</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>S3 failover workaround</span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Failover par saara load S3 par, woh bhi crash</span></div><div class="row"><span class="tag tf">Fix</span><span>Proper failover capacity (N+1), LB-based failover</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>S1 / S2 DB se connected nahi <span class="src">diagram vs spec</span></span></div><div class="row"><span class="tag tn">Nuksaan</span><span>"Delivered" status save nahi hota</span></div><div class="row"><span class="tag tf">Fix</span><span>Sab app servers ko DB access (ya ek data service)</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>No backups</span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Permanent data loss</span></div><div class="row"><span class="tag tf">Fix</span><span>Automated backups + restore test</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>No monitoring</span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Outage customer se pata chalega</span></div><div class="row"><span class="tag tf">Fix</span><span>Health checks, metrics, alerts</span></div></li>
+</ol>
+</div>
+</details>
+
+<h4>Fixed design</h4>
+<div>
+<pre class="mermaid">
+flowchart TD
+  U["Users / app"] --> DNS["DNS: multiple records + health checks"]:::good
+  DNS --> WAF["WAF pair"]:::good
+  WAF --> LB["LB pair, health checks"]:::good
+  LB --> APP["App servers, right-sized, autoscaling"]:::good
+  APP --> IDP["Central auth service"]:::good
+  APP --> DBP[("DB primary")]
+  DBP --> DBR[("Replica in 2nd region")]:::good
+  DBP --> BK["Backups, restore tested"]:::good
+  APP --> MQ["MQ cluster + DLQ"]:::good
+  MQ --> H["API handlers x N, retries"]:::good
+  H --> SMS["SMS over HTTPS POST, auth"]:::good
+  APP --> LK["Lockers: timeout, retry, circuit breaker"]:::good
+  APP --> LOG["Log agents to central logs"]:::good
+  MON["Monitoring + alerts on everything"]:::good
+  classDef good fill:#DDEFE5,stroke:#2D7556,color:#0E3423
+</pre>
+</div>
+<p><b>Seekh:</b> "Regions" aur "sab servers same kaam karte hain" spec mein likha tha. Assume mat karo, spec padho ya poochho.</p>
+</section>
+
+<section id="q2">
+<h2>Q2 Supermarket</h2>
+<p><b>Prompt:</b> Supermarket chain with e-commerce. Public site → LB → S1–S3 → sharded Product DB. Admin panel → Admin API → Client DB. Kiosks → Kiosk API → Client DB. Replica function Product DB aur Client DB ke beech. Clarifications: categories mein pharmacy bhi, no backups, sab same timezone. Aapka score: 16 mein se lagbhag 6 (feedback ke baad).</p>
+
+<h4>Flawed design (issues laal mein)</h4>
+<div>
+<pre class="mermaid">
+flowchart TD
+  EC["Public e-commerce, no CDN or cache"]:::bad --> LB["Single load balancer"]:::bad
+  LB --> S1["S1"]
+  LB --> S2["S2"]
+  LB --> S3["S3"]
+  S1 --> PDB[("Product DB, 3 shards, no shard replicas")]:::bad
+  S2 --> PDB
+  S3 --> PDB
+  PDB --> RF["Replica function: single, copies client PII, arrow direction unclear"]:::bad
+  RF --> CDB[("Client DB: single node, 10M clients, no backups")]:::bad
+  WA["Web admin panel, no auth shown"]:::bad --> AA["Admin API: single, only linked to Client DB"]:::bad
+  AA --> CDB
+  K["Kiosks K1-K3: client ID only"]:::bad --> KA["Kiosk API: single, ML per request"]:::bad
+  KA --> CDB
+  classDef bad fill:#F7E1DE,stroke:#B8322A,color:#4A100C
+</pre>
+</div>
+
+<details>
+<summary>Issues with solution (pehle khud try karo)</summary>
+<div class="inner">
+<ol class="issues">
+<li><div class="row"><span class="tag tp">Problem</span><span>No backup system <span class="src">clarification</span></span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Corrupt/delete par 10M clients ka data hamesha ke liye gayab</span></div><div class="row"><span class="tag tf">Fix</span><span>Dono DB ke daily backups + point-in-time restore</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Pharmacy purchases = health data <span class="src">clarification</span></span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Leak hua toh bahut sensitive info bahar</span></div><div class="row"><span class="tag tf">Fix</span><span>Encryption, strict access, kiosk par masking</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Same timezone, sab stores ek saath peak <span class="src">clarification</span></span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Load ek saath aata hai, slow/crash</span></div><div class="row"><span class="tag tf">Fix</span><span>Autoscaling, CDN/cache; heavy jobs raat ko</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Single load balancer</span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Poori website band</span></div><div class="row"><span class="tag tf">Fix</span><span>Active-passive pair + health checks</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Online orders ka Client DB (purchase history) tak koi raasta nahi</span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Kiosk/admin par galat purchase history</span></div><div class="row"><span class="tag tf">Fix</span><span>Order flow define karo (servers → client service/queue)</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Product DB shards ka replica nahi</span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Ek shard gira toh utne products gayab</span></div><div class="row"><span class="tag tf">Fix</span><span>Har shard ka replica</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Category-wise sharding ho toh uneven load <span class="src">clarification</span></span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Hot shard slow</span></div><div class="row"><span class="tag tf">Fix</span><span>Product ID hash jaisi shard key</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Client DB single node, Admin + Kiosk + Replica sab ispar</span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Gira toh admin aur kiosks band; load se slow</span></div><div class="row"><span class="tag tf">Fix</span><span>Primary + replica with failover, read replica</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Replica function client PII doosre DB mein copy karta hai <span class="src">spec</span></span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Leak ki jagah do, 10M rows sync karna</span></div><div class="row"><span class="tag tf">Fix</span><span>Servers ek secure client API se sirf zaroori fields lein</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Replica function single, no retry/monitoring</span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Sync chupchaap ruk jayega, stale data</span></div><div class="row"><span class="tag tf">Fix</span><span>Retries, lag alerts (ya function hatao)</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Arrow Product DB → Client DB hai, jabki spec kehta hai servers ko client data chahiye <span class="src">diagram vs spec</span></span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Servers tak client data pahunchega hi nahi</span></div><div class="row"><span class="tag tf">Fix</span><span>Data flow ki direction clear karo (interviewer se poochho)</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Admin API spec mein dono DB manage karti hai, diagram mein sirf Client DB <span class="src">diagram vs spec</span></span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Managers products/availability update nahi kar payenge</span></div><div class="row"><span class="tag tf">Fix</span><span>Admin API ko Product DB se bhi jodo</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Admin API single instance</span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Admin kaam ruk jayega</span></div><div class="row"><span class="tag tf">Fix</span><span>2 instances + LB</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Admin clients delete kar sakta hai, sab CRUD, auth ka zikr nahi</span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Account hack = poora data khatre mein</span></div><div class="row"><span class="tag tf">Fix</span><span>Private network, SSO + MFA, RBAC, audit logs</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Kiosk par sirf client ID se history <span class="src">spec</span></span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Koi bhi doosre ki history dekh le</span></div><div class="row"><span class="tag tf">Fix</span><span>PIN / OTP / loyalty card verify</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Kiosk API single instance</span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Saare kiosks ek saath band</span></div><div class="row"><span class="tag tf">Fix</span><span>2 instances + LB</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Har kiosk request par ML <span class="src">spec</span></span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Kiosk slow</span></div><div class="row"><span class="tag tf">Fix</span><span>ML raat ko batch mein, kiosk ready result padhe</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Monitoring/logging nahi</span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Outage ka pata customer se</span></div><div class="row"><span class="tag tf">Fix</span><span>Health checks, logs, alerts, replica lag</span></div></li>
+</ol>
+</div>
+</details>
+
+<h4>Fixed design</h4>
+<div>
+<pre class="mermaid">
+flowchart TD
+  EC["Public e-commerce + CDN"]:::good --> LB1["LB pair"]:::good
+  LB1 --> S["Servers S1-S3, autoscaling"]:::good
+  S --> PDB[("Product DB: shards + replicas, hash key")]:::good
+  S --> CS["Client API: only needed fields"]:::good
+  S --> OQ["Order queue"]:::good
+  CS --> CDB[("Client DB: primary + replica, encrypted")]:::good
+  OQ --> CDB
+  WA["Admin panel: VPN, SSO, MFA"]:::good --> LB2["LB pair"]:::good
+  LB2 --> AA["Admin API x2, RBAC, audit"]:::good
+  AA --> PDB
+  AA --> CDB
+  K["Kiosks: PIN or OTP"]:::good --> LB3["LB pair"]:::good
+  LB3 --> KA["Kiosk API x2"]:::good
+  KA --> RR[("Client read replica")]:::good
+  CDB --> RR
+  ML["Nightly ML batch"]:::good --> CDB
+  BK["Backups for both DBs"]:::good
+  MON["Monitoring + alerts"]:::good
+  classDef good fill:#DDEFE5,stroke:#2D7556,color:#0E3423
+</pre>
+</div>
+<p><b>Seekh:</b> Teen clarifications = teen free points. Aur fix category se match karo: DB availability ke liye replica, sharding nahi.</p>
+</section>
+
+<section id="q3">
+<h2>Q3 Cinema booking</h2>
+<p><b>Prompt:</b> Cinema chain ticket booking. App/website → single API Gateway (sessions in memory) → B1, B2 (seat lock in own memory) → Seat DB, Cache (24h) → Movie catalog DB, Payment service (stores card + CVV, no timeout) → provider, MQ (drops failures) → email. Box office terminals offline mode with end-of-day file. Reporting "from read replica". Clarifications: 3 countries, 1 data center, showtimes change, sequential QR ID, no load testing. Aapka score: 17 mein se lagbhag 3.5.</p>
+
+<h4>Flawed design (issues laal mein)</h4>
+<div>
+<pre class="mermaid">
+flowchart TD
+  M["Mobile app"] --> GW["Single API Gateway, sessions in memory"]:::bad
+  W["Website"] --> GW
+  GW --> B["Booking B1, B2: seat lock in own memory"]:::bad
+  B --> SDB[("Seat DB: single, no replica")]:::bad
+  B --> C["Cache: 24h TTL"]:::bad
+  C --> MC[("Movie catalog DB")]
+  B --> P["Payment service: single, no timeout, saves card + CVV"]:::bad
+  P --> PP["Payment provider"]
+  P --> SDB
+  B --> Q["Message queue: drops failed emails"]:::bad
+  Q --> NW["Notification worker"]
+  NW --> E["Email with sequential QR ID"]:::bad
+  T["Box office T1-T3: offline file, end-of-day upload"]:::bad --> BA["Box office API: single"]:::bad
+  BA --> SDB
+  R["Reporting every 5 min, spec says replica"]:::bad --> SDB
+  DC["All in one data center, 3 countries"]:::bad
+  L["Logs on local disk, deleted daily"]:::bad
+  classDef bad fill:#F7E1DE,stroke:#B8322A,color:#4A100C
+</pre>
+</div>
+
+<details>
+<summary>Issues with solution (pehle khud try karo)</summary>
+<div class="inner">
+<ol class="issues">
+<li><div class="row"><span class="tag tp">Problem</span><span>Seat lock booking server ki apni memory mein <span class="src">spec</span></span></div><div class="row"><span class="tag tn">Nuksaan</span><span>B1, B2 ek doosre ke locks nahi jaante: same seat do logon ko</span></div><div class="row"><span class="tag tf">Fix</span><span>Lock DB row ya shared store (Redis) mein, TTL ke saath</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Card number + CVV save <span class="src">spec</span></span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Sabse bada leak, PCI ulanghan</span></div><div class="row"><span class="tag tf">Fix</span><span>CVV kabhi store nahi, provider token</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Box office offline, file shaam ko upload <span class="src">spec</span></span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Wahi seat online bhi bik jayegi</span></div><div class="row"><span class="tag tf">Fix</span><span>Offline mein sirf reserved seats, network aate hi sync</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>QR code = sequential booking ID <span class="src">clarification</span></span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Number badal ke doosre ki ticket / fake ticket</span></div><div class="row"><span class="tag tf">Fix</span><span>Random, signed ticket token</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Failed email message dropped <span class="src">spec</span></span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Paisa kata, ticket nahi mili</span></div><div class="row"><span class="tag tf">Fix</span><span>Retries + dead-letter queue</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Friday 10 AM release + no load testing <span class="src">spec + clarification</span></span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Peak par crash, revenue loss</span></div><div class="row"><span class="tag tf">Fix</span><span>Load test, autoscaling, virtual waiting queue</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Single API Gateway</span></div><div class="row"><span class="tag tn">Nuksaan</span><span>App + website dono band</span></div><div class="row"><span class="tag tf">Fix</span><span>2+ instances behind LB</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Session tokens gateway memory mein <span class="src">spec</span></span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Restart = sab logout; scale out nahi ho sakta</span></div><div class="row"><span class="tag tf">Fix</span><span>Shared session store ya stateless JWT</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Payment provider call bina timeout <span class="src">spec</span></span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Provider slow = booking servers atke</span></div><div class="row"><span class="tag tf">Fix</span><span>Timeout, retry with idempotency key, circuit breaker</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Payment service single</span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Koi payment nahi = koi booking nahi</span></div><div class="row"><span class="tag tf">Fix</span><span>2+ instances</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Spec: reporting read replica se; diagram: seedha Seat DB, replica hai hi nahi <span class="src">diagram vs spec</span></span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Har 5 min heavy query se bookings slow; Seat DB SPOF</span></div><div class="row"><span class="tag tf">Fix</span><span>Read replica banao, reporting usse jodo</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Seat DB single, no backup/replica</span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Gira toh saari bookings band, data loss</span></div><div class="row"><span class="tag tf">Fix</span><span>Primary + standby failover, backups</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Cache 24h, showtimes din mein badalte hain <span class="src">clarification</span></span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Cancelled show ki ticket bik jayegi</span></div><div class="row"><span class="tag tf">Fix</span><span>Showtime change par cache invalidate</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Box office API single</span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Counters offline mode mein (upar wala conflict)</span></div><div class="row"><span class="tag tf">Fix</span><span>2 instances + LB</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Ek data center, 3 countries <span class="src">clarification</span></span></div><div class="row"><span class="tag tn">Nuksaan</span><span>DC gira = 200 cinemas band; door ke users slow</span></div><div class="row"><span class="tag tf">Fix</span><span>DR region, replication</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Logs local disk par, roz delete <span class="src">spec</span></span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Debug/audit impossible</span></div><div class="row"><span class="tag tf">Fix</span><span>Central logging, retention, alerts</span></div></li>
+<li><div class="row"><span class="tag tp">Problem</span><span>Seat availability cache se padhna (common galat fix)</span></div><div class="row"><span class="tag tn">Nuksaan</span><span>Stale seat = double booking</span></div><div class="row"><span class="tag tf">Fix</span><span>Seats hamesha DB se, cache sirf catalog ke liye</span></div></li>
+</ol>
+</div>
+</details>
+
+<h4>Fixed design</h4>
+<div>
+<pre class="mermaid">
+flowchart TD
+  U["App + website"] --> WR["CDN + waiting room for Friday"]:::good
+  WR --> LB["LB pair"]:::good
+  LB --> GW["API Gateway x N, stateless"]:::good
+  GW --> SS["Shared session store"]:::good
+  GW --> B["Booking servers, autoscaling"]:::good
+  B --> LK["Seat locks with TTL in Redis or DB"]:::good
+  B --> SDB[("Seat DB primary + standby, backups")]:::good
+  SDB --> RR[("Read replica")]:::good
+  R["Reporting"] --> RR
+  B --> C["Catalog cache, invalidate on change"]:::good
+  C --> MC[("Movie catalog DB")]
+  B --> P["Payment x2: timeout, retry, circuit breaker, token only"]:::good
+  P --> PP["Payment provider"]
+  B --> Q["MQ with retries + DLQ"]:::good
+  Q --> NW["Notification worker, signed random QR"]:::good
+  T["Box office: reserved offline seats, instant sync"]:::good --> BA["Box office API x2"]:::good
+  BA --> SDB
+  DR["2nd region for disaster recovery"]:::good
+  LOGS["Central logs + monitoring + alerts"]:::good
+  classDef good fill:#DDEFE5,stroke:#2D7556,color:#0E3423
+</pre>
+</div>
+<p><b>Seekh:</b> Sabse bade points spec ke chhote shabdon mein chhupe the: "own memory", "CVV", "dropped", "local file", "sequential".</p>
+</section>
+
+<section id="compare">
+<h2>Common vs different</h2>
+<h3>Teeno mein common (har question mein dhoondho)</h3>
+<div class="sheet scroll">
+<table>
+<tr><th>Pattern</th><th>Postal</th><th>Supermarket</th><th>Cinema</th></tr>
+<tr><td>SPOF (LB / API / DB / queue)</td><td>DNS, WAF, LB, MQ, handler</td><td>LB, Admin API, Kiosk API, Client DB</td><td>Gateway, payment, box office API, Seat DB</td></tr>
+<tr><td>No backups / data loss</td><td>No backups</td><td>"No backup system"</td><td>Dropped emails, logs deleted</td></tr>
+<tr><td>PII / security leak</td><td>Phone in URL, local auth</td><td>PII copy, kiosk ID only, pharmacy</td><td>CVV, sequential QR</td></tr>
+<tr><td>Third-party / async without safety</td><td>Lockers, SMS</td><td>Replica function</td><td>Payment provider, MQ</td></tr>
+<tr><td>Diagram vs spec mismatch</td><td>S1/S2 not linked to DB</td><td>Admin API only one DB, replica direction</td><td>Reporting "replica" missing</td></tr>
+<tr><td>Location / region risk</td><td>Fake regions NY/LA</td><td>Same timezone peak</td><td>One DC, 3 countries</td></tr>
+<tr><td>No monitoring</td><td>Yes</td><td>Yes</td><td>Yes (logs deleted)</td></tr>
+</table>
+</div>
+
+<h3>Har question ka alag "signature" issue</h3>
+<div class="two">
+<div class="sheet"><b>Postal</b><br>Fake redundancy: dikhne mein 2 regions, asal mein har feature ek hi jagah. Aur state per server (local auth).</div>
+<div class="sheet"><b>Supermarket</b><br>Data placement: PII galat jagah copy, sensitive health data, ML request path par.</div>
+<div class="sheet"><b>Cinema</b><br>Correctness under concurrency: double booking (memory lock, offline sales, stale cache) aur payment safety.</div>
+<div class="sheet"><b>Agla question?</b><br>Naya domain = naya signature. Poochho: "is business mein sabse mehenga galat kya ho sakta hai?" Wahi signature issue hai.</div>
+</div>
+</section>
+
+<section id="design">
+<h2>Agar design banana ho</h2>
+<p>Review round mein aap <b>inspector</b> ho (dhoondho kya toota hai). Design round mein aap <b>builder</b> ho (khud banao). Checklist same rehti hai, bas order ulta: pehle banao, phir apne hi design par 5 sawal lagao.</p>
+
+<h3>Chhota version (3–4 minute)</h3>
+<ol class="steps">
+  <li><b>1 line mein requirement confirm karo.</b> "Users seats dekh ke book karenge, payment hoga, ticket email par." Ek question poochho: scale kitna? peak kab?</li>
+  <li><b>Main flow bolo.</b> Client → LB → stateless app servers → DB, aur side mein cache / queue / third party.</li>
+  <li><b>Hardest part pakdo.</b> Har domain mein ek hota hai (cinema: seat contention; supermarket: PII + stock; postal: notifications reliability). Uska solution 2 line mein.</li>
+  <li><b>5 sawal apne design par.</b> Fail (redundancy), slow (cache/replica), leak (auth/encryption), galat/lost (locks, retries, backups), pata kaise chalega (monitoring).</li>
+</ol>
+
+<h3>Lamba version (30–45 minute)</h3>
+<div class="sheet scroll">
+<table>
+<tr><th>Step</th><th>Kya bolna hai</th><th>Time</th></tr>
+<tr><td>Requirements</td><td>Functional (kya karta hai) + non-functional (scale, latency, availability, consistency)</td><td>5 min</td></tr>
+<tr><td>Estimates</td><td>Users, requests/sec, peak, data size</td><td>3 min</td></tr>
+<tr><td>API + data model</td><td>Main endpoints, main tables, kaunsa data strong consistency maangta hai</td><td>5 min</td></tr>
+<tr><td>High-level design</td><td>Boxes + arrows, har box ka ek kaam</td><td>8 min</td></tr>
+<tr><td>Deep dive</td><td>Hardest part: locking, sharding key, queue design</td><td>10 min</td></tr>
+<tr><td>Review your own design</td><td>5 sawal + trade-offs</td><td>5 min</td></tr>
+</table>
+</div>
+
+<h3>Example: cinema booking scratch se (4 minute answer)</h3>
+<div class="sheet">
+<p style="margin-top:0">"Users showtimes browse karte hain aur seats book karte hain; peak Friday 10 AM. Main flow: app → CDN → LB → stateless API servers. Catalog cache mein, kyunki woh read-heavy hai. <b>Hardest part seat contention hai</b>: seat select karne par DB mein ya Redis mein TTL wala lock (10 min), payment ke baad booking confirm, idempotency key ke saath. Seat DB primary + standby, reports read replica se. Payment provider ke saath timeout aur circuit breaker; card token only. Tickets queue se email, retries + DLQ, random signed QR. Friday ke liye waiting room aur load test. Monitoring aur central logs sab par."</p>
+<p class="small" style="margin-bottom:0">Dekho: yeh wahi 17 issues ke fixes hain, bas ulta likha hua. Isliye review practice design bhi sikhati hai.</p>
+</div>
+</section>
+
+<section id="check" class="check">
+<h2>Self-check</h2>
+<p>Har practice answer submit karne se pehle tick karo. Ticks sirf aapke browser mein save hote hain.</p>
+<div class="sheet" id="checklist">
+<label><input type="checkbox" data-k="c1"> Maine koi diagram nahi banaya, sirf issues bole</label>
+<label><input type="checkbox" data-k="c2"> Har issue mein problem, nuksaan aur fix teeno hain</label>
+<label><input type="checkbox" data-k="c3"> Har clarification line se kam se kam ek issue nikala</label>
+<label><input type="checkbox" data-k="c4"> Spec ka har section padha aur red-flag words dhoondhe</label>
+<label><input type="checkbox" data-k="c5"> Diagram vs spec mismatch check kiya</label>
+<label><input type="checkbox" data-k="c6"> 5 sawal (fail, slow, leak, galat/lost, pata kaise) sab cover hue</label>
+<label><input type="checkbox" data-k="c7"> Sabse bade issues pehle bole</label>
+<label><input type="checkbox" data-k="c8"> Har fix sahi category ka hai (availability ≠ sharding, seats ≠ cache)</label>
+</div>
+<button type="button" id="reset" style="font:inherit;padding:8px 14px;border:1px solid var(--line);border-radius:4px;background:var(--sheet);color:var(--ink);cursor:pointer">Clear ticks</button>
+</section>
+</main>
+</div>
+<script>
+(function(){
+  var boxes=document.querySelectorAll('#checklist input');
+  var state={};
+  try{state=JSON.parse(localStorage.getItem('karat-check')||'{}')||{};}catch(e){state={};}
+  boxes.forEach(function(b){
+    b.checked=!!state[b.dataset.k];
+    b.addEventListener('change',function(){
+      state[b.dataset.k]=b.checked;
+      try{localStorage.setItem('karat-check',JSON.stringify(state));}catch(e){}
+    });
+  });
+  document.getElementById('reset').addEventListener('click',function(){
+    state={};boxes.forEach(function(b){b.checked=false;});
+    try{localStorage.removeItem('karat-check');}catch(e){}
+  });
+})();
+</script>
+
+<!--claude-mermaid-runtime-begin:3477-->
+<style>.mermaid-diagram{margin-block:4px}.mermaid-diagram svg{display:block;margin:0 auto;max-width:100%;height:auto}</style>
+<script src="/_runtime/mermaid-11.16.1.min.js"></script>
+<script>(function(){
+var CFG={"palettes":{"light":{"surface":"#f4efe4","text":"#42392e","line":"#8a7f6d","border":"#7a6c52","bg":"#fffdf8"},"dark":{"surface":"#262b34","text":"#f2f3f5","line":"#a8adb8","border":"#9aa4b8","bg":"#1f232b"}}};
+if(typeof mermaid==='undefined')return;
+var pres=Array.prototype.slice.call(document.querySelectorAll('pre.mermaid')).filter(function(p){if(p.hasAttribute('data-claude-mermaid-claimed'))return false;p.setAttribute('data-claude-mermaid-claimed','1');return true;});
+if(!pres.length)return;
+var mq=window.matchMedia?window.matchMedia('(prefers-color-scheme: dark)'):null;
+var root=document.documentElement;
+var items=pres.map(function(pre){
+var mount=document.createElement('div');mount.className='mermaid-diagram';
+return {pre:pre,mount:mount,src:pre.textContent||''};
+});
+var seq=0;
+var renderGen=0;
+var lastKey='';
+function pageBg(fallback){
+var els=[document.body,document.documentElement];
+for(var i=0;i<els.length;i++){
+var c=els[i]&&getComputedStyle(els[i]).backgroundColor;
+if(c&&c!=='transparent'&&c!=='rgba(0, 0, 0, 0)')return c;
+}
+return fallback;
+}
+function render(){
+var theme=root.getAttribute('data-theme');
+var dark=theme==='dark'||(!!(mq&&mq.matches)&&theme!=='light');
+var pal=dark?CFG.palettes.dark:CFG.palettes.light;
+var bg=pageBg(pal.bg);
+var key=(dark?'d':'l')+'|'+bg;
+if(key===lastKey)return;
+lastKey=key;
+var gen=++renderGen;
+var font=getComputedStyle(document.body).fontFamily||'sans-serif';
+var nat={useMaxWidth:false};
+mermaid.initialize({
+startOnLoad:false,securityLevel:'strict',theme:'base',
+flowchart:nat,sequence:nat,er:nat,state:nat,class:nat,pie:nat,
+gantt:nat,journey:nat,timeline:nat,gitGraph:nat,mindmap:nat,xyChart:nat,
+quadrantChart:nat,sankey:nat,c4:nat,requirement:nat,block:nat,
+packet:nat,kanban:nat,architecture:nat,radar:nat,
+themeVariables:{background:bg,mainBkg:pal.surface,primaryColor:pal.surface,
+primaryTextColor:pal.text,lineColor:pal.line,primaryBorderColor:pal.border,
+nodeBorder:pal.border,clusterBorder:pal.border,edgeLabelBackground:bg,
+clusterBkg:'rgba(127,127,127,0.07)',titleColor:pal.text,
+darkMode:dark,rowOdd:bg,rowEven:'rgba(127,127,127,0.07)',
+attributeBackgroundColorOdd:bg,attributeBackgroundColorEven:'rgba(127,127,127,0.07)',
+fontSize:'16px',fontFamily:font},
+themeCSS:'.node rect, .node circle, .node polygon, .node path, .cluster rect { stroke-width: 2px; }'
+});
+items.forEach(function(it){
+var id='claude-mermaid-'+seq++;
+mermaid.render(id,it.src).then(function(r){
+if(gen!==renderGen)return;
+var prev=it.pre.previousElementSibling;
+if(prev&&prev.className==='mermaid-diagram'&&prev!==it.mount)return;
+it.mount.innerHTML=r.svg;
+if(!it.mount.parentNode)it.pre.parentNode.insertBefore(it.mount,it.pre);
+it.pre.style.display='none';
+},function(){
+var scratch=document.getElementById(id);
+if(scratch)scratch.parentNode.removeChild(scratch);
+scratch=document.getElementById('d'+id);
+if(scratch)scratch.parentNode.removeChild(scratch);
+if(gen!==renderGen)return;
+if(it.mount.parentNode)it.mount.parentNode.removeChild(it.mount);
+it.pre.style.display='';
+});
+});
+}
+render();
+if(mq&&mq.addEventListener)mq.addEventListener('change',render);
+if(typeof MutationObserver!=='undefined')new MutationObserver(render).observe(root,{attributes:true,attributeFilter:['data-theme']});
+})();</script>
+<!--claude-mermaid-runtime-end-->
+</body>
+</html>

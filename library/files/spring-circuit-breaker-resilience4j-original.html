@@ -1,0 +1,1382 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Circuit Breaker – Deep Dive</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0b0f1a;
+    --surface: #111827;
+    --surface2: #1a2235;
+    --border: #1e2d42;
+    --accent: #f97316;     /* orange — circuit/electric */
+    --accent2: #3b82f6;
+    --accent3: #f59e0b;
+    --accent4: #ec4899;
+    --text: #e2e8f0;
+    --muted: #64748b;
+    --code-bg: #0d1117;
+    --green: #22c55e;
+    --red: #ef4444;
+    --purple: #a78bfa;
+    --teal: #2dd4bf;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Syne', sans-serif;
+    line-height: 1.7;
+    font-size: 15px;
+  }
+
+  /* ── NAV ─────────────────────────────── */
+  nav {
+    position: sticky; top: 0; z-index: 100;
+    background: rgba(11,15,26,0.93);
+    backdrop-filter: blur(14px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+    display: flex; align-items: center; gap: 1.8rem;
+    height: 56px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  nav::-webkit-scrollbar { display: none; }
+  nav a {
+    color: var(--muted);
+    text-decoration: none;
+    font-size: 11.5px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    white-space: nowrap;
+    transition: color .2s;
+  }
+  nav a:hover { color: var(--accent); }
+  .nav-logo {
+    color: var(--accent);
+    font-weight: 800;
+    font-size: 13px;
+    letter-spacing: .05em;
+    margin-right: auto;
+    white-space: nowrap;
+    display: flex; align-items: center; gap: .5rem;
+  }
+
+  /* ── HERO ────────────────────────────── */
+  .hero {
+    padding: 5rem 2rem 4rem;
+    max-width: 900px;
+    margin: 0 auto;
+    text-align: center;
+  }
+  .hero-badge {
+    display: inline-block;
+    background: linear-gradient(135deg, #f9731622, #3b82f622);
+    border: 1px solid #f9731644;
+    color: var(--accent);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .15em;
+    text-transform: uppercase;
+    padding: .35rem 1rem;
+    border-radius: 999px;
+    margin-bottom: 1.5rem;
+  }
+  .hero h1 {
+    font-size: clamp(2.2rem, 6vw, 3.8rem);
+    font-weight: 800;
+    line-height: 1.1;
+    background: linear-gradient(135deg, #e2e8f0 30%, #f97316 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 1.2rem;
+  }
+  .hero p {
+    color: var(--muted);
+    font-size: 1.05rem;
+    max-width: 620px;
+    margin: 0 auto;
+  }
+
+  /* ── LAYOUT ──────────────────────────── */
+  .container {
+    max-width: 920px;
+    margin: 0 auto;
+    padding: 0 2rem 6rem;
+  }
+  section {
+    margin-bottom: 4rem;
+    scroll-margin-top: 70px;
+  }
+  .section-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.8rem;
+    padding-bottom: .8rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-num {
+    background: var(--accent);
+    color: #000;
+    width: 28px; height: 28px;
+    border-radius: 6px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px;
+    font-weight: 800;
+    flex-shrink: 0;
+  }
+  .section-header h2 {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #fff;
+  }
+
+  /* ── CARDS ───────────────────────────── */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin-bottom: 1.2rem;
+  }
+  .card-title {
+    font-size: .82rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    margin-bottom: .8rem;
+  }
+  .card.accent-green  { border-left: 3px solid var(--green); }
+  .card.accent-red    { border-left: 3px solid var(--red); }
+  .card.accent-yellow { border-left: 3px solid var(--accent3); }
+  .card.accent-blue   { border-left: 3px solid var(--accent2); }
+  .card.accent-purple { border-left: 3px solid var(--purple); }
+  .card.accent-orange { border-left: 3px solid var(--accent); }
+  .card.accent-teal   { border-left: 3px solid var(--teal); }
+
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+  .grid-3 { display: grid; grid-template-columns: repeat(3,1fr); gap: 1rem; }
+  @media(max-width:640px) { .grid-2,.grid-3 { grid-template-columns: 1fr; } }
+
+  /* ── CODE ────────────────────────────── */
+  pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.4rem;
+    overflow-x: auto;
+    margin: 1rem 0 1.4rem;
+    position: relative;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.8;
+  }
+  .code-label {
+    position: absolute; top: .7rem; right: .9rem;
+    font-size: 10px; font-weight: 700;
+    letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .kw  { color: #ff79c6; }
+  .an  { color: #50fa7b; }
+  .ty  { color: #8be9fd; }
+  .st  { color: #f1fa8c; }
+  .cm  { color: #6272a4; font-style: italic; }
+  .nu  { color: #bd93f9; }
+  .mt  { color: #ffb86c; }
+  .en  { color: #ff5555; }
+  .pr  { color: #f97316; } /* property */
+
+  /* ── STATE MACHINE DIAGRAM ───────────── */
+  .state-machine {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 2rem;
+    margin: 1rem 0 1.5rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    flex-wrap: wrap;
+    overflow-x: auto;
+  }
+  .state-node {
+    text-align: center;
+    min-width: 120px;
+  }
+  .state-circle {
+    width: 110px; height: 110px;
+    border-radius: 50%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    margin: 0 auto .5rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    font-size: 13px;
+    border: 2px solid;
+    gap: .2rem;
+  }
+  .state-circle .state-icon { font-size: 1.5rem; }
+  .state-circle.closed {
+    background: #14532d22;
+    border-color: var(--green);
+    color: var(--green);
+  }
+  .state-circle.open {
+    background: #7f1d1d22;
+    border-color: var(--red);
+    color: var(--red);
+  }
+  .state-circle.half {
+    background: #78350f22;
+    border-color: var(--accent3);
+    color: var(--accent3);
+  }
+  .state-label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  .state-arrow {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 0 .6rem;
+    color: var(--muted);
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    text-align: center;
+    min-width: 90px;
+    gap: .2rem;
+  }
+  .arrow-line {
+    font-size: 18px;
+    color: var(--muted);
+  }
+  .arrow-label {
+    font-size: 10px;
+    color: var(--muted);
+    max-width: 85px;
+    line-height: 1.3;
+  }
+
+  /* ── FLOW ────────────────────────────── */
+  .flow {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    margin: 1rem 0 1.5rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    overflow-x: auto;
+  }
+  .flow-row {
+    display: flex;
+    align-items: center;
+    gap: .6rem;
+    padding: .35rem 0;
+  }
+  .box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: .3rem .8rem;
+    white-space: nowrap;
+    font-weight: 600;
+    font-size: 12px;
+  }
+  .box.green  { background:#14532d33; border-color:var(--green);   color:var(--green); }
+  .box.blue   { background:#1e3a5f33; border-color:var(--accent2); color:var(--accent2); }
+  .box.orange { background:#7c2d1233; border-color:var(--accent);  color:var(--accent); }
+  .box.yellow { background:#78350f33; border-color:var(--accent3); color:var(--accent3); }
+  .box.red    { background:#7f1d1d33; border-color:var(--red);     color:var(--red); }
+  .box.purple { background:#3b076433; border-color:var(--purple);  color:var(--purple); }
+  .box.teal   { background:#0d393633; border-color:var(--teal);    color:var(--teal); }
+  .flow-arrow { color: var(--muted); font-size: 14px; }
+
+  /* ── TABLE ───────────────────────────── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    overflow: hidden;
+    margin: 1rem 0 1.5rem;
+    font-size: 13.5px;
+  }
+  th {
+    background: var(--surface2);
+    padding: .7rem 1rem;
+    text-align: left;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .1em;
+    color: var(--muted);
+    font-weight: 700;
+    border-bottom: 1px solid var(--border);
+  }
+  td {
+    padding: .65rem 1rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface2); }
+  code {
+    background: #ffffff0e;
+    border: 1px solid #ffffff14;
+    border-radius: 4px;
+    padding: .1rem .4rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: .85em;
+    color: var(--accent);
+  }
+
+  /* ── PILLS ───────────────────────────── */
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    font-size: 11px;
+    font-weight: 700;
+    padding: .15rem .55rem;
+    border-radius: 999px;
+    text-transform: uppercase;
+    letter-spacing: .06em;
+    white-space: nowrap;
+  }
+  .pill-green  { background:#14532d55; color:var(--green);   border:1px solid #22c55e44; }
+  .pill-red    { background:#7f1d1d55; color:var(--red);     border:1px solid #ef444444; }
+  .pill-yellow { background:#78350f55; color:var(--accent3); border:1px solid #f59e0b44; }
+  .pill-orange { background:#7c2d1255; color:var(--accent);  border:1px solid #f9731644; }
+
+  /* ── CALLOUTS ────────────────────────── */
+  .callout {
+    border-radius: 10px;
+    padding: 1rem 1.2rem;
+    margin: 1rem 0;
+    display: flex;
+    gap: .8rem;
+    align-items: flex-start;
+    font-size: .9rem;
+  }
+  .callout-icon { font-size: 1.1rem; flex-shrink: 0; margin-top: .05rem; }
+  .callout.warn   { background:#78350f22; border:1px solid #f59e0b33; }
+  .callout.tip    { background:#f9731611; border:1px solid #f9731633; }
+  .callout.danger { background:#7f1d1d22; border:1px solid #ef444433; }
+  .callout.info   { background:#1e3a5f33; border:1px solid #3b82f633; }
+
+  p  { margin-bottom: .9rem; color: #cbd5e1; }
+  ul, ol { padding-left: 1.5rem; color: #cbd5e1; }
+  li { margin-bottom: .4rem; }
+  strong { color: #fff; }
+  .muted { color: var(--muted); font-size: .9em; }
+
+  /* ── CONFIG BLOCK ────────────────────── */
+  .config-block {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.4rem;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    line-height: 1.8;
+    margin: 1rem 0 1.4rem;
+    position: relative;
+    overflow-x: auto;
+  }
+  .prop-key  { color: #8be9fd; }
+  .prop-val  { color: #f1fa8c; }
+  .prop-sect { color: #50fa7b; font-weight: 700; }
+  .prop-cm   { color: #6272a4; font-style: italic; }
+</style>
+</head>
+<body>
+
+<nav>
+  <span class="nav-logo">⚡ Circuit Breaker</span>
+  <a href="#what">What</a>
+  <a href="#states">States</a>
+  <a href="#setup">Setup</a>
+  <a href="#config">Config</a>
+  <a href="#fallback">Fallback</a>
+  <a href="#patterns">Patterns</a>
+  <a href="#without">Without CB</a>
+  <a href="#pitfalls">Pitfalls</a>
+  <a href="#bestpractice">Best Practices</a>
+  <a href="#realworld">Real World</a>
+</nav>
+
+<div class="hero">
+  <div class="hero-badge">Resilience4j · Spring Boot · Java 17 · Deep Dive</div>
+  <h1>Circuit Breaker<br/>Mastery Guide</h1>
+  <p>How it works under the hood — states, configuration, fallbacks, patterns, pitfalls, and production-grade examples.</p>
+</div>
+
+<div class="container">
+
+<!-- ─────────────── 1. WHAT IS CIRCUIT BREAKER ─────────────── -->
+<section id="what">
+  <div class="section-header">
+    <div class="section-num">1</div>
+    <h2>What is a Circuit Breaker?</h2>
+  </div>
+
+  <p>
+    A <strong>Circuit Breaker</strong> is a resilience pattern that prevents your application from repeatedly
+    calling a <strong>failing remote service</strong>. Like an electrical circuit breaker that trips to stop
+    damage — it detects failures, "opens" the circuit to stop calls, gives the downstream service time
+    to recover, then cautiously tries again.
+  </p>
+
+  <div class="grid-2">
+    <div class="card accent-red">
+      <div class="card-title" style="color:var(--red)">❌ Without Circuit Breaker</div>
+      <ul>
+        <li>Every request waits for timeout (30s each)</li>
+        <li>Threads pile up → thread pool exhausted</li>
+        <li>Your service goes down too (cascade failure)</li>
+        <li>User gets 500 errors after long waits</li>
+      </ul>
+    </div>
+    <div class="card accent-green">
+      <div class="card-title" style="color:var(--green)">✅ With Circuit Breaker</div>
+      <ul>
+        <li>After N failures, circuit OPENS immediately</li>
+        <li>Calls fail fast — no waiting for timeout</li>
+        <li>Returns fallback response instantly</li>
+        <li>Downstream gets breathing room to recover</li>
+      </ul>
+    </div>
+  </div>
+
+  <p>In Spring Boot, the standard implementation is <strong>Resilience4j</strong> (replaced Netflix Hystrix, which is now deprecated).</p>
+
+  <div class="flow">
+    <div class="flow-row">
+      <div class="box blue">Your Service</div>
+      <div class="flow-arrow">──▶</div>
+      <div class="box orange">Circuit Breaker</div>
+      <div class="flow-arrow">──▶</div>
+      <div class="box red">Remote Service (failing)</div>
+    </div>
+    <div style="padding:.6rem 0; font-size:11px; color:var(--muted); font-family:'JetBrains Mono',monospace; padding-left: 8px;">
+      &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;↓ after failure threshold
+    </div>
+    <div class="flow-row">
+      <div class="box blue">Your Service</div>
+      <div class="flow-arrow">──▶</div>
+      <div class="box orange">Circuit OPEN</div>
+      <div class="flow-arrow">──▶</div>
+      <div class="box teal">Fallback (instant)</div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────── 2. STATES ─────────────── -->
+<section id="states">
+  <div class="section-header">
+    <div class="section-num">2</div>
+    <h2>The Three States</h2>
+  </div>
+
+  <div class="state-machine">
+    <div class="state-node">
+      <div class="state-circle closed">
+        <div class="state-icon">🟢</div>
+        <div>CLOSED</div>
+      </div>
+      <div class="state-label">Normal operation</div>
+    </div>
+
+    <div class="state-arrow">
+      <div class="arrow-label">failure rate ≥ threshold</div>
+      <div class="arrow-line">──────▶</div>
+    </div>
+
+    <div class="state-node">
+      <div class="state-circle open">
+        <div class="state-icon">🔴</div>
+        <div>OPEN</div>
+      </div>
+      <div class="state-label">Blocking all calls</div>
+    </div>
+
+    <div class="state-arrow">
+      <div class="arrow-label">wait duration expires</div>
+      <div class="arrow-line">──────▶</div>
+    </div>
+
+    <div class="state-node">
+      <div class="state-circle half">
+        <div class="state-icon">🟡</div>
+        <div>HALF-OPEN</div>
+      </div>
+      <div class="state-label">Testing recovery</div>
+    </div>
+  </div>
+
+  <div style="text-align:center; font-size:12px; color:var(--muted); font-family:'JetBrains Mono',monospace; margin-bottom:1.5rem;">
+    HALF-OPEN → CLOSED (if probe calls succeed) &nbsp;|&nbsp; HALF-OPEN → OPEN (if probe calls fail)
+  </div>
+
+  <div class="grid-3">
+    <div class="card accent-green">
+      <div class="card-title" style="color:var(--green)">🟢 CLOSED</div>
+      <p>Everything is fine. All calls pass through to the remote service.</p>
+      <p>The CB records success/failure rates in a <strong>sliding window</strong>.</p>
+      <p class="muted">Transitions to OPEN when failure rate ≥ threshold.</p>
+    </div>
+    <div class="card accent-red">
+      <div class="card-title" style="color:var(--red)">🔴 OPEN</div>
+      <p>Remote service is failing. All calls are <strong>short-circuited immediately</strong> — no actual call is made.</p>
+      <p class="muted">Transitions to HALF-OPEN after <code>waitDurationInOpenState</code> expires.</p>
+    </div>
+    <div class="card accent-yellow">
+      <div class="card-title" style="color:var(--accent3)">🟡 HALF-OPEN</div>
+      <p>Cautiously allows a limited number of <strong>probe calls</strong> through to test if the service recovered.</p>
+      <p class="muted">→ CLOSED if probe calls succeed<br/>→ OPEN if probe calls fail</p>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:.5rem;">
+    <div class="card-title">Two Sliding Window Modes</div>
+    <div class="grid-2">
+      <div>
+        <strong style="color:var(--accent2)">COUNT_BASED</strong>
+        <p style="margin-top:.4rem;">Tracks the last <em>N calls</em>. If failure rate among last 100 calls ≥ 50% → OPEN.</p>
+        <p class="muted">Good for high-traffic services.</p>
+      </div>
+      <div>
+        <strong style="color:var(--purple)">TIME_BASED</strong>
+        <p style="margin-top:.4rem;">Tracks calls within the last <em>N seconds</em>. If failure rate in last 60s ≥ 50% → OPEN.</p>
+        <p class="muted">Good for bursty / low-traffic services.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────── 3. SETUP ─────────────── -->
+<section id="setup">
+  <div class="section-header">
+    <div class="section-num">3</div>
+    <h2>Setup — Dependencies & Annotation</h2>
+  </div>
+
+<pre><span class="cm">&lt;!-- pom.xml — Spring Boot 3.x + Resilience4j --&gt;</span>
+
+&lt;<span class="ty">dependency</span>&gt;
+    &lt;<span class="ty">groupId</span>&gt;org.springframework.boot&lt;/<span class="ty">groupId</span>&gt;
+    &lt;<span class="ty">artifactId</span>&gt;spring-boot-starter-aop&lt;/<span class="ty">artifactId</span>&gt;
+&lt;/<span class="ty">dependency</span>&gt;
+
+&lt;<span class="ty">dependency</span>&gt;
+    &lt;<span class="ty">groupId</span>&gt;io.github.resilience4j&lt;/<span class="ty">groupId</span>&gt;
+    &lt;<span class="ty">artifactId</span>&gt;resilience4j-spring-boot3&lt;/<span class="ty">artifactId</span>&gt;
+    <span class="cm">&lt;!-- for Spring Boot 2.x use resilience4j-spring-boot2 --&gt;</span>
+&lt;/<span class="ty">dependency</span>&gt;
+
+&lt;<span class="ty">dependency</span>&gt;
+    &lt;<span class="ty">groupId</span>&gt;org.springframework.boot&lt;/<span class="ty">groupId</span>&gt;
+    &lt;<span class="ty">artifactId</span>&gt;spring-boot-starter-actuator&lt;/<span class="ty">artifactId</span>&gt;
+    <span class="cm">&lt;!-- exposes /actuator/circuitbreakers endpoint for monitoring --&gt;</span>
+&lt;/<span class="ty">dependency</span>&gt;
+<div class="code-label">pom.xml</div></pre>
+
+<pre><span class="cm">// ─── Basic usage — annotate any Spring bean method ─────────────────</span>
+
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">PaymentService</span> {
+
+    <span class="kw">private final</span> <span class="ty">PaymentGatewayClient</span> gatewayClient;
+
+    <span class="cm">// "paymentGateway" maps to a named config in application.yml</span>
+    <span class="an">@CircuitBreaker</span>(
+        name     = <span class="st">"paymentGateway"</span>,
+        fallbackMethod = <span class="st">"paymentFallback"</span>
+    )
+    <span class="kw">public</span> <span class="ty">PaymentResult</span> <span class="mt">charge</span>(<span class="ty">PaymentRequest</span> request) {
+        <span class="kw">return</span> gatewayClient.<span class="mt">charge</span>(request);   <span class="cm">// may fail / timeout</span>
+    }
+
+    <span class="cm">// Fallback: SAME return type, SAME params + the exception as last param</span>
+    <span class="kw">private</span> <span class="ty">PaymentResult</span> <span class="mt">paymentFallback</span>(<span class="ty">PaymentRequest</span> request,
+                                           <span class="ty">Throwable</span> ex) {
+        log.<span class="mt">warn</span>(<span class="st">"Payment gateway unavailable, using fallback: {}"</span>, ex.<span class="mt">getMessage</span>());
+        <span class="kw">return</span> <span class="ty">PaymentResult</span>.<span class="mt">pending</span>(request.<span class="mt">orderId</span>()); <span class="cm">// safe default</span>
+    }
+}
+<div class="code-label">Java 17</div></pre>
+
+  <div class="callout info">
+    <div class="callout-icon">ℹ️</div>
+    <div><strong>AOP proxy required:</strong> Just like <code>@Transactional</code>, <code>@CircuitBreaker</code> works via a Spring AOP proxy. The same self-invocation limitation applies — calling the method from within the same class bypasses the circuit breaker.</div>
+  </div>
+</section>
+
+<!-- ─────────────── 4. CONFIGURATION ─────────────── -->
+<section id="config">
+  <div class="section-header">
+    <div class="section-num">4</div>
+    <h2>Configuration — Every Property Explained</h2>
+  </div>
+
+  <div class="config-block">
+<span class="prop-cm"># application.yml — Resilience4j Circuit Breaker configuration</span>
+
+<span class="prop-sect">resilience4j:</span>
+  <span class="prop-sect">circuitbreaker:</span>
+    <span class="prop-sect">configs:</span>
+      <span class="prop-sect">default:</span>                            <span class="prop-cm"># base config all CBs inherit</span>
+        <span class="prop-key">slidingWindowType:</span>          <span class="prop-val">COUNT_BASED</span>     <span class="prop-cm"># COUNT_BASED | TIME_BASED</span>
+        <span class="prop-key">slidingWindowSize:</span>          <span class="prop-val">10</span>              <span class="prop-cm"># last N calls (COUNT) or N seconds (TIME)</span>
+        <span class="prop-key">minimumNumberOfCalls:</span>       <span class="prop-val">5</span>               <span class="prop-cm"># need at least 5 calls before evaluating</span>
+        <span class="prop-key">failureRateThreshold:</span>       <span class="prop-val">50</span>              <span class="prop-cm"># open if ≥ 50% fail</span>
+        <span class="prop-key">slowCallRateThreshold:</span>      <span class="prop-val">80</span>              <span class="prop-cm"># open if ≥ 80% are slow</span>
+        <span class="prop-key">slowCallDurationThreshold:</span>  <span class="prop-val">2000ms</span>          <span class="prop-cm"># calls > 2s are "slow"</span>
+        <span class="prop-key">waitDurationInOpenState:</span>    <span class="prop-val">10s</span>             <span class="prop-cm"># stay OPEN for 10s before trying</span>
+        <span class="prop-key">permittedNumberOfCallsInHalfOpenState:</span> <span class="prop-val">3</span>  <span class="prop-cm"># probe calls in HALF-OPEN</span>
+        <span class="prop-key">automaticTransitionFromOpenToHalfOpenEnabled:</span> <span class="prop-val">true</span>
+        <span class="prop-key">registerHealthIndicator:</span>    <span class="prop-val">true</span>            <span class="prop-cm"># /actuator/health shows state</span>
+
+    <span class="prop-sect">instances:</span>
+      <span class="prop-sect">paymentGateway:</span>               <span class="prop-cm"># strict — payment must be reliable</span>
+        <span class="prop-key">baseConfig:</span>                 <span class="prop-val">default</span>
+        <span class="prop-key">failureRateThreshold:</span>       <span class="prop-val">30</span>              <span class="prop-cm"># opens sooner (30% failures)</span>
+        <span class="prop-key">waitDurationInOpenState:</span>    <span class="prop-val">30s</span>             <span class="prop-cm"># longer recovery window</span>
+        <span class="prop-key">slidingWindowSize:</span>          <span class="prop-val">20</span>
+        <span class="prop-key">recordExceptions:</span>
+          <span class="prop-val">- java.io.IOException</span>
+          <span class="prop-val">- java.util.concurrent.TimeoutException</span>
+          <span class="prop-val">- feign.FeignException</span>
+        <span class="prop-key">ignoreExceptions:</span>
+          <span class="prop-val">- com.myapp.exception.InvalidCardException</span>  <span class="prop-cm"># don't count business errors</span>
+
+      <span class="prop-sect">inventoryService:</span>             <span class="prop-cm"># lenient — inventory can retry</span>
+        <span class="prop-key">baseConfig:</span>                 <span class="prop-val">default</span>
+        <span class="prop-key">failureRateThreshold:</span>       <span class="prop-val">60</span>
+        <span class="prop-key">waitDurationInOpenState:</span>    <span class="prop-val">5s</span>
+        <span class="prop-key">slidingWindowType:</span>          <span class="prop-val">TIME_BASED</span>
+        <span class="prop-key">slidingWindowSize:</span>          <span class="prop-val">30</span>              <span class="prop-cm"># last 30 seconds</span>
+<div class="code-label">application.yml</div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Property</th>
+        <th>Default</th>
+        <th>What it controls</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr><td><code>slidingWindowSize</code></td><td>100</td><td>Number of calls (or seconds) in the sliding window</td></tr>
+      <tr><td><code>minimumNumberOfCalls</code></td><td>100</td><td>Min calls before failure rate is evaluated (avoids false trips on startup)</td></tr>
+      <tr><td><code>failureRateThreshold</code></td><td>50%</td><td>% of failures to trip the circuit</td></tr>
+      <tr><td><code>slowCallRateThreshold</code></td><td>100%</td><td>% of slow calls to trip the circuit</td></tr>
+      <tr><td><code>slowCallDurationThreshold</code></td><td>60s</td><td>Duration above which a call is "slow"</td></tr>
+      <tr><td><code>waitDurationInOpenState</code></td><td>60s</td><td>How long to stay OPEN before trying HALF-OPEN</td></tr>
+      <tr><td><code>permittedNumberOfCallsInHalfOpenState</code></td><td>10</td><td>How many probe calls allowed in HALF-OPEN state</td></tr>
+      <tr><td><code>recordExceptions</code></td><td>all</td><td>Which exceptions count as failures</td></tr>
+      <tr><td><code>ignoreExceptions</code></td><td>none</td><td>Exceptions that are NOT counted (e.g. business validation errors)</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout warn">
+    <div class="callout-icon">⚠️</div>
+    <div><strong>minimumNumberOfCalls trap:</strong> The default is 100. If you have low traffic, the circuit will never trip because you never reach 100 calls. Lower it to something realistic for your traffic volume (e.g. 5 or 10).</div>
+  </div>
+</section>
+
+<!-- ─────────────── 5. FALLBACK ─────────────── -->
+<section id="fallback">
+  <div class="section-header">
+    <div class="section-num">5</div>
+    <h2>Fallback Methods — All Patterns</h2>
+  </div>
+
+  <p>A fallback provides a <strong>graceful degraded response</strong> when the circuit is open or an exception occurs. Spring Resilience4j supports several fallback patterns.</p>
+
+<pre><span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">ProductService</span> {
+
+    <span class="kw">private final</span> <span class="ty">ProductClient</span>    productClient;
+    <span class="kw">private final</span> <span class="ty">ProductCacheRepo</span> cache;
+
+    <span class="cm">// ─── Pattern 1: Return cached / stale data ─────────────────────</span>
+    <span class="an">@CircuitBreaker</span>(name = <span class="st">"productService"</span>, fallbackMethod = <span class="st">"cachedProducts"</span>)
+    <span class="kw">public</span> <span class="ty">List</span>&lt;<span class="ty">Product</span>&gt; <span class="mt">getProducts</span>(<span class="ty">Long</span> categoryId) {
+        <span class="kw">return</span> productClient.<span class="mt">fetchByCategory</span>(categoryId);
+    }
+
+    <span class="kw">private</span> <span class="ty">List</span>&lt;<span class="ty">Product</span>&gt; <span class="mt">cachedProducts</span>(<span class="ty">Long</span> categoryId, <span class="ty">Throwable</span> ex) {
+        log.<span class="mt">warn</span>(<span class="st">"Product service down, returning cache for category {}"</span>, categoryId);
+        <span class="kw">return</span> cache.<span class="mt">findByCategory</span>(categoryId)      <span class="cm">// try cache first</span>
+                    .<span class="mt">orElse</span>(<span class="ty">List</span>.<span class="mt">of</span>());              <span class="cm">// empty if no cache</span>
+    }
+
+    <span class="cm">// ─── Pattern 2: Return empty / default object ──────────────────</span>
+    <span class="an">@CircuitBreaker</span>(name = <span class="st">"productService"</span>, fallbackMethod = <span class="st">"defaultProduct"</span>)
+    <span class="kw">public</span> <span class="ty">Product</span> <span class="mt">getProduct</span>(<span class="ty">Long</span> id) {
+        <span class="kw">return</span> productClient.<span class="mt">fetchById</span>(id);
+    }
+
+    <span class="kw">private</span> <span class="ty">Product</span> <span class="mt">defaultProduct</span>(<span class="ty">Long</span> id, <span class="ty">Throwable</span> ex) {
+        <span class="kw">return</span> <span class="ty">Product</span>.<span class="mt">unavailable</span>(id);   <span class="cm">// placeholder with "Unavailable" title</span>
+    }
+
+    <span class="cm">// ─── Pattern 3: Throw custom exception (let caller decide) ─────</span>
+    <span class="an">@CircuitBreaker</span>(name = <span class="st">"productService"</span>, fallbackMethod = <span class="st">"throwServiceException"</span>)
+    <span class="kw">public</span> <span class="ty">Product</span> <span class="mt">getProductStrict</span>(<span class="ty">Long</span> id) {
+        <span class="kw">return</span> productClient.<span class="mt">fetchById</span>(id);
+    }
+
+    <span class="kw">private</span> <span class="ty">Product</span> <span class="mt">throwServiceException</span>(<span class="ty">Long</span> id, <span class="ty">Throwable</span> ex) {
+        <span class="kw">throw new</span> <span class="ty">ServiceUnavailableException</span>(
+            <span class="st">"Product service is currently unavailable"</span>, ex
+        );
+    }
+
+    <span class="cm">// ─── Pattern 4: Multiple fallback methods by exception type ────</span>
+    <span class="an">@CircuitBreaker</span>(name = <span class="st">"productService"</span>, fallbackMethod = <span class="st">"networkFallback"</span>)
+    <span class="an">@CircuitBreaker</span>(name = <span class="st">"productService"</span>, fallbackMethod = <span class="st">"timeoutFallback"</span>)
+    <span class="kw">public</span> <span class="ty">Product</span> <span class="mt">getProductRobust</span>(<span class="ty">Long</span> id) {
+        <span class="kw">return</span> productClient.<span class="mt">fetchById</span>(id);
+    }
+
+    <span class="kw">private</span> <span class="ty">Product</span> <span class="mt">networkFallback</span>(<span class="ty">Long</span> id, <span class="ty">IOException</span> ex) {
+        <span class="kw">return</span> <span class="ty">Product</span>.<span class="mt">offline</span>(id);
+    }
+
+    <span class="kw">private</span> <span class="ty">Product</span> <span class="mt">timeoutFallback</span>(<span class="ty">Long</span> id, <span class="ty">TimeoutException</span> ex) {
+        <span class="kw">return</span> cache.<span class="mt">findByIdOrDefault</span>(id);  <span class="cm">// timeout → try cache</span>
+    }
+}
+<div class="code-label">Java 17 — Fallback Patterns</div></pre>
+
+  <div class="callout tip">
+    <div class="callout-icon">💡</div>
+    <div><strong>Fallback method rules:</strong>
+      <ul style="margin-top:.4rem;">
+        <li>Same return type as the original method</li>
+        <li>Same parameters as the original + <code>Throwable</code> as the last parameter</li>
+        <li>Can be <code>private</code> (unlike <code>@Transactional</code> which needs public)</li>
+        <li>Multiple fallbacks possible — most specific exception type is matched first</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────── 6. PATTERNS / COMBINING ANNOTATIONS ─────────────── -->
+<section id="patterns">
+  <div class="section-header">
+    <div class="section-num">6</div>
+    <h2>Combining Resilience4j Annotations</h2>
+  </div>
+
+  <p>Resilience4j provides several complementary annotations that work together. Order of execution (outside-in):</p>
+
+  <div class="flow">
+    <div class="flow-row">
+      <div class="box purple">Bulkhead</div>
+      <div class="flow-arrow">→</div>
+      <div class="box orange">CircuitBreaker</div>
+      <div class="flow-arrow">→</div>
+      <div class="box yellow">RateLimiter</div>
+      <div class="flow-arrow">→</div>
+      <div class="box blue">TimeLimiter</div>
+      <div class="flow-arrow">→</div>
+      <div class="box teal">Retry</div>
+      <div class="flow-arrow">→</div>
+      <div class="box green">Actual Call</div>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Annotation</th>
+        <th>Purpose</th>
+        <th>When to use</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>@CircuitBreaker</code></td>
+        <td>Stop calling failing services</td>
+        <td>All external HTTP/gRPC calls</td>
+      </tr>
+      <tr>
+        <td><code>@Retry</code></td>
+        <td>Retry transient failures automatically</td>
+        <td>Flaky services, network blips</td>
+      </tr>
+      <tr>
+        <td><code>@TimeLimiter</code></td>
+        <td>Enforce a max call duration (timeout)</td>
+        <td>Async calls that might hang</td>
+      </tr>
+      <tr>
+        <td><code>@RateLimiter</code></td>
+        <td>Limit calls per time window</td>
+        <td>Rate-limited APIs (e.g. SMS, email)</td>
+      </tr>
+      <tr>
+        <td><code>@Bulkhead</code></td>
+        <td>Limit concurrent calls (thread isolation)</td>
+        <td>Prevent thread pool exhaustion</td>
+      </tr>
+    </tbody>
+  </table>
+
+<pre><span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">WeatherService</span> {
+
+    <span class="kw">private final</span> <span class="ty">WeatherApiClient</span> client;
+
+    <span class="cm">// ─── Full resilience stack on a single method ───────────────────</span>
+
+    <span class="an">@Bulkhead</span>(name = <span class="st">"weatherApi"</span>)                          <span class="cm">// max 10 concurrent calls</span>
+    <span class="an">@CircuitBreaker</span>(name = <span class="st">"weatherApi"</span>,
+                    fallbackMethod = <span class="st">"weatherFallback"</span>)    <span class="cm">// open on failures</span>
+    <span class="an">@RateLimiter</span>(name = <span class="st">"weatherApi"</span>)                       <span class="cm">// max 100 calls/min</span>
+    <span class="an">@Retry</span>(name = <span class="st">"weatherApi"</span>)                              <span class="cm">// retry 3 times</span>
+    <span class="kw">public</span> <span class="ty">WeatherData</span> <span class="mt">getWeather</span>(<span class="ty">String</span> city) {
+        <span class="kw">return</span> client.<span class="mt">fetchCurrent</span>(city);
+    }
+
+    <span class="kw">private</span> <span class="ty">WeatherData</span> <span class="mt">weatherFallback</span>(<span class="ty">String</span> city, <span class="ty">Throwable</span> ex) {
+        <span class="kw">return</span> <span class="ty">WeatherData</span>.<span class="mt">unavailable</span>(city);
+    }
+}
+<div class="code-label">Java 17</div></pre>
+
+<pre><span class="prop-cm"># Matching application.yml config for the full stack above</span>
+
+<span class="prop-sect">resilience4j:</span>
+  <span class="prop-sect">circuitbreaker:</span>
+    <span class="prop-sect">instances:</span>
+      <span class="prop-sect">weatherApi:</span>
+        <span class="prop-key">slidingWindowSize:</span>          <span class="prop-val">10</span>
+        <span class="prop-key">failureRateThreshold:</span>       <span class="prop-val">50</span>
+        <span class="prop-key">waitDurationInOpenState:</span>    <span class="prop-val">15s</span>
+
+  <span class="prop-sect">retry:</span>
+    <span class="prop-sect">instances:</span>
+      <span class="prop-sect">weatherApi:</span>
+        <span class="prop-key">maxAttempts:</span>               <span class="prop-val">3</span>
+        <span class="prop-key">waitDuration:</span>              <span class="prop-val">500ms</span>
+        <span class="prop-key">retryExceptions:</span>
+          <span class="prop-val">- java.io.IOException</span>
+
+  <span class="prop-sect">ratelimiter:</span>
+    <span class="prop-sect">instances:</span>
+      <span class="prop-sect">weatherApi:</span>
+        <span class="prop-key">limitForPeriod:</span>            <span class="prop-val">100</span>
+        <span class="prop-key">limitRefreshPeriod:</span>        <span class="prop-val">1m</span>
+        <span class="prop-key">timeoutDuration:</span>           <span class="prop-val">0s</span>    <span class="prop-cm"># fail immediately if limit hit</span>
+
+  <span class="prop-sect">bulkhead:</span>
+    <span class="prop-sect">instances:</span>
+      <span class="prop-sect">weatherApi:</span>
+        <span class="prop-key">maxConcurrentCalls:</span>        <span class="prop-val">10</span>
+        <span class="prop-key">maxWaitDuration:</span>           <span class="prop-val">0ms</span>   <span class="prop-cm"># reject immediately if full</span>
+<div class="code-label">application.yml</div></pre>
+
+  <div class="callout warn">
+    <div class="callout-icon">⚠️</div>
+    <div><strong>Retry + CircuitBreaker interaction:</strong> Retry runs <em>inside</em> CircuitBreaker. So 3 retries × 50 failures = 150 failures counted against the CB window. Tune <code>slidingWindowSize</code> and <code>minimumNumberOfCalls</code> accordingly, or put retry outside the CB.</div>
+  </div>
+</section>
+
+<!-- ─────────────── 7. WITHOUT CIRCUIT BREAKER ─────────────── -->
+<section id="without">
+  <div class="section-header">
+    <div class="section-num">7</div>
+    <h2>What Happens Without a Circuit Breaker?</h2>
+  </div>
+
+  <p>Without a circuit breaker, a single failing downstream service can take down your entire application — this is called a <strong>cascading failure</strong>.</p>
+
+<pre><span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">OrderService</span> {
+
+    <span class="kw">private final</span> <span class="ty">PaymentClient</span> paymentClient;
+
+    <span class="cm">// ❌ NO circuit breaker — catastrophic failure chain</span>
+    <span class="kw">public</span> <span class="ty">OrderResult</span> <span class="mt">placeOrderBroken</span>(<span class="ty">OrderRequest</span> request) {
+
+        <span class="cm">// Payment service is down with 30s timeout...</span>
+        <span class="cm">//</span>
+        <span class="cm">// Thread 1  → waiting 30s ─────────────────────┐</span>
+        <span class="cm">// Thread 2  → waiting 30s ─────────────────────┤</span>
+        <span class="cm">// Thread 3  → waiting 30s ─────────────────────┤  Thread pool</span>
+        <span class="cm">// Thread 4  → waiting 30s ─────────────────────┤  EXHAUSTED</span>
+        <span class="cm">// Thread 5  → waiting 30s ─────────────────────┤</span>
+        <span class="cm">// Thread 6+ → rejected (queue full) ──────────┘</span>
+        <span class="cm">//</span>
+        <span class="cm">// Result: YOUR service is now also down</span>
+
+        <span class="ty">PaymentResult</span> result = paymentClient.<span class="mt">charge</span>(request.<span class="mt">payment</span>());
+        <span class="kw">return</span> <span class="ty">OrderResult</span>.<span class="mt">of</span>(result);
+    }
+
+    <span class="cm">// ✅ WITH circuit breaker — fast failure, preserved capacity</span>
+    <span class="an">@CircuitBreaker</span>(name = <span class="st">"payment"</span>, fallbackMethod = <span class="st">"orderFallback"</span>)
+    <span class="kw">public</span> <span class="ty">OrderResult</span> <span class="mt">placeOrderSafe</span>(<span class="ty">OrderRequest</span> request) {
+        <span class="ty">PaymentResult</span> result = paymentClient.<span class="mt">charge</span>(request.<span class="mt">payment</span>());
+        <span class="kw">return</span> <span class="ty">OrderResult</span>.<span class="mt">of</span>(result);
+    }
+
+    <span class="kw">private</span> <span class="ty">OrderResult</span> <span class="mt">orderFallback</span>(<span class="ty">OrderRequest</span> request, <span class="ty">Throwable</span> ex) {
+        <span class="cm">// Circuit OPEN: returns instantly, thread is free in microseconds</span>
+        <span class="kw">return</span> <span class="ty">OrderResult</span>.<span class="mt">queued</span>(request.<span class="mt">id</span>());  <span class="cm">// queue for retry later</span>
+    }
+}
+<div class="code-label">Java 17 — Cascading Failure Demo</div></pre>
+
+  <div class="grid-3" style="margin-top:1rem;">
+    <div class="card accent-red">
+      <div class="card-title" style="color:var(--red)">Without CB — Impact</div>
+      <ul>
+        <li>30s timeout per request</li>
+        <li>Threads block and pile up</li>
+        <li>Connection pool exhausted</li>
+        <li>Your service → 500 errors</li>
+        <li>Cascades to upstream callers</li>
+      </ul>
+    </div>
+    <div class="card accent-yellow">
+      <div class="card-title" style="color:var(--accent3)">CB OPEN — Impact</div>
+      <ul>
+        <li>Fails in &lt; 1ms (no call made)</li>
+        <li>Threads freed immediately</li>
+        <li>Fallback served instantly</li>
+        <li>Your service stays healthy</li>
+        <li>Downstream gets recovery time</li>
+      </ul>
+    </div>
+    <div class="card accent-green">
+      <div class="card-title" style="color:var(--green)">CB HALF-OPEN — Impact</div>
+      <ul>
+        <li>Controlled recovery testing</li>
+        <li>Only N probe calls allowed</li>
+        <li>Returns to CLOSED on success</li>
+        <li>Automatically managed</li>
+        <li>Zero manual intervention</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────── 8. PITFALLS ─────────────── -->
+<section id="pitfalls">
+  <div class="section-header">
+    <div class="section-num">8</div>
+    <h2>Common Pitfalls</h2>
+  </div>
+
+<pre><span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">PitfallExamples</span> {
+
+    <span class="cm">// ─── Pitfall 1: Self-invocation (same as @Transactional) ────────</span>
+    <span class="kw">public void</span> <span class="mt">doWork</span>() {
+        <span class="mt">callRemote</span>();    <span class="cm">// ❌ bypasses the AOP proxy, CB never activates</span>
+    }
+
+    <span class="an">@CircuitBreaker</span>(name = <span class="st">"remote"</span>)
+    <span class="kw">public</span> <span class="ty">String</span> <span class="mt">callRemote</span>() { <span class="kw">return</span> client.<span class="mt">fetch</span>(); }
+
+    <span class="cm">// ─── Pitfall 2: Business exceptions tripping the circuit ─────────</span>
+    <span class="cm">// ValidationException is a BUG in your code, not a remote failure.</span>
+    <span class="cm">// Including it will falsely open the circuit.</span>
+
+    <span class="an">@CircuitBreaker</span>(name = <span class="st">"payment"</span>)  <span class="cm">// ❌ counts ALL exceptions</span>
+    <span class="kw">public</span> <span class="ty">PaymentResult</span> <span class="mt">chargeBad</span>(<span class="ty">PaymentRequest</span> req) {
+        <span class="mt">validate</span>(req);              <span class="cm">// throws ValidationException (your bug)</span>
+        <span class="kw">return</span> gateway.<span class="mt">charge</span>(req); <span class="cm">// this is what CB should protect</span>
+    }
+
+    <span class="cm">// Fix: use ignoreExceptions in config, or handle validation before CB</span>
+    <span class="kw">public</span> <span class="ty">PaymentResult</span> <span class="mt">chargeGood</span>(<span class="ty">PaymentRequest</span> req) {
+        <span class="mt">validate</span>(req);              <span class="cm">// validate BEFORE the CB method</span>
+        <span class="kw">return</span> <span class="mt">chargeViaGateway</span>(req);
+    }
+
+    <span class="an">@CircuitBreaker</span>(name = <span class="st">"payment"</span>, fallbackMethod = <span class="st">"payFallback"</span>)
+    <span class="kw">private</span> <span class="ty">PaymentResult</span> <span class="mt">chargeViaGateway</span>(<span class="ty">PaymentRequest</span> req) {
+        <span class="kw">return</span> gateway.<span class="mt">charge</span>(req);
+    }
+
+    <span class="cm">// ─── Pitfall 3: Retry inside CB amplifying failure count ─────────</span>
+    <span class="cm">// @Retry runs INSIDE @CircuitBreaker.</span>
+    <span class="cm">// 3 retries × 10 calls = 30 failures counted → CB opens too fast!</span>
+
+    <span class="an">@Retry</span>(name = <span class="st">"svc"</span>)                     <span class="cm">// ❌ retry inside CB</span>
+    <span class="an">@CircuitBreaker</span>(name = <span class="st">"svc"</span>)
+    <span class="kw">public</span> <span class="ty">String</span> <span class="mt">callBadOrder</span>() { <span class="kw">return</span> svc.<span class="mt">get</span>(); }
+
+    <span class="cm">// Fix: CB wraps Retry (CB is outer decorator)</span>
+    <span class="an">@CircuitBreaker</span>(name = <span class="st">"svc"</span>)            <span class="cm">// ✅ CB is the outer layer</span>
+    <span class="an">@Retry</span>(name = <span class="st">"svc"</span>)                     <span class="cm">// Retry runs inside CB</span>
+    <span class="kw">public</span> <span class="ty">String</span> <span class="mt">callGoodOrder</span>() { <span class="kw">return</span> svc.<span class="mt">get</span>(); }
+
+    <span class="cm">// ─── Pitfall 4: Missing minimumNumberOfCalls ─────────────────────</span>
+    <span class="cm">// Default is 100. If you have 5 calls/min, circuit NEVER trips.</span>
+    <span class="cm">// Fix: set minimumNumberOfCalls: 5 in application.yml</span>
+
+    <span class="cm">// ─── Pitfall 5: Fallback that also fails ─────────────────────────</span>
+    <span class="an">@CircuitBreaker</span>(name = <span class="st">"svc"</span>, fallbackMethod = <span class="st">"fallback"</span>)
+    <span class="kw">public</span> <span class="ty">Data</span> <span class="mt">getData</span>() { <span class="kw">return</span> svc.<span class="mt">get</span>(); }
+
+    <span class="kw">private</span> <span class="ty">Data</span> <span class="mt">fallback</span>(<span class="ty">Throwable</span> ex) {
+        <span class="kw">return</span> dbCache.<span class="mt">load</span>();  <span class="cm">// ❌ what if DB is also down?</span>
+    }
+
+    <span class="cm">// Fix: make fallback bulletproof — handle its own exceptions</span>
+    <span class="kw">private</span> <span class="ty">Data</span> <span class="mt">fallback</span>(<span class="ty">Throwable</span> ex) {
+        <span class="kw">try</span> {
+            <span class="kw">return</span> dbCache.<span class="mt">load</span>();
+        } <span class="kw">catch</span> (<span class="ty">Exception</span> cacheEx) {
+            <span class="kw">return</span> <span class="ty">Data</span>.<span class="mt">empty</span>();   <span class="cm">// ✅ always returns something</span>
+        }
+    }
+}
+<div class="code-label">Java 17 — Pitfalls</div></pre>
+
+  <div class="grid-2" style="margin-top:.5rem;">
+    <div class="card accent-red">
+      <div class="card-title" style="color:var(--red)">❌ Pitfall 6 — Using CB on DB calls</div>
+      <p>Don't wrap <code>@Repository</code> calls with a circuit breaker. DB failures are handled differently (connection pool, retries). CB is for <strong>remote service calls</strong>.</p>
+    </div>
+    <div class="card accent-red">
+      <div class="card-title" style="color:var(--red)">❌ Pitfall 7 — Not monitoring CB state</div>
+      <p>Without <code>registerHealthIndicator: true</code> and Actuator, you're flying blind. You won't know when your circuit is open in production.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ─────────────── 9. BEST PRACTICES ─────────────── -->
+<section id="bestpractice">
+  <div class="section-header">
+    <div class="section-num">9</div>
+    <h2>Best Practices</h2>
+  </div>
+
+<pre><span class="cm">// ─── 1. One CB per external dependency ───────────────────────────────
+//    Name them after the service they protect, not the method.
+//    This lets you tune thresholds per dependency.</span>
+
+<span class="an">@CircuitBreaker</span>(name = <span class="st">"paymentGateway"</span>)   <span class="cm">// named after the service</span>
+<span class="an">@CircuitBreaker</span>(name = <span class="st">"inventoryService"</span>) <span class="cm">// separate config per service</span>
+<span class="an">@CircuitBreaker</span>(name = <span class="st">"notificationApi"</span>)  <span class="cm">// independent failure tracking</span>
+
+<span class="cm">// ─── 2. ignoreExceptions for business validation errors ──────────────
+//    Don't let bad input trip your circuit. Only infra failures count.</span>
+
+<span class="an">@CircuitBreaker</span>(name = <span class="st">"payment"</span>,
+    fallbackMethod = <span class="st">"payFallback"</span>,
+    ignoreExceptions = {
+        <span class="ty">InvalidCardException</span>.<span class="kw">class</span>,
+        <span class="ty">InsufficientFundsException</span>.<span class="kw">class</span>
+    }
+)
+<span class="kw">public</span> <span class="ty">PaymentResult</span> <span class="mt">charge</span>(<span class="ty">PaymentRequest</span> req) {
+    <span class="kw">return</span> gateway.<span class="mt">charge</span>(req);
+}
+
+<span class="cm">// ─── 3. Make fallbacks meaningful — not just null/exception ──────────
+//    A good fallback = graceful degradation, not another failure.</span>
+
+<span class="kw">private</span> <span class="ty">List</span>&lt;<span class="ty">Recommendation</span>&gt; <span class="mt">recommendationFallback</span>(<span class="ty">Long</span> userId, <span class="ty">Throwable</span> ex) {
+    <span class="cm">// Priority: 1. personalized cache  2. popular items  3. empty list</span>
+    <span class="kw">return</span> cache.<span class="mt">getPersonalized</span>(userId)
+               .<span class="mt">orElseGet</span>(() -> popularItemsRepo.<span class="mt">findTop10</span>());
+}
+
+<span class="cm">// ─── 4. Monitor via Actuator + Micrometer ────────────────────────────
+//    Add to application.yml to expose CB metrics</span>
+<div class="code-label">Java 17 — Best Practices</div></pre>
+
+  <div class="config-block" style="margin-top:0;">
+<span class="prop-cm"># Expose circuit breaker state in /actuator/health and /actuator/metrics</span>
+
+<span class="prop-sect">management:</span>
+  <span class="prop-sect">health:</span>
+    <span class="prop-sect">circuitbreakers:</span>
+      <span class="prop-key">enabled:</span> <span class="prop-val">true</span>
+  <span class="prop-sect">endpoints:</span>
+    <span class="prop-sect">web:</span>
+      <span class="prop-key">exposure:</span>
+        <span class="prop-key">include:</span> <span class="prop-val">health, metrics, circuitbreakers</span>
+  <span class="prop-sect">endpoint:</span>
+    <span class="prop-sect">health:</span>
+      <span class="prop-key">show-details:</span> <span class="prop-val">always</span>
+
+<span class="prop-cm"># Prometheus metrics auto-registered:</span>
+<span class="prop-cm"># resilience4j_circuitbreaker_state{name="paymentGateway"}  0=CLOSED 1=OPEN 2=HALF_OPEN</span>
+<span class="prop-cm"># resilience4j_circuitbreaker_calls_total{name,kind}         success|error|not_permitted</span>
+<span class="prop-cm"># resilience4j_circuitbreaker_failure_rate{name}             current failure %</span>
+<div class="code-label">application.yml — Monitoring</div>
+  </div>
+
+<pre><span class="cm">// ─── 5. Programmatic CB for advanced control ─────────────────────────
+//    Sometimes you need to check state or force OPEN/CLOSED manually.</span>
+
+<span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">CircuitBreakerMonitor</span> {
+
+    <span class="kw">private final</span> <span class="ty">CircuitBreakerRegistry</span> registry;
+
+    <span class="cm">// Get current state</span>
+    <span class="kw">public</span> <span class="ty">CircuitBreaker.State</span> <span class="mt">getState</span>(<span class="ty">String</span> name) {
+        <span class="kw">return</span> registry.<span class="mt">circuitBreaker</span>(name).<span class="mt">getState</span>();
+    }
+
+    <span class="cm">// Force OPEN (e.g. during planned maintenance of downstream)</span>
+    <span class="kw">public void</span> <span class="mt">forceOpen</span>(<span class="ty">String</span> name) {
+        registry.<span class="mt">circuitBreaker</span>(name).<span class="mt">transitionToForcedOpenState</span>();
+    }
+
+    <span class="cm">// Force CLOSED (e.g. after confirmed recovery)</span>
+    <span class="kw">public void</span> <span class="mt">forceClose</span>(<span class="ty">String</span> name) {
+        registry.<span class="mt">circuitBreaker</span>(name).<span class="mt">transitionToClosedState</span>();
+    }
+
+    <span class="cm">// Listen to state changes for alerting</span>
+    <span class="an">@PostConstruct</span>
+    <span class="kw">public void</span> <span class="mt">registerEventListeners</span>() {
+        registry.<span class="mt">getAllCircuitBreakers</span>().<span class="mt">forEach</span>(cb ->
+            cb.<span class="mt">getEventPublisher</span>()
+              .<span class="mt">onStateTransition</span>(event -> {
+                  log.<span class="mt">warn</span>(<span class="st">"CB [{}] transitioned: {} → {}"</span>,
+                      event.<span class="mt">getCircuitBreakerName</span>(),
+                      event.<span class="mt">getStateTransition</span>().<span class="mt">getFromState</span>(),
+                      event.<span class="mt">getStateTransition</span>().<span class="mt">getToState</span>()
+                  );
+                  <span class="cm">// alert.send("Circuit breaker opened!", event)</span>
+              })
+        );
+    }
+}
+<div class="code-label">Java 17 — Programmatic API</div></pre>
+</section>
+
+<!-- ─────────────── 10. REAL WORLD ─────────────── -->
+<section id="realworld">
+  <div class="section-header">
+    <div class="section-num">10</div>
+    <h2>Real-World Examples</h2>
+  </div>
+
+  <div class="card accent-orange">
+    <div class="card-title" style="color:var(--accent)">Example A — E-Commerce: Payment Gateway</div>
+    <p>Payment must never block the UI. Fast fallback queues the order for async retry.</p>
+  </div>
+
+<pre><span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">CheckoutService</span> {
+
+    <span class="kw">private final</span> <span class="ty">StripeClient</span>         stripeClient;
+    <span class="kw">private final</span> <span class="ty">PendingPaymentRepo</span>   pendingPayments;
+    <span class="kw">private final</span> <span class="ty">NotificationService</span>  notifications;
+
+    <span class="an">@CircuitBreaker</span>(name = <span class="st">"stripe"</span>, fallbackMethod = <span class="st">"queuePayment"</span>)
+    <span class="an">@TimeLimiter</span>(name = <span class="st">"stripe"</span>)         <span class="cm">// max 3s — don't let Stripe hang us</span>
+    <span class="kw">public</span> <span class="ty">CompletableFuture</span>&lt;<span class="ty">CheckoutResult</span>&gt; <span class="mt">checkout</span>(<span class="ty">Cart</span> cart) {
+        <span class="kw">return</span> <span class="ty">CompletableFuture</span>.<span class="mt">supplyAsync</span>(() -> {
+            <span class="ty">var</span> charge = stripeClient.<span class="mt">charge</span>(cart.<span class="mt">total</span>(), cart.<span class="mt">card</span>());
+            <span class="kw">return</span> <span class="ty">CheckoutResult</span>.<span class="mt">success</span>(charge.<span class="mt">id</span>());
+        });
+    }
+
+    <span class="cm">// CB OPEN or timeout: queue for later, tell user order is received</span>
+    <span class="kw">private</span> <span class="ty">CompletableFuture</span>&lt;<span class="ty">CheckoutResult</span>&gt; <span class="mt">queuePayment</span>(<span class="ty">Cart</span> cart,
+                                                              <span class="ty">Throwable</span> ex) {
+        <span class="ty">var</span> pendingId = pendingPayments.<span class="mt">queue</span>(cart);
+        notifications.<span class="mt">sendOrderQueued</span>(cart.<span class="mt">customerId</span>(), pendingId);
+
+        <span class="kw">return</span> <span class="ty">CompletableFuture</span>.<span class="mt">completedFuture</span>(
+            <span class="ty">CheckoutResult</span>.<span class="mt">queued</span>(pendingId,
+                <span class="st">"Your order is confirmed! Payment will be processed shortly."</span>)
+        );
+    }
+}
+<div class="code-label">Java 17 — Payment Gateway</div></pre>
+
+  <div class="card accent-blue" style="margin-top:2rem;">
+    <div class="card-title" style="color:var(--accent2)">Example B — Microservices: Product Recommendations</div>
+    <p>Recommendations are non-critical. Degrade gracefully through multiple fallback tiers.</p>
+  </div>
+
+<pre><span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">RecommendationService</span> {
+
+    <span class="kw">private final</span> <span class="ty">RecommendationClient</span> mlClient;      <span class="cm">// ML service</span>
+    <span class="kw">private final</span> <span class="ty">RecommendationCache</span>  redisCache;    <span class="cm">// Redis</span>
+    <span class="kw">private final</span> <span class="ty">PopularItemsRepo</span>     popularItems;  <span class="cm">// local DB</span>
+
+    <span class="cm">// Tier 1: ML service (best personalization)</span>
+    <span class="an">@CircuitBreaker</span>(name = <span class="st">"mlService"</span>, fallbackMethod = <span class="st">"fromCache"</span>)
+    <span class="an">@Bulkhead</span>(name = <span class="st">"mlService"</span>)          <span class="cm">// max 20 concurrent ML calls</span>
+    <span class="kw">public</span> <span class="ty">List</span>&lt;<span class="ty">Product</span>&gt; <span class="mt">getRecommendations</span>(<span class="ty">Long</span> userId) {
+        <span class="kw">return</span> mlClient.<span class="mt">recommend</span>(userId, <span class="nu">10</span>);
+    }
+
+    <span class="cm">// Tier 2: Redis cache (recent personalization)</span>
+    <span class="an">@CircuitBreaker</span>(name = <span class="st">"redisCache"</span>, fallbackMethod = <span class="st">"fromPopular"</span>)
+    <span class="kw">private</span> <span class="ty">List</span>&lt;<span class="ty">Product</span>&gt; <span class="mt">fromCache</span>(<span class="ty">Long</span> userId, <span class="ty">Throwable</span> ex) {
+        <span class="kw">return</span> redisCache.<span class="mt">get</span>(userId)
+                         .<span class="mt">orElseThrow</span>(); <span class="cm">// throws → triggers CB on Redis too</span>
+    }
+
+    <span class="cm">// Tier 3: Popular items from local DB (always works)</span>
+    <span class="kw">private</span> <span class="ty">List</span>&lt;<span class="ty">Product</span>&gt; <span class="mt">fromPopular</span>(<span class="ty">Long</span> userId, <span class="ty">Throwable</span> ex) {
+        <span class="kw">return</span> popularItems.<span class="mt">findTop10</span>();  <span class="cm">// never fails — local DB</span>
+    }
+}
+<div class="code-label">Java 17 — Multi-Tier Fallback</div></pre>
+
+  <div class="card accent-teal" style="margin-top:2rem;">
+    <div class="card-title" style="color:var(--teal)">Example C — Notification Service with Rate Limiting</div>
+    <p>SMS API has a rate limit. CB + RateLimiter prevents API bans and bill shock.</p>
+  </div>
+
+<pre><span class="an">@Service</span>
+<span class="kw">public class</span> <span class="ty">NotificationService</span> {
+
+    <span class="kw">private final</span> <span class="ty">TwilioClient</span>    smsClient;
+    <span class="kw">private final</span> <span class="ty">EmailClient</span>     emailClient;
+    <span class="kw">private final</span> <span class="ty">NotificationLog</span> notifLog;
+
+    <span class="cm">// CB stops calls when Twilio is down</span>
+    <span class="cm">// RateLimiter enforces Twilio's limit (100 SMS/min)</span>
+    <span class="an">@CircuitBreaker</span>(name = <span class="st">"twilioSms"</span>, fallbackMethod = <span class="st">"emailFallback"</span>)
+    <span class="an">@RateLimiter</span>(name = <span class="st">"twilioSms"</span>,   fallbackMethod = <span class="st">"emailFallback"</span>)
+    <span class="kw">public void</span> <span class="mt">sendSms</span>(<span class="ty">String</span> phone, <span class="ty">String</span> message) {
+        smsClient.<span class="mt">send</span>(phone, message);
+        notifLog.<span class="mt">log</span>(phone, <span class="st">"SMS"</span>, <span class="st">"SENT"</span>);
+    }
+
+    <span class="cm">// Fallback: send email instead of SMS</span>
+    <span class="kw">private void</span> <span class="mt">emailFallback</span>(<span class="ty">String</span> phone, <span class="ty">String</span> message, <span class="ty">Throwable</span> ex) {
+        <span class="ty">String</span> email = userRepo.<span class="mt">findEmailByPhone</span>(phone)
+                               .<span class="mt">orElse</span>(<span class="kw">null</span>);
+
+        <span class="kw">if</span> (email != <span class="kw">null</span>) {
+            emailClient.<span class="mt">send</span>(email, <span class="st">"Notification (SMS unavailable)"</span>, message);
+            notifLog.<span class="mt">log</span>(phone, <span class="st">"EMAIL"</span>, <span class="st">"FALLBACK"</span>);
+        } <span class="kw">else</span> {
+            notifLog.<span class="mt">log</span>(phone, <span class="st">"NONE"</span>, <span class="st">"DROPPED"</span>);
+        }
+    }
+}
+<div class="code-label">Java 17 — Notification with Rate Limiting</div></pre>
+
+  <div class="card accent-purple" style="margin-top:2rem;">
+    <div class="card-title" style="color:var(--purple)">Example D — Full Feign Client Integration</div>
+    <p>Auto-configure circuit breakers for all Feign HTTP clients.</p>
+  </div>
+
+<pre><span class="cm">// ─── Feign client with CB auto-configured ───────────────────────────</span>
+
+<span class="an">@FeignClient</span>(
+    name     = <span class="st">"inventory-service"</span>,
+    url      = <span class="st">"${services.inventory.url}"</span>,
+    fallback = <span class="ty">InventoryClientFallback</span>.<span class="kw">class</span>
+)
+<span class="kw">public interface</span> <span class="ty">InventoryClient</span> {
+
+    <span class="an">@GetMapping</span>(<span class="st">"/api/inventory/{productId}"</span>)
+    <span class="ty">StockLevel</span> <span class="mt">getStock</span>(<span class="an">@PathVariable</span> <span class="ty">Long</span> productId);
+
+    <span class="an">@PostMapping</span>(<span class="st">"/api/inventory/reserve"</span>)
+    <span class="ty">ReservationResult</span> <span class="mt">reserve</span>(<span class="an">@RequestBody</span> <span class="ty">ReservationRequest</span> req);
+}
+
+<span class="cm">// Fallback bean for all methods</span>
+<span class="an">@Component</span>
+<span class="kw">public class</span> <span class="ty">InventoryClientFallback</span> <span class="kw">implements</span> <span class="ty">InventoryClient</span> {
+
+    <span class="an">@Override</span>
+    <span class="kw">public</span> <span class="ty">StockLevel</span> <span class="mt">getStock</span>(<span class="ty">Long</span> productId) {
+        <span class="kw">return</span> <span class="ty">StockLevel</span>.<span class="mt">unknown</span>(productId); <span class="cm">// show "Stock unknown" in UI</span>
+    }
+
+    <span class="an">@Override</span>
+    <span class="kw">public</span> <span class="ty">ReservationResult</span> <span class="mt">reserve</span>(<span class="ty">ReservationRequest</span> req) {
+        <span class="kw">return</span> <span class="ty">ReservationResult</span>.<span class="mt">queued</span>(req.<span class="mt">orderId</span>()); <span class="cm">// queue for later</span>
+    }
+}
+<div class="code-label">Java 17 — Feign + Circuit Breaker</div></pre>
+
+<pre><span class="prop-cm"># Enable Feign circuit breaker support</span>
+
+<span class="prop-sect">spring:</span>
+  <span class="prop-sect">cloud:</span>
+    <span class="prop-sect">openfeign:</span>
+      <span class="prop-sect">circuitbreaker:</span>
+        <span class="prop-key">enabled:</span> <span class="prop-val">true</span>
+        <span class="prop-cm"># CB names will be: "inventory-service_getStock_StockLevel"</span>
+        <span class="prop-cm"># Format:           "client-name_methodName_returnType"</span>
+<div class="code-label">application.yml — Feign CB</div></pre>
+
+</section>
+
+<!-- ─────────────── SUMMARY ─────────────── -->
+<section>
+  <div class="section-header">
+    <div class="section-num">✓</div>
+    <h2>Quick Reference Summary</h2>
+  </div>
+
+  <table>
+    <thead>
+      <tr><th>Topic</th><th>Key Rule</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>States</td><td>CLOSED → OPEN (on failure rate) → HALF-OPEN (probe) → back to CLOSED or OPEN</td></tr>
+      <tr><td>Proxy</td><td>AOP proxy — self-invocation bypasses CB just like <code>@Transactional</code></td></tr>
+      <tr><td>minimumNumberOfCalls</td><td>Default 100 — always lower it to match your realistic traffic volume</td></tr>
+      <tr><td>ignoreExceptions</td><td>Always exclude business/validation exceptions — only count infrastructure failures</td></tr>
+      <tr><td>Fallback rules</td><td>Same return type, same params + <code>Throwable</code> last. Make fallbacks bulletproof.</td></tr>
+      <tr><td>Retry order</td><td>CB (outer) wraps Retry (inner). Otherwise retries inflate the CB failure count.</td></tr>
+      <tr><td>Naming</td><td>One CB per external dependency, named after the service (not the method)</td></tr>
+      <tr><td>Monitoring</td><td>Always enable <code>registerHealthIndicator: true</code> + Actuator exposure in production</td></tr>
+      <tr><td>Feign</td><td>Use <code>fallback = MyFallback.class</code> on <code>@FeignClient</code> + enable in yml</td></tr>
+      <tr><td>Don't use CB on</td><td>Local DB calls, in-memory operations, or anything non-remote</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout tip">
+    <div class="callout-icon">💡</div>
+    <div>
+      <strong>Golden rules:</strong>
+      <ul style="margin-top:.5rem;">
+        <li>Use a circuit breaker on <em>every</em> remote HTTP / gRPC call</li>
+        <li>Always provide a meaningful fallback — never just return null</li>
+        <li>Monitor your CB state in production — a silent OPEN state means silent failures</li>
+        <li>Tune <code>minimumNumberOfCalls</code> and <code>failureRateThreshold</code> per service SLA</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+</div>
+</body>
+</html>

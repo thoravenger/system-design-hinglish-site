@@ -1,0 +1,1032 @@
+<!DOCTYPE html>
+<html lang="en" data-lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DB Patterns, Animated — Microservices</title>
+<meta name="description" content="Twelve database patterns for microservices, each animated as a problem and then its solution, with when to use it and which pattern to pick instead. English and Hinglish.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:inherit}
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+--bg:#ECEFF3;--surface:#FFFFFF;--surface-2:#F3F5F8;--ink:#15212B;--muted:#55626E;--line:#D3DAE2;
+--prob:#A84D0C;--prob-soft:#FBE8D7;--prob-ink:#7A3606;--sol:#0A6A6F;--sol-soft:#D9EFED;--sol-ink:#064A4E;
+--accent:#3B34BF;--accent-soft:#E6E4FA;--gold:#8A6A00;--gold-soft:#F6EDC8;
+--shadow:0 1px 2px rgba(21,33,43,.05),0 10px 28px rgba(21,33,43,.06);--bar-h:96px;
+--f-body:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",Roboto,Arial,sans-serif;
+--f-head:"Bricolage Grotesque","Avenir Next","Segoe UI",system-ui,sans-serif;
+color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+--bg:#0E151C;--surface:#151F29;--surface-2:#1A2632;--ink:#E3EAF0;--muted:#99A8B5;--line:#2A3947;
+--prob:#EE9B55;--prob-soft:#36251A;--prob-ink:#F4BA84;--sol:#4EC2BD;--sol-soft:#12302F;--sol-ink:#90DCD8;
+--accent:#A39BFF;--accent-soft:#25224A;--gold:#E0BD4F;--gold-soft:#2F2A15;--shadow:0 1px 2px rgba(0,0,0,.35);color-scheme:dark}}
+:root[data-theme="dark"]{
+--bg:#0E151C;--surface:#151F29;--surface-2:#1A2632;--ink:#E3EAF0;--muted:#99A8B5;--line:#2A3947;
+--prob:#EE9B55;--prob-soft:#36251A;--prob-ink:#F4BA84;--sol:#4EC2BD;--sol-soft:#12302F;--sol-ink:#90DCD8;
+--accent:#A39BFF;--accent-soft:#25224A;--gold:#E0BD4F;--gold-soft:#2F2A15;--shadow:0 1px 2px rgba(0,0,0,.35);color-scheme:dark}
+html{scroll-behavior:smooth;scroll-padding-top:calc(env(safe-area-inset-top,0px) + var(--bar-h) + 12px);-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:17px/1.6 var(--f-body);-webkit-font-smoothing:antialiased}
+[data-lang="en"] .hi,[data-lang="hi"] .en{display:none!important}
+[hidden]{display:none!important}
+a{color:var(--accent)}
+:focus-visible{outline:3px solid var(--accent);outline-offset:2px;border-radius:6px}
+.wrap{max-width:1180px;margin-inline:auto;padding-inline:16px}
+
+/* top bar and station rail */
+.bar{position:sticky;top:env(safe-area-inset-top,0px);z-index:30;background:var(--bg);background:color-mix(in srgb,var(--bg) 90%,transparent);-webkit-backdrop-filter:blur(12px);backdrop-filter:blur(12px);border-bottom:1px solid var(--line)}
+.bar-row{display:flex;align-items:center;justify-content:space-between;gap:10px;max-width:1180px;margin:0 auto;padding:8px 16px 2px}
+.brand{display:flex;align-items:center;gap:8px;color:var(--ink);text-decoration:none;font:800 18px/1.1 var(--f-head);letter-spacing:-.01em}
+.brand svg{width:24px;height:24px;flex:none}
+.lang{display:inline-flex;flex:none;border:1px solid var(--line);border-radius:999px;padding:3px;background:var(--surface)}
+.lang button{border:0;background:transparent;color:var(--muted);font:700 14px/1 var(--f-body);padding:9px 13px;border-radius:999px;cursor:pointer;min-height:36px}
+.lang button[aria-pressed="true"]{background:var(--ink);color:var(--bg)}
+.rail{position:relative;display:flex;overflow-x:auto;scrollbar-width:none;max-width:1180px;margin:0 auto;padding:6px 16px 10px}
+.rail::-webkit-scrollbar{display:none}
+.stn{position:relative;display:flex;align-items:center;gap:7px;flex:none;padding:6px 6px 6px 0;margin-left:22px;text-decoration:none;color:var(--muted);font-size:14.5px;white-space:nowrap}
+.stn:first-child{margin-left:0}
+.stn::before{content:"";position:absolute;right:100%;top:50%;width:22px;height:3px;margin-top:-1.5px;background:var(--line)}
+.stn:first-child::before{display:none}
+.stn b{display:grid;place-items:center;width:26px;height:26px;border-radius:50%;border:2.5px solid var(--accent);background:var(--surface);color:var(--accent);font:700 11.5px/1 var(--f-body);flex:none}
+.stn[aria-current="true"]{color:var(--ink);font-weight:700}
+.stn[aria-current="true"] b{background:var(--accent);color:var(--surface)}
+
+/* hero */
+.hero{padding:34px 16px 8px}
+.hero h1{font:800 clamp(34px,6.2vw,66px)/1.02 var(--f-head);letter-spacing:-.025em;margin:0 0 14px;max-width:17ch}
+.lede{font-size:clamp(17px,2.1vw,20px);color:var(--muted);max-width:60ch;margin:0 0 18px}
+.how{margin:0 0 18px;padding-left:22px;max-width:70ch}
+.how li{margin:6px 0}
+.lg{display:flex;flex-wrap:wrap;gap:10px 20px;padding:12px 14px;background:var(--surface);border:1px solid var(--line);border-radius:12px;max-width:760px}
+.lg>span{display:inline-flex;align-items:center;gap:8px;font-size:15px;color:var(--muted)}
+.lg svg{width:34px;height:20px;flex:none}
+.sw-svc{fill:var(--surface-2);stroke:var(--muted);stroke-opacity:.5}
+.sw-db{fill:var(--sol-soft);stroke:var(--sol)}
+.sw-bus{fill:var(--accent-soft);stroke:var(--accent)}
+.sw-cache{fill:var(--gold-soft);stroke:var(--gold)}
+.sw-pk{fill:var(--accent)}
+.sw-fail{fill:var(--prob)}
+
+/* groups and pattern sections */
+.group{padding:44px 16px 4px}
+.group h2{font:800 clamp(24px,3.2vw,32px)/1.1 var(--f-head);letter-spacing:-.015em;margin:0 0 4px;color:var(--accent)}
+.group p{margin:0;color:var(--muted);max-width:62ch}
+.pat{padding:26px 0 26px;border-top:1px solid var(--line);margin-top:18px}
+.p-head{display:flex;gap:14px;align-items:flex-start;margin:0 0 14px}
+.p-num{font:800 44px/.9 var(--f-head);color:var(--accent);min-width:58px;letter-spacing:-.03em;flex:none}
+.p-head h2{font:800 clamp(24px,3.3vw,34px)/1.1 var(--f-head);letter-spacing:-.015em;margin:2px 0 4px}
+.p-sub{margin:0;color:var(--muted)}
+.pbody{display:grid;gap:14px}
+@media (min-width:960px){.pbody{grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);align-items:start}}
+
+/* the stage */
+.stage{background:var(--surface);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow);overflow:hidden;min-width:0}
+.modes{display:grid;grid-template-columns:1fr 1fr}
+.modes button{display:flex;align-items:center;justify-content:center;gap:8px;min-height:50px;border:0;border-bottom:3px solid var(--line);background:var(--surface-2);color:var(--muted);font:700 16px/1.2 var(--f-body);padding:10px;cursor:pointer}
+.modes button b{display:grid;place-items:center;width:22px;height:22px;border-radius:50%;border:2px solid currentColor;font-size:12px}
+.modes [data-mode="problem"][aria-selected="true"]{background:repeating-linear-gradient(135deg,var(--prob-soft) 0 9px,var(--surface) 9px 18px);color:var(--prob-ink);border-bottom-color:var(--prob)}
+.modes [data-mode="solution"][aria-selected="true"]{background:var(--sol-soft);color:var(--sol-ink);border-bottom-color:var(--sol)}
+.cap{padding:12px 16px 2px;min-height:124px}
+.cap .st{font:700 13.5px/1.2 var(--f-body);color:var(--muted)}
+.cap h4{margin:4px 0 4px;font:700 19px/1.25 var(--f-head)}
+.cap p{margin:0;font-size:16px}
+.stage[data-mode="problem"] .cap h4{color:var(--prob-ink)}
+.stage[data-mode="solution"] .cap h4{color:var(--sol-ink)}
+.scene{display:block;width:100%;height:auto;max-width:540px;margin:0 auto;padding:4px 8px 0}
+.next{display:block;margin:6px 16px 0;width:calc(100% - 32px);border:0;border-radius:10px;background:var(--sol);color:var(--surface);font:700 16px/1.2 var(--f-body);padding:12px 14px;cursor:pointer;min-height:46px}
+.ctrl{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px 14px}
+.btn{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:10px;padding:10px 15px;font:700 15px/1 var(--f-body);cursor:pointer;min-height:42px}
+.btn.pri{background:var(--accent);border-color:var(--accent);color:var(--surface);min-width:92px}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.spd{display:inline-flex;align-items:center;gap:6px;font-size:15px;color:var(--muted);margin-left:auto}
+.spd select{font:700 15px var(--f-body);color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:8px 6px;min-height:42px}
+
+/* scene drawing */
+.e{stroke:var(--line);stroke-width:1.8;fill:none}
+.e.d{stroke-dasharray:5 4}
+.e.hide,.nd.hide{display:none}
+.nd .box{fill:var(--surface-2);stroke:var(--muted);stroke-opacity:.35;stroke-width:1.5;transition:stroke .25s}
+.nd.k-db .box{fill:var(--sol-soft);stroke:var(--sol);stroke-opacity:.5}
+.nd.k-bus .box{fill:var(--accent-soft);stroke:var(--accent);stroke-opacity:.45}
+.nd.k-cache .box{fill:var(--gold-soft);stroke:var(--gold);stroke-opacity:.55}
+.nd.k-user .box{fill:var(--surface);stroke:var(--ink);stroke-opacity:.45;stroke-dasharray:4 3}
+.nd .l1{font:700 12.5px var(--f-body);fill:var(--ink)}
+.nd .l2{font:400 10.5px var(--f-body);fill:var(--muted)}
+.nd.hot .box{fill:var(--prob-soft);stroke:var(--prob);stroke-opacity:1;stroke-width:2.5}
+.nd.hot{animation:hot .9s ease-in-out infinite alternate}
+@keyframes hot{to{opacity:.7}}
+.nd.down{opacity:.5}
+.nd.down .box{stroke:var(--prob);stroke-opacity:1;stroke-dasharray:5 3}
+.nd.flash .box{stroke:var(--accent);stroke-opacity:1;stroke-width:3}
+.bd rect{fill:var(--accent)}
+.bd.bad rect{fill:var(--prob)}.bd.good rect{fill:var(--sol)}.bd.warn rect{fill:var(--gold)}
+.bd text{fill:var(--surface);font:700 10px var(--f-body)}
+.trail{stroke:var(--accent);stroke-width:2.6;stroke-linecap:round;opacity:.85;transition:opacity .7s}
+.trail.fail{stroke:var(--prob);stroke-dasharray:4 4}
+.trail.fade{opacity:0}
+.pk circle{fill:var(--accent);stroke:var(--surface);stroke-width:2}
+.pk rect{fill:var(--ink)}
+.pk text{fill:var(--bg);font:700 10px var(--f-body)}
+.pk.fail circle,.pk.fail rect{fill:var(--prob)}
+.pk.fail text{fill:var(--surface)}
+.pk.gone{opacity:0;transition:opacity .35s}
+
+/* decision cards */
+.when{display:grid;gap:10px;align-content:start}
+.w{background:var(--surface);border:1px solid var(--line);border-left:5px solid var(--c);border-radius:12px;padding:12px 14px}
+.w h3{margin:0 0 6px;font:700 17px/1.25 var(--f-head)}
+.w ul{margin:0;padding-left:18px}
+.w li{margin:5px 0;font-size:15.5px;line-height:1.5}
+.w.use{--c:var(--sol)}.w.avoid{--c:var(--prob)}.w.alt{--c:var(--accent)}
+.w.alt a{font-weight:700}
+footer{padding:30px 16px 50px;color:var(--muted);font-size:15px;border-top:1px solid var(--line);margin-top:30px}
+@media (max-width:600px){body{font-size:16.5px}.p-num{font-size:34px;min-width:44px}.cap{min-height:136px}.spd{margin-left:0}}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<div id="sdh-libbar" style="position:relative;z-index:2147483000;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0;padding:8px 16px;background:#0f172a;color:#cbd5e1;font:600 13px/1.5 Inter,'Segoe UI',system-ui,-apple-system,sans-serif;border-bottom:2px solid #4f46e5;box-sizing:border-box;width:100%;text-align:left;letter-spacing:0"><a href="../../index.html" style="color:#fff;text-decoration:none;font-weight:800">SystemDesign<span style="color:#8b8cff">.hinglish</span></a><span style="opacity:.45">/</span><a href="../index.html" style="color:#fff;text-decoration:none">📚 Library</a><span style="opacity:.45">/</span><a href="../index.html#data-messaging" style="color:#cbd5e1;text-decoration:none">Kafka · Redis · Cassandra &amp; Databases</a><a href="../files/db-patterns-animated-microservices-original.html" download style="color:#a5b4fc;text-decoration:none;font-size:12px">⬇ Original</a><span style="margin-left:auto;font-size:11px;padding:2px 9px;border-radius:999px;border:1px solid #6366f1;color:#c7d2fe">📘 HTML ebook</span></div>
+<header class="bar" id="bar">
+<div class="bar-row">
+<a class="brand" href="#top"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="2" y="3" width="9" height="7" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><rect x="13" y="14" width="9" height="7" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M6.5 10v4.5a3 3 0 0 0 3 3H13" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="6.5" cy="13" r="2.2" fill="#3B34BF"/></svg><span>DB patterns, animated</span></a>
+<div class="lang" role="group" aria-label="Language">
+<button type="button" data-set-lang="en" aria-pressed="true">English</button>
+<button type="button" data-set-lang="hi" aria-pressed="false">Hinglish</button>
+</div>
+</div>
+<nav class="rail" aria-label="Patterns">
+<a class="stn" href="#p01"><b>1</b>DB per service</a>
+<a class="stn" href="#p02"><b>2</b>API composition</a>
+<a class="stn" href="#p03"><b>3</b>CQRS</a>
+<a class="stn" href="#p04"><b>4</b>Event sourcing</a>
+<a class="stn" href="#p05"><b>5</b>Outbox</a>
+<a class="stn" href="#p06"><b>6</b>CDC</a>
+<a class="stn" href="#p07"><b>7</b>Idempotent consumer</a>
+<a class="stn" href="#p08"><b>8</b>Saga: choreography</a>
+<a class="stn" href="#p09"><b>9</b>Saga: orchestration</a>
+<a class="stn" href="#p10"><b>10</b>Replication</a>
+<a class="stn" href="#p11"><b>11</b>Sharding</a>
+<a class="stn" href="#p12"><b>12</b>Caching</a>
+</nav>
+</header>
+<main>
+<section class="hero wrap" id="top">
+<h1><span class="en">Database patterns for microservices, animated</span><span class="hi">Microservices ke database patterns, animation me</span></h1>
+<p class="lede"><span class="en">Twelve patterns. Each one plays the problem first, then the fix, and then tells you when to use it and which pattern to pick instead.</span><span class="hi">Baarah patterns. Har ek me pehle problem chalti hai, phir uska fix, aur phir bataya jaata hai kab use karna hai aur kab doosra pattern lena hai.</span></p>
+<ol class="how">
+<li><span class="en">Press Play. The problem runs first and the solution follows on its own.</span><span class="hi">Play dabao. Pehle problem chalegi, phir solution apne aap.</span></li>
+<li><span class="en">Use Step to move one step at a time, or switch between Problem and Solution whenever you like.</span><span class="hi">Ek-ek step ke liye Step use karo, ya jab chaho Problem aur Solution ke beech switch karo.</span></li>
+<li><span class="en">Read the cards next to each animation: when to use it, when to avoid it, and what to use instead.</span><span class="hi">Har animation ke saath wale cards padho: kab use karein, kab avoid karein, aur uski jagah kya use karein.</span></li>
+</ol>
+<div class="lg" aria-label="Legend">
+<span><svg viewBox="0 0 34 20" aria-hidden="true"><rect class="sw-svc" x="1" y="2" width="32" height="16" rx="5"/></svg><span class="en">Service</span><span class="hi">Service</span></span>
+<span><svg viewBox="0 0 34 20" aria-hidden="true"><rect class="sw-db" x="1" y="2" width="32" height="16" rx="5"/></svg><span class="en">Database</span><span class="hi">Database</span></span>
+<span><svg viewBox="0 0 34 20" aria-hidden="true"><rect class="sw-bus" x="1" y="2" width="32" height="16" rx="5"/></svg><span class="en">Event stream</span><span class="hi">Event stream</span></span>
+<span><svg viewBox="0 0 34 20" aria-hidden="true"><rect class="sw-cache" x="1" y="2" width="32" height="16" rx="5"/></svg><span class="en">Cache</span><span class="hi">Cache</span></span>
+<span><svg viewBox="0 0 34 20" aria-hidden="true"><circle class="sw-pk" cx="17" cy="10" r="6"/></svg><span class="en">Request or message</span><span class="hi">Request ya message</span></span>
+<span><svg viewBox="0 0 34 20" aria-hidden="true"><circle class="sw-fail" cx="17" cy="10" r="6"/></svg><span class="en">Failed or lost</span><span class="hi">Fail ya lost</span></span>
+</div>
+</section>
+
+<div class="group wrap"><h2><span class="en">Split the data</span><span class="hi">Data ko baanto</span></h2><p><span class="en">Who owns which data, and how to read and write across services.</span><span class="hi">Kaunsa data kiska hai, aur services ke paar kaise padhein aur likhein.</span></p></div>
+
+<section class="pat" id="p01"><div class="wrap">
+<header class="p-head"><span class="p-num">01</span><div><h2>Database per service</h2><p class="p-sub"><span class="en">Give every service its own private database.</span><span class="hi">Har service ko uska apna private database do.</span></p></div></header>
+<div class="pbody">
+<div class="stage" data-p="p01"></div>
+<div class="when">
+<div class="w use"><h3><span class="en">Use when</span><span class="hi">Kab use karein</span></h3><ul>
+<li><span class="en">Several teams need to deploy and scale independently.</span><span class="hi">Kai teams ko alag-alag deploy aur scale karna ho.</span></li>
+<li><span class="en">Services need different kinds of storage (relational, search, key-value).</span><span class="hi">Services ko alag type ki storage chahiye (relational, search, key-value).</span></li>
+</ul></div>
+<div class="w avoid"><h3><span class="en">Avoid when</span><span class="hi">Kab avoid karein</span></h3><ul>
+<li><span class="en">One small team and an early product. Split later, when the boundaries are clear.</span><span class="hi">Ek chhoti team aur shuruaati product. Boundaries clear hon tab baad me split karo.</span></li>
+<li><span class="en">Most operations need one ACID transaction across the same entities.</span><span class="hi">Zyaadatar operations ko same entities pe ek ACID transaction chahiye.</span></li>
+</ul></div>
+<div class="w alt"><h3><span class="en">Pick another pattern when</span><span class="hi">Doosra pattern kab lein</span></h3><ul>
+<li><span class="en">Still early: a modular monolith with one schema per module, on one server with separate credentials.</span><span class="hi">Abhi shuruaat hai: modular monolith, har module ka alag schema, ek server pe alag credentials ke saath.</span></li>
+<li><span class="en">One screen needs data from several services: <a href="#p02">API composition</a>.</span><span class="hi">Ek screen ko kai services ka data chahiye: <a href="#p02">API composition</a>.</span></li>
+<li><span class="en">A change must stay consistent across services: <a href="#p08">Saga</a> with an <a href="#p05">Outbox</a>.</span><span class="hi">Change ko services ke paar consistent rehna hai: <a href="#p08">Saga</a> aur <a href="#p05">Outbox</a>.</span></li>
+</ul></div>
+</div></div></div></section>
+
+<section class="pat" id="p02"><div class="wrap">
+<header class="p-head"><span class="p-num">02</span><div><h2>API composition</h2><p class="p-sub"><span class="en">Join data from several services in the API layer.</span><span class="hi">Kai services ka data API layer me jodo.</span></p></div></header>
+<div class="pbody">
+<div class="stage" data-p="p02"></div>
+<div class="when">
+<div class="w use"><h3><span class="en">Use when</span><span class="hi">Kab use karein</span></h3><ul>
+<li><span class="en">A screen combines two to four services and needs live data.</span><span class="hi">Ek screen do se chaar services ka data jodti hai aur live data chahiye.</span></li>
+<li><span class="en">The response is small: one order, one user, one cart.</span><span class="hi">Response chhota hai: ek order, ek user, ek cart.</span></li>
+</ul></div>
+<div class="w avoid"><h3><span class="en">Avoid when</span><span class="hi">Kab avoid karein</span></h3><ul>
+<li><span class="en">You must filter, sort or join large data sets across services, such as all orders with failed payments in March.</span><span class="hi">Services ke paar bade data sets filter, sort ya join karne hon, jaise March ke saare failed payment wale orders.</span></li>
+<li><span class="en">A very hot endpoint, where fanning out multiplies the load on every service.</span><span class="hi">Bahut hot endpoint, jahan fan-out har service ka load kai guna kar deta hai.</span></li>
+</ul></div>
+<div class="w alt"><h3><span class="en">Pick another pattern when</span><span class="hi">Doosra pattern kab lein</span></h3><ul>
+<li><span class="en">Large or complex cross-service queries: a <a href="#p03">CQRS</a> read model.</span><span class="hi">Bade ya complex cross-service queries: <a href="#p03">CQRS</a> read model.</span></li>
+<li><span class="en">The same data is asked for constantly: <a href="#p12">Caching</a>.</span><span class="hi">Same data baar-baar maanga jaata hai: <a href="#p12">Caching</a>.</span></li>
+</ul></div>
+</div></div></div></section>
+
+<section class="pat" id="p03"><div class="wrap">
+<header class="p-head"><span class="p-num">03</span><div><h2>CQRS</h2><p class="p-sub"><span class="en">Use separate models for writing and for reading.</span><span class="hi">Likhne aur padhne ke liye alag models use karo.</span></p></div></header>
+<div class="pbody">
+<div class="stage" data-p="p03"></div>
+<div class="when">
+<div class="w use"><h3><span class="en">Use when</span><span class="hi">Kab use karein</span></h3><ul>
+<li><span class="en">Reads and writes differ a lot in shape or volume.</span><span class="hi">Reads aur writes ka shape ya volume bahut alag hai.</span></li>
+<li><span class="en">Many screens, dashboards or search features each need their own view of the data.</span><span class="hi">Kai screens, dashboards ya search ko data ka apna alag view chahiye.</span></li>
+</ul></div>
+<div class="w avoid"><h3><span class="en">Avoid when</span><span class="hi">Kab avoid karein</span></h3><ul>
+<li><span class="en">Simple CRUD, where the screens look like the tables.</span><span class="hi">Simple CRUD, jahan screens tables jaisi hi dikhti hain.</span></li>
+<li><span class="en">Users must see their own change instantly everywhere.</span><span class="hi">Users ko apna change har jagah turant dikhna zaroori hai.</span></li>
+</ul></div>
+<div class="w alt"><h3><span class="en">Pick another pattern when</span><span class="hi">Doosra pattern kab lein</span></h3><ul>
+<li><span class="en">You only need more read capacity with the same shape: <a href="#p10">Read replicas</a>.</span><span class="hi">Sirf same shape me zyada read capacity chahiye: <a href="#p10">Read replicas</a>.</span></li>
+<li><span class="en">You also need the full history: <a href="#p04">Event sourcing</a>.</span><span class="hi">Poori history bhi chahiye: <a href="#p04">Event sourcing</a>.</span></li>
+<li><span class="en">A few items are read constantly: <a href="#p12">Caching</a>.</span><span class="hi">Kuch items baar-baar padhe jaate hain: <a href="#p12">Caching</a>.</span></li>
+</ul></div>
+</div></div></div></section>
+
+<section class="pat" id="p04"><div class="wrap">
+<header class="p-head"><span class="p-num">04</span><div><h2>Event sourcing</h2><p class="p-sub"><span class="en">Store what happened, not just the latest value.</span><span class="hi">Sirf latest value nahi, jo hua woh store karo.</span></p></div></header>
+<div class="pbody">
+<div class="stage" data-p="p04"></div>
+<div class="when">
+<div class="w use"><h3><span class="en">Use when</span><span class="hi">Kab use karein</span></h3><ul>
+<li><span class="en">Ledgers, payments and audits, where what happened and why matters.</span><span class="hi">Ledgers, payments aur audits, jahan kya hua aur kyun hua, yeh important hai.</span></li>
+<li><span class="en">You need past state as of a date, or want to build new views from old history.</span><span class="hi">Kisi date ki purani state chahiye, ya purani history se naye views banane hain.</span></li>
+</ul></div>
+<div class="w avoid"><h3><span class="en">Avoid when</span><span class="hi">Kab avoid karein</span></h3><ul>
+<li><span class="en">CRUD apps and schemas that change often. Every event version lives forever.</span><span class="hi">CRUD apps aur baar-baar badalte schemas. Har event version hamesha ke liye rehta hai.</span></li>
+<li><span class="en">Personal data that must be fully deleted on request.</span><span class="hi">Personal data jo request pe poori tarah delete karna padta hai.</span></li>
+</ul></div>
+<div class="w alt"><h3><span class="en">Pick another pattern when</span><span class="hi">Doosra pattern kab lein</span></h3><ul>
+<li><span class="en">You only need an audit trail: an audit table, or change history through <a href="#p06">CDC</a>.</span><span class="hi">Sirf audit trail chahiye: audit table, ya <a href="#p06">CDC</a> se change history.</span></li>
+<li><span class="en">You only need separate read views: <a href="#p03">CQRS</a> without event sourcing.</span><span class="hi">Sirf alag read views chahiye: event sourcing ke bina <a href="#p03">CQRS</a>.</span></li>
+</ul></div>
+</div></div></div></section>
+
+<div class="group wrap"><h2><span class="en">Keep data consistent</span><span class="hi">Data ko consistent rakho</span></h2><p><span class="en">Moving changes between services without losing them or applying them twice.</span><span class="hi">Services ke beech changes bhejna, bina khoye aur bina do baar apply kiye.</span></p></div>
+
+<section class="pat" id="p05"><div class="wrap">
+<header class="p-head"><span class="p-num">05</span><div><h2>Transactional outbox</h2><p class="p-sub"><span class="en">Save the event in the same transaction as the data.</span><span class="hi">Event ko data ke saath same transaction me save karo.</span></p></div></header>
+<div class="pbody">
+<div class="stage" data-p="p05"></div>
+<div class="when">
+<div class="w use"><h3><span class="en">Use when</span><span class="hi">Kab use karein</span></h3><ul>
+<li><span class="en">A database change must reliably produce an event or a message.</span><span class="hi">Database change se pakka ek event ya message nikalna chahiye.</span></li>
+<li><span class="en">You own the service code and can add an outbox table.</span><span class="hi">Service ka code tumhara hai aur outbox table add kar sakte ho.</span></li>
+</ul></div>
+<div class="w avoid"><h3><span class="en">Avoid when</span><span class="hi">Kab avoid karein</span></h3><ul>
+<li><span class="en">Nothing needs to be published.</span><span class="hi">Kuch publish karna hi nahi hai.</span></li>
+<li><span class="en">Never replace it with two separate writes to the database and the broker.</span><span class="hi">Iski jagah database aur broker me do alag writes kabhi mat karo.</span></li>
+</ul></div>
+<div class="w alt"><h3><span class="en">Pick another pattern when</span><span class="hi">Doosra pattern kab lein</span></h3><ul>
+<li><span class="en">You can't change the code, or don't want a poller: <a href="#p06">CDC</a>. CDC can also relay the outbox itself.</span><span class="hi">Code badal nahi sakte, ya poller nahi chahiye: <a href="#p06">CDC</a>. CDC khud outbox ko bhi relay kar sakta hai.</span></li>
+<li><span class="en">Events are the source of truth: <a href="#p04">Event sourcing</a>.</span><span class="hi">Events hi source of truth hain: <a href="#p04">Event sourcing</a>.</span></li>
+<li><span class="en">Always pair it with an <a href="#p07">Idempotent consumer</a>, because resends happen.</span><span class="hi">Hamesha <a href="#p07">Idempotent consumer</a> ke saath use karo, kyunki resends hote hain.</span></li>
+</ul></div>
+</div></div></div></section>
+
+<section class="pat" id="p06"><div class="wrap">
+<header class="p-head"><span class="p-num">06</span><div><h2>Change data capture (CDC)</h2><p class="p-sub"><span class="en">Turn the database log into a stream of events.</span><span class="hi">Database log ko events ki stream bana do.</span></p></div></header>
+<div class="pbody">
+<div class="stage" data-p="p06"></div>
+<div class="when">
+<div class="w use"><h3><span class="en">Use when</span><span class="hi">Kab use karein</span></h3><ul>
+<li><span class="en">Legacy or third-party systems whose code you can't change.</span><span class="hi">Legacy ya third-party systems jinka code tum badal nahi sakte.</span></li>
+<li><span class="en">Keeping caches, search and analytics in sync, or relaying an outbox without polling.</span><span class="hi">Caches, search aur analytics ko sync rakhna, ya bina polling ke outbox relay karna.</span></li>
+</ul></div>
+<div class="w avoid"><h3><span class="en">Avoid when</span><span class="hi">Kab avoid karein</span></h3><ul>
+<li><span class="en">It would expose raw internal tables to other teams as if they were a public API.</span><span class="hi">Isse raw internal tables doosri teams ko public API ki tarah dikhne lagengi.</span></li>
+<li><span class="en">Low volume where a simple poller is enough, or you have no access to the database log.</span><span class="hi">Kam volume jahan simple poller kaafi hai, ya database log ka access hi nahi hai.</span></li>
+</ul></div>
+<div class="w alt"><h3><span class="en">Pick another pattern when</span><span class="hi">Doosra pattern kab lein</span></h3><ul>
+<li><span class="en">You own the code and want a clean event contract: <a href="#p05">Outbox</a>, relayed by CDC.</span><span class="hi">Code tumhara hai aur saaf event contract chahiye: <a href="#p05">Outbox</a>, CDC se relay.</span></li>
+<li><span class="en">You need a queryable copy shaped for reads: a <a href="#p03">CQRS</a> read model.</span><span class="hi">Reads ke shape me queryable copy chahiye: <a href="#p03">CQRS</a> read model.</span></li>
+</ul></div>
+</div></div></div></section>
+
+<section class="pat" id="p07"><div class="wrap">
+<header class="p-head"><span class="p-num">07</span><div><h2>Idempotent consumer</h2><p class="p-sub"><span class="en">Process each message once, even if it arrives twice.</span><span class="hi">Har message ek baar process karo, chahe do baar aaye.</span></p></div></header>
+<div class="pbody">
+<div class="stage" data-p="p07"></div>
+<div class="when">
+<div class="w use"><h3><span class="en">Use when</span><span class="hi">Kab use karein</span></h3><ul>
+<li><span class="en">Every consumer of at-least-once messages: Kafka, SQS, RabbitMQ.</span><span class="hi">At-least-once messages ka har consumer: Kafka, SQS, RabbitMQ.</span></li>
+<li><span class="en">Every API that clients may retry, using an idempotency key.</span><span class="hi">Har API jise client retry kar sakta hai, idempotency key ke saath.</span></li>
+</ul></div>
+<div class="w avoid"><h3><span class="en">Avoid when</span><span class="hi">Kab avoid karein</span></h3><ul>
+<li><span class="en">The operation is already naturally idempotent, like an upsert by key or setting a status.</span><span class="hi">Operation pehle se naturally idempotent hai, jaise key se upsert ya status set karna.</span></li>
+<li><span class="en">Pure reads.</span><span class="hi">Sirf reads.</span></li>
+</ul></div>
+<div class="w alt"><h3><span class="en">Pick another pattern when</span><span class="hi">Doosra pattern kab lein</span></h3><ul>
+<li><span class="en">Kafka-to-Kafka stream processing: Kafka transactions give exactly-once inside Kafka.</span><span class="hi">Kafka-to-Kafka stream processing: Kafka transactions Kafka ke andar exactly-once dete hain.</span></li>
+<li><span class="en">Messages get lost on the sending side: <a href="#p05">Outbox</a>.</span><span class="hi">Bhejne wali side pe messages kho jaate hain: <a href="#p05">Outbox</a>.</span></li>
+</ul></div>
+</div></div></div></section>
+
+<section class="pat" id="p08"><div class="wrap">
+<header class="p-head"><span class="p-num">08</span><div><h2>Saga: choreography</h2><p class="p-sub"><span class="en">Services react to each other's events and compensate on failure.</span><span class="hi">Services ek doosre ke events pe react karti hain aur failure pe compensate karti hain.</span></p></div></header>
+<div class="pbody">
+<div class="stage" data-p="p08"></div>
+<div class="when">
+<div class="w use"><h3><span class="en">Use when</span><span class="hi">Kab use karein</span></h3><ul>
+<li><span class="en">A business flow spans two to four services with simple, linear steps.</span><span class="hi">Business flow do se chaar services me hai, simple aur seedhe steps ke saath.</span></li>
+<li><span class="en">Teams want loose coupling: services share only event names.</span><span class="hi">Teams ko loose coupling chahiye: services sirf event names share karti hain.</span></li>
+</ul></div>
+<div class="w avoid"><h3><span class="en">Avoid when</span><span class="hi">Kab avoid karein</span></h3><ul>
+<li><span class="en">Long or branching flows, timeouts, or frequent questions like where is my order.</span><span class="hi">Lambe ya branching flows, timeouts, ya baar-baar aane wala sawaal ki mera order kahan hai.</span></li>
+<li><span class="en">The whole change fits in one service and one database.</span><span class="hi">Poora change ek service aur ek database me fit ho jaata hai.</span></li>
+</ul></div>
+<div class="w alt"><h3><span class="en">Pick another pattern when</span><span class="hi">Doosra pattern kab lein</span></h3><ul>
+<li><span class="en">Complex flows: <a href="#p09">Saga orchestration</a>.</span><span class="hi">Complex flows: <a href="#p09">Saga orchestration</a>.</span></li>
+<li><span class="en">Everything lives in one database: a plain ACID transaction, the best option of all.</span><span class="hi">Sab kuch ek database me hai: simple ACID transaction, sabse behtar option.</span></li>
+<li><span class="en">Two-phase commit only inside one database or a few XA resources you fully control.</span><span class="hi">Two-phase commit sirf ek database ke andar ya kuch XA resources ke saath jo poori tarah tumhare control me hon.</span></li>
+</ul></div>
+</div></div></div></section>
+
+<section class="pat" id="p09"><div class="wrap">
+<header class="p-head"><span class="p-num">09</span><div><h2>Saga: orchestration</h2><p class="p-sub"><span class="en">A central coordinator drives every step and every compensation.</span><span class="hi">Ek central coordinator har step aur har compensation chalata hai.</span></p></div></header>
+<div class="pbody">
+<div class="stage" data-p="p09"></div>
+<div class="when">
+<div class="w use"><h3><span class="en">Use when</span><span class="hi">Kab use karein</span></h3><ul>
+<li><span class="en">Many steps, branches, timeouts, retries, or flows that run for days.</span><span class="hi">Bahut steps, branches, timeouts, retries, ya dinon tak chalne wale flows.</span></li>
+<li><span class="en">You need one place to see and audit the state of every flow.</span><span class="hi">Har flow ki state dekhne aur audit karne ke liye ek jagah chahiye.</span></li>
+</ul></div>
+<div class="w avoid"><h3><span class="en">Avoid when</span><span class="hi">Kab avoid karein</span></h3><ul>
+<li><span class="en">Two or three simple steps. Choreography is lighter.</span><span class="hi">Do ya teen simple steps. Choreography halki hai.</span></li>
+<li><span class="en">The orchestrator starts holding other services' business rules.</span><span class="hi">Orchestrator doosri services ke business rules apne andar rakhne lage.</span></li>
+</ul></div>
+<div class="w alt"><h3><span class="en">Pick another pattern when</span><span class="hi">Doosra pattern kab lein</span></h3><ul>
+<li><span class="en">Simple flows: <a href="#p08">Saga choreography</a>.</span><span class="hi">Simple flows: <a href="#p08">Saga choreography</a>.</span></li>
+<li><span class="en">Very long flows with human steps: a workflow engine such as Temporal or Camunda.</span><span class="hi">Human steps wale bahut lambe flows: Temporal ya Camunda jaisa workflow engine.</span></li>
+</ul></div>
+</div></div></div></section>
+
+<div class="group wrap"><h2><span class="en">Scale the data</span><span class="hi">Data ko scale karo</span></h2><p><span class="en">More reads, more writes, and less load on each database.</span><span class="hi">Zyada reads, zyada writes, aur har database pe kam load.</span></p></div>
+
+<section class="pat" id="p10"><div class="wrap">
+<header class="p-head"><span class="p-num">10</span><div><h2>Replication (read replicas)</h2><p class="p-sub"><span class="en">Copy the database to spread reads and survive failures.</span><span class="hi">Reads baantne aur failure jhelne ke liye database ki copies banao.</span></p></div></header>
+<div class="pbody">
+<div class="stage" data-p="p10"></div>
+<div class="when">
+<div class="w use"><h3><span class="en">Use when</span><span class="hi">Kab use karein</span></h3><ul>
+<li><span class="en">Read-heavy traffic, around 70% reads or more, that can accept a little lag.</span><span class="hi">Read-heavy traffic, lagbhag 70% ya zyada reads, jo thoda lag seh sake.</span></li>
+<li><span class="en">You need high availability and a standby to fail over to.</span><span class="hi">High availability aur fail over ke liye ek standby chahiye.</span></li>
+</ul></div>
+<div class="w avoid"><h3><span class="en">Avoid when</span><span class="hi">Kab avoid karein</span></h3><ul>
+<li><span class="en">Writes are the bottleneck. Every replica has to apply every write.</span><span class="hi">Bottleneck writes hain. Har replica ko har write apply karna padta hai.</span></li>
+<li><span class="en">A read must always be perfectly fresh. Send that read to the primary.</span><span class="hi">Read hamesha bilkul fresh chahiye. Woh read primary pe bhejo.</span></li>
+</ul></div>
+<div class="w alt"><h3><span class="en">Pick another pattern when</span><span class="hi">Doosra pattern kab lein</span></h3><ul>
+<li><span class="en">A few hot keys cause the load: <a href="#p12">Caching</a>.</span><span class="hi">Load kuch hot keys se aa raha hai: <a href="#p12">Caching</a>.</span></li>
+<li><span class="en">Too many writes or too much data: <a href="#p11">Sharding</a>.</span><span class="hi">Bahut zyada writes ya bahut zyada data: <a href="#p11">Sharding</a>.</span></li>
+<li><span class="en">Reads need a different shape: <a href="#p03">CQRS</a>.</span><span class="hi">Reads ko alag shape chahiye: <a href="#p03">CQRS</a>.</span></li>
+</ul></div>
+</div></div></div></section>
+
+<section class="pat" id="p11"><div class="wrap">
+<header class="p-head"><span class="p-num">11</span><div><h2>Sharding</h2><p class="p-sub"><span class="en">Split the data across many databases by a key.</span><span class="hi">Ek key ke hisaab se data kai databases me baanto.</span></p></div></header>
+<div class="pbody">
+<div class="stage" data-p="p11"></div>
+<div class="when">
+<div class="w use"><h3><span class="en">Use when</span><span class="hi">Kab use karein</span></h3><ul>
+<li><span class="en">Writes or data size exceed one machine, after the cheaper fixes.</span><span class="hi">Saste fixes ke baad bhi writes ya data size ek machine se bahar hai.</span></li>
+<li><span class="en">A natural key, such as customer_id or tenant_id, appears in almost every query.</span><span class="hi">customer_id ya tenant_id jaisi natural key lagbhag har query me hai.</span></li>
+</ul></div>
+<div class="w avoid"><h3><span class="en">Avoid when</span><span class="hi">Kab avoid karein</span></h3><ul>
+<li><span class="en">The data still fits one machine. Tune queries, scale up and partition first.</span><span class="hi">Data abhi ek machine me fit hai. Pehle queries tune karo, scale up karo aur partition karo.</span></li>
+<li><span class="en">Heavy joins across entities and ad-hoc analytics.</span><span class="hi">Entities ke beech heavy joins aur ad-hoc analytics.</span></li>
+</ul></div>
+<div class="w alt"><h3><span class="en">Pick another pattern when</span><span class="hi">Doosra pattern kab lein</span></h3><ul>
+<li><span class="en">The load is mostly reads: <a href="#p10">Replication</a> or <a href="#p12">Caching</a>.</span><span class="hi">Load zyaadatar reads ka hai: <a href="#p10">Replication</a> ya <a href="#p12">Caching</a>.</span></li>
+<li><span class="en">You want sharding handled for you: distributed SQL such as Citus, Vitess or CockroachDB.</span><span class="hi">Sharding koi aur handle kare: Citus, Vitess ya CockroachDB jaisa distributed SQL.</span></li>
+<li><span class="en">Analytics across all the data: a <a href="#p03">CQRS</a> read model or a data warehouse.</span><span class="hi">Saare data pe analytics: <a href="#p03">CQRS</a> read model ya data warehouse.</span></li>
+</ul></div>
+</div></div></div></section>
+
+<section class="pat" id="p12"><div class="wrap">
+<header class="p-head"><span class="p-num">12</span><div><h2>Caching (cache-aside)</h2><p class="p-sub"><span class="en">Serve hot reads from memory.</span><span class="hi">Hot reads memory se serve karo.</span></p></div></header>
+<div class="pbody">
+<div class="stage" data-p="p12"></div>
+<div class="when">
+<div class="w use"><h3><span class="en">Use when</span><span class="hi">Kab use karein</span></h3><ul>
+<li><span class="en">Read-heavy data that may be slightly stale: catalogs, profiles, settings.</span><span class="hi">Read-heavy data jo thoda stale chal jaaye: catalogs, profiles, settings.</span></li>
+<li><span class="en">A few hot keys take most of the traffic.</span><span class="hi">Zyaadatar traffic kuch hot keys pe aata hai.</span></li>
+</ul></div>
+<div class="w avoid"><h3><span class="en">Avoid when</span><span class="hi">Kab avoid karein</span></h3><ul>
+<li><span class="en">Values used for decisions must be exact, like a balance or the stock at checkout.</span><span class="hi">Decision wali values bilkul exact honi chahiye, jaise balance ya checkout pe stock.</span></li>
+<li><span class="en">Keys change more often than they are read.</span><span class="hi">Keys padhne se zyada baar badalti hain.</span></li>
+</ul></div>
+<div class="w alt"><h3><span class="en">Pick another pattern when</span><span class="hi">Doosra pattern kab lein</span></h3><ul>
+<li><span class="en">Broad read load across many rows: <a href="#p10">Read replicas</a>.</span><span class="hi">Bahut saari rows pe faila read load: <a href="#p10">Read replicas</a>.</span></li>
+<li><span class="en">Many writers make invalidation hard: invalidate from the log with <a href="#p06">CDC</a>.</span><span class="hi">Kai writers ki wajah se invalidation mushkil: <a href="#p06">CDC</a> se log se invalidate karo.</span></li>
+<li><span class="en">Complex read shapes: <a href="#p03">CQRS</a>.</span><span class="hi">Complex read shapes: <a href="#p03">CQRS</a>.</span></li>
+</ul></div>
+</div></div></div></section>
+</main>
+<footer><div class="wrap"><p><span class="en">Companion to the DB scaling playbook, which has the Java code and interview questions. Every pattern here trades simplicity for scale, so start with the cheapest one that solves your problem.</span><span class="hi">Yeh DB scaling playbook ka saathi page hai, jisme Java code aur interview questions hain. Yahan har pattern simplicity dekar scale deta hai, isliye sabse sasta pattern chuno jo tumhari problem solve kare.</span></p></div></footer>
+<noscript><p style="padding:16px">The animations and the language switch need JavaScript.</p></noscript>
+<script>
+(function () {
+  'use strict';
+  var root = document.documentElement;
+  var reduceMotion = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  function lang() { return root.getAttribute('data-lang') === 'hi' ? 'hi' : 'en'; }
+  function L(pair) { return Array.isArray(pair) ? pair[lang() === 'hi' ? 1 : 0] : (pair || ''); }
+  function rm(el) { if (el && el.parentNode) el.parentNode.removeChild(el); }
+  function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+
+  /* ---------- language switch ---------- */
+  function setLang(next, save) {
+    root.setAttribute('data-lang', next);
+    root.setAttribute('lang', next === 'hi' ? 'hi-Latn' : 'en');
+    document.querySelectorAll('[data-set-lang]').forEach(function (b) {
+      b.setAttribute('aria-pressed', String(b.getAttribute('data-set-lang') === next));
+    });
+    if (save) { try { localStorage.setItem('dbpa-lang', next); } catch (e) { /* storage blocked */ } }
+    document.dispatchEvent(new CustomEvent('langchange'));
+  }
+  var savedLang = null;
+  try { savedLang = localStorage.getItem('dbpa-lang'); } catch (e) { savedLang = null; }
+  if (savedLang === 'hi' || savedLang === 'en') setLang(savedLang, false);
+  document.querySelectorAll('[data-set-lang]').forEach(function (b) {
+    b.addEventListener('click', function () { setLang(b.getAttribute('data-set-lang'), true); });
+  });
+
+  /* ---------- sticky bar + station rail ---------- */
+  var bar = document.getElementById('bar');
+  function syncBar() { root.style.setProperty('--bar-h', bar.offsetHeight + 'px'); }
+  syncBar();
+  window.addEventListener('resize', syncBar);
+  if ('ResizeObserver' in window) new ResizeObserver(syncBar).observe(bar);
+  var rail = document.querySelector('.rail');
+  var stations = Array.prototype.slice.call(rail.querySelectorAll('a.stn'));
+  var stationById = {};
+  stations.forEach(function (a) { stationById[a.getAttribute('href').slice(1)] = a; });
+  var activeId = '';
+  function activate(id) {
+    if (!id || id === activeId || !stationById[id]) return;
+    activeId = id;
+    stations.forEach(function (a) { a.removeAttribute('aria-current'); });
+    var a = stationById[id];
+    a.setAttribute('aria-current', 'true');
+    var left = a.offsetLeft - (rail.clientWidth - a.offsetWidth) / 2;
+    if (rail.scrollTo) rail.scrollTo({ left: Math.max(0, left), behavior: reduceMotion ? 'auto' : 'smooth' });
+  }
+  if ('IntersectionObserver' in window) {
+    var railIo = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) { if (e.isIntersecting) activate(e.target.id); });
+    }, { rootMargin: '-35% 0px -60% 0px' });
+    Object.keys(stationById).forEach(function (id) { var t = document.getElementById(id); if (t) railIo.observe(t); });
+  }
+
+  /* ---------- scenes: problem first, then solution ---------- */
+  var P = {
+    p01: {
+      problem: { h: 268, t0: ['One shared database for every service', 'Har service ke liye ek hi shared database'],
+        nodes: ['ord@L0:Order svc|team A', 'pay@M0:Payment svc|team B', 'rep@R0:Reporting|team C', 'db@M3:Shared DB|one schema|db'],
+        edges: ['ord-db', 'pay-db', 'rep-db'],
+        steps: [
+          { go: ['ord>db:orders|pay>db:orders|rep>db:JOIN all'], t: ['Everyone uses the same tables', 'Sab same tables use karte hain'], c: ['Three services read and write the same orders tables. On day one this feels simple.', 'Teen services same orders tables padhti aur likhti hain. Pehle din yeh simple lagta hai.'] },
+          { pb: { ord: 'deploy' }, go: ['ord>db:ALTER TABLE'], k: { db: 'total → amount' }, t: ['Team A renames a column', 'Team A ek column rename karti hai'], c: ['During its own deploy, the order team renames orders.total to amount.', 'Apne deploy me order team orders.total ko amount rename kar deti hai.'] },
+          { go: ['pay>db:SELECT total!|rep>db:SELECT total!'], n: { pay: 'down', rep: 'down' }, b: { ord: null, pay: '!500 errors', rep: '!500 errors' }, t: ['Other teams break', 'Doosri teams toot jaati hain'], c: ['Payment and reporting still read the old column and start failing, although they deployed nothing.', 'Payment aur reporting abhi bhi purana column padhti hain aur fail hone lagti hain, jabki unhone kuch deploy nahi kiya.'] },
+          { pn: { pay: 'ok', rep: 'ok' }, pb: { pay: null, rep: null }, go: ['rep>db:10-min report'], n: { db: 'hot' }, k: { db: 'CPU 98%' }, t: ['One heavy query hurts everyone', 'Ek heavy query sabko nuksaan'], c: ['A long report scans the shared tables, and checkout slows down for every customer.', 'Ek lamba report shared tables scan karta hai, aur har customer ke liye checkout slow ho jaata hai.'] },
+          { b: { db: '!one blast radius' }, t: ['Hidden coupling', 'Chhupi hui coupling'], c: ['A shared database means no independent deploys, no independent scaling, and one failure takes every service down.', 'Shared database ka matlab: na alag deploy, na alag scaling, aur ek failure sab services ko gira deta hai.'] }
+        ] },
+      solution: { h: 268, t0: ['Each service owns its data', 'Har service apna data khud own karti hai'],
+        nodes: ['odb@L0:Orders DB|private|db', 'pdb@M0:Payments DB|private|db', 'rdb@R0:Reports DB|private|db', 'ord@L1:Order svc|team A', 'pay@M1:Payment svc|team B', 'rep@R1:Reporting|team C', 'bus@M3:Kafka|events|bus'],
+        edges: ['ord-odb', 'pay-pdb', 'rep-rdb', 'pay-ord', 'ord-bus', 'bus-rep'],
+        steps: [
+          { go: ['ord>odb:own tables|pay>pdb:own tables|rep>rdb:own tables'], t: ['Private databases', 'Private databases'], c: ['Each service has its own database. No other service may read or write it, not even for a quick report.', 'Har service ka apna database hai. Koi doosri service use padh ya likh nahi sakti, quick report ke liye bhi nahi.'] },
+          { pb: { ord: 'deploy' }, go: ['ord>odb:ALTER TABLE'], b: { ord: null, pay: '+still fine', rep: '+still fine' }, t: ['Change without fear', 'Bina dar ke change'], c: ['Team A renames its column. Only its own code and database change, and everyone else keeps working.', 'Team A apna column rename karti hai. Sirf uska code aur database badalta hai, baaki sab chalte rehte hain.'] },
+          { pb: { pay: null, rep: null }, go: ['pay>ord:GET /orders/101', 'ord>pay:amount 499'], t: ['Ask through the API', 'API se poocho'], c: ['Payment needs order data, so it calls the Order API. The API is a stable contract that hides the table layout.', 'Payment ko order ka data chahiye, toh woh Order API call karti hai. API ek stable contract hai jo table layout chhupa leta hai.'] },
+          { go: ['ord>bus:OrderPlaced', 'bus>rep:OrderPlaced'], k: { rdb: 'orders_view +1' }, t: ['Share changes as events', 'Changes events se share karo'], c: ['Reporting keeps its own copy, built from events. Its heavy queries run on its own store, never on checkout’s.', 'Reporting apni copy khud rakhti hai, events se bani hui. Uski heavy queries apne store pe chalti hain, checkout wale pe kabhi nahi.'] },
+          { b: { pdb: '+scaled ×3' }, k: { pdb: 'bigger box' }, t: ['Scale each one alone', 'Har ek ko alag scale karo'], c: ['Each database is scaled, tuned or even replaced (Postgres, MongoDB, Elasticsearch) on its own schedule.', 'Har database apne hisaab se scale, tune ya replace (Postgres, MongoDB, Elasticsearch) hota hai.'] }
+        ] }
+    },
+    p02: {
+      problem: { h: 268, t0: ['One page needs data from three services', 'Ek page ko teen services ka data chahiye'],
+        nodes: ['cl@M0:Client app|order page|user', 'bff@M1:Composer|fan-out API', 'ord@L3:Order svc|own DB', 'pay@M3:Payment svc|own DB', 'ship@R3:Shipping svc|own DB'],
+        edges: ['cl-bff', 'bff-ord', 'bff-pay', 'bff-ship'],
+        steps: [
+          { go: ['cl>bff:GET /orders/101'], t: ['One page, three owners', 'Ek page, teen owners'], c: ['The order details page needs the order, its payment and its shipment. There is no shared database to JOIN.', 'Order details page ko order, uski payment aur shipment chahiye. JOIN karne ke liye koi shared database nahi hai.'] },
+          { go: ['bff>ord:1. order', 'ord>bff:120 ms', 'bff>pay:2. payment', 'pay>bff:150 ms', 'bff>ship:3. shipment'], t: ['Calls one after another', 'Ek ke baad ek calls'], c: ['The composer calls the services one after another, so their latencies add up.', 'Composer services ko ek ke baad ek call karta hai, isliye unki latency judti jaati hai.'] },
+          { n: { ship: 'hot' }, b: { ship: '!3 s slow' }, t: ['One slow dependency', 'Ek slow dependency'], c: ['Shipping is having a bad day and answers in 3 seconds.', 'Shipping ka din kharab hai aur woh 3 second me jawab deti hai.'] },
+          { go: ['bff>cl:no answer!'], b: { cl: '!error page' }, t: ['The whole page fails', 'Poora page fail'], c: ['The page times out and the user sees an error, even though the order and payment were ready. Optional data broke the mandatory data.', 'Page time out ho jaata hai aur user ko error dikhta hai, jabki order aur payment ready the. Optional data ne zaroori data ko tod diya.'] }
+        ] },
+      solution: { h: 268, t0: ['Parallel calls with a time budget', 'Time budget ke saath parallel calls'],
+        nodes: ['cl@M0:Client app|order page|user', 'bff@M1:Composer|fan-out API', 'ord@L3:Order svc|own DB', 'pay@M3:Payment svc|own DB', 'ship@R3:Shipping svc|own DB'],
+        edges: ['cl-bff', 'bff-ord', 'bff-pay', 'bff-ship'],
+        steps: [
+          { go: ['cl>bff:GET /orders/101'], t: ['Same request', 'Wahi request'], c: ['Same page, same three services.', 'Wahi page, wahi teen services.'] },
+          { go: ['bff>ord:order|bff>pay:payment|bff>ship:shipment'], t: ['Fan out in parallel', 'Parallel fan-out'], c: ['The composer starts all three calls at once. The total time is the slowest call, not the sum.', 'Composer teeno calls ek saath shuru karta hai. Total time sabse slow call jitna hota hai, sum nahi.'] },
+          { pn: { ship: 'hot' }, go: ['ord>bff:order ok|pay>bff:paid'], t: ['Fast answers come back', 'Fast jawab aa jaate hain'], c: ['Order and payment answer in about 150 ms. Shipping is still slow.', 'Order aur payment lagbhag 150 ms me jawab dete hain. Shipping abhi bhi slow hai.'] },
+          { b: { ship: '!cut at 300 ms' }, k: { bff: 'fallback used' }, t: ['Stop waiting at the budget', 'Budget pe wait band'], c: ['At 300 ms the composer stops waiting for the optional part and uses a fallback: shipment status unknown.', '300 ms pe composer optional part ka wait band karta hai aur fallback use karta hai: shipment status unknown.'] },
+          { go: ['bff>cl:200, partial'], b: { cl: '+page shown' }, k: { cl: 'status: unknown' }, t: ['The page still works', 'Page phir bhi chalta hai'], c: ['The page renders in about 300 ms with a small note. If the order itself fails, the page still fails fast, because that data is mandatory.', 'Page lagbhag 300 ms me ek chhote note ke saath dikh jaata hai. Agar order hi fail ho, toh page jaldi fail hota hai, kyunki woh data zaroori hai.'] }
+        ] }
+    },
+    p03: {
+      problem: { h: 268, t0: ['One model for writes and heavy reads', 'Writes aur heavy reads ke liye ek hi model'],
+        nodes: ['w@L0:Checkout|writes', 'd@R0:Dashboards|20 heavy reads', 'db@M3:Orders DB|one model|db'],
+        edges: ['w-db', 'd-db'],
+        steps: [
+          { go: ['w>db:INSERT order|d>db:GROUP BY, 30 s'], t: ['Same tables, two jobs', 'Same tables, do kaam'], c: ['Checkout inserts orders while 20 dashboards run big GROUP BY queries on the same tables.', 'Checkout orders insert karta hai aur usi waqt 20 dashboards same tables pe bade GROUP BY queries chalate hain.'] },
+          { n: { db: 'hot' }, k: { db: 'CPU 97%' }, b: { db: '!14 indexes' }, t: ['Conflicting needs', 'Takraati zaroortein'], c: ['Reads want many indexes and joins, and every extra index slows every write. One schema can’t be good at both.', 'Reads ko bahut indexes aur joins chahiye, aur har extra index har write ko slow karta hai. Ek schema dono me achha nahi ho sakta.'] },
+          { go: ['w>db:INSERT order!'], b: { w: '!2 s checkout', d: '!timeouts' }, t: ['Both sides suffer', 'Dono taraf nuksaan'], c: ['Checkout latency jumps during reporting hours, and the dashboards still time out.', 'Reporting ke time checkout latency badh jaati hai, aur dashboards phir bhi time out hote hain.'] }
+        ] },
+      solution: { h: 268, t0: ['Separate the write side from the read side', 'Write side aur read side alag karo'],
+        nodes: ['u@M0:Client|user|user', 'cmd@L1:Command API|rules', 'qry@R1:Query API|reads', 'wdb@L3:Write DB|normalized|db', 'prj@M3:Projector|from events|bus', 'rdb@R3:Read DB|screen-shaped|db'],
+        edges: ['u-cmd', 'u-qry', 'cmd-wdb', 'qry-rdb', 'wdb-prj', 'prj-rdb'],
+        steps: [
+          { go: ['u>cmd:PlaceOrder', 'cmd>wdb:INSERT'], t: ['Commands change state', 'Commands state badalte hain'], c: ['Commands go to the write side: a small, normalized model whose only job is to enforce the rules.', 'Commands write side pe jaate hain: ek chhota, normalized model jiska kaam sirf rules enforce karna hai.'] },
+          { go: ['wdb>prj:OrderPlaced'], t: ['Changes become events', 'Changes events bante hain'], c: ['Every change is published as an event, through an outbox or CDC.', 'Har change event ke roop me publish hota hai, outbox ya CDC ke through.'] },
+          { go: ['prj>rdb:update views'], k: { rdb: 'orders_by_day +1' }, t: ['Build read models', 'Read models banao'], c: ['A projector updates tables shaped exactly like each screen: pre-joined and pre-aggregated, even in another store such as Elasticsearch.', 'Projector aise tables update karta hai jo bilkul screen ke shape me hain: pehle se joined aur aggregated, chahe Elasticsearch jaise doosre store me.'] },
+          { go: ['u>qry:GET dashboard', 'qry>rdb:SELECT, no joins', 'rdb>qry>u:rows'], t: ['Queries read the views', 'Queries views padhti hain'], c: ['Dashboards read the prepared views in milliseconds, and they never slow down checkout.', 'Dashboards prepared views milliseconds me padhte hain, aur checkout ko kabhi slow nahi karte.'] },
+          { b: { rdb: '~lag ~200 ms' }, t: ['The trade-off', 'Trade-off'], c: ['The read side is eventually consistent: a new order appears on the dashboard a moment later.', 'Read side eventually consistent hai: naya order dashboard pe thodi der baad dikhta hai.'] }
+        ] }
+    },
+    p04: {
+      problem: { h: 268, t0: ['Updates overwrite history', 'Updates history mita dete hain'],
+        nodes: ['aud@L0:Auditor|asks why|user', 'app@M0:Account svc|', 'db@M3:accounts|balance 500|db'],
+        edges: ['app-db', 'aud-app'],
+        steps: [
+          { go: ['app>db:SET balance = 700'], k: { db: 'balance 700' }, t: ['Deposit 200', '200 deposit'], c: ['A deposit runs UPDATE accounts SET balance = 700. The previous value is overwritten.', 'Deposit UPDATE accounts SET balance = 700 chalata hai. Purani value overwrite ho jaati hai.'] },
+          { go: ['app>db:SET balance = 500'], k: { db: 'balance 500' }, t: ['Withdraw 200', '200 withdraw'], c: ['A withdrawal overwrites it again. The table only knows the latest number.', 'Withdrawal use phir overwrite karta hai. Table ko sirf latest number pata hai.'] },
+          { go: ['aud>app:balance on 3 March?'], b: { aud: '~why 500?' }, t: ['The auditor asks', 'Auditor poochta hai'], c: ['An auditor asks what the balance was on 3 March, and why it changed.', 'Auditor poochta hai ki 3 March ko balance kya tha, aur kyun badla.'] },
+          { b: { db: '!history lost' }, t: ['No answer', 'Koi jawab nahi'], c: ['Logs are partial and hard to trust. A bug that wrote a wrong balance can’t be traced or replayed.', 'Logs adhoore hain aur unpe bharosa mushkil hai. Galat balance likhne wala bug na trace hota hai, na replay.'] }
+        ] },
+      solution: { h: 268, t0: ['Store every change as an event', 'Har change ko event ke roop me store karo'],
+        nodes: ['aud@L0:Auditor|asks why|user', 'app@M0:Account svc|', 'es@M3:Event store|append-only|db', 'view@R3:Balance view|projection|db'],
+        edges: ['app-es', 'es-view', 'aud-app', 'aud~es'],
+        steps: [
+          { go: ['app>es:v1 Opened'], k: { es: '1 event' }, t: ['Append, never update', 'Sirf append, update kabhi nahi'], c: ['Every change is stored as an event with a version: AccountOpened, version 1.', 'Har change version ke saath event ke roop me store hota hai: AccountOpened, version 1.'] },
+          { go: ['app>es:v2 Deposited 700', 'app>es:v3 Withdrew 200'], k: { es: '3 events' }, t: ['Facts pile up', 'Facts jama hote hain'], c: ['Deposits and withdrawals are appended. The key (account, version) is unique, so two writers can’t both append version 3.', 'Deposits aur withdrawals append hote hain. Key (account, version) unique hai, isliye do writers dono version 3 append nahi kar sakte.'] },
+          { go: ['es>app:replay v1 to v3'], k: { app: 'balance 500' }, t: ['State is a replay', 'State ek replay hai'], c: ['The current balance is a replay of the events: 0 + 700 − 200 = 500. Snapshots keep long histories fast.', 'Current balance events ka replay hai: 0 + 700 − 200 = 500. Snapshots lambi history ko bhi fast rakhte hain.'] },
+          { go: ['es>view:project'], k: { view: 'balance 500' }, t: ['Projections for reads', 'Reads ke liye projections'], c: ['Projections turn the same events into fast read tables. You can delete and rebuild them at any time.', 'Projections same events ko fast read tables me badalte hain. Inhe kabhi bhi delete karke dobara bana sakte ho.'] },
+          { go: ['aud>es:events up to 3 March'], b: { aud: '+answer found' }, t: ['The audit is easy', 'Audit aasaan hai'], c: ['The auditor replays the events up to 3 March and sees exactly what happened, and why.', 'Auditor 3 March tak ke events replay karta hai aur dekhta hai ki bilkul kya hua, aur kyun.'] }
+        ] }
+    },
+    p05: {
+      problem: { h: 268, t0: ['Two writes, no shared transaction', 'Do writes, koi shared transaction nahi'],
+        nodes: ['svc@M0:Order svc|', 'db@L3:Orders DB||db', 'kfk@R3:Kafka||bus', 'inv@R1:Inventory|waits for events'],
+        edges: ['svc-db', 'svc-kfk', 'kfk-inv'],
+        steps: [
+          { go: ['svc>db:INSERT + COMMIT'], k: { db: 'order #101' }, t: ['Save the order', 'Order save karo'], c: ['The order is inserted and committed.', 'Order insert aur commit ho jaata hai.'] },
+          { pn: { kfk: 'down' }, go: ['svc>kfk:OrderPlaced!'], b: { kfk: '!timeout' }, t: ['The publish fails', 'Publish fail'], c: ['Next the service publishes OrderPlaced, but the broker times out, or the pod crashes at exactly this moment.', 'Ab service OrderPlaced publish karti hai, par broker time out ho jaata hai, ya pod bilkul isi pal crash ho jaata hai.'] },
+          { b: { inv: '!never hears' }, t: ['The systems disagree', 'Systems alag-alag baat kehte hain'], c: ['Inventory never hears about order #101: no stock is held and no email goes out. The database and Kafka now disagree.', 'Inventory ko order #101 ka pata hi nahi chalta: na stock hold hota hai, na email jaati hai. Database aur Kafka ab alag-alag baat kehte hain.'] },
+          { pn: { kfk: 'ok' }, pb: { kfk: null, inv: null }, go: ['svc>kfk:OrderPlaced #102', 'svc>db:INSERT #102!'], b: { db: '!rolled back' }, t: ['Swapping the order doesn’t help', 'Order badalne se fayda nahi'], c: ['Publishing first is no better: if the insert then fails, everyone has heard about an order that doesn’t exist.', 'Pehle publish karna bhi behtar nahi: agar phir insert fail ho gaya, toh sabko aise order ki khabar mil gayi jo exist hi nahi karta.'] }
+        ] },
+      solution: { h: 268, t0: ['Write the event in the same transaction', 'Event ko same transaction me likho'],
+        nodes: ['svc@M0:Order svc|', 'db@L1:Orders DB|orders + outbox|db', 'rel@L3:Outbox relay|polls or CDC', 'kfk@M3:Kafka||bus', 'inv@R3:Inventory|consumer'],
+        edges: ['svc-db', 'db-rel', 'rel-kfk', 'kfk-inv'],
+        steps: [
+          { go: ['svc>db:order + outbox row'], k: { db: 'outbox row NEW' }, t: ['One local transaction', 'Ek local transaction'], c: ['In one local transaction the service inserts the order and an outbox row that describes the event. Both commit, or neither does.', 'Ek local transaction me service order aur event batane wali outbox row dono insert karti hai. Dono commit honge, ya koi nahi.'] },
+          { go: ['db>svc:COMMIT ok'], t: ['No Kafka call in the request', 'Request me Kafka call nahi'], c: ['The commit succeeds and the user gets a response. The service never talks to Kafka directly.', 'Commit successful hota hai aur user ko response mil jaata hai. Service kabhi seedha Kafka se baat nahi karti.'] },
+          { pn: { kfk: 'down' }, pb: { kfk: '!down' }, go: ['db>rel:poll NEW rows', 'rel>kfk:publish!'], t: ['The broker is down? Fine.', 'Broker down hai? Koi baat nahi.'], c: ['The relay picks up unsent rows and tries to publish. Kafka is down, so the row simply stays NEW and is retried.', 'Relay unsent rows uthata hai aur publish karne ki koshish karta hai. Kafka down hai, toh row bas NEW rehti hai aur retry hoti hai.'] },
+          { pn: { kfk: 'ok' }, pb: { kfk: null }, go: ['rel>kfk:OrderPlaced'], k: { db: 'outbox row SENT' }, t: ['Publish, then mark sent', 'Publish, phir sent mark'], c: ['Kafka recovers. The relay publishes the event and marks the row sent.', 'Kafka wapas aata hai. Relay event publish karta hai aur row ko sent mark karta hai.'] },
+          { go: ['kfk>inv:OrderPlaced'], k: { inv: 'stock held' }, b: { inv: '+got it' }, t: ['Delivery is guaranteed', 'Delivery pakki hai'], c: ['Inventory always gets the event, at least once. A crash between publish and mark causes a resend, so consumers deduplicate (pattern 7).', 'Inventory ko event hamesha milta hai, kam se kam ek baar. Publish aur mark ke beech crash hua toh resend hoga, isliye consumers deduplicate karte hain (pattern 7).'] }
+        ] }
+    },
+    p06: {
+      problem: { h: 268, t0: ['Others need changes from a database you can’t touch', 'Doosron ko aise DB ke changes chahiye jise tum chhu nahi sakte'],
+        nodes: ['app@L0:Legacy app|code frozen', 'db@L2:Legacy DB|price 499|db', 'job@M2:Sync job|every 5 min', 'cache@R1:Cache|price 499|cache', 'srch@R3:Search index|price 499|db'],
+        edges: ['app-db', 'job-db', 'job-cache', 'job-srch'],
+        steps: [
+          { go: ['app>db:UPDATE price 449'], k: { db: 'price 449' }, t: ['A change happens', 'Change hota hai'], c: ['A legacy app lowers a price directly in its database. You can’t add event publishing to its code.', 'Legacy app apne database me seedha price kam karta hai. Uske code me event publishing add nahi kar sakte.'] },
+          { b: { cache: '~stale', srch: '~stale' }, t: ['Nobody knows yet', 'Abhi kisi ko pata nahi'], c: ['The cache and the search index still show 499.', 'Cache aur search index abhi bhi 499 dikhate hain.'] },
+          { go: ['job>db:SELECT changed rows', 'job>cache:5 min late|job>srch:5 min late'], n: { db: 'hot' }, k: { db: 'CPU +30%', cache: 'price 449', srch: 'price 449' }, b: { cache: null, srch: null }, t: ['Polling adds load and delay', 'Polling load aur delay badhata hai'], c: ['A sync job polls the table every 5 minutes. It adds load, updates the others late, and needs a reliable updated_at column on every table.', 'Sync job har 5 minute table poll karta hai. Isse load badhta hai, baaki systems late update hote hain, aur har table me reliable updated_at column chahiye.'] },
+          { pn: { db: 'ok' }, go: ['app>db:DELETE product 9', 'job>db:SELECT changed rows'], b: { srch: '!ghost product' }, t: ['Deletes are invisible', 'Deletes dikhte hi nahi'], c: ['A deleted row simply disappears, so the poller never sees it. Search keeps showing a product that no longer exists.', 'Delete hui row bas gayab ho jaati hai, isliye poller use kabhi nahi dekhta. Search aisa product dikhata rehta hai jo ab exist nahi karta.'] }
+        ] },
+      solution: { h: 268, t0: ['Stream changes straight from the database log', 'Database log se seedha changes stream karo'],
+        nodes: ['app@L0:Legacy app|unchanged', 'db@L2:Legacy DB|WAL / binlog|db', 'cdc@M2:Debezium|reads the log', 'kfk@R2:Kafka|change events|bus', 'cache@R1:Cache|price 499|cache', 'srch@R3:Search index|price 499|db'],
+        edges: ['app-db', 'db-cdc', 'cdc-kfk', 'kfk-cache', 'kfk-srch'],
+        steps: [
+          { go: ['app>db:UPDATE price 449'], k: { db: 'WAL: price 449' }, t: ['The app writes as usual', 'App pehle jaisa likhta hai'], c: ['Nothing changes in the app. Every committed change is already recorded in the database log: the WAL in Postgres, the binlog in MySQL.', 'App me kuch nahi badalta. Har committed change pehle se database log me hota hai: Postgres me WAL, MySQL me binlog.'] },
+          { go: ['db>cdc:read the log'], t: ['Read the log, not the tables', 'Tables nahi, log padho'], c: ['Debezium reads the log the way a replica does. No queries hit the tables, so there is almost no extra load.', 'Debezium log waise hi padhta hai jaise replica padhta hai. Tables pe koi query nahi, isliye extra load lagbhag zero.'] },
+          { go: ['cdc>kfk:before 499, after 449'], t: ['Ordered change events', 'Ordered change events'], c: ['Every insert, update and delete becomes an ordered change event with the before and after values.', 'Har insert, update aur delete ek ordered change event banta hai, before aur after values ke saath.'] },
+          { go: ['kfk>cache:DEL key|kfk>srch:reindex'], k: { cache: 'price 449', srch: 'price 449' }, b: { cache: '+fresh', srch: '+fresh' }, t: ['Everyone updates in seconds', 'Sab seconds me update'], c: ['The cache and the search index update within a second. Deletes arrive too, as delete events.', 'Cache aur search index ek second ke andar update ho jaate hain. Deletes bhi delete events ki tarah aate hain.'] },
+          { pb: { cache: null, srch: null }, b: { cdc: '~schema is API' }, t: ['Mind the contract', 'Contract ka dhyaan rakho'], c: ['Consumers now depend on the table layout. When you own the code, publish from an outbox table instead of raw tables to keep a stable event contract.', 'Consumers ab table layout pe depend karte hain. Code tumhara ho toh raw tables ki jagah outbox table se publish karo, taaki event contract stable rahe.'] }
+        ] }
+    },
+    p07: {
+      problem: { h: 198, t0: ['Messages can arrive twice', 'Messages do baar aa sakte hain'],
+        nodes: ['ord@L0:Order svc|producer', 'kfk@L2:Kafka|at-least-once|bus', 'inv@M2:Inventory svc|consumer', 'db@R2:Inventory DB|stock 5|db'],
+        edges: ['ord-kfk', 'kfk-inv', 'inv-db'],
+        steps: [
+          { go: ['ord>kfk:OrderPlaced e-7', 'kfk>inv:e-7', 'inv>db:stock − 1'], k: { db: 'stock 4' }, t: ['Process an event', 'Event process karo'], c: ['Inventory consumes event e-7 and reserves one unit.', 'Inventory event e-7 consume karta hai aur ek unit reserve karta hai.'] },
+          { n: { inv: 'down' }, b: { inv: '!crash' }, t: ['Crash before the offset commit', 'Offset commit se pehle crash'], c: ['The pod crashes after updating the database, but before telling Kafka that e-7 is done.', 'Pod database update karne ke baad, par Kafka ko e-7 done batane se pehle crash ho jaata hai.'] },
+          { pn: { inv: 'ok' }, pb: { inv: null }, go: ['kfk>inv:e-7 again', 'inv>db:stock − 1'], k: { db: 'stock 3' }, b: { db: '!counted twice' }, t: ['Redelivery', 'Dobara delivery'], c: ['After the restart Kafka delivers e-7 again, and it is processed again: one order, two units gone.', 'Restart ke baad Kafka e-7 dobara deliver karta hai, aur woh dobara process hota hai: ek order, do units gaye.'] },
+          { t: ['This is normal', 'Yeh normal hai'], c: ['Retries, rebalances and outbox resends all cause redelivery. At-least-once delivery is the norm, not a rare edge case.', 'Retries, rebalances aur outbox resends sab redelivery karte hain. At-least-once delivery normal hai, koi rare edge case nahi.'] }
+        ] },
+      solution: { h: 198, t0: ['Remember what you already processed', 'Yaad rakho kya process ho chuka hai'],
+        nodes: ['ord@L0:Order svc|producer', 'kfk@L2:Kafka|at-least-once|bus', 'inv@M2:Inventory svc|consumer', 'db@R2:Inventory DB|stock 5 + inbox|db'],
+        edges: ['ord-kfk', 'kfk-inv', 'inv-db'],
+        steps: [
+          { go: ['ord>kfk:OrderPlaced e-7', 'kfk>inv:e-7', 'inv>db:inbox e-7 + stock − 1'], k: { db: 'stock 4, inbox e-7' }, t: ['Inbox row and change, together', 'Inbox row aur change, saath me'], c: ['In one transaction the consumer inserts e-7 into an inbox table with a unique key, and applies the change.', 'Ek transaction me consumer e-7 ko unique key wali inbox table me insert karta hai, aur change apply karta hai.'] },
+          { n: { inv: 'down' }, b: { inv: '!crash' }, t: ['The same crash', 'Wahi crash'], c: ['The pod crashes before committing the Kafka offset, exactly as before.', 'Pod Kafka offset commit karne se pehle crash hota hai, bilkul pehle jaisa.'] },
+          { pn: { inv: 'ok' }, pb: { inv: null }, go: ['kfk>inv:e-7 again', 'inv>db:INSERT e-7: conflict'], b: { inv: '+skipped' }, t: ['The duplicate is caught', 'Duplicate pakda gaya'], c: ['The redelivered e-7 hits the unique key: zero rows are inserted, so the handler skips the change and commits the offset.', 'Dobara aaya e-7 unique key se takraata hai: zero rows insert hoti hain, isliye handler change skip karta hai aur offset commit karta hai.'] },
+          { b: { db: '+stock still 4' }, t: ['Effectively exactly once', 'Effectively exactly once'], c: ['At-least-once delivery plus idempotent processing gives exactly-once effects. Keep inbox rows longer than the longest redelivery window.', 'At-least-once delivery aur idempotent processing milkar exactly-once effect dete hain. Inbox rows ko sabse lambi redelivery window se zyada der rakho.'] },
+          { pb: { inv: null, db: null }, t: ['Or make it naturally safe', 'Ya naturally safe banao'], c: ['Some writes are safe to repeat: SET status = PAID is idempotent, but stock = stock − 1 is not. Prefer idempotent writes where you can.', 'Kuch writes repeat karna safe hai: SET status = PAID idempotent hai, par stock = stock − 1 nahi. Jahan ho sake idempotent writes use karo.'] }
+        ] }
+    },
+    p08: {
+      problem: { h: 268, t0: ['Two-phase commit across services', 'Services ke beech two-phase commit'],
+        nodes: ['co@M0:Coordinator|2PC', 'odb@L3:Orders DB||db', 'pdb@M3:Payments DB||db', 'idb@R3:Inventory DB||db'],
+        edges: ['co-odb', 'co-pdb', 'co-idb'],
+        steps: [
+          { go: ['co>odb:PREPARE|co>pdb:PREPARE|co>idb:PREPARE'], b: { odb: '~locked', pdb: '~locked', idb: '~locked' }, t: ['Everyone prepares', 'Sab prepare karte hain'], c: ['The coordinator asks every database to PREPARE. Each one locks its rows and votes yes.', 'Coordinator har database ko PREPARE bolta hai. Har ek apni rows lock karke yes vote karta hai.'] },
+          { n: { co: 'down' }, b: { co: '!crash' }, t: ['The coordinator dies', 'Coordinator mar jaata hai'], c: ['The coordinator crashes before it sends COMMIT.', 'COMMIT bhejne se pehle coordinator crash ho jaata hai.'] },
+          { n: { odb: 'hot', pdb: 'hot', idb: 'hot' }, k: { odb: 'rows locked', pdb: 'rows locked', idb: 'rows locked' }, t: ['Stuck in doubt', 'Doubt me atke hue'], c: ['The participants can’t commit or abort on their own, so the rows stay locked. New checkouts queue up behind the locks.', 'Participants khud se commit ya abort nahi kar sakte, isliye rows locked rehti hain. Naye checkouts locks ke peeche line me lag jaate hain.'] },
+          { t: ['Often not even possible', 'Aksar possible hi nahi'], c: ['Kafka, most NoSQL stores and many managed services don’t support 2PC at all, and it ties every service’s availability together.', 'Kafka, zyaadatar NoSQL stores aur kai managed services 2PC support hi nahi karte, aur yeh har service ki availability ko ek saath baandh deta hai.'] }
+        ] },
+      solution: { h: 268, t0: ['A saga: local transactions and compensations', 'Saga: local transactions aur compensations'],
+        nodes: ['pay@M0:Payment svc|own DB', 'ord@L1:Order svc|own DB', 'inv@R1:Inventory svc|own DB', 'bus@M3:Kafka|events|bus'],
+        edges: ['pay-bus', 'ord-bus', 'inv-bus'],
+        steps: [
+          { go: ['ord>bus:OrderCreated'], k: { ord: 'order PENDING' }, t: ['Step 1: the order', 'Step 1: order'], c: ['The order service saves the order as PENDING in its own database and emits OrderCreated through its outbox.', 'Order service order ko PENDING ke roop me apne database me save karti hai aur outbox ke through OrderCreated emit karti hai.'] },
+          { go: ['bus>inv:OrderCreated', 'inv>bus:StockReserved'], k: { inv: '1 unit held' }, t: ['Step 2: the stock', 'Step 2: stock'], c: ['Inventory reacts: it holds the stock in a local transaction and emits StockReserved.', 'Inventory react karta hai: local transaction me stock hold karta hai aur StockReserved emit karta hai.'] },
+          { go: ['bus>pay:StockReserved'], b: { pay: '!card declined' }, t: ['Step 3 fails', 'Step 3 fail'], c: ['Payment reacts, but the card is declined.', 'Payment react karti hai, par card decline ho jaata hai.'] },
+          { go: ['pay>bus:PaymentFailed', 'bus>inv:PaymentFailed|bus>ord:PaymentFailed'], k: { inv: 'hold released', ord: 'CANCELLED' }, b: { pay: null }, t: ['Compensate', 'Compensate karo'], c: ['Every service that already did work undoes it with a new action: inventory releases the stock and the order is cancelled. No global lock was ever held.', 'Jis service ne pehle kaam kiya woh ek naye action se use undo karti hai: inventory stock release karta hai aur order cancel hota hai. Koi global lock kabhi pakda hi nahi gaya.'] },
+          { b: { bus: '+consistent' }, t: ['Eventually consistent', 'Eventually consistent'], c: ['For a moment the services disagreed, then they converged. Every step and every compensation must be idempotent.', 'Ek pal ke liye services alag the, phir converge ho gaye. Har step aur har compensation idempotent hona chahiye.'] }
+        ] }
+    },
+    p09: {
+      problem: { h: 338, t0: ['Choreography that grew too big', 'Choreography jo bahut bada ho gaya'],
+        nodes: ['ord@L0:Order svc|', 'inv@R0:Inventory svc|', 'bus@M2:Kafka|12 event types|bus', 'pay@L4:Payment svc|', 'ship@R4:Shipping svc|', 'mail@M4:Email svc|'],
+        edges: ['ord-bus', 'inv-bus', 'pay-bus', 'ship-bus', 'mail-bus'],
+        steps: [
+          { go: ['ord>bus:OrderCreated', 'bus>inv:event|bus>pay:event|bus>ship:event|bus>mail:event'], t: ['Events everywhere', 'Har taraf events'], c: ['The flow now has six steps, and every service listens to events from several others.', 'Flow me ab chhe steps hain, aur har service kai doosri services ke events sunti hai.'] },
+          { go: ['pay>bus:PaymentOk', 'bus>ship:PaymentOk|bus>mail:PaymentOk', 'ship>bus:Shipped', 'bus>mail:Shipped|bus>inv:Shipped'], t: ['Chains of reactions', 'Reactions ki chain'], c: ['Each event triggers more events. The real business flow exists only as listeners scattered across services.', 'Har event aur events trigger karta hai. Asli business flow sirf services me bikhre hue listeners me hai.'] },
+          { b: { ord: '~where is #204?' }, t: ['No single view', 'Koi ek view nahi'], c: ['Support asks where order 204 is stuck. Nobody can answer without reading the logs of five services.', 'Support poochta hai order 204 kahan atka hai. Paanch services ke logs padhe bina koi jawab nahi de sakta.'] },
+          { b: { pay: '!no reply' }, t: ['Timeouts have no owner', 'Timeouts ka koi owner nahi'], c: ['If payment never answers, no one times out and compensates. Adding a step means changing several services.', 'Agar payment kabhi jawab na de, toh koi timeout karke compensate nahi karta. Naya step add karna matlab kai services badalna.'] }
+        ] },
+      solution: { h: 268, t0: ['One orchestrator runs the flow', 'Ek orchestrator flow chalata hai'],
+        nodes: ['orc@M0:Orchestrator|state: NEW', 'inv@L3:Inventory svc|', 'pay@M3:Payment svc|', 'ship@R3:Shipping svc|'],
+        edges: ['orc-inv', 'orc-pay', 'orc-ship'],
+        steps: [
+          { go: ['orc>inv:ReserveStock', 'inv>orc:Reserved'], k: { orc: 'state: HELD' }, t: ['Command, then reply', 'Command, phir reply'], c: ['The orchestrator is a state machine saved in a database. It sends a command and waits for the reply.', 'Orchestrator database me saved ek state machine hai. Woh command bhejta hai aur reply ka wait karta hai.'] },
+          { go: ['orc>pay:ChargeCard'], k: { orc: 'state: CHARGING' }, b: { pay: '~no reply' }, t: ['Payment is silent', 'Payment chup hai'], c: ['It asks payment to charge the card. Payment doesn’t answer.', 'Woh payment ko card charge karne ko kehta hai. Payment jawab nahi deti.'] },
+          { pb: { orc: '~timeout 30 s', pay: null }, go: ['orc>pay:retry, same key', 'pay>orc:Failed'], t: ['Timeout and retry', 'Timeout aur retry'], c: ['After a timeout it retries with the same idempotency key. This time payment answers: failed.', 'Timeout ke baad woh same idempotency key se retry karta hai. Is baar payment jawab deti hai: failed.'] },
+          { pb: { orc: null }, go: ['orc>inv:ReleaseStock'], k: { orc: 'state: CANCELLED' }, t: ['Compensate from one place', 'Ek jagah se compensate'], c: ['The orchestrator runs the compensation and records the final state. Had payment succeeded, the next command would have gone to shipping.', 'Orchestrator compensation chalata hai aur final state record karta hai. Agar payment success hoti, toh agla command shipping ko jaata.'] },
+          { b: { orc: '+one clear view' }, t: ['One table shows everything', 'Ek table sab dikhata hai'], c: ['Every order’s state lives in one place. Use Temporal, Camunda or AWS Step Functions, or a simple saga table plus an outbox.', 'Har order ki state ek jagah hai. Temporal, Camunda ya AWS Step Functions use karo, ya ek simple saga table aur outbox.'] }
+        ] }
+    },
+    p10: {
+      problem: { h: 268, t0: ['One database serves every read and write', 'Ek database har read aur write serve karta hai'],
+        nodes: ['app@M0:App pods|90% reads', 'pri@M3:Primary DB|CPU 40%|db'],
+        edges: ['app-pri'],
+        steps: [
+          { go: ['app>pri:900 reads/s', 'app>pri:100 writes/s'], t: ['All traffic, one box', 'Saara traffic, ek box'], c: ['Product pages and order history are 90% of the traffic, and all of it goes to one primary.', 'Product pages aur order history traffic ka 90% hain, aur saara traffic ek primary pe jaata hai.'] },
+          { n: { pri: 'hot' }, k: { pri: 'CPU 96%' }, b: { pri: '!overloaded' }, t: ['The primary saturates', 'Primary saturate ho jaata hai'], c: ['CPU and disk are spent on reads, so writes wait in line behind them.', 'CPU aur disk reads me khatam ho jaate hain, isliye writes unke peeche line me lagte hain.'] },
+          { go: ['app>pri:checkout!'], b: { app: '!p99 3 s' }, t: ['Checkouts time out', 'Checkouts time out'], c: ['Checkout writes start timing out during peak hours.', 'Peak hours me checkout writes time out hone lagte hain.'] },
+          { n: { pri: 'down' }, b: { pri: '!down', app: '!outage' }, t: ['No copy', 'Koi copy nahi'], c: ['And if this one machine fails, the whole service is down: there is no copy to fail over to.', 'Aur agar yeh ek machine fail ho gayi, toh poori service down: fail over karne ke liye koi copy hi nahi.'] }
+        ] },
+      solution: { h: 268, t0: ['Writes to the primary, reads to replicas', 'Writes primary pe, reads replicas pe'],
+        nodes: ['app@M0:App pods|routes reads', 'pri@L2:Primary|writes|db', 'r1@M3:Replica 1|reads|db', 'r2@R2:Replica 2|reads|db'],
+        edges: ['app-pri', 'app-r1', 'app-r2', 'pri-r1', 'pri-r2'],
+        steps: [
+          { go: ['app>pri:INSERT order'], k: { pri: 'LSN 0/10' }, t: ['Writes go to the primary', 'Writes primary pe'], c: ['Writes, and reads that must be perfectly fresh, go to the primary.', 'Writes, aur woh reads jo bilkul fresh chahiye, primary pe jaate hain.'] },
+          { go: ['pri>r1:WAL|pri>r2:WAL'], k: { r1: 'LSN 0/10', r2: 'LSN 0/10' }, t: ['Stream the log', 'Log stream karo'], c: ['The primary streams its write-ahead log to the replicas, usually asynchronously.', 'Primary apna write-ahead log replicas ko stream karta hai, aam taur pe async.'] },
+          { go: ['app>r1:SELECT|app>r2:SELECT'], k: { pri: 'CPU 35%' }, b: { pri: '+relaxed' }, t: ['Reads go to replicas', 'Reads replicas pe'], c: ['Read-only transactions are routed to the replicas. Add more replicas as reads grow.', 'Read-only transactions replicas pe route hote hain. Reads badhein toh aur replicas add karo.'] },
+          { pb: { pri: null, r2: '~lag 800 ms' }, go: ['app>pri:UPDATE address', 'app>pri:read own write'], t: ['Read your own writes', 'Apna likha hua padho'], c: ['Replicas lag a little. Right after a user writes, send that user’s reads to the primary for a few seconds.', 'Replicas thoda peeche rehte hain. User ke write ke turant baad, kuch seconds tak uske reads primary pe bhejo.'] },
+          { pn: { pri: 'down' }, pb: { pri: '!down', r2: null }, go: ['app>r1:writes now'], b: { r1: '+promoted' }, k: { r1: 'new primary' }, t: ['Failover', 'Failover'], c: ['If the primary dies, a replica is promoted. With async replication the last few commits can be lost, so use synchronous or quorum commit for money.', 'Primary mar jaaye toh ek replica promote hota hai. Async replication me aakhri kuch commits lose ho sakte hain, isliye paise ke liye synchronous ya quorum commit use karo.'] }
+        ] }
+    },
+    p11: {
+      problem: { h: 268, t0: ['Writes and data outgrow one machine', 'Writes aur data ek machine se bade ho jaate hain'],
+        nodes: ['app@M0:App pods|20k writes/s', 'pri@M3:One primary|8 TB|db'],
+        edges: ['app-pri'],
+        steps: [
+          { go: ['app>pri:20k writes/s'], n: { pri: 'hot' }, k: { pri: '8 TB, CPU 99%' }, t: ['Too many writes', 'Bahut zyada writes'], c: ['Writes and data keep growing. Replicas can’t help, because every replica replays every write.', 'Writes aur data badhte ja rahe hain. Replicas madad nahi kar sakte, kyunki har replica har write replay karta hai.'] },
+          { b: { pri: '!max size' }, t: ['No bigger machine', 'Isse badi machine nahi'], c: ['You are already on the biggest instance. Indexes don’t fit in memory, and a restore takes a whole day.', 'Tum pehle se sabse badi instance pe ho. Indexes memory me fit nahi hote, aur restore me poora din lagta hai.'] },
+          { go: ['app>pri:INSERT!'], b: { app: '!write timeouts' }, t: ['Writes fail', 'Writes fail'], c: ['Write latency climbs until inserts start timing out.', 'Write latency badhti jaati hai, jab tak inserts time out nahi hone lagte.'] }
+        ] },
+      solution: { h: 268, t0: ['Split the data across many primaries', 'Data ko kai primaries me baanto'], n0: { sd: 'hide' },
+        nodes: ['app@M0:App pods|', 'rt@M1:Shard router|hash ring', 'sa@L3:Shard A|slice 1|db', 'sb@M3:Shard B|slice 2|db', 'sc@R3:Shard C|slice 3|db', 'sd@R1:Shard D|new|db'],
+        edges: ['app-rt', 'rt-sa', 'rt-sb', 'rt-sc', 'rt~sd'],
+        steps: [
+          { go: ['app>rt:customer 42'], t: ['Route by the shard key', 'Shard key se route'], c: ['A router hashes the shard key, customer_id, onto a ring to find its shard.', 'Router shard key, customer_id, ko ring pe hash karke uska shard dhoondta hai.'] },
+          { go: ['rt>sa:cust 42|rt>sb:cust 7|rt>sc:cust 99'], t: ['Writes spread out', 'Writes bikhar jaate hain'], c: ['Each shard is a normal primary, with its own replicas, that owns one slice of the customers. Writes now spread across all the shards.', 'Har shard ek normal primary hai, apne replicas ke saath, jo customers ka ek hissa own karta hai. Writes ab saare shards me bat jaate hain.'] },
+          { go: ['app>rt:report, no key', 'rt>sa:scatter|rt>sb:scatter|rt>sc:scatter'], b: { rt: '~scatter-gather' }, t: ['Pick the key well', 'Key soch samajh ke chuno'], c: ['Queries with customer_id touch one shard. Queries without it must ask every shard, so choose the key that most queries use.', 'customer_id wali queries ek shard ko chhooti hain. Bina key wali queries ko har shard se poochna padta hai, isliye woh key chuno jo zyaadatar queries me ho.'] },
+          { pn: { sd: 'show' }, pb: { rt: null }, go: ['sa>sd:keys|sb>sd:keys|sc>sd:keys'], k: { sd: 'slice 4' }, b: { sd: '+added' }, t: ['Add a shard', 'Shard add karo'], c: ['With consistent hashing, a new shard takes only about 1/N of the keys. With hash mod N, going from 3 to 4 shards would move about 75% of them.', 'Consistent hashing me naya shard sirf lagbhag 1/N keys leta hai. Hash mod N me 3 se 4 shards karne pe lagbhag 75% keys move hoti.'] },
+          { pb: { sd: null }, t: ['What it costs', 'Iski keemat'], c: ['Cross-shard joins and transactions go away (use sagas), hot tenants need special care, and resharding is a project of its own.', 'Cross-shard joins aur transactions khatam (sagas use karo), hot tenants ko special care chahiye, aur resharding apne aap me ek project hai.'] }
+        ] }
+    },
+    p12: {
+      problem: { h: 268, t0: ['The same data is read again and again', 'Same data baar-baar padha jaata hai'],
+        nodes: ['u@M0:Users|sale starts|user', 'app@M1:Product API|', 'db@M3:Database|CPU 20%|db'],
+        edges: ['u-app', 'app-db'],
+        steps: [
+          { go: ['u>app:GET product 7 ×50k', 'app>db:SELECT ×50k'], n: { db: 'hot' }, k: { db: 'CPU 95%' }, t: ['Every read hits the database', 'Har read database pe'], c: ['The same product is read 50,000 times a second, and every read goes to the database.', 'Same product ek second me 50,000 baar padha jaata hai, aur har read database pe jaata hai.'] },
+          { pn: { db: 'ok' }, pk: { db: 'CPU 20%' }, b: { app: '~TTL 60 s cache' }, t: ['A naive cache', 'Naive cache'], c: ['Someone adds a simple cache with a fixed 60-second TTL. It helps, until the key expires.', 'Koi fixed 60 second TTL wala simple cache laga deta hai. Madad karta hai, jab tak key expire nahi hoti.'] },
+          { pb: { app: '!key expired' }, go: ['app>db:5,000 misses at once'], n: { db: 'hot' }, k: { db: 'CPU 100%' }, b: { db: '!stampede' }, t: ['A stampede', 'Stampede'], c: ['When the hot key expires, thousands of requests miss together and hit the database in the same instant.', 'Hot key expire hote hi hazaaron requests ek saath miss karke ek hi pal me database pe girti hain.'] },
+          { pn: { db: 'ok' }, pb: { db: null, app: null }, pk: { db: 'CPU 20%' }, go: ['app>db:UPDATE price 449'], b: { app: '!still shows 499' }, t: ['Stale data', 'Stale data'], c: ['A price update reaches the database, but the cache keeps serving the old price until it expires.', 'Price update database tak pahunch jaata hai, par cache expire hone tak purana price hi dikhata rehta hai.'] }
+        ] },
+      solution: { h: 268, t0: ['Cache-aside with a lock and jitter', 'Lock aur jitter ke saath cache-aside'],
+        nodes: ['u@M0:Users|sale starts|user', 'app@M1:Product API|', 'db@L3:Database|CPU 5%|db', 'rc@R3:Redis|empty|cache'],
+        edges: ['u-app', 'app-db', 'app-rc'],
+        steps: [
+          { go: ['u>app:GET product 7', 'app>rc:GET: miss'], t: ['Check the cache first', 'Pehle cache dekho'], c: ['Cache-aside: the app reads Redis first. The key is missing.', 'Cache-aside: app pehle Redis padhta hai. Key missing hai.'] },
+          { go: ['app>rc:SET lock NX 3 s'], b: { app: '~lock won' }, t: ['Only one loader', 'Sirf ek loader'], c: ['Only one request wins a short lock (SET NX with a 3-second expiry). The others wait 50 ms and check the cache again.', 'Sirf ek request chhota lock jeetti hai (3 second expiry wala SET NX). Baaki 50 ms rukti hain aur cache dobara dekhti hain.'] },
+          { go: ['app>db:SELECT once', 'db>app:row', 'app>rc:SET TTL + jitter'], k: { rc: 'product 7' }, b: { app: null }, t: ['Load once, store with jitter', 'Ek baar load, jitter ke saath store'], c: ['The winner loads the row once and stores it with a TTL plus random jitter, so keys don’t all expire at the same moment.', 'Winner row ek baar load karta hai aur TTL + random jitter ke saath store karta hai, taaki saari keys ek hi pal me expire na hon.'] },
+          { go: ['u>app:GET ×50k', 'app>rc:hit'], b: { rc: '+hit, under 1 ms' }, t: ['Everyone else hits the cache', 'Baaki sab ko cache hit'], c: ['Every other request is served from Redis in under a millisecond. The database answered a single query.', 'Baaki har request Redis se ek millisecond se kam me serve hoti hai. Database ne sirf ek query ka jawab diya.'] },
+          { pb: { rc: null }, go: ['app>db:UPDATE price 449', 'app>rc:DEL after commit'], k: { rc: 'evicted' }, t: ['Invalidate on write', 'Write pe invalidate'], c: ['On an update, write the database and delete the key after the commit. The next read loads the fresh price.', 'Update pe database me likho aur commit ke baad key delete karo. Agla read fresh price load karega.'] }
+        ] }
+    }
+  };
+
+  /* ---------- engine ---------- */
+  var NS = 'http://www.w3.org/2000/svg';
+  var GX = { L: 8, M: 130, R: 252 }, GY = [8, 78, 148, 218, 288], NW = 100, NH = 40;
+  var SPEED = 1, ACTIVE = null, STAGES = [];
+  var HINT = {
+    problem: ['Press Play to watch what goes wrong, or use Step.', 'Play dabao aur dekho kya galat hota hai, ya Step use karo.'],
+    solution: ['Press Play to see how this pattern fixes it.', 'Play dabao aur dekho yeh pattern ise kaise fix karta hai.']
+  };
+  var LBL = {
+    play: '<span class="en">Play</span><span class="hi">Chalao</span>',
+    pause: '<span class="en">Pause</span><span class="hi">Roko</span>',
+    replay: '<span class="en">Replay</span><span class="hi">Dobara</span>'
+  };
+  var STAGE_HTML =
+    '<div class="modes" role="tablist">' +
+    '<button type="button" role="tab" data-mode="problem" aria-selected="true"><b>1</b><span class="en">Problem</span><span class="hi">Problem</span></button>' +
+    '<button type="button" role="tab" data-mode="solution" aria-selected="false"><b>2</b><span class="en">Solution</span><span class="hi">Solution</span></button>' +
+    '</div>' +
+    '<div class="cap" aria-live="polite"><div class="st"></div><h4></h4><p></p></div>' +
+    '<svg class="scene" role="img"></svg>' +
+    '<button type="button" class="next" hidden><span class="en">Now see the solution</span><span class="hi">Ab solution dekho</span></button>' +
+    '<div class="ctrl">' +
+    '<button type="button" class="btn pri play"></button>' +
+    '<button type="button" class="btn stepb"><span class="en">Step</span><span class="hi">Agla step</span></button>' +
+    '<button type="button" class="btn again"><span class="en">Restart</span><span class="hi">Shuru se</span></button>' +
+    '<label class="spd"><span class="en">Speed</span><span class="hi">Speed</span> <select><option value="0.5">0.5×</option><option value="1" selected>1×</option><option value="1.5">1.5×</option><option value="2">2×</option></select></label>' +
+    '</div>';
+
+  function mk(tag, attrs, parent) {
+    var e = document.createElementNS(NS, tag);
+    Object.keys(attrs).forEach(function (k) { e.setAttribute(k, attrs[k]); });
+    if (parent) parent.appendChild(e);
+    return e;
+  }
+  function parseNode(s) {
+    var m = /^(\w+)@([LMR])(\d):([^|]*)\|?([^|]*)\|?(\w*)$/.exec(s);
+    return { id: m[1], x: GX[m[2]], y: GY[+m[3]], label: m[4], sub: m[5], kind: m[6] || 'svc' };
+  }
+  function fit(t, max) {
+    t.removeAttribute('textLength'); t.removeAttribute('lengthAdjust');
+    var w = 0;
+    try { w = t.getComputedTextLength(); } catch (e) { w = 0; }
+    if (!w) w = (t.textContent || '').length * 5.8;
+    if (w > max) { t.setAttribute('textLength', String(max)); t.setAttribute('lengthAdjust', 'spacingAndGlyphs'); }
+  }
+
+  function makeStage(el) {
+    var def = P[el.getAttribute('data-p')];
+    if (!def) return null;
+    el.innerHTML = STAGE_HTML;
+    var svg = el.querySelector('svg.scene');
+    var tabs = Array.prototype.slice.call(el.querySelectorAll('.modes button'));
+    var capSt = el.querySelector('.cap .st'), capT = el.querySelector('.cap h4'), capP = el.querySelector('.cap p');
+    var bPlay = el.querySelector('.play'), bStep = el.querySelector('.stepb'), bAgain = el.querySelector('.again');
+    var sel = el.querySelector('select'), bNext = el.querySelector('.next');
+    var sec = el.closest('section'), title = sec ? sec.querySelector('h2').textContent : '';
+    var S = { mode: 'problem', idx: 0, shown: -1, busy: false, playing: false, run: 0, loop: 0 };
+    var nodes = {}, nodeEl = {}, edges = [], st = null, gE, gT, gN, gP;
+    var api = {};
+
+    function center(id) { var n = nodes[id]; return n ? { x: n.x + NW / 2, y: n.y + NH / 2 } : null; }
+    function put(target, src) { if (src) Object.keys(src).forEach(function (k) { target[k] = src[k]; }); }
+
+    function draw() {
+      var m = def[S.mode];
+      while (svg.firstChild) svg.removeChild(svg.firstChild);
+      svg.setAttribute('viewBox', '0 0 360 ' + (m.h || 268));
+      svg.setAttribute('aria-label', title + ': ' + (S.mode === 'problem' ? 'problem' : 'solution'));
+      gE = mk('g', {}, svg); gT = mk('g', {}, svg); gN = mk('g', {}, svg); gP = mk('g', {}, svg);
+      nodes = {}; nodeEl = {}; edges = [];
+      m.nodes.forEach(function (s) { var n = parseNode(s); nodes[n.id] = n; });
+      (m.edges || []).forEach(function (s) {
+        var dash = s.indexOf('~') > 0, ab = s.split(/[-~]/), a = center(ab[0]), b = center(ab[1]);
+        edges.push({ el: mk('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, 'class': 'e' }, gE), a: ab[0], b: ab[1], dash: dash });
+      });
+      Object.keys(nodes).forEach(function (id) {
+        var n = nodes[id], g = mk('g', { 'class': 'nd k-' + n.kind }, gN);
+        mk('rect', { 'class': 'box', x: n.x, y: n.y, width: NW, height: NH, rx: 10 }, g);
+        var l1 = mk('text', { 'class': 'l1', x: n.x + NW / 2, y: n.y + 17, 'text-anchor': 'middle' }, g);
+        l1.textContent = n.label;
+        var sub = mk('text', { 'class': 'l2', x: n.x + NW / 2, y: n.y + 31, 'text-anchor': 'middle' }, g);
+        nodeEl[id] = { g: g, l1: l1, sub: sub };
+      });
+    }
+    function paint() {
+      Object.keys(nodes).forEach(function (id) {
+        var n = nodes[id], ne = nodeEl[id], s = st.state[id] || 'ok';
+        ne.g.setAttribute('class', 'nd k-' + n.kind + (s === 'hot' || s === 'down' || s === 'hide' ? ' ' + s : ''));
+        var txt = Object.prototype.hasOwnProperty.call(st.sub, id) ? st.sub[id] : n.sub;
+        ne.sub.textContent = txt;
+        ne.l1.setAttribute('y', n.y + (txt ? 17 : 25));
+        fit(ne.l1, 94); fit(ne.sub, 92);
+        var old = ne.g.querySelector('.bd'); if (old) ne.g.removeChild(old);
+        var b = st.badge[id];
+        if (b) {
+          var c0 = b.charAt(0), kind = c0 === '!' ? 'bad' : c0 === '+' ? 'good' : c0 === '~' ? 'warn' : '';
+          var text = kind ? b.slice(1) : b, w = Math.round(text.length * 5.8 + 14);
+          var x = Math.max(2, Math.min(n.x + NW - w + 6, 358 - w));
+          var bg = mk('g', { 'class': 'bd' + (kind ? ' ' + kind : '') }, ne.g);
+          mk('rect', { x: x, y: n.y - 7, width: w, height: 17, rx: 8.5 }, bg);
+          mk('text', { x: x + w / 2, y: n.y + 5, 'text-anchor': 'middle' }, bg).textContent = text;
+        }
+      });
+      edges.forEach(function (e) {
+        var hid = st.state[e.a] === 'hide' || st.state[e.b] === 'hide';
+        e.el.setAttribute('class', 'e' + (e.dash ? ' d' : '') + (hid ? ' hide' : ''));
+      });
+    }
+    function flash(id) {
+      var ne = nodeEl[id]; if (!ne) return;
+      ne.g.classList.add('flash');
+      setTimeout(function () { ne.g.classList.remove('flash'); }, 450);
+    }
+    function caption() {
+      var m = def[S.mode];
+      if (S.shown < 0) {
+        capSt.textContent = L(S.mode === 'problem' ? ['The problem', 'Problem'] : ['The solution', 'Solution']);
+        capT.textContent = L(m.t0);
+        capP.textContent = L(HINT[S.mode]);
+      } else {
+        var s = m.steps[S.shown];
+        capSt.textContent = L(['Step ', 'Step ']) + (S.shown + 1) + L([' of ', ' / ']) + m.steps.length;
+        capT.textContent = L(s.t);
+        capP.textContent = L(s.c);
+      }
+    }
+    function ui() {
+      var m = def[S.mode], done = S.idx >= m.steps.length && !S.busy;
+      el.setAttribute('data-mode', S.mode);
+      tabs.forEach(function (t) { t.setAttribute('aria-selected', String(t.getAttribute('data-mode') === S.mode)); });
+      bPlay.innerHTML = S.playing ? LBL.pause : (done ? LBL.replay : LBL.play);
+      bStep.disabled = S.playing || S.busy || done;
+      bNext.hidden = !(S.mode === 'problem' && done && !S.playing);
+    }
+    function hop(a, b, tag, run, fail) {
+      return new Promise(function (resolve) {
+        var A = center(a), B = center(b);
+        if (!A || !B) { resolve(); return; }
+        var dist = Math.hypot(B.x - A.x, B.y - A.y), end = fail ? 0.6 : 1;
+        var trail = mk('line', { x1: A.x, y1: A.y, x2: A.x, y2: A.y, 'class': 'trail' }, gT);
+        var g = mk('g', { 'class': 'pk' }, gP);
+        mk('circle', { r: 6 }, g);
+        if (tag) {
+          var w = Math.round(tag.length * 5.6 + 14), flip = (A.x + B.x) / 2 > 200;
+          mk('rect', { x: flip ? -10 - w : 10, y: -9, width: w, height: 18, rx: 9 }, g);
+          mk('text', { x: flip ? -10 - w / 2 : 10 + w / 2, y: 3.5, 'text-anchor': 'middle' }, g).textContent = tag;
+        }
+        function at(t) {
+          var x = (A.x + (B.x - A.x) * t).toFixed(1), y = (A.y + (B.y - A.y) * t).toFixed(1);
+          g.setAttribute('transform', 'translate(' + x + ',' + y + ')');
+          trail.setAttribute('x2', x); trail.setAttribute('y2', y);
+        }
+        function done() {
+          if (fail) {
+            g.setAttribute('class', 'pk fail'); trail.setAttribute('class', 'trail fail');
+            setTimeout(function () { g.setAttribute('class', 'pk fail gone'); trail.setAttribute('class', 'trail fail fade'); }, 500 / SPEED);
+            setTimeout(function () { rm(g); rm(trail); }, 1400 / SPEED);
+            setTimeout(resolve, 750 / SPEED);
+          } else {
+            rm(g); trail.setAttribute('class', 'trail fade');
+            setTimeout(function () { rm(trail); }, 800);
+            flash(b); resolve();
+          }
+        }
+        var dur = reduceMotion ? 0 : Math.max(450, dist * 3.3) / SPEED;
+        if (!dur) { at(end); done(); return; }
+        var t0 = performance.now();
+        function frame(now) {
+          if (run !== S.run) { rm(g); rm(trail); resolve(); return; }
+          var p = Math.min(1, (now - t0) / dur), e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2;
+          at(e * end);
+          if (p < 1) requestAnimationFrame(frame); else done();
+        }
+        requestAnimationFrame(frame);
+      });
+    }
+    function chain(str, run) {
+      var k = str.indexOf(':');
+      var path = (k < 0 ? str : str.slice(0, k)).split('>').map(function (x) { return x.trim(); });
+      var tag = k < 0 ? '' : str.slice(k + 1).trim();
+      var fail = /!$/.test(tag);
+      if (fail) tag = tag.slice(0, -1).trim();
+      var p = Promise.resolve();
+      path.slice(0, -1).forEach(function (from, i) {
+        var last = i === path.length - 2;
+        p = p.then(function () { if (run === S.run) return hop(from, path[i + 1], tag, run, fail && last); });
+      });
+      return p;
+    }
+    function runStep() {
+      var m = def[S.mode];
+      if (S.busy || S.idx >= m.steps.length) return Promise.resolve(false);
+      var run = S.run, s = m.steps[S.idx];
+      S.busy = true; S.shown = S.idx; S.idx++;
+      put(st.badge, s.pb); put(st.state, s.pn); put(st.sub, s.pk);
+      paint(); caption(); ui();
+      var p = Promise.resolve();
+      (s.go || []).forEach(function (leg) {
+        p = p.then(function () {
+          if (run !== S.run) return;
+          return Promise.all(leg.split('|').map(function (c) { return chain(c, run); }));
+        });
+      });
+      return p.then(function () {
+        if (run !== S.run) return false;
+        put(st.badge, s.b); put(st.state, s.n); put(st.sub, s.k);
+        paint(); S.busy = false; ui();
+        return true;
+      });
+    }
+    function reset() {
+      S.run++; S.loop++; S.playing = false; S.busy = false; S.idx = 0; S.shown = -1;
+      var m = def[S.mode];
+      st = { badge: {}, state: {}, sub: {} };
+      put(st.state, m.n0);
+      draw(); paint(); caption(); ui();
+    }
+    function setMode(mode, autoplay) {
+      S.mode = mode; reset();
+      if (autoplay) play();
+    }
+    function play() {
+      if (ACTIVE && ACTIVE !== api) ACTIVE.pause();
+      ACTIVE = api;
+      var my = ++S.loop, run = S.run;
+      S.playing = true; ui();
+      function tick() {
+        if (my !== S.loop || run !== S.run) return;
+        var m = def[S.mode];
+        if (S.idx >= m.steps.length) {
+          if (S.mode === 'problem') {
+            wait(1300 / SPEED).then(function () { if (my === S.loop && run === S.run) setMode('solution', true); });
+          } else { S.playing = false; ui(); }
+          return;
+        }
+        if (S.busy) { wait(120).then(tick); return; }
+        runStep().then(function (ok) {
+          if (!ok || my !== S.loop || run !== S.run) return;
+          var last = S.idx >= m.steps.length;
+          var words = L(m.steps[S.shown].c).split(/\s+/).length;
+          wait(last && S.mode === 'solution' ? 150 : Math.max(1800, words * 240) / SPEED).then(tick);
+        });
+      }
+      tick();
+    }
+    function pause() {
+      if (!S.playing) return;
+      S.loop++; S.playing = false; ui();
+    }
+
+    bPlay.addEventListener('click', function () {
+      if (S.playing) { pause(); return; }
+      if (S.idx >= def[S.mode].steps.length && !S.busy) reset();
+      play();
+    });
+    bStep.addEventListener('click', function () { if (!S.playing) runStep(); });
+    bAgain.addEventListener('click', reset);
+    bNext.addEventListener('click', function () { setMode('solution', true); });
+    tabs.forEach(function (t) { t.addEventListener('click', function () { setMode(t.getAttribute('data-mode'), false); }); });
+    sel.addEventListener('change', function () {
+      SPEED = parseFloat(sel.value) || 1;
+      STAGES.forEach(function (x) { x.syncSpeed(); });
+    });
+
+    api.pause = pause;
+    api.caption = caption;
+    api.refit = function () { if (st) paint(); };
+    api.syncSpeed = function () { sel.value = String(SPEED); };
+    api.isPlaying = function () { return S.playing; };
+    reset();
+    return api;
+  }
+
+  document.querySelectorAll('.stage[data-p]').forEach(function (el) {
+    var api = makeStage(el);
+    if (!api) return;
+    STAGES.push(api);
+    if ('IntersectionObserver' in window) {
+      new IntersectionObserver(function (entries) {
+        entries.forEach(function (e) { if (!e.isIntersecting && api.isPlaying()) api.pause(); });
+      }).observe(el);
+    }
+  });
+  document.addEventListener('langchange', function () { STAGES.forEach(function (s) { s.caption(); }); });
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(function () { STAGES.forEach(function (s) { s.refit(); }); });
+})();
+</script>
+</body>
+</html>

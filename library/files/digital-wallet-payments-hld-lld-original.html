@@ -1,0 +1,481 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Digital Wallet &amp; Payments System HLD and LLD</title><style>body{font-family:system-ui,sans-serif;max-width:860px;margin:2rem auto;padding:0 16px;line-height:1.6}pre,code{background:#f4f4f4}pre{padding:12px;overflow:auto}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 8px}</style></head><body><h1 id="digital-wallet-payments-system-hld-and-lld">Digital Wallet &amp; Payments System: HLD and LLD</h1>
+<p><time data-atom="date" datetime="2026-09-17">2026-09-17</time> · <span data-atom="mention" data-principal="u_I6FOpjcCjjb50Mzghgt1DQ">@u_I6FOpjcCjjb50Mzghgt1DQ</span></p>
+<h2 id="1-context-and-requirements">1. Context and requirements</h2>
+<p>The system is a stored-value wallet for 10 million users: top up from cards, transfer and pay instantly, withdraw to banks, and never lose or duplicate money. Card and bank rails come from an external payment service provider (PSP) such as Stripe or Adyen in sandbox mode, so the wallet never handles card numbers.</p>
+<p>The stack is Java 25 with Spring Boot 4.1, PostgreSQL, Kafka and Redis. Out of scope for version 1: cross-currency transfers, credit products, issuing cards, and automated chargeback handling.</p>
+<h3 id="functional-requirements">Functional requirements</h3>
+<table><thead><tr><th>ID</th><th>Requirement</th><th>Notes</th></tr></thead><tbody><tr><td>F1</td><td>Users hold one wallet per currency and see ledger, held and available balances</td><td>Available = ledger balance minus active holds</td></tr><tr><td>F2</td><td>Top up from a card through the PSP</td><td>Confirmed asynchronously by signed webhook</td></tr><tr><td>F3</td><td>Transfer instantly to another user</td><td>Same currency in version 1</td></tr><tr><td>F4</td><td>Pay a merchant, with full and partial refunds</td><td>Merchants are settled daily</td></tr><tr><td>F5</td><td>Withdraw to a linked bank account</td><td>Funds are held until the payout settles</td></tr><tr><td>F6</td><td>Transaction history with statuses</td><td>Newest first, cursor pagination</td></tr><tr><td>F7</td><td>Limits by KYC tier and velocity rules</td><td>Checked before any money moves</td></tr><tr><td>F8</td><td>Daily reconciliation against PSP settlement reports</td><td>Mismatches go to an operations queue</td></tr></tbody></table>
+<h3 id="non-functional-requirements">Non-functional requirements</h3>
+<table><thead><tr><th>Quality</th><th>Target</th><th>Why it matters</th></tr></thead><tbody><tr><td>Correctness</td><td>Zero lost or duplicated money; every journal balances</td><td>One double charge is a customer-visible incident</td></tr><tr><td>Durability</td><td>No committed money movement lost (RPO 0)</td><td>Synchronous standby for the ledger database</td></tr><tr><td>Availability</td><td>99.95% for transfers and payments</td><td>About 22 minutes of downtime a month</td></tr><tr><td>Latency</td><td>P2P transfer p99 under 300 ms at the API</td><td>Excludes PSP time for top-ups and payouts</td></tr><tr><td>Auditability</td><td>Every balance change traces to an immutable journal entry</td><td>Disputes and regulators need the full trail</td></tr><tr><td>Compliance</td><td>No card data stored; PII encrypted; retention per jurisdiction</td><td>Keeps PCI DSS scope small and meets record-keeping rules</td></tr></tbody></table>
+<h3 id="scale-assumptions-and-capacity-estimates">Scale assumptions and capacity estimates</h3>
+<p>These are design assumptions for practice, sized like a mid-size national wallet.</p>
+<table><thead><tr><th>Quantity</th><th>Value</th><th>How it is derived</th></tr></thead><tbody><tr><td>Registered users</td><td>10 million</td><td>Assumption</td></tr><tr><td>Money movements per day</td><td>5 million</td><td>Assumption: transfers, payments, top-ups, withdrawals</td></tr><tr><td>Average write rate</td><td>about 58 per second</td><td>5,000,000 / 86,400 s</td></tr><tr><td>Peak write rate</td><td>about 290 per second</td><td>5x average; design for 1,000 per second</td></tr><tr><td>Ledger entries per day</td><td>15 million</td><td>About 3 entries per movement, including fees</td></tr><tr><td>Ledger storage growth</td><td>about 1.6 TB per year</td><td>15 million rows x 300 bytes with indexes x 365 days</td></tr><tr><td>Balance and history reads</td><td>about 1,200 per second average, 6,000 peak</td><td>20 reads per write</td></tr><tr><td>Kafka events</td><td>about 290 per second average</td><td>About 5 events per movement</td></tr></tbody></table>
+<p>The write rate is modest for PostgreSQL; the hard parts are correctness under retries, contention on hot accounts, and external calls that time out.</p>
+<h2 id="2-high-level-design">2. High-level design</h2>
+<p>The wallet core is a modular monolith on one PostgreSQL ledger, with Kafka for side effects and a PSP adapter for card and bank rails. Money movements need one ACID transaction across balances, holds, journal entries and idempotency records. Keeping them in one service and one database avoids distributed transactions on the money path.</p>
+<pre><code class="language-mermaid">flowchart LR
+    APP[&quot;Mobile and web apps&quot;] --&gt; GW[&quot;API gateway&lt;br/&gt;auth, rate limits&quot;]
+    MER[&quot;Merchant backends&quot;] --&gt; GW
+    GW --&gt; CORE[&quot;Wallet core&lt;br/&gt;Spring Boot modular monolith&quot;]
+    CORE --&gt; PG[(&quot;PostgreSQL&lt;br/&gt;ledger and payments&quot;)]
+    CORE --&gt; RD[(&quot;Redis&lt;br/&gt;velocity counters&quot;)]
+    CORE --&gt; PSP[&quot;PSP&lt;br/&gt;cards and payouts&quot;]
+    PSP --&gt;|signed webhooks| CORE
+    PG --&gt; REL[&quot;Outbox relay&quot;]
+    REL --&gt; KF[[&quot;Kafka&quot;]]
+    KF --&gt; NOT[&quot;Notification service&quot;]
+    KF --&gt; RISK[&quot;Risk and analytics&quot;]
+    PSP --&gt;|settlement reports| REC[&quot;Reconciliation job&quot;]
+    REC --&gt; PG</code></pre>
+<p>Only the wallet core writes money; everything downstream of Kafka can fail or lag without changing a balance.</p>
+<h3 id="components">Components</h3>
+<table><thead><tr><th>Component</th><th>Responsibility</th><th>Talks to</th></tr></thead><tbody><tr><td>API gateway</td><td>TLS, OAuth2 token validation, coarse rate limits</td><td>Wallet core</td></tr><tr><td>API module</td><td>Request validation, Idempotency-Key handling, error mapping</td><td>Transfers, payments</td></tr><tr><td>Ledger module</td><td>Posts balanced journals; owns balances and holds</td><td>PostgreSQL</td></tr><tr><td>Transfers module</td><td>P2P use case: limits, journal, events</td><td>Ledger, risk</td></tr><tr><td>Payments module</td><td>Top-ups, merchant payments, refunds, withdrawals and their state machines</td><td>Ledger, PSP adapter</td></tr><tr><td>PSP adapter</td><td>One interface over Stripe or Adyen; webhook signature checks</td><td>PSP</td></tr><tr><td>Risk and limits module</td><td>KYC tiers, velocity limits, risk score before money moves</td><td>Redis, risk service</td></tr><tr><td>Outbox relay</td><td>Publishes committed events to Kafka at least once</td><td>PostgreSQL, Kafka</td></tr><tr><td>Reconciliation job</td><td>Matches PSP and bank reports to internal records daily</td><td>PostgreSQL, object storage</td></tr><tr><td>Notification service</td><td>Push, email and SMS from events</td><td>Kafka</td></tr></tbody></table>
+<h3 id="technology-choices">Technology choices</h3>
+<table><thead><tr><th>Concern</th><th>Choice</th><th>Reason</th></tr></thead><tbody><tr><td>Language and framework</td><td>Java 25, Spring Boot 4.1</td><td>Mature transaction management; virtual threads for blocking PSP calls</td></tr><tr><td>Ledger database</td><td>PostgreSQL with a synchronous standby</td><td>Multi-row ACID transactions, row locks, check constraints</td></tr><tr><td>Events</td><td>Apache Kafka 4.x</td><td>Ordered per key, replayable, many independent consumers</td></tr><tr><td>Counters</td><td>Redis</td><td>Atomic increments with expiry for velocity limits</td></tr><tr><td>Card and bank rails</td><td>PSP in sandbox mode</td><td>Card data stays with the PSP, which keeps PCI DSS scope small</td></tr><tr><td>Deployment</td><td>Kubernetes across 3 availability zones</td><td>Survives a zone failure</td></tr></tbody></table>
+<p>The module boundaries are enforced in tests, so notifications or risk can move into separate services later without touching the ledger.</p>
+<h2 id="3-ledger-design">3. Ledger design</h2>
+<p>Every money movement is one journal transaction whose debits equal its credits in each currency, so money is never created or destroyed by a bug. Balances are derived from these entries; they are never edited on their own.</p>
+<h3 id="accounts">Accounts</h3>
+<p>The ledger is written from the platform&#39;s point of view. A user&#39;s wallet balance is money the platform owes that user, so it is a liability.</p>
+<table><thead><tr><th>Account</th><th>Owner</th><th>Normal side</th><th>Holds</th></tr></thead><tbody><tr><td>User wallet, one per currency</td><td>User</td><td>Credit (liability)</td><td>Money a user can spend or withdraw</td></tr><tr><td>Merchant payable</td><td>Merchant</td><td>Credit (liability)</td><td>Money owed to a merchant until settlement</td></tr><tr><td>PSP receivable</td><td>Platform</td><td>Debit (asset)</td><td>Card top-ups captured but not yet settled by the PSP</td></tr><tr><td>Bank cash</td><td>Platform</td><td>Debit (asset)</td><td>Money in the platform&#39;s bank account</td></tr><tr><td>Payout clearing</td><td>Platform</td><td>Credit (liability)</td><td>Withdrawals paid by the PSP but not yet settled</td></tr><tr><td>Fee revenue</td><td>Platform</td><td>Credit (revenue)</td><td>Fees charged to users or merchants</td></tr><tr><td>PSP fees</td><td>Platform</td><td>Debit (expense)</td><td>Fees the PSP charges the platform</td></tr></tbody></table>
+<p>An account&#39;s balance is credits minus debits for credit-normal accounts, and debits minus credits for debit-normal accounts.</p>
+<h3 id="journal-examples">Journal examples</h3>
+<table><thead><tr><th>Business event</th><th>Debit</th><th>Credit</th><th>Amount</th></tr></thead><tbody><tr><td>Card top-up captured</td><td>PSP receivable</td><td>Alice wallet</td><td>100.00</td></tr><tr><td>P2P transfer</td><td>Alice wallet</td><td>Bob wallet</td><td>30.00</td></tr><tr><td>Merchant payment with 1% fee</td><td>Alice wallet 50.00</td><td>Merchant payable 49.50, fee revenue 0.50</td><td>50.00</td></tr><tr><td>Withdrawal paid out</td><td>Alice wallet</td><td>Payout clearing</td><td>40.00</td></tr><tr><td>PSP settles the top-up, keeping a 2.00 fee</td><td>Bank cash 98.00, PSP fees 2.00</td><td>PSP receivable 100.00</td><td>100.00</td></tr><tr><td>Refund of the merchant payment</td><td>Merchant payable 49.50, fee revenue 0.50</td><td>Alice wallet 50.00</td><td>50.00</td></tr></tbody></table>
+<p>A refund or correction is always a new journal that references the original. Entries are never updated or deleted.</p>
+<h3 id="balances-and-holds">Balances and holds</h3>
+<p>Each account has one balance row with the ledger balance, the held amount and a version. The row changes in the same database transaction as the entries, so it is a consistent cache of the entry sum. Summing billions of entries on every read would be far too slow.</p>
+<p>A hold reserves money without moving it, for example during a withdrawal. It raises the held amount, so available balance drops while the ledger balance stays the same. Capturing a hold posts the real journal; releasing it just lowers the held amount.</p>
+<h3 id="money-representation">Money representation</h3>
+<p>Amounts are stored as a <code>long</code> count of minor units plus an ISO 4217 currency code. Currencies differ in decimal places: JPY has 0, EUR and USD have 2, and BHD and KWD have 3. Floating-point types are never used for money.</p>
+<p><code>BigDecimal</code> appears only for fee percentages and future FX rates, with an explicit rounding mode such as <code>HALF_EVEN</code>. When a fee rounds, the remainder goes to a named account, so no fraction of a cent disappears.</p>
+<h3 id="invariants">Invariants</h3>
+<ol><li><p>For every journal and currency, total debits equal total credits.</p></li><li><p>Entries are append-only; corrections are reversing journals.</p></li><li><p>Each stored balance equals the sum of that account&#39;s entries.</p></li><li><p>A user wallet&#39;s available balance never goes below zero.</p></li><li><p>Every amount is a positive whole number of minor units, and one journal uses one currency in version 1.</p></li></ol>
+<p>The application enforces invariants 1, 4 and 5 before commit, the database enforces 2, 4 and 5 with grants and check constraints, and a nightly job verifies 1 and 3.</p>
+<h2 id="4-core-flows">4. Core flows</h2>
+<p>Three flows carry most of the risk: instant transfers inside the ledger, card top-ups that finish asynchronously, and withdrawals that hold funds across a PSP call.</p>
+<h3 id="p2p-transfer">P2P transfer</h3>
+<pre><code class="language-mermaid">sequenceDiagram
+    actor A as Alice&#39;s app
+    participant API as Wallet API
+    participant LIM as Limits and risk
+    participant LED as Ledger
+    participant DB as PostgreSQL
+    participant REL as Outbox relay
+    participant K as Kafka
+    A-&gt;&gt;API: POST /v1/transfers with Idempotency-Key
+    API-&gt;&gt;DB: claim key, or return saved response
+    API-&gt;&gt;LIM: check tier, velocity, risk score
+    API-&gt;&gt;LED: post transfer journal
+    LED-&gt;&gt;DB: BEGIN, lock both balances by account id
+    LED-&gt;&gt;DB: check funds, insert entries, update balances
+    LED-&gt;&gt;DB: insert outbox event, save response, COMMIT
+    API--&gt;&gt;A: 201 transfer completed
+    REL-&gt;&gt;DB: fetch unpublished events
+    REL-&gt;&gt;K: publish TransferCompleted</code></pre>
+<p>The idempotency record, entries, balances and outbox event commit together, so a retry either replays the saved response or finds that nothing happened.</p>
+<h3 id="card-top-up">Card top-up</h3>
+<pre><code class="language-mermaid">sequenceDiagram
+    actor U as User app
+    participant API as Wallet API
+    participant PAY as Payments module
+    participant PSP as PSP
+    participant LED as Ledger
+    U-&gt;&gt;API: POST /v1/top-ups with Idempotency-Key
+    API-&gt;&gt;PAY: create top-up in CREATED
+    PAY-&gt;&gt;PSP: create payment, our top-up id as key
+    PSP--&gt;&gt;PAY: processing or authentication needed
+    PAY--&gt;&gt;U: 202 with 3-D Secure details
+    U-&gt;&gt;PSP: complete card authentication
+    PSP-&gt;&gt;API: signed webhook: payment succeeded
+    API-&gt;&gt;PAY: verify signature, dedupe event id
+    PAY-&gt;&gt;PSP: fetch payment to confirm amount
+    PAY-&gt;&gt;LED: debit PSP receivable, credit wallet
+    API--&gt;&gt;PSP: 200 acknowledged</code></pre>
+<p>Webhooks can arrive before the API response, twice, or out of order. The forward-only state machine in section 7 makes all three harmless, and a resolver polls the PSP when no webhook arrives within 30 minutes.</p>
+<h3 id="withdrawal-saga">Withdrawal saga</h3>
+<pre><code class="language-mermaid">sequenceDiagram
+    actor U as User app
+    participant PAY as Payments module
+    participant LED as Ledger
+    participant PSP as PSP payouts
+    U-&gt;&gt;PAY: POST /v1/withdrawals with Idempotency-Key
+    PAY-&gt;&gt;LED: place hold for amount plus fee
+    PAY-&gt;&gt;PSP: create payout, withdrawal id as key
+    alt payout paid
+        PSP-&gt;&gt;PAY: webhook: payout paid
+        PAY-&gt;&gt;LED: capture hold, debit wallet
+    else payout failed or returned
+        PSP-&gt;&gt;PAY: webhook: payout failed
+        PAY-&gt;&gt;LED: release hold
+    else call timed out
+        PAY-&gt;&gt;PSP: query payout by withdrawal id
+    end</code></pre>
+<p>The withdrawal is a saga: each step is its own local transaction, and a failure runs a compensation (release the hold) instead of a rollback. The wallet is debited only after the rail confirms, and our withdrawal id is the PSP&#39;s idempotency key, so a retried call cannot pay twice.</p>
+<h2 id="5-correctness-under-failure">5. Correctness under failure</h2>
+<p>Four mechanisms keep money correct when requests repeat, run concurrently or fail halfway: idempotency keys, ordered row locks, a transactional outbox, and an explicit unknown state for PSP calls.</p>
+<h3 id="idempotency-keys">Idempotency keys</h3>
+<p>Mobile networks drop responses, so clients retry, and a retried transfer must not move money twice. Every request that moves money carries a client-generated <code>Idempotency-Key</code> (a UUID).</p>
+<ol><li><p>The server inserts a row keyed by client and key, with a SHA-256 hash of the request and status <code>IN_PROGRESS</code>.</p></li><li><p>Same key, same hash, status <code>COMPLETED</code>: return the stored HTTP status and body without executing again.</p></li><li><p>Same key, different hash: reject with 422 <code>idempotency_key_reused</code>.</p></li><li><p>Same key still <code>IN_PROGRESS</code>: return 409 <code>request_in_progress</code> with a <code>Retry-After</code> header.</p></li><li><p>The final response is saved in the same database transaction as the money movement.</p></li><li><p>Keys expire after 72 hours, longer than any client retry window.</p></li></ol>
+<p>Internal flows such as transfers claim and complete the key in one transaction. A concurrent duplicate then waits on the unique index and sees the committed result. Flows that call a PSP cannot hold a transaction open, so they claim with a 60-second lease that another worker can take over after a crash.</p>
+<h3 id="concurrency-and-locking">Concurrency and locking</h3>
+<p>Two transfers can debit the same wallet at the same moment. The ledger locks every balance row in the journal with <code>SELECT ... FOR UPDATE</code>, always in ascending account id order, and checks funds only after the locks are held.</p>
+<ul><li><p><strong>Lock order prevents deadlocks.</strong> Alice paying Bob while Bob pays Alice would otherwise lock the two rows in opposite orders.</p></li><li><p><strong>READ COMMITTED is enough.</strong> The rows being checked are locked, so SERIALIZABLE would add retries without adding safety on this path.</p></li><li><p><strong>Pessimistic beats optimistic here.</strong> A popular merchant account receives many payments at once; version checks would cause retry storms, while ordered locks are held for a few milliseconds.</p></li><li><p><strong>Hot accounts get buckets.</strong> Credits to a very busy merchant go to one of N sub-accounts, swept into the main account every minute.</p></li></ul>
+<h3 id="transactional-outbox">Transactional outbox</h3>
+<p>Writing to PostgreSQL and publishing to Kafka are two systems, so doing both in a request goes wrong. Publishing before commit can announce a transfer that rolls back; publishing after commit loses the event if the process crashes in between.</p>
+<p>The ledger inserts the event into an <code>outbox_events</code> table inside the money transaction. A relay reads unpublished rows with <code>FOR UPDATE SKIP LOCKED</code>, publishes them, and marks them published. Delivery is at least once, so every consumer records processed event ids and ignores repeats.</p>
+<p>The Kafka key is the account or payment id, which keeps one entity&#39;s events in order within a partition. At higher volume, change data capture with Debezium can read the outbox from the write-ahead log instead of polling.</p>
+<h3 id="unknown-psp-outcomes">Unknown PSP outcomes</h3>
+<p>A timeout does not mean the payment failed: the PSP may already have charged the card. The payment moves to <code>UNKNOWN</code>, never straight to <code>FAILED</code>, and a resolver queries the PSP by our reference until the outcome is final.</p>
+<ul><li><p>Every PSP call sends our payment or withdrawal id as the PSP&#39;s idempotency key, so retrying cannot charge or pay twice.</p></li><li><p>Webhooks are verified by signature and timestamp, stored with a unique provider event id, acknowledged within 2 seconds, then processed from the table.</p></li><li><p>Before crediting a wallet, the service re-fetches the payment from the PSP API rather than trusting the webhook body alone.</p></li></ul>
+<h2 id="6-low-level-design">6. Low-level design</h2>
+<p>The code has one package per business capability, and only the ledger package may change balances. ArchUnit tests fail the build if another package writes ledger tables or calls a PSP directly.</p>
+<h3 id="package-structure">Package structure</h3>
+<pre><code class="language-text">com.example.wallet
+├── api             Controllers, DTOs, problem-detail errors, idempotency filter
+├── idempotency     IdempotencyService, IdempotencyRecord, request hashing
+├── ledger          LedgerService, JournalRequest, Posting, Balance, HoldService
+├── transfers       TransferService (P2P use case)
+├── payments        TopUpService, MerchantPaymentService, RefundService,
+│                   WithdrawalService, PaymentStateMachine, UnknownOutcomeResolver
+├── psp             PaymentProvider (port), StripeProvider, AdyenProvider, WebhookVerifier
+├── risk            LimitService, VelocityCounter (Redis), RiskClient
+├── outbox          OutboxWriter, OutboxRelay, ProcessedEventStore
+├── reconciliation  SettlementImporter, SettlementMatcher, BreakQueue
+└── money           Money, CurrencyRules (value objects, no Spring)</code></pre>
+<h3 id="key-classes">Key classes</h3>
+<table><thead><tr><th>Class</th><th>Responsibility</th><th>Key methods</th></tr></thead><tbody><tr><td><code>Money</code> (record)</td><td>Minor units plus currency; refuses mixed-currency arithmetic</td><td><code>of</code>, <code>plus</code>, <code>minus</code>, <code>isNegative</code></td></tr><tr><td><code>JournalRequest</code> (record)</td><td>A balanced set of postings with a business reference</td><td><code>requireBalanced</code>, <code>accountIds</code></td></tr><tr><td><code>LedgerService</code></td><td>Locks balances, checks funds, writes entries, balances and outbox atomically</td><td><code>post</code>, <code>placeHold</code>, <code>captureHold</code>, <code>releaseHold</code></td></tr><tr><td><code>TransferService</code></td><td>P2P use case: limits, journal, response</td><td><code>transfer</code></td></tr><tr><td><code>IdempotencyService</code></td><td>Claims keys, replays saved responses, takes over expired leases</td><td><code>claim</code>, <code>complete</code>, <code>replay</code></td></tr><tr><td><code>PaymentProvider</code> (interface)</td><td>Port to the PSP; adapters for Stripe and Adyen</td><td><code>createPayment</code>, <code>createPayout</code>, <code>fetchStatus</code>, <code>verifyWebhook</code></td></tr><tr><td><code>PaymentStateMachine</code></td><td>The only place that changes a payment&#39;s status</td><td><code>transition</code></td></tr><tr><td><code>UnknownOutcomeResolver</code></td><td>Scheduled job that settles <code>UNKNOWN</code> and stale <code>PENDING</code> payments</td><td><code>resolveBatch</code></td></tr><tr><td><code>OutboxRelay</code></td><td>Publishes committed events to Kafka</td><td><code>publishBatch</code></td></tr></tbody></table>
+<h3 id="money-value-object">Money value object</h3>
+<pre><code class="language-java">public record Money(long amountMinor, Currency currency) {
+
+    public Money {
+        Objects.requireNonNull(currency, &quot;currency&quot;);
+    }
+
+    /** Converts an API amount such as 30.00 EUR; throws if it has more decimals than the currency allows. */
+    public static Money of(BigDecimal amount, Currency currency) {
+        BigDecimal minor = amount.movePointRight(currency.getDefaultFractionDigits());
+        return new Money(minor.longValueExact(), currency);
+    }
+
+    public Money plus(Money other) {
+        requireSameCurrency(other);
+        return new Money(Math.addExact(amountMinor, other.amountMinor), currency);
+    }
+
+    public Money minus(Money other) {
+        requireSameCurrency(other);
+        return new Money(Math.subtractExact(amountMinor, other.amountMinor), currency);
+    }
+
+    public boolean isNegative() {
+        return amountMinor &lt; 0;
+    }
+
+    private void requireSameCurrency(Money other) {
+        if (!currency.equals(other.currency)) {
+            throw new IllegalArgumentException(&quot;Currency mismatch: &quot; + currency + &quot; and &quot; + other.currency);
+        }
+    }
+}</code></pre>
+<p><code>Math.addExact</code> throws on overflow instead of silently wrapping, and <code>longValueExact</code> rejects 30.001 EUR.</p>
+<h3 id="posting-a-journal">Posting a journal</h3>
+<pre><code class="language-java">@Service
+public class LedgerService {
+
+    private final BalanceRepository balances;
+    private final JournalRepository journals;
+    private final OutboxWriter outbox;
+
+    public LedgerService(BalanceRepository balances, JournalRepository journals, OutboxWriter outbox) {
+        this.balances = balances;
+        this.journals = journals;
+        this.outbox = outbox;
+    }
+
+    @Transactional
+    public PostedJournal post(JournalRequest request) {
+        request.requireBalanced(); // debits equal credits per currency, all amounts positive
+
+        // One SQL statement locks every touched balance ordered by account_id, so no deadlocks.
+        Map&lt;UUID, Balance&gt; locked = balances.lockForUpdate(request.accountIds());
+
+        for (Posting posting : request.postings()) {
+            locked.get(posting.accountId()).apply(posting); // respects the account&#39;s normal side
+        }
+        for (Balance balance : locked.values()) {
+            if (!balance.allowsNegative() &amp;&amp; balance.available().isNegative()) {
+                throw new InsufficientFundsException(balance.accountId()); // rolls everything back
+            }
+        }
+
+        UUID journalId = journals.insert(request);          // header and entries, append-only
+        balances.saveAll(locked.values());                  // increments each row&#39;s version
+        outbox.write(DomainEvent.journalPosted(journalId, request));
+        return new PostedJournal(journalId, request.reference());
+    }
+}</code></pre>
+<p>The lock query leaves the ordering to PostgreSQL in a single statement, so every transaction locks rows in exactly the same order:</p>
+<pre><code class="language-sql">SELECT b.account_id, b.ledger_balance, b.held_amount, b.allow_negative, b.version,
+       a.normal_side, a.currency
+FROM account_balances b
+JOIN accounts a ON a.id = b.account_id
+WHERE b.account_id = ANY(:accountIds)
+ORDER BY b.account_id
+FOR UPDATE OF b;</code></pre>
+<p>Funds are checked after every posting is applied, so a journal that debits and credits the same account is judged by its final effect.</p>
+<h2 id="7-state-machines">7. State machines</h2>
+<p>Every payment object follows a forward-only state machine, which makes duplicate and out-of-order webhooks harmless. Any event that would move a status backwards is logged and ignored, so a late failure notice cannot undo a success.</p>
+<h3 id="top-up">Top-up</h3>
+<pre><code class="language-mermaid">stateDiagram-v2
+    [*] --&gt; CREATED
+    CREATED --&gt; PENDING: PSP accepted
+    CREATED --&gt; FAILED: PSP rejected
+    CREATED --&gt; UNKNOWN: PSP call timed out
+    UNKNOWN --&gt; PENDING: status query found it
+    UNKNOWN --&gt; FAILED: none found after grace period
+    PENDING --&gt; REQUIRES_ACTION: 3-D Secure needed
+    REQUIRES_ACTION --&gt; PENDING: customer authenticated
+    REQUIRES_ACTION --&gt; FAILED: authentication expired
+    PENDING --&gt; SUCCEEDED: payment confirmed
+    PENDING --&gt; FAILED: payment declined
+    SUCCEEDED --&gt; REFUNDED: full refund posted
+    SUCCEEDED --&gt; [*]
+    FAILED --&gt; [*]
+    REFUNDED --&gt; [*]</code></pre>
+<p>The wallet is credited only on the move to <code>SUCCEEDED</code>, and that transition posts the journal in the same transaction.</p>
+<h3 id="withdrawal">Withdrawal</h3>
+<pre><code class="language-mermaid">stateDiagram-v2
+    [*] --&gt; REQUESTED
+    REQUESTED --&gt; REJECTED: limits or risk
+    REQUESTED --&gt; HELD: funds reserved
+    HELD --&gt; SUBMITTED: payout created
+    HELD --&gt; UNKNOWN: payout call timed out
+    UNKNOWN --&gt; SUBMITTED: status query found it
+    UNKNOWN --&gt; HELD: none found, retry same key
+    SUBMITTED --&gt; PAID: payout paid
+    SUBMITTED --&gt; RELEASED: payout failed
+    PAID --&gt; RETURNED: bank returned funds
+    PAID --&gt; [*]
+    RETURNED --&gt; [*]
+    RELEASED --&gt; [*]
+    REJECTED --&gt; [*]</code></pre>
+<p>A bank can return a payout days after it was paid, for example to a closed account. <code>RETURNED</code> posts a new journal that credits the wallet back; it never edits the original entries.</p>
+<h3 id="hold">Hold</h3>
+<pre><code class="language-mermaid">stateDiagram-v2
+    [*] --&gt; ACTIVE: hold placed
+    ACTIVE --&gt; CAPTURED: payout paid
+    ACTIVE --&gt; RELEASED: payout failed
+    ACTIVE --&gt; ESCALATED: no outcome in 3 days
+    ESCALATED --&gt; CAPTURED: ops confirms paid
+    ESCALATED --&gt; RELEASED: ops confirms not paid
+    CAPTURED --&gt; [*]
+    RELEASED --&gt; [*]</code></pre>
+<p>A hold never expires on its own. Releasing money whose payout might have succeeded would let the user spend it twice, so an old hold goes to a person instead.</p>
+<h3 id="enforcing-transitions">Enforcing transitions</h3>
+<p>The allowed transitions live in one <code>EnumMap&lt;Status, Set&lt;Status&gt;&gt;</code> inside <code>PaymentStateMachine</code>. Each change is a conditional update, so two workers handling the same payment cannot both win:</p>
+<pre><code class="language-sql">UPDATE payments
+SET status = :next, version = version + 1, updated_at = now()
+WHERE id = :id AND status = :expectedCurrent;</code></pre>
+<p>Zero updated rows means another webhook or the resolver moved the payment first. The handler re-reads the row and either stops or applies the next legal step.</p>
+<h2 id="8-data-model">8. Data model</h2>
+<p>Nine PostgreSQL tables hold the ledger, payments and reliability records, and their constraints make an invalid money state impossible to store.</p>
+<table><thead><tr><th>Table</th><th>Purpose</th><th>Constraint that protects money</th></tr></thead><tbody><tr><td><code>accounts</code></td><td>Every ledger account, including platform accounts</td><td>One account per owner, type and currency</td></tr><tr><td><code>account_balances</code></td><td>Ledger balance, held amount and version per account</td><td>Available balance cannot go negative unless allowed</td></tr><tr><td><code>journal_transactions</code></td><td>One row per business event that moves money</td><td>One journal per business reference and type</td></tr><tr><td><code>journal_entries</code></td><td>Debit and credit lines, partitioned by month</td><td>Positive amounts; no updates or deletes allowed</td></tr><tr><td><code>holds</code></td><td>Reserved funds for withdrawals</td><td>One hold per withdrawal</td></tr><tr><td><code>payments</code></td><td>Top-ups, merchant payments, refunds, withdrawals</td><td>One row per PSP reference</td></tr><tr><td><code>idempotency_keys</code></td><td>Saved responses for retried requests</td><td>One key per client</td></tr><tr><td><code>outbox_events</code></td><td>Events waiting for Kafka</td><td>Unique event id</td></tr><tr><td><code>webhook_events</code></td><td>Raw PSP webhooks</td><td>One row per provider event id</td></tr></tbody></table>
+<h3 id="schema">Schema</h3>
+<pre><code class="language-sql">CREATE TABLE accounts (
+    id            uuid PRIMARY KEY,
+    owner_type    text NOT NULL CHECK (owner_type IN (&#39;USER&#39;, &#39;MERCHANT&#39;, &#39;PLATFORM&#39;)),
+    owner_id      uuid,
+    account_type  text NOT NULL,
+    normal_side   text NOT NULL CHECK (normal_side IN (&#39;DEBIT&#39;, &#39;CREDIT&#39;)),
+    currency      char(3) NOT NULL,
+    status        text NOT NULL DEFAULT &#39;ACTIVE&#39;,
+    created_at    timestamptz NOT NULL DEFAULT now(),
+    UNIQUE NULLS NOT DISTINCT (owner_type, owner_id, account_type, currency)
+);
+
+CREATE TABLE account_balances (
+    account_id      uuid PRIMARY KEY REFERENCES accounts (id),
+    ledger_balance  bigint NOT NULL DEFAULT 0,
+    held_amount     bigint NOT NULL DEFAULT 0 CHECK (held_amount &gt;= 0),
+    allow_negative  boolean NOT NULL DEFAULT false,
+    version         bigint NOT NULL DEFAULT 0,
+    updated_at      timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT available_not_negative CHECK (allow_negative OR ledger_balance - held_amount &gt;= 0)
+);
+
+CREATE TABLE journal_transactions (
+    id              uuid PRIMARY KEY,
+    type            text NOT NULL,
+    reference_type  text NOT NULL,
+    reference_id    uuid NOT NULL,
+    reverses_id     uuid REFERENCES journal_transactions (id),
+    created_at      timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (reference_type, reference_id, type)
+);
+
+CREATE TABLE journal_entries (
+    id            bigint GENERATED ALWAYS AS IDENTITY,
+    journal_id    uuid NOT NULL REFERENCES journal_transactions (id),
+    account_id    uuid NOT NULL REFERENCES accounts (id),
+    direction     text NOT NULL CHECK (direction IN (&#39;DEBIT&#39;, &#39;CREDIT&#39;)),
+    amount_minor  bigint NOT NULL CHECK (amount_minor &gt; 0),
+    currency      char(3) NOT NULL,
+    created_at    timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (id, created_at)
+) PARTITION BY RANGE (created_at);
+
+CREATE TABLE journal_entries_2026_09 PARTITION OF journal_entries
+    FOR VALUES FROM (&#39;2026-09-01&#39;) TO (&#39;2026-10-01&#39;);
+
+CREATE INDEX journal_entries_account_idx ON journal_entries (account_id, created_at DESC);
+CREATE INDEX journal_entries_journal_idx ON journal_entries (journal_id);
+
+CREATE TABLE holds (
+    id            uuid PRIMARY KEY,
+    account_id    uuid NOT NULL REFERENCES accounts (id),
+    amount_minor  bigint NOT NULL CHECK (amount_minor &gt; 0),
+    status        text NOT NULL CHECK (status IN (&#39;ACTIVE&#39;, &#39;CAPTURED&#39;, &#39;RELEASED&#39;, &#39;ESCALATED&#39;)),
+    reference_id  uuid NOT NULL UNIQUE,
+    created_at    timestamptz NOT NULL DEFAULT now(),
+    updated_at    timestamptz NOT NULL DEFAULT now()
+);
+
+CREATE TABLE payments (
+    id                  uuid PRIMARY KEY,
+    kind                text NOT NULL CHECK (kind IN (&#39;TOP_UP&#39;, &#39;MERCHANT_PAYMENT&#39;, &#39;REFUND&#39;, &#39;WITHDRAWAL&#39;)),
+    account_id          uuid NOT NULL REFERENCES accounts (id),
+    amount_minor        bigint NOT NULL CHECK (amount_minor &gt; 0),
+    currency            char(3) NOT NULL,
+    status              text NOT NULL,
+    provider            text,
+    provider_reference  text,
+    failure_code        text,
+    version             bigint NOT NULL DEFAULT 0,
+    created_at          timestamptz NOT NULL DEFAULT now(),
+    updated_at          timestamptz NOT NULL DEFAULT now(),
+    UNIQUE (provider, provider_reference)
+);
+
+CREATE INDEX payments_unresolved_idx ON payments (updated_at)
+    WHERE status IN (&#39;UNKNOWN&#39;, &#39;PENDING&#39;, &#39;SUBMITTED&#39;);
+
+CREATE TABLE idempotency_keys (
+    client_id        uuid NOT NULL,
+    idem_key         text NOT NULL,
+    request_hash     char(64) NOT NULL,
+    status           text NOT NULL CHECK (status IN (&#39;IN_PROGRESS&#39;, &#39;COMPLETED&#39;)),
+    response_status  int,
+    response_body    jsonb,
+    locked_until     timestamptz,
+    created_at       timestamptz NOT NULL DEFAULT now(),
+    PRIMARY KEY (client_id, idem_key)
+);
+
+CREATE TABLE outbox_events (
+    id              bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    event_id        uuid NOT NULL UNIQUE,
+    aggregate_type  text NOT NULL,
+    aggregate_id    uuid NOT NULL,
+    event_type      text NOT NULL,
+    payload         jsonb NOT NULL,
+    created_at      timestamptz NOT NULL DEFAULT now(),
+    published_at    timestamptz
+);
+
+CREATE INDEX outbox_unpublished_idx ON outbox_events (id) WHERE published_at IS NULL;
+
+CREATE TABLE webhook_events (
+    provider           text NOT NULL,
+    provider_event_id  text NOT NULL,
+    event_type         text NOT NULL,
+    payload            jsonb NOT NULL,
+    received_at        timestamptz NOT NULL DEFAULT now(),
+    processed_at       timestamptz,
+    PRIMARY KEY (provider, provider_event_id)
+);
+
+-- The application role can append to the ledger but never rewrite it.
+REVOKE UPDATE, DELETE, TRUNCATE ON journal_transactions, journal_entries FROM wallet_app;</code></pre>
+<h3 id="design-notes">Design notes</h3>
+<ul><li><p><strong>Platform accounts have no owner.</strong> <code>NULLS NOT DISTINCT</code> (PostgreSQL 15 and later) still allows only one fee revenue account per currency.</p></li><li><p><strong>Partitions follow time.</strong> A scheduled job or pg_partman creates next month&#39;s partition in advance; old partitions move to cheaper storage but stay queryable for the retention period.</p></li><li><p><strong>Balances live apart from entries.</strong> <code>account_balances</code> is small and hot, so row locks never touch the large entry table.</p></li></ul>
+<h3 id="invariant-check">Invariant check</h3>
+<p>This query runs nightly and after any incident. It must return no rows; any result pages the on-call engineer.</p>
+<pre><code class="language-sql">SELECT journal_id, currency
+FROM journal_entries
+WHERE created_at &gt;= now() - interval &#39;1 day&#39;
+GROUP BY journal_id, currency
+HAVING sum(CASE direction WHEN &#39;DEBIT&#39; THEN amount_minor ELSE -amount_minor END) &lt;&gt; 0;</code></pre>
+<p>A second job compares each balance with its last verified snapshot plus the day&#39;s entries, so it never scans the full history.</p>
+<h2 id="9-api-design">9. API design</h2>
+<p>The public API is REST over HTTPS with OAuth2 bearer tokens, and every endpoint that moves money requires an <code>Idempotency-Key</code> header. Errors use RFC 9457 problem details with a stable <code>code</code> field.</p>
+<h3 id="endpoints">Endpoints</h3>
+<table><thead><tr><th>Method</th><th>Path</th><th>Purpose</th><th>Idempotency-Key</th></tr></thead><tbody><tr><td>GET</td><td><code>/v1/wallets</code></td><td>Ledger, held and available balance per currency</td><td>Not used</td></tr><tr><td>GET</td><td><code>/v1/wallets/{currency}/transactions</code></td><td>History, newest first, cursor pagination</td><td>Not used</td></tr><tr><td>POST</td><td><code>/v1/transfers</code></td><td>Instant transfer to another user</td><td>Required</td></tr><tr><td>POST</td><td><code>/v1/top-ups</code></td><td>Start a card top-up</td><td>Required</td></tr><tr><td>GET</td><td><code>/v1/top-ups/{id}</code></td><td>Top-up status</td><td>Not used</td></tr><tr><td>POST</td><td><code>/v1/payments</code></td><td>Pay a merchant</td><td>Required</td></tr><tr><td>POST</td><td><code>/v1/payments/{id}/refunds</code></td><td>Full or partial refund, merchant API</td><td>Required</td></tr><tr><td>POST</td><td><code>/v1/withdrawals</code></td><td>Withdraw to a linked bank account</td><td>Required</td></tr><tr><td>GET</td><td><code>/v1/withdrawals/{id}</code></td><td>Withdrawal status</td><td>Not used</td></tr><tr><td>POST</td><td><code>/internal/webhooks/{provider}</code></td><td>PSP webhooks, signature checked</td><td>Provider event id instead</td></tr></tbody></table>
+<h3 id="transfer-request-and-response">Transfer request and response</h3>
+<pre><code class="language-http">POST /v1/transfers HTTP/1.1
+Authorization: Bearer &lt;access-token&gt;
+Idempotency-Key: 9b2f6a64-2f6e-4a8b-9d4c-3f1f8a0f7c11
+Content-Type: application/json
+
+{
+  &quot;toUserId&quot;: &quot;3c1e8f52-6b1d-4f0e-9a51-0c7e2d4b9a10&quot;,
+  &quot;amount&quot;: { &quot;value&quot;: &quot;30.00&quot;, &quot;currency&quot;: &quot;EUR&quot; },
+  &quot;note&quot;: &quot;Dinner&quot;
+}</code></pre>
+<pre><code class="language-http">HTTP/1.1 201 Created
+Location: /v1/transfers/7f0c2a91-5d3e-4b8f-a1c6-2e9d0b7f4c33
+
+{
+  &quot;id&quot;: &quot;7f0c2a91-5d3e-4b8f-a1c6-2e9d0b7f4c33&quot;,
+  &quot;status&quot;: &quot;COMPLETED&quot;,
+  &quot;amount&quot;: { &quot;value&quot;: &quot;30.00&quot;, &quot;currency&quot;: &quot;EUR&quot; },
+  &quot;availableBalance&quot;: { &quot;value&quot;: &quot;70.00&quot;, &quot;currency&quot;: &quot;EUR&quot; },
+  &quot;createdAt&quot;: &quot;2026-09-17T10:15:02Z&quot;
+}</code></pre>
+<p>Amounts travel as decimal strings, never JSON numbers, because JSON parsers often read numbers as floating point. The server converts them to minor units using the currency&#39;s decimal places.</p>
+<h3 id="error-model">Error model</h3>
+<table><thead><tr><th>HTTP</th><th>Code</th><th>When</th><th>Client action</th></tr></thead><tbody><tr><td>400</td><td><code>invalid_amount</code></td><td>Zero, negative, or more decimals than the currency allows</td><td>Fix the request</td></tr><tr><td>401</td><td><code>unauthorized</code></td><td>Missing or expired token</td><td>Refresh the token</td></tr><tr><td>403</td><td><code>step_up_required</code></td><td>Transfer above the re-authentication threshold</td><td>Ask for biometrics or a one-time code</td></tr><tr><td>409</td><td><code>request_in_progress</code></td><td>Same Idempotency-Key still executing</td><td>Retry after <code>Retry-After</code></td></tr><tr><td>422</td><td><code>insufficient_funds</code></td><td>Available balance too low</td><td>Show the balance</td></tr><tr><td>422</td><td><code>limit_exceeded</code></td><td>KYC tier or velocity limit reached</td><td>Show the limit and how to verify</td></tr><tr><td>422</td><td><code>idempotency_key_reused</code></td><td>Same key sent with a different body</td><td>Use a new key only for a new intent</td></tr><tr><td>503</td><td><code>provider_unavailable</code></td><td>PSP down during a top-up or withdrawal</td><td>Retry later; status stays pending</td></tr></tbody></table>
+<h3 id="webhook-endpoint">Webhook endpoint</h3>
+<ol><li><p>Verify the HMAC signature and reject timestamps older than 5 minutes, which blocks replayed requests.</p></li><li><p>Insert the raw event into <code>webhook_events</code>; a duplicate key means it was already received, so return 200.</p></li><li><p>Return 2xx within 2 seconds and process the stored event asynchronously.</p></li><li><p>For events that credit money, re-fetch the object from the PSP API before posting a journal.</p></li></ol>
+<p>The endpoint sits on an internal path behind the gateway, accepts only the PSP&#39;s published source addresses where the PSP offers them, and never returns internal details in errors.</p>
+<h2 id="10-reconciliation-risk-and-limits">10. Reconciliation, risk and limits</h2>
+<p>A daily reconciliation proves the ledger matches what the PSP and bank actually moved, and limits stop money from leaving before fraud can be caught.</p>
+<h3 id="daily-reconciliation">Daily reconciliation</h3>
+<pre><code class="language-mermaid">flowchart LR
+    SR[&quot;PSP settlement report&quot;] --&gt; IMP[&quot;Import and normalise&quot;]
+    BS[&quot;Bank statement&quot;] --&gt; IMP
+    IMP --&gt; MAT[&quot;Match on reference,&lt;br/&gt;amount and currency&quot;]
+    LED[(&quot;Ledger and payments&quot;)] --&gt; MAT
+    MAT --&gt;|matched| SET[&quot;Post settlement journal&quot;]
+    MAT --&gt;|timing difference| NXT[&quot;Carry to next run&quot;]
+    MAT --&gt;|mismatch or missing| BRK[&quot;Break queue&quot;]
+    BRK --&gt; FIX[&quot;Ops fixes with&lt;br/&gt;a reversing journal&quot;]</code></pre>
+<p>This is a three-way match: internal records, the PSP&#39;s report and the bank statement must all agree on each settled amount.</p>
+<table><thead><tr><th>Case</th><th>Example</th><th>Resolution</th></tr></thead><tbody><tr><td>Matched</td><td>PSP settled 100.00 for top-up T1; ledger shows T1 succeeded for 100.00</td><td>Post the settlement journal: bank cash and PSP fees against PSP receivable</td></tr><tr><td>Timing difference</td><td>Captured at 23:59, settled the next day</td><td>Carry forward; alert if still open after 3 days</td></tr><tr><td>Amount mismatch</td><td>PSP settled 99.00, ledger shows 100.00</td><td>Break: check fees and partial captures</td></tr><tr><td>PSP has it, ledger does not</td><td>Card charged, but the webhook and the resolver both missed it</td><td>Break: verify, then credit the user</td></tr><tr><td>Ledger has it, PSP does not</td><td>Ledger credited a top-up the PSP reports as failed</td><td>Break, top priority: freeze the amount and reverse</td></tr></tbody></table>
+<p>Targets: at least 99.5% of items match automatically, and no break stays open longer than 48 hours.</p>
+<h3 id="kyc-tiers-and-limits">KYC tiers and limits</h3>
+<p>These values are examples for practice; real limits come from the licence and local regulation.</p>
+<table><thead><tr><th>Tier</th><th>Verification</th><th>Maximum balance</th><th>Outgoing per day</th><th>Withdrawals</th></tr></thead><tbody><tr><td>0 Basic</td><td>Phone number and email</td><td>EUR 250</td><td>EUR 100</td><td>Not allowed</td></tr><tr><td>1 Verified</td><td>ID document and selfie check</td><td>EUR 5,000</td><td>EUR 2,000</td><td>Allowed</td></tr><tr><td>2 Enhanced</td><td>Proof of address and source of funds</td><td>EUR 50,000</td><td>EUR 20,000</td><td>Allowed</td></tr></tbody></table>
+<h3 id="velocity-limits">Velocity limits</h3>
+<ul><li><p><strong>Counters in Redis.</strong> Keys such as <code>vel:{userId}:out:{date}</code> hold today&#39;s outgoing total and expire after 48 hours.</p></li><li><p><strong>Reserve, then confirm.</strong> A Lua script checks the limit and increments atomically before the transfer; a failed transfer decrements it again.</p></li><li><p><strong>Redis is not the source of truth.</strong> If Redis is down, the service sums today&#39;s outgoing entries in PostgreSQL, which is slower but correct.</p></li><li><p><strong>Several windows.</strong> Separate counters cover amount per day, transfers per hour, and new recipients per day.</p></li></ul>
+<h3 id="risk-scoring">Risk scoring</h3>
+<p>Before money moves, the transfer calls the risk service with device, amount, recipient history and velocity features. The call has a 150 ms timeout.</p>
+<p>If risk times out, transfers under EUR 50 continue and larger ones wait for review, so an outage fails safe without blocking small everyday payments. Every decision and its features go to Kafka, which gives the fraud team training data and an audit trail.</p>
+<h2 id="11-architecture-decision-records">11. Architecture decision records</h2>
+<p>Nine decisions shape this design. Each row names the rejected alternative, because interviews probe the trade-off rather than the choice.</p>
+<table><thead><tr><th>#</th><th>Decision</th><th>Chosen</th><th>Rejected</th><th>Why</th><th>Cost accepted</th></tr></thead><tbody><tr><td>1</td><td>Ledger model</td><td>Double-entry journal with stored balances</td><td>A balance column updated in place</td><td>Every change is traceable, and money conservation can be checked</td><td>Three or more rows per movement; invariant jobs</td></tr><tr><td>2</td><td>Ledger database</td><td>PostgreSQL</td><td>Cassandra or DynamoDB</td><td>Multi-row ACID transactions, row locks and check constraints on the money path</td><td>Sharding later is real work</td></tr><tr><td>3</td><td>Service shape</td><td>Modular monolith</td><td>A microservice per capability</td><td>A transfer needs one local transaction across ledger, holds, idempotency and outbox</td><td>Module boundaries need tests to stay clean</td></tr><tr><td>4</td><td>Concurrency</td><td>Pessimistic row locks in account id order</td><td>Optimistic version checks</td><td>Busy accounts would cause retry storms</td><td>Lock waits must be monitored; hot accounts need buckets</td></tr><tr><td>5</td><td>Event publishing</td><td>Transactional outbox</td><td>Publishing to Kafka inside the request</td><td>No lost or phantom events without two-phase commit</td><td>At-least-once delivery, so consumers deduplicate</td></tr><tr><td>6</td><td>Amounts</td><td><code>long</code> minor units with ISO 4217 currency</td><td><code>double</code>, or <code>BigDecimal</code> everywhere</td><td>Exact, fast, and maps directly to <code>bigint</code></td><td>Currency decimals handled at the API edge</td></tr><tr><td>7</td><td>PSP timeouts</td><td>Explicit <code>UNKNOWN</code> state with a resolver</td><td>Treating a timeout as a failure</td><td>A timeout can hide a successful charge</td><td>Some users see &quot;processing&quot; for longer</td></tr><tr><td>8</td><td>History and audit</td><td>Append-only journal</td><td>Full event sourcing for all state</td><td>The journal already gives audit and replay for money; the rest stays simple</td><td>Payment status history needs its own audit table</td></tr><tr><td>9</td><td>Withdrawals</td><td>Hold, then debit when the rail confirms</td><td>Debit first, refund on failure</td><td>The user never sees money vanish and reappear</td><td>Available and ledger balances differ during payouts</td></tr></tbody></table>
+<p>Decision 3 is revisited when a module needs independent scaling or its own release cadence. Notifications and risk analytics split out first, because they only consume events and never write money.</p>
+<h2 id="12-scaling-failure-modes-security-and-observability">12. Scaling, failure modes, security and observability</h2>
+<p>One PostgreSQL primary with a synchronous standby comfortably handles the estimated 290 writes per second at peak, so later scaling steps are planned but not built upfront.</p>
+<h3 id="scaling-path">Scaling path</h3>
+<table><thead><tr><th>Stage</th><th>Trigger</th><th>Change</th></tr></thead><tbody><tr><td>1</td><td>Launch</td><td>One primary, one synchronous standby, one read replica for history</td></tr><tr><td>2</td><td>History queries slow down or storage passes 1 TB</td><td>Monthly partitions; history served from a read model fed by Kafka</td></tr><tr><td>3</td><td>Lock waits on busy merchant accounts</td><td>Split them into sub-accounts, swept every minute</td></tr><tr><td>4</td><td>Primary near its write or WAL limits</td><td>Shard wallets by user id; cross-shard transfers become a saga through a transit account</td></tr><tr><td>5</td><td>Users in several regions</td><td>Region-pinned ledgers linked by settlement accounts</td></tr></tbody></table>
+<h3 id="failure-modes">Failure modes</h3>
+<table><thead><tr><th>Failure</th><th>Behaviour</th><th>What the user sees</th></tr></thead><tbody><tr><td>PSP times out during a top-up</td><td>Payment goes to <code>UNKNOWN</code>; the resolver polls</td><td>&quot;Processing&quot;, then credited or failed</td></tr><tr><td>Duplicate or late webhook</td><td>Deduplicated by event id; backward moves ignored</td><td>Nothing</td></tr><tr><td>Client retries after a dropped response</td><td>Idempotency key replays the original result</td><td>One transfer, same response</td></tr><tr><td>Kafka unavailable</td><td>Outbox rows accumulate; the relay catches up</td><td>Late notifications; balances correct</td></tr><tr><td>Redis unavailable</td><td>Velocity checks fall back to PostgreSQL totals</td><td>Slightly slower transfers</td></tr><tr><td>Primary database fails</td><td>Standby promoted; open transactions roll back; clients retry with the same key</td><td>A brief error, no lost money</td></tr><tr><td>Process crashes mid-withdrawal</td><td>Hold stays active; the resolver continues the saga</td><td>Withdrawal completes or funds return</td></tr><tr><td>Reconciliation finds a break</td><td>Alert and break queue; amount frozen if money is missing</td><td>Rarely, a message from support</td></tr></tbody></table>
+<h3 id="security-and-compliance">Security and compliance</h3>
+<ul><li><p><strong>No card data.</strong> The app collects card details through the PSP&#39;s SDK or hosted fields, so card numbers never reach our servers and PCI DSS scope stays small.</p></li><li><p><strong>Authentication.</strong> OAuth2 and OpenID Connect with short-lived tokens, plus step-up authentication for transfers above EUR 500.</p></li><li><p><strong>Encryption.</strong> TLS for all traffic, encrypted storage, and envelope encryption through a key management service for personal data columns.</p></li><li><p><strong>Tamper resistance.</strong> The application role cannot update or delete ledger rows; corrections are reversing journals approved by two people.</p></li><li><p><strong>Audit.</strong> Every operator action is logged to write-once storage with who, what, when and why.</p></li><li><p><strong>Anti-money laundering.</strong> Transaction monitoring consumes Kafka events and raises cases for review and reporting.</p></li><li><p><strong>Privacy and retention.</strong> A deletion request pseudonymises the person, while journal entries stay for the legally required retention period.</p></li></ul>
+<h3 id="observability">Observability</h3>
+<table><thead><tr><th>Signal</th><th>Measure</th><th>Alert when</th></tr></thead><tbody><tr><td>Money correctness</td><td>Unbalanced journals; balance drift from entries</td><td>Any result at all</td></tr><tr><td>Payment health</td><td>Top-up success rate by PSP and card network</td><td>5 points below the 7-day baseline</td></tr><tr><td>Latency</td><td>Transfer p99 at the API</td><td>Above 300 ms for 10 minutes</td></tr><tr><td>Stuck payments</td><td>Count in <code>UNKNOWN</code> or <code>PENDING</code> for over 30 minutes</td><td>More than 10 for 15 minutes</td></tr><tr><td>Outbox lag</td><td>Age of the oldest unpublished event</td><td>Older than 60 seconds</td></tr><tr><td>Reconciliation</td><td>Auto-match rate; open breaks</td><td>Below 99.5%, or a break older than 48 hours</td></tr><tr><td>Database</td><td>Lock wait p99; replication delay</td><td>Lock waits above 50 ms; replica 5 seconds behind</td></tr></tbody></table>
+<p>OpenTelemetry trace ids travel in outbox event headers, so one transfer can be followed from the API call through Kafka to the push notification.</p>
+<h2 id="13-interview-questions-and-model-answers">13. Interview questions and model answers</h2>
+<p>These are the questions a payments design interview usually reaches, each with an answer that takes under a minute to give.</p>
+<ol><li><p><strong>How do you stop a retried request from charging twice?</strong> Every money-moving request carries an idempotency key with a unique constraint. The stored response is saved in the same transaction as the money movement and replayed on retries. Calls to the PSP also carry our payment id as their idempotency key.</p></li><li><p><strong>Why double-entry instead of a balance column?</strong> A balance column cannot explain itself or prove it is right. Double-entry records where every unit came from and went to, makes conservation checkable, and turns corrections into visible reversing entries.</p></li><li><p><strong>Two transfers debit the same wallet at once. What happens?</strong> Both lock the balance row with <code>SELECT ... FOR UPDATE</code>, so the second waits. It then re-reads the available balance and fails with insufficient funds if needed. Locking in account id order prevents deadlocks when transfers cross.</p></li><li><p><strong>The PSP call timed out. Did the customer pay?</strong> We don&#39;t know yet, so the payment moves to <code>UNKNOWN</code>, never <code>FAILED</code>. A resolver queries the PSP by our reference until the outcome is final, and retries reuse the same idempotency key.</p></li><li><p><strong>How do you publish events without losing them or sending phantom ones?</strong> The event is written to an outbox table in the same transaction as the money movement. A relay publishes it with at-least-once delivery, and consumers ignore event ids they have already processed.</p></li><li><p><strong>How would you handle 100 times the traffic?</strong> First partitions, replicas and read models, then sub-accounts for hot merchants. Only then shard wallets by user id, keeping same-shard transfers local and running cross-shard transfers as a saga through a transit account.</p></li><li><p><strong>A user spent the money before a refund reached the merchant. What now?</strong> The refund still debits the merchant&#39;s payable account and credits the user. If the merchant balance is too low, the platform records a receivable from the merchant and recovers it from the next settlement.</p></li><li><p><strong>What does reconciliation catch that tests cannot?</strong> Lost webhooks, PSP-side reversals, fee changes, bank returns and production bugs that tests never modelled. Matching the ledger daily against the PSP and bank is how a payments team finds out it is wrong before a customer does.</p></li><li><p><strong>Which part would you split into a separate service first?</strong> Notifications and risk analytics, because they only consume events and never write money. The ledger stays last, since splitting it would turn local transactions into distributed ones.</p></li><li><p><strong>How do you store and send money amounts?</strong> As a <code>long</code> count of minor units plus an ISO 4217 currency code, and as decimal strings in JSON. <code>BigDecimal</code> with an explicit rounding mode is used only for fees and exchange rates; floating point is never used.</p></li></ol>
+</body></html>

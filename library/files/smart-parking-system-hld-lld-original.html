@@ -1,0 +1,851 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Smart Parking System — HLD + LLD</title>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Barlow+Condensed:wght@300;400;600;700;900&family=Barlow:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+:root {
+  --bg: #0a0c10;
+  --bg2: #0f1218;
+  --bg3: #161b24;
+  --border: #1e2a3a;
+  --amber: #f5a623;
+  --amber2: #e8870a;
+  --cyan: #00d4ff;
+  --green: #00e676;
+  --red: #ff4757;
+  --blue: #3d8ef8;
+  --purple: #b56eff;
+  --text: #c8d8e8;
+  --text2: #7a90a8;
+  --mono: 'Share Tech Mono', monospace;
+  --head: 'Barlow Condensed', sans-serif;
+  --body: 'Barlow', sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--body);
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+/* scanline overlay */
+body::after {
+  content:'';
+  position:fixed;
+  inset:0;
+  background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,.07) 2px, rgba(0,0,0,.07) 4px);
+  pointer-events:none;
+  z-index:9999;
+}
+
+.container { max-width: 1300px; margin: 0 auto; padding: 30px 20px 60px; }
+
+/* ─── HEADER ─── */
+.header {
+  text-align: center;
+  padding: 50px 20px 40px;
+  position: relative;
+  overflow: hidden;
+}
+.header::before {
+  content:'';
+  position:absolute;
+  top:-60px; left:50%; transform:translateX(-50%);
+  width:600px; height:300px;
+  background: radial-gradient(ellipse at center, rgba(245,166,35,.12) 0%, transparent 70%);
+  pointer-events:none;
+}
+.badge {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--amber);
+  letter-spacing: 3px;
+  border: 1px solid var(--amber);
+  padding: 4px 14px;
+  margin-bottom: 18px;
+  text-transform: uppercase;
+}
+h1 {
+  font-family: var(--head);
+  font-size: clamp(42px, 7vw, 80px);
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -1px;
+  text-transform: uppercase;
+}
+h1 span { color: var(--amber); }
+.subtitle {
+  font-family: var(--mono);
+  font-size: 12px;
+  color: var(--text2);
+  margin-top: 12px;
+  letter-spacing: 2px;
+}
+.meta-row {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+.meta-tag {
+  font-family: var(--mono);
+  font-size: 11px;
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  padding: 4px 12px;
+  color: var(--cyan);
+}
+
+/* ─── SECTION ─── */
+.section { margin-top: 48px; }
+.section-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--amber);
+  letter-spacing: 4px;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+.section-title {
+  font-family: var(--head);
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 10px;
+  margin-bottom: 20px;
+}
+
+/* ─── CARDS GRID ─── */
+.cards-grid { display: grid; gap: 16px; }
+.cards-grid.col2 { grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); }
+.cards-grid.col3 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.cards-grid.col4 { grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+
+.card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  padding: 20px;
+  position: relative;
+  transition: border-color .2s;
+}
+.card:hover { border-color: var(--amber); }
+.card::before {
+  content: '';
+  position: absolute;
+  top:0; left:0;
+  width: 3px; height: 100%;
+}
+.card.amber::before { background: var(--amber); }
+.card.cyan::before  { background: var(--cyan); }
+.card.green::before { background: var(--green); }
+.card.red::before   { background: var(--red); }
+.card.blue::before  { background: var(--blue); }
+.card.purple::before{ background: var(--purple); }
+
+.card-title {
+  font-family: var(--head);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+}
+.card-body { font-size: 13px; color: var(--text2); line-height: 1.7; }
+.card-body strong { color: var(--text); }
+
+/* ─── ARCHITECTURE DIAGRAM ─── */
+.arch-diagram {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  padding: 30px;
+  position: relative;
+}
+
+.arch-layer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin: 8px 0;
+  flex-wrap: wrap;
+}
+.arch-node {
+  background: var(--bg3);
+  border: 1px solid var(--border);
+  padding: 10px 18px;
+  font-family: var(--mono);
+  font-size: 12px;
+  text-align: center;
+  position: relative;
+  transition: all .2s;
+  cursor: default;
+  min-width: 130px;
+}
+.arch-node:hover { border-color: var(--amber); background: #1a2030; transform: translateY(-2px); }
+.arch-node .node-label { color: var(--text2); font-size: 10px; display:block; margin-top:3px; }
+.arch-node.highlight { border-color: var(--amber); color: var(--amber); }
+.arch-node.cyan-node { border-color: var(--cyan); color: var(--cyan); }
+.arch-node.green-node{ border-color: var(--green); color: var(--green); }
+.arch-node.blue-node { border-color: var(--blue); color: var(--blue); }
+.arch-node.purple-node { border-color: var(--purple); color: var(--purple); }
+
+.arch-arrow {
+  text-align:center;
+  color: var(--border);
+  font-size: 20px;
+  line-height: 1;
+  margin: 2px 0;
+}
+.arch-arrow span { color: var(--amber2); font-family: var(--mono); font-size:10px; margin-left:6px; }
+
+.arch-row-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text2);
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  text-align:left;
+  margin-bottom: 4px;
+  margin-top: 16px;
+}
+
+/* ─── CLASS BOX ─── */
+.class-box {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 12px;
+  overflow: hidden;
+}
+.class-header {
+  background: var(--bg3);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.class-stereotype {
+  font-size: 10px;
+  color: var(--text2);
+}
+.class-name {
+  font-weight: bold;
+  font-size: 13px;
+}
+.class-name.amber { color: var(--amber); }
+.class-name.cyan  { color: var(--cyan); }
+.class-name.green { color: var(--green); }
+.class-name.blue  { color: var(--blue); }
+.class-name.purple{ color: var(--purple); }
+
+.class-section {
+  padding: 6px 14px;
+  border-bottom: 1px dashed var(--border);
+}
+.class-section:last-child { border-bottom: none; }
+.class-field  { color: var(--text); padding: 2px 0; }
+.class-method { color: var(--cyan); padding: 2px 0; }
+.class-field span, .class-method span { color: var(--text2); }
+
+/* ─── TABLE ─── */
+.styled-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.styled-table th {
+  background: var(--bg3);
+  color: var(--amber);
+  font-family: var(--mono);
+  font-size: 11px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  padding: 10px 14px;
+  text-align: left;
+  border: 1px solid var(--border);
+}
+.styled-table td {
+  padding: 9px 14px;
+  border: 1px solid var(--border);
+  color: var(--text);
+  vertical-align: top;
+}
+.styled-table tr:nth-child(even) td { background: var(--bg2); }
+.styled-table tr:nth-child(odd) td  { background: var(--bg); }
+.styled-table tr:hover td { background: #141a24; }
+
+.tag {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 2px;
+  font-weight: bold;
+}
+.tag.peak   { background: rgba(255,71,87,.15); color: var(--red); border:1px solid rgba(255,71,87,.3); }
+.tag.normal { background: rgba(0,230,118,.15); color: var(--green); border:1px solid rgba(0,230,118,.3); }
+.tag.night  { background: rgba(61,142,248,.15); color: var(--blue); border:1px solid rgba(61,142,248,.3); }
+.tag.ev     { background: rgba(0,212,255,.15); color: var(--cyan); border:1px solid rgba(0,212,255,.3); }
+.tag.bonus  { background: rgba(245,166,35,.15); color: var(--amber); border:1px solid rgba(245,166,35,.3); }
+.tag.pattern{ background: rgba(181,110,255,.15); color: var(--purple); border:1px solid rgba(181,110,255,.3); }
+
+/* ─── FLOW ─── */
+.flow {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  flex-wrap: wrap;
+}
+.flow-step {
+  flex: 1;
+  min-width: 140px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  padding: 16px;
+  position: relative;
+  text-align: center;
+}
+.flow-step + .flow-step { border-left: none; }
+.flow-step:hover { background: var(--bg3); }
+.flow-num {
+  font-family: var(--mono);
+  font-size: 24px;
+  font-weight: bold;
+  color: var(--amber);
+  display: block;
+}
+.flow-name {
+  font-family: var(--head);
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  margin: 4px 0;
+  color: var(--text);
+}
+.flow-desc { font-size: 11px; color: var(--text2); }
+.flow-arrow {
+  display: flex;
+  align-items: center;
+  padding: 0 4px;
+  color: var(--amber);
+  font-size: 20px;
+}
+
+/* ─── SHARING MATRIX ─── */
+.matrix {
+  display: grid;
+  grid-template-columns: 140px 1fr 1fr 1fr;
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+}
+.matrix-cell {
+  background: var(--bg2);
+  padding: 10px 14px;
+  font-family: var(--mono);
+  font-size: 12px;
+  text-align: center;
+}
+.matrix-cell.header { background: var(--bg3); color: var(--amber); font-size: 11px; letter-spacing: 1px; }
+.matrix-cell.row-header { background: var(--bg3); color: var(--text); text-align: left; }
+.matrix-cell.yes  { color: var(--green); }
+.matrix-cell.pref { color: var(--amber); font-weight: bold; }
+.matrix-cell.no   { color: var(--red); opacity: .5; }
+
+/* ─── PACKAGE TREE ─── */
+.tree {
+  font-family: var(--mono);
+  font-size: 12px;
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  padding: 20px 24px;
+  line-height: 2;
+}
+.tree .dir   { color: var(--amber); }
+.tree .file  { color: var(--cyan); }
+.tree .note  { color: var(--text2); font-size: 11px; }
+
+/* ─── FOOTER ─── */
+.footer {
+  text-align: center;
+  margin-top: 60px;
+  padding-top: 30px;
+  border-top: 1px solid var(--border);
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text2);
+  letter-spacing: 2px;
+}
+
+/* ─── ANIMATIONS ─── */
+@keyframes fadeUp {
+  from { opacity:0; transform:translateY(20px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+.section { animation: fadeUp .5s ease both; }
+.section:nth-child(2) { animation-delay:.05s; }
+.section:nth-child(3) { animation-delay:.1s; }
+.section:nth-child(4) { animation-delay:.15s; }
+.section:nth-child(5) { animation-delay:.2s; }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════ HEADER ══════════════════ -->
+<div class="header">
+  <div class="badge">System Design Document</div>
+  <h1>Smart <span>Parking</span> System</h1>
+  <p class="subtitle">HIGH LEVEL DESIGN · LOW LEVEL DESIGN · JAVA 17</p>
+  <div class="meta-row">
+    <span class="meta-tag">Java 17</span>
+    <span class="meta-tag">Multi-Floor</span>
+    <span class="meta-tag">3 Vehicle Types</span>
+    <span class="meta-tag">Dynamic Pricing</span>
+    <span class="meta-tag">Thread-Safe</span>
+    <span class="meta-tag">Design Patterns × 6</span>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- ══════════════════ HLD ══════════════════ -->
+<div class="section">
+  <div class="section-label">01 — High Level Design</div>
+  <div class="section-title">Architecture Overview</div>
+
+  <div class="arch-diagram">
+    <div class="arch-row-label">Client Layer</div>
+    <div class="arch-layer">
+      <div class="arch-node highlight">Attendant App<span class="node-label">Web / Kiosk</span></div>
+      <div class="arch-node highlight">Mobile App<span class="node-label">Driver-facing</span></div>
+      <div class="arch-node highlight">Admin Dashboard<span class="node-label">Revenue / Reports</span></div>
+    </div>
+    <div class="arch-arrow">↓ <span>HTTP / SDK calls</span></div>
+
+    <div class="arch-row-label">Gate Layer</div>
+    <div class="arch-layer">
+      <div class="arch-node cyan-node">EntryGate A<span class="node-label">parkVehicle()</span></div>
+      <div class="arch-node cyan-node">EntryGate B<span class="node-label">parkVehicle()</span></div>
+      <div class="arch-node cyan-node">ExitGate X<span class="node-label">unparkVehicle()</span></div>
+      <div class="arch-node cyan-node">ExitGate Y<span class="node-label">unparkVehicle()</span></div>
+    </div>
+    <div class="arch-arrow">↓ <span>delegates to</span></div>
+
+    <div class="arch-row-label">Core Service Layer</div>
+    <div class="arch-layer">
+      <div class="arch-node highlight" style="min-width:200px; padding:16px 24px;">
+        ParkingLot (Singleton)<span class="node-label">Central Orchestrator · Thread-Safe</span>
+      </div>
+    </div>
+    <div class="arch-arrow">↓ <span>manages floors · calculates fare · fires events</span></div>
+
+    <div class="arch-row-label">Domain Layer</div>
+    <div class="arch-layer">
+      <div class="arch-node green-node">ParkingFloor 1<span class="node-label">Ground Level</span></div>
+      <div class="arch-node green-node">ParkingFloor 2<span class="node-label">Level 1</span></div>
+      <div class="arch-node green-node">ParkingFloor 3<span class="node-label">Terrace</span></div>
+      <div class="arch-node blue-node">FareCalculator<span class="node-label">Peak/Normal/Night</span></div>
+      <div class="arch-node purple-node">EventBus<span class="node-label">Observer Pattern</span></div>
+    </div>
+    <div class="arch-arrow">↓ <span>composed of</span></div>
+
+    <div class="arch-row-label">Spot Layer</div>
+    <div class="arch-layer">
+      <div class="arch-node" style="color:#aaa">🏍️ SMALL Spots<span class="node-label">Bikes · Scooters</span></div>
+      <div class="arch-node" style="color:#aaa">🚗 MEDIUM Spots<span class="node-label">Cars · SUVs · EV⚡</span></div>
+      <div class="arch-node" style="color:#aaa">🚛 LARGE Spots<span class="node-label">Trucks · Buses</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════ ENTRY/EXIT FLOW ══════════════════ -->
+<div class="section">
+  <div class="section-label">02 — Process Flow</div>
+  <div class="section-title">Vehicle Entry & Exit</div>
+
+  <div style="margin-bottom:16px">
+    <div class="section-label" style="margin-bottom:8px">ENTRY FLOW</div>
+    <div class="flow">
+      <div class="flow-step"><span class="flow-num">01</span><div class="flow-name">Arrive</div><div class="flow-desc">Vehicle arrives at entry gate</div></div>
+      <div class="flow-step"><span class="flow-num">02</span><div class="flow-name">Detect</div><div class="flow-desc">License plate read + vehicle type identified</div></div>
+      <div class="flow-step"><span class="flow-num">03</span><div class="flow-name">Search</div><div class="flow-desc">Find best spot (EV-aware, floor-first)</div></div>
+      <div class="flow-step"><span class="flow-num">04</span><div class="flow-name">Assign</div><div class="flow-desc">Spot locked (synchronized), ticket issued</div></div>
+      <div class="flow-step"><span class="flow-num">05</span><div class="flow-name">Open</div><div class="flow-desc">Barrier opens, event fired to observers</div></div>
+    </div>
+  </div>
+
+  <div>
+    <div class="section-label" style="margin-bottom:8px">EXIT FLOW</div>
+    <div class="flow">
+      <div class="flow-step"><span class="flow-num">01</span><div class="flow-name">Scan</div><div class="flow-desc">Ticket or license plate scanned</div></div>
+      <div class="flow-step"><span class="flow-num">02</span><div class="flow-name">Calculate</div><div class="flow-desc">Fare computed per hour-bucket with multipliers</div></div>
+      <div class="flow-step"><span class="flow-num">03</span><div class="flow-name">Pay</div><div class="flow-desc">Cash / UPI / Card processed</div></div>
+      <div class="flow-step"><span class="flow-num">04</span><div class="flow-name">Free</div><div class="flow-desc">Spot released, availability updated</div></div>
+      <div class="flow-step"><span class="flow-num">05</span><div class="flow-name">Open</div><div class="flow-desc">Barrier opens, revenue logged</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════ LLD — CLASS DIAGRAM ══════════════════ -->
+<div class="section">
+  <div class="section-label">03 — Low Level Design</div>
+  <div class="section-title">Key Class Contracts</div>
+
+  <div class="cards-grid col2">
+
+    <div class="class-box">
+      <div class="class-header">
+        <span class="class-stereotype">«abstract»</span>
+        <span class="class-name amber">Vehicle</span>
+      </div>
+      <div class="class-section">
+        <div class="class-field">- licensePlate : <span>String</span></div>
+        <div class="class-field">- vehicleType  : <span>VehicleType</span></div>
+        <div class="class-field">- ownerName    : <span>String</span></div>
+        <div class="class-field">- isElectric   : <span>boolean</span></div>
+      </div>
+      <div class="class-section">
+        <div class="class-method">+ getModel()       : <span>String  «abstract»</span></div>
+        <div class="class-method">+ getLicensePlate(): <span>String</span></div>
+        <div class="class-method">+ isElectric()     : <span>boolean</span></div>
+      </div>
+      <div class="class-section" style="color:var(--text2);font-size:11px;padding:8px 14px;">
+        ↳ Bike (SMALL) &nbsp;|&nbsp; Car (MEDIUM) &nbsp;|&nbsp; Truck (LARGE)
+      </div>
+    </div>
+
+    <div class="class-box">
+      <div class="class-header">
+        <span class="class-name cyan">ParkingSpot</span>
+      </div>
+      <div class="class-section">
+        <div class="class-field">- spotId        : <span>String</span></div>
+        <div class="class-field">- spotType      : <span>SpotType</span></div>
+        <div class="class-field">- isHandicapped : <span>boolean ♿</span></div>
+        <div class="class-field">- isEVCharging  : <span>boolean ⚡</span></div>
+        <div class="class-field">- isCovered     : <span>boolean 🏠</span></div>
+        <div class="class-field">- parkedVehicle : <span>Vehicle?</span></div>
+        <div class="class-field">- isAvailable   : <span>boolean</span></div>
+      </div>
+      <div class="class-section">
+        <div class="class-method">+ assignVehicle(v) : <span>boolean  «synchronized»</span></div>
+        <div class="class-method">+ freeSpot()       : <span>void     «synchronized»</span></div>
+        <div class="class-method">+ canAccommodate() : <span>boolean</span></div>
+        <div class="class-method">+ surchargePerHour(): <span>double</span></div>
+      </div>
+    </div>
+
+    <div class="class-box">
+      <div class="class-header">
+        <span class="class-stereotype">«singleton»</span>
+        <span class="class-name amber">ParkingLot</span>
+      </div>
+      <div class="class-section">
+        <div class="class-field">- floors          : <span>List&lt;ParkingFloor&gt;</span></div>
+        <div class="class-field">- activeTickets   : <span>ConcurrentHashMap</span></div>
+        <div class="class-field">- completedTickets: <span>ConcurrentHashMap</span></div>
+        <div class="class-field">- fareCalculator  : <span>FareCalculator</span></div>
+        <div class="class-field">- totalRevenue    : <span>double</span></div>
+      </div>
+      <div class="class-section">
+        <div class="class-method">+ parkVehicle(v, gateId)    : <span>ParkingTicket</span></div>
+        <div class="class-method">+ unparkVehicle(plate)      : <span>ParkingTicket</span></div>
+        <div class="class-method">+ findVehicle(plate)        : <span>Optional&lt;Spot&gt;</span></div>
+        <div class="class-method">+ getAllParkedVehicles()     : <span>Map&lt;Floor, List&gt;</span></div>
+        <div class="class-method">+ generateStatusReport()    : <span>String</span></div>
+        <div class="class-method">+ processlostTicket(plate)  : <span>double</span></div>
+      </div>
+    </div>
+
+    <div class="class-box">
+      <div class="class-header">
+        <span class="class-name green">FareCalculator</span>
+      </div>
+      <div class="class-section">
+        <div class="class-field">- BASE_SMALL  : <span>₹20/hr</span></div>
+        <div class="class-field">- BASE_MEDIUM : <span>₹40/hr</span></div>
+        <div class="class-field">- BASE_LARGE  : <span>₹60/hr</span></div>
+        <div class="class-field">- GRACE       : <span>30 min FREE</span></div>
+        <div class="class-field">- LOST_PENALTY: <span>₹500 flat</span></div>
+      </div>
+      <div class="class-section">
+        <div class="class-method">+ calculate(ticket, exit)  : <span>double</span></div>
+        <div class="class-method">+ lostTicketFare()         : <span>double</span></div>
+        <div class="class-method">+ classifyHour(time)       : <span>HourType «static»</span></div>
+        <div class="class-method">- computeTimedFare(...)    : <span>double «private»</span></div>
+      </div>
+    </div>
+
+    <div class="class-box">
+      <div class="class-header">
+        <span class="class-name blue">ParkingTicket</span>
+      </div>
+      <div class="class-section">
+        <div class="class-field">- ticketId      : <span>String (TKT-UUID)</span></div>
+        <div class="class-field">- vehicle       : <span>Vehicle</span></div>
+        <div class="class-field">- assignedSpot  : <span>ParkingSpot</span></div>
+        <div class="class-field">- entryTime     : <span>LocalDateTime</span></div>
+        <div class="class-field">- entryHourType : <span>HourType</span></div>
+        <div class="class-field">- exitTime      : <span>LocalDateTime?</span></div>
+        <div class="class-field">- fareAmount    : <span>double</span></div>
+        <div class="class-field">- status        : <span>ACTIVE|COMPLETED|LOST</span></div>
+      </div>
+      <div class="class-section">
+        <div class="class-method">+ complete(exit, fare): <span>void</span></div>
+        <div class="class-method">+ markLost()         : <span>void</span></div>
+        <div class="class-method">+ toReceipt()        : <span>String</span></div>
+      </div>
+    </div>
+
+    <div class="class-box">
+      <div class="class-header">
+        <span class="class-stereotype">«interface»</span>
+        <span class="class-name purple">ParkingEventListener</span>
+      </div>
+      <div class="class-section">
+        <div class="class-method">+ onVehicleParked(ticket) : <span>void</span></div>
+        <div class="class-method">+ onVehicleExited(ticket) : <span>void</span></div>
+        <div class="class-method">+ onLotFull(floorNumber)  : <span>void</span></div>
+      </div>
+      <div class="class-section" style="color:var(--text2);font-size:11px;padding:8px 14px;">
+        Implementations: ConsoleParkingLogger · SMSNotifier · CCTVTrigger · AnalyticsCollector
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════ ENUMS ══════════════════ -->
+<div class="section">
+  <div class="section-label">04 — Enumerations</div>
+  <div class="section-title">Type System</div>
+  <div class="cards-grid col3">
+
+    <div class="card amber">
+      <div class="card-title">VehicleType</div>
+      <div class="card-body">
+        <strong>SMALL</strong> (size=1) — Bike, Scooter<br>
+        <strong>MEDIUM</strong> (size=2) — Car, SUV<br>
+        <strong>LARGE</strong> (size=3) — Truck, Bus<br><br>
+        <code style="color:var(--text2)">int sizeUnits</code> used for spot-fit comparison
+      </div>
+    </div>
+
+    <div class="card cyan">
+      <div class="card-title">SpotType</div>
+      <div class="card-body">
+        <strong>SMALL</strong> (cap=1) — bikes only<br>
+        <strong>MEDIUM</strong> (cap=2) — bikes + cars<br>
+        <strong>LARGE</strong> (cap=3) — all vehicles<br><br>
+        <code style="color:var(--text2)">canFit(VehicleType)</code> → cap ≥ size
+      </div>
+    </div>
+
+    <div class="card green">
+      <div class="card-title">HourType</div>
+      <div class="card-body">
+        <strong>PEAK</strong> — 08–10h, 17–20h → 1.75×<br>
+        <strong>NORMAL</strong> — all other hours → 1.00×<br>
+        <strong>NIGHT</strong> — 00–06h → 0.75×<br><br>
+        Applied per-hour-bucket during stay
+      </div>
+    </div>
+
+    <div class="card blue">
+      <div class="card-title">TicketStatus</div>
+      <div class="card-body">
+        <strong>ACTIVE</strong> — vehicle currently parked<br>
+        <strong>COMPLETED</strong> — paid and exited<br>
+        <strong>LOST</strong> — ticket reported lost<br><br>
+        Drives gate barrier logic
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════ SPOT SHARING ══════════════════ -->
+<div class="section">
+  <div class="section-label">05 — Spot Sharing Rules</div>
+  <div class="section-title">Vehicle × Spot Compatibility Matrix</div>
+
+  <div class="matrix">
+    <div class="matrix-cell header">Vehicle \ Spot</div>
+    <div class="matrix-cell header">SMALL spot</div>
+    <div class="matrix-cell header">MEDIUM spot</div>
+    <div class="matrix-cell header">LARGE spot</div>
+
+    <div class="matrix-cell row-header">🏍️ SMALL (Bike)</div>
+    <div class="matrix-cell pref">★ PREFERRED</div>
+    <div class="matrix-cell yes">✓ Fallback</div>
+    <div class="matrix-cell yes">✓ Fallback</div>
+
+    <div class="matrix-cell row-header">🚗 MEDIUM (Car)</div>
+    <div class="matrix-cell no">✗ Too small</div>
+    <div class="matrix-cell pref">★ PREFERRED</div>
+    <div class="matrix-cell yes">✓ Fallback</div>
+
+    <div class="matrix-cell row-header">🚛 LARGE (Truck)</div>
+    <div class="matrix-cell no">✗ Too small</div>
+    <div class="matrix-cell no">✗ Too small</div>
+    <div class="matrix-cell pref">★ PREFERRED</div>
+  </div>
+
+  <div style="margin-top:12px; font-size:12px; color:var(--text2); font-family:var(--mono);">
+    ★ Preferred = exact fit matched first &nbsp;|&nbsp; ✓ Fallback = used when preferred spots are full &nbsp;|&nbsp; ✗ Hard block — size check prevents assignment
+  </div>
+</div>
+
+<!-- ══════════════════ PRICING ══════════════════ -->
+<div class="section">
+  <div class="section-label">06 — Dynamic Pricing</div>
+  <div class="section-title">Fare Calculation Engine</div>
+
+  <table class="styled-table" style="margin-bottom:20px;">
+    <thead>
+      <tr><th>Hour Window</th><th>Classification</th><th>Multiplier</th><th>Small ₹/hr</th><th>Medium ₹/hr</th><th>Large ₹/hr</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>08:00 – 10:00</td>
+        <td><span class="tag peak">PEAK — Morning</span></td>
+        <td>1.75×</td><td>₹35</td><td>₹70</td><td>₹105</td>
+      </tr>
+      <tr>
+        <td>17:00 – 20:00</td>
+        <td><span class="tag peak">PEAK — Evening</span></td>
+        <td>1.75×</td><td>₹35</td><td>₹70</td><td>₹105</td>
+      </tr>
+      <tr>
+        <td>All other hours</td>
+        <td><span class="tag normal">NORMAL</span></td>
+        <td>1.00×</td><td>₹20</td><td>₹40</td><td>₹60</td>
+      </tr>
+      <tr>
+        <td>00:00 – 06:00</td>
+        <td><span class="tag night">NIGHT Discount</span></td>
+        <td>0.75×</td><td>₹15</td><td>₹30</td><td>₹45</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <table class="styled-table">
+    <thead>
+      <tr><th>Surcharge / Discount</th><th>Condition</th><th>Amount</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><span class="tag ev">EV Charging Spot</span></td><td>Spot has isEVCharging = true</td><td>+₹10/hr</td></tr>
+      <tr><td><span class="tag bonus">Covered / Indoor</span></td><td>Spot has isCovered = true</td><td>+₹5/hr</td></tr>
+      <tr><td><span class="tag normal">Grace Period</span></td><td>Duration ≤ 30 minutes</td><td>FREE</td></tr>
+      <tr><td><span class="tag peak">Lost Ticket</span></td><td>Ticket reported lost</td><td>Flat ₹500</td></tr>
+      <tr><td><span class="tag night">Handicapped Spot</span></td><td>isHandicapped = true</td><td>No surcharge</td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ══════════════════ DESIGN PATTERNS ══════════════════ -->
+<div class="section">
+  <div class="section-label">07 — Design Patterns</div>
+  <div class="section-title">Patterns Applied</div>
+  <div class="cards-grid col3">
+
+    <div class="card purple">
+      <div class="card-title">Singleton</div>
+      <div class="card-body"><strong>ParkingLot</strong> — One lot instance per JVM. Double-checked locking ensures thread-safe lazy initialisation.</div>
+    </div>
+
+    <div class="card amber">
+      <div class="card-title">Factory Method</div>
+      <div class="card-body"><strong>VehicleFactory</strong> — Decouples vehicle creation from switch logic. Returns Bike / Car / Truck based on VehicleType enum.</div>
+    </div>
+
+    <div class="card cyan">
+      <div class="card-title">Builder</div>
+      <div class="card-body"><strong>ParkingLotBuilder</strong> — Fluent API: <code>.addFloor(1,"Ground",10,20,5)</code> makes lot configuration readable and testable.</div>
+    </div>
+
+    <div class="card green">
+      <div class="card-title">Observer</div>
+      <div class="card-body"><strong>ParkingEventListener</strong> — Decouple notifications, analytics, CCTV triggers. Register any number of listeners at runtime.</div>
+    </div>
+
+    <div class="card blue">
+      <div class="card-title">Strategy</div>
+      <div class="card-body"><strong>FareCalculator</strong> — Pricing algorithm is isolated. Swap weekday vs weekend strategy, seasonal pricing, or subscription plans without touching core logic.</div>
+    </div>
+
+    <div class="card red">
+      <div class="card-title">Template Method</div>
+      <div class="card-body"><strong>Vehicle abstract class</strong> — Enforces <code>getModel()</code> contract while concrete subclasses (Bike, Car, Truck) provide their own model data.</div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ══════════════════ BONUS FEATURES ══════════════════ -->
+<div class="section">
+  <div class="section-label">08 — Bonus Features</div>
+  <div class="section-title">Beyond the Requirements</div>
+  <div class="cards-grid col4">
+    <div class="card amber"><div class="card-title">EV Routing</div><div class="card-body">Electric vehicles auto-routed to EV-charging spots. Falls back to regular spots if none available.</div></div>
+    <div class="card cyan"><div class="card-title">♿ Reserved Spots</div><div class="card-body">First 2 small spots per floor reserved for differently-abled drivers. Flagged in status report.</div></div>
+    <div class="card green"><div class="card-title">🏠 Covered Parking</div><div class="card-body">Indoor/covered spots have +₹5/hr surcharge and are preferred by some drivers.</div></div>
+    <div class="card blue"><div class="card-title">Grace Period</div><div class="card-body">First 30 minutes are completely free. Duration below threshold returns fare = ₹0.</div></div>
+    <div class="card purple"><div class="card-title">Night Discount</div><div class="card-body">25% discount automatically applied for midnight-6AM stays to encourage off-peak usage.</div></div>
+    <div class="card red"><div class="card-title">Lost Ticket</div><div class="card-body">Flat ₹500 penalty. Spot freed, ticket archived as LOST status for audit trail.</div></div>
+    <div class="card amber"><div class="card-title">Revenue Tracker</div><div class="card-body">Real-time totalRevenue accumulation with completed ticket archive for daily reconciliation.</div></div>
+    <div class="card cyan"><div class="card-title">Vehicle Search</div><div class="card-body">Find any parked vehicle by license plate across all floors in O(floors × spots) time.</div></div>
+  </div>
+</div>
+
+<!-- ══════════════════ PACKAGE STRUCTURE ══════════════════ -->
+<div class="section">
+  <div class="section-label">09 — Package Structure</div>
+  <div class="section-title">Source Layout</div>
+  <div class="tree">
+    <span class="dir">com.parking/</span><br>
+    &nbsp;&nbsp;├── <span class="dir">enums/</span><br>
+    &nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;├── <span class="file">VehicleType.java</span>&nbsp;&nbsp;&nbsp;<span class="note">SMALL · MEDIUM · LARGE + sizeUnits</span><br>
+    &nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;├── <span class="file">SpotType.java</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="note">SMALL · MEDIUM · LARGE + canFit()</span><br>
+    &nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;├── <span class="file">HourType.java</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="note">PEAK · NORMAL · NIGHT + multiplier</span><br>
+    &nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;└── <span class="file">TicketStatus.java</span>&nbsp;&nbsp;<span class="note">ACTIVE · COMPLETED · LOST</span><br>
+    &nbsp;&nbsp;├── <span class="dir">model/</span><br>
+    &nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;├── <span class="file">Vehicle.java</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="note">Abstract + Bike / Car / Truck inner classes</span><br>
+    &nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;├── <span class="file">VehicleFactory.java</span><span class="note">Factory pattern — creates Vehicle instances</span><br>
+    &nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;├── <span class="file">ParkingSpot.java</span>&nbsp;&nbsp;&nbsp;<span class="note">Thread-safe spot with surcharge support</span><br>
+    &nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;├── <span class="file">ParkingFloor.java</span>&nbsp;&nbsp;<span class="note">Floor-level spot management + EV routing</span><br>
+    &nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;└── <span class="file">ParkingTicket.java</span>&nbsp;<span class="note">Ticket lifecycle + printable receipt</span><br>
+    &nbsp;&nbsp;├── <span class="dir">service/</span><br>
+    &nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;├── <span class="file">ParkingLot.java</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="note">Singleton orchestrator · ConcurrentHashMap</span><br>
+    &nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;├── <span class="file">ParkingLotBuilder.java</span>&nbsp;<span class="note">Fluent builder for lot configuration</span><br>
+    &nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;└── <span class="file">FareCalculator.java</span>&nbsp;<span class="note">Dynamic pricing engine · hour-by-hour</span><br>
+    &nbsp;&nbsp;├── <span class="dir">gate/</span><br>
+    &nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;└── <span class="file">EntryGate.java</span>&nbsp;&nbsp;&nbsp;&nbsp;<span class="note">EntryGate + ExitGate (lost ticket support)</span><br>
+    &nbsp;&nbsp;├── <span class="dir">observer/</span><br>
+    &nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;└── <span class="file">ParkingEventListener.java</span>&nbsp;<span class="note">Interface + ConsoleParkingLogger</span><br>
+    &nbsp;&nbsp;├── <span class="dir">exception/</span><br>
+    &nbsp;&nbsp;│&nbsp;&nbsp;&nbsp;└── <span class="file">ParkingExceptions.java</span>&nbsp;<span class="note">ParkingLotFull · InvalidTicket · AlreadyParked</span><br>
+    &nbsp;&nbsp;└── <span class="file">Main.java</span>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;<span class="note">Demo driver — all features exercised</span>
+  </div>
+</div>
+
+<!-- ══════════════════ FOOTER ══════════════════ -->
+<div class="footer">
+  SMART PARKING SYSTEM &nbsp;·&nbsp; JAVA 17 &nbsp;·&nbsp; HLD + LLD &nbsp;·&nbsp; 6 DESIGN PATTERNS
+</div>
+
+</div><!-- /container -->
+</body>
+</html>

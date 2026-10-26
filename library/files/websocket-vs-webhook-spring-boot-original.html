@@ -1,0 +1,1241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>WebSocket vs Webhook — Spring Boot reference</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;1,400&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#FBFAF7; --surface:#FFFFFF; --sunk:#F2F0EA;
+  --ink:#1A1D23; --ink-2:#4C525F; --ink-3:#787E8B;
+  --rule:#E3E0D8; --rule-2:#CFCBC0;
+  --hook:#9E5618; --hook-soft:#F3E7D8;
+  --sock:#186B74; --sock-soft:#DEEDEC;
+  --code-bg:#13171E; --code-ink:#D5D9E0; --code-rule:#252B36;
+  --font-sans:"IBM Plex Sans","Segoe UI",system-ui,-apple-system,sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#111419; --surface:#171B21; --sunk:#1D222A;
+    --ink:#E9E7E1; --ink-2:#A8AEB9; --ink-3:#7E848F;
+    --rule:#262B33; --rule-2:#39404B;
+    --hook:#E3A662; --hook-soft:#2A2118;
+    --sock:#63CBD3; --sock-soft:#12262A;
+    --code-bg:#0D1116; --code-ink:#D5D9E0; --code-rule:#20262F;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#111419; --surface:#171B21; --sunk:#1D222A;
+  --ink:#E9E7E1; --ink-2:#A8AEB9; --ink-3:#7E848F;
+  --rule:#262B33; --rule-2:#39404B;
+  --hook:#E3A662; --hook-soft:#2A2118;
+  --sock:#63CBD3; --sock-soft:#12262A;
+  --code-bg:#0D1116; --code-ink:#D5D9E0; --code-rule:#20262F;
+}
+*,*::before,*::after{box-sizing:inherit}
+html{scroll-behavior:smooth;scroll-padding-top:calc(58px + env(safe-area-inset-top,0px))}
+body{
+  margin:0;background:var(--bg);color:var(--ink);
+  font-family:var(--font-sans);font-size:17px;line-height:1.65;
+  -webkit-text-size-adjust:100%;
+}
+h1,h2,h3,h4{line-height:1.2;margin:0;font-weight:600;letter-spacing:-0.012em}
+p{margin:0 0 1em}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--sock);outline-offset:3px;border-radius:2px}
+
+.wrap{max-width:1140px;margin:0 auto;padding:0 20px}
+.col{max-width:68ch}
+
+/* ── top bar ───────────────────────────────────────────── */
+.bar{
+  position:sticky;top:0;z-index:40;
+  background:color-mix(in srgb,var(--bg) 88%,transparent);
+  backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--rule);
+  padding-top:env(safe-area-inset-top,0px);
+}
+.bar-in{max-width:1140px;margin:0 auto;padding:0 20px;height:57px;display:flex;align-items:center;gap:14px}
+.mark{font-weight:600;font-size:15px;white-space:nowrap}
+.mark .s{color:var(--sock)} .mark .h{color:var(--hook)}
+.jump{
+  margin-left:auto;font:inherit;font-size:14px;
+  background:var(--surface);color:var(--ink);
+  border:1px solid var(--rule-2);border-radius:7px;
+  padding:6px 9px;max-width:46vw;
+}
+.tgl{
+  flex:none;width:34px;height:34px;border-radius:7px;cursor:pointer;
+  background:var(--surface);border:1px solid var(--rule-2);color:var(--ink-2);
+  font-size:15px;line-height:1;display:grid;place-items:center;
+}
+
+/* ── hero ──────────────────────────────────────────────── */
+.hero{padding:64px 0 52px;border-bottom:1px solid var(--rule)}
+.hero h1{font-size:clamp(34px,7.4vw,56px);letter-spacing:-0.03em;margin-bottom:18px}
+.hero h1 .div{color:var(--ink-3);font-weight:400}
+.lede{font-size:clamp(17px,2.4vw,20px);color:var(--ink-2);max-width:54ch;margin-bottom:38px}
+
+.traces{display:flex;flex-direction:column;gap:14px;max-width:660px}
+.trace{
+  display:grid;grid-template-columns:104px 1fr;gap:4px 16px;align-items:center;
+  padding:14px 16px;border-radius:10px;background:var(--surface);
+  border:1px solid var(--rule);
+}
+.trace .nm{font-weight:600;font-size:15px}
+.trace .nm.h{color:var(--hook)} .trace .nm.s{color:var(--sock)}
+.trace .note{grid-column:1/-1;font-size:14px;color:var(--ink-3);margin-top:2px}
+.trace svg{width:100%;height:30px;display:block;overflow:visible}
+.wire{stroke:var(--rule-2);stroke-width:1.5;fill:none}
+.pk-h{fill:var(--hook)} .pk-s{fill:var(--sock)}
+@media (prefers-reduced-motion:no-preference){
+  .an-h{animation:hop 4.2s cubic-bezier(.4,0,.3,1) infinite}
+  .an-r{animation:flowR 2.2s linear infinite}
+  .an-l{animation:flowL 2.6s linear infinite}
+}
+@keyframes hop{
+  0%{transform:translateX(0);opacity:0}
+  6%{opacity:1} 52%{transform:translateX(272px);opacity:1}
+  58%{transform:translateX(272px);opacity:0} 100%{transform:translateX(272px);opacity:0}
+}
+@keyframes flowR{from{transform:translateX(0)}to{transform:translateX(68px)}}
+@keyframes flowL{from{transform:translateX(0)}to{transform:translateX(-68px)}}
+@media (max-width:520px){ .trace{grid-template-columns:1fr} }
+
+/* ── layout ────────────────────────────────────────────── */
+.body{display:grid;grid-template-columns:1fr;gap:0}
+@media (min-width:1000px){
+  .body{grid-template-columns:186px 1fr;gap:52px;align-items:start}
+  .rail{position:sticky;top:96px;padding:54px 0 0;font-size:14px}
+  .rail ol{list-style:none;margin:0;padding:0;border-left:1px solid var(--rule)}
+  .rail a{display:block;padding:6px 0 6px 15px;margin-left:-1px;
+          border-left:2px solid transparent;color:var(--ink-3);text-decoration:none}
+  .rail a:hover{color:var(--ink)}
+  .rail a.on{color:var(--ink);border-left-color:var(--sock);font-weight:500}
+}
+@media (max-width:999px){ .rail{display:none} }
+
+section{padding:54px 0;border-bottom:1px solid var(--rule)}
+section:last-of-type{border-bottom:0}
+section > h2{font-size:clamp(25px,4.6vw,31px);letter-spacing:-0.022em;margin-bottom:8px}
+.sub{color:var(--ink-3);font-size:16px;margin-bottom:28px;max-width:60ch}
+h3{font-size:20px;margin:36px 0 10px}
+h4{font-size:16px;margin:26px 0 8px;color:var(--ink-2);font-weight:600}
+
+/* protocol edge markers — dashed = one-shot HTTP, solid = held-open socket */
+.edge-h,.edge-s{padding-left:18px;margin:22px 0}
+.edge-h{border-left:2px dashed var(--hook)}
+.edge-s{border-left:2px solid var(--sock)}
+
+code{font-family:var(--font-mono);font-size:0.875em;
+     background:var(--sunk);padding:1px 5px;border-radius:4px;
+     border:1px solid var(--rule);white-space:nowrap}
+
+/* ── tables ────────────────────────────────────────────── */
+.scroll{overflow-x:auto;margin:22px 0;border:1px solid var(--rule);border-radius:10px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:15px;min-width:520px}
+th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--rule);vertical-align:top}
+thead th{font-weight:600;font-size:14px;color:var(--ink-2);background:var(--sunk);white-space:nowrap}
+tbody tr:last-child td{border-bottom:0}
+td:first-child{color:var(--ink-2)}
+th.h{color:var(--hook)} th.s{color:var(--sock)}
+
+/* ── flow diagram ──────────────────────────────────────── */
+.flow{margin:26px 0;max-width:460px}
+.node{
+  border:1px solid var(--rule-2);border-radius:10px;background:var(--surface);
+  padding:12px 15px;
+}
+.node .t{font-weight:600;font-size:15px}
+.node .d{font-size:13.5px;color:var(--ink-3);margin-top:1px}
+.node.own{border-color:var(--sock);background:var(--sock-soft)}
+.node.ext{border-color:var(--rule-2);background:var(--sunk)}
+.link{display:grid;grid-template-columns:22px 1fr;align-items:center;gap:10px;padding:7px 0;min-height:44px}
+.link .ln{justify-self:center;width:0;height:100%;border-left:2px dashed var(--hook)}
+.link.solid .ln{border-left:2px solid var(--sock)}
+.link .lb{font-size:13px;color:var(--ink-3)}
+.link .lb b{font-weight:500;color:var(--ink-2)}
+
+/* ── thread panels ─────────────────────────────────────── */
+.panels{display:grid;gap:14px;margin:26px 0}
+@media (min-width:760px){ .panels{grid-template-columns:repeat(3,1fr)} }
+.panel{border:1px solid var(--rule);border-radius:10px;background:var(--surface);padding:16px}
+.panel .t{font-weight:600;font-size:16px}
+.panel .d{font-size:13.5px;color:var(--ink-3);margin-bottom:14px}
+.dots{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px;min-height:46px;align-content:flex-start}
+.dot{width:13px;height:13px;border-radius:50%}
+.dot.sm{width:8px;height:8px}
+.dot.busy{background:var(--hook)}
+.dot.free{background:var(--sock)}
+.panel .v{font-size:13.5px;color:var(--ink-2);border-top:1px solid var(--rule);padding-top:10px}
+.legend{display:flex;gap:18px;flex-wrap:wrap;font-size:13.5px;color:var(--ink-3);margin-top:-8px}
+.legend span{display:flex;align-items:center;gap:7px}
+
+/* ── code ──────────────────────────────────────────────── */
+figure.code{margin:18px 0;border-radius:10px;overflow:hidden;border:1px solid var(--code-rule);background:var(--code-bg)}
+figcaption{
+  display:flex;align-items:center;gap:10px;
+  padding:8px 12px;border-bottom:1px solid var(--code-rule);
+  font-family:var(--font-mono);font-size:12.5px;color:#8C94A3;
+}
+figcaption .cp{
+  margin-left:auto;font:inherit;cursor:pointer;color:#8C94A3;
+  background:transparent;border:1px solid var(--code-rule);border-radius:5px;padding:3px 9px;
+}
+figcaption .cp:hover{color:#D5D9E0;border-color:#3C4553}
+figure.code pre{margin:0;padding:15px 16px;overflow-x:auto}
+figure.code code{
+  background:none;border:0;padding:0;white-space:pre;
+  font-family:var(--font-mono);font-size:13.5px;line-height:1.62;color:var(--code-ink);
+}
+.hljs-comment,.hljs-quote{color:#6B7482;font-style:italic}
+.hljs-keyword,.hljs-selector-tag,.hljs-literal{color:#E3A662}
+.hljs-string,.hljs-doctag{color:#83C9A5}
+.hljs-number,.hljs-regexp{color:#E1906E}
+.hljs-title,.hljs-name,.hljs-type,.hljs-built_in,.hljs-class .hljs-title{color:#63CBD3}
+.hljs-meta,.hljs-meta .hljs-keyword{color:#A79BE0}
+.hljs-attr,.hljs-attribute,.hljs-selector-attr{color:#63CBD3}
+.hljs-tag{color:#8C94A3}
+.hljs-variable,.hljs-template-variable,.hljs-params{color:var(--code-ink)}
+.hljs-symbol,.hljs-bullet,.hljs-section{color:#E3A662}
+.hljs-deletion{color:#E1906E}
+
+/* ── callouts ──────────────────────────────────────────── */
+.note{
+  border:1px solid var(--rule);border-left:3px solid var(--hook);
+  background:var(--surface);border-radius:0 8px 8px 0;
+  padding:13px 16px;margin:20px 0;font-size:15.5px;
+}
+.note b{font-weight:600}
+.note.s{border-left-color:var(--sock)}
+
+/* ── checklist ─────────────────────────────────────────── */
+.checks{display:grid;gap:22px;margin-top:8px}
+@media (min-width:760px){ .checks{grid-template-columns:1fr 1fr} }
+.checks h3{margin:0 0 10px;font-size:17px}
+.checks h3.h{color:var(--hook)} .checks h3.s{color:var(--sock)}
+.checks ul{list-style:none;margin:0;padding:0}
+.checks li{border-bottom:1px solid var(--rule)}
+.checks label{display:flex;gap:11px;align-items:flex-start;padding:10px 2px;cursor:pointer;font-size:15px}
+.checks input{margin:5px 0 0;flex:none;width:16px;height:16px;accent-color:var(--sock)}
+.checks input:checked + span{color:var(--ink-3);text-decoration:line-through}
+.reset{
+  margin-top:18px;font:inherit;font-size:14px;cursor:pointer;
+  background:var(--surface);border:1px solid var(--rule-2);border-radius:7px;
+  padding:7px 13px;color:var(--ink-2);
+}
+
+/* ── q&a ───────────────────────────────────────────────── */
+details{border-bottom:1px solid var(--rule)}
+summary{
+  cursor:pointer;padding:15px 30px 15px 0;font-weight:500;position:relative;list-style:none;
+}
+summary::-webkit-details-marker{display:none}
+summary::after{
+  content:"+";position:absolute;right:4px;top:13px;
+  color:var(--ink-3);font-size:20px;font-weight:400;
+}
+details[open] summary::after{content:"–"}
+details .ans{padding:0 0 16px;color:var(--ink-2);font-size:16px;max-width:66ch}
+
+footer{padding:38px 0 60px;color:var(--ink-3);font-size:14.5px}
+</style>
+</head>
+<body>
+
+<div class="bar">
+  <div class="bar-in">
+    <span class="mark"><span class="s">WebSocket</span> vs <span class="h">Webhook</span></span>
+    <select class="jump" id="jump" aria-label="Section par jao">
+      <option value="">Section…</option>
+      <option value="farq">1 · Farq</option>
+      <option value="kab">2 · Kab kya</option>
+      <option value="design">3 · Design</option>
+      <option value="threads">4 · Threads</option>
+      <option value="mvc">5 · Code — Spring MVC</option>
+      <option value="flux">6 · Code — WebFlux</option>
+      <option value="tuning">7 · Tuning knobs</option>
+      <option value="checklist">8 · Prod checklist</option>
+      <option value="interview">9 · Interview</option>
+    </select>
+    <button class="tgl" id="tgl" aria-label="Theme badlo">◐</button>
+  </div>
+</div>
+
+<header class="hero">
+  <div class="wrap">
+    <h1>Ek doorbell,<br>ek phone call<span class="div">.</span></h1>
+    <p class="lede">Dono "server se data aaya" solve karte hain — par connection, direction aur thread cost bilkul alag hai. Yeh poora Spring Boot reference hai: design, thread model, runnable code, production gotchas.</p>
+
+    <div class="traces">
+      <div class="trace">
+        <span class="nm h">Webhook</span>
+        <svg viewBox="0 0 300 30" aria-hidden="true">
+          <line class="wire" x1="6" y1="15" x2="294" y2="15" stroke-dasharray="4 5"/>
+          <g class="an-h"><rect class="pk-h" x="8" y="9" width="13" height="12" rx="2.5"/></g>
+        </svg>
+        <span class="note">Ek POST aata hai, 200 OK jaata hai, connection band. Agla event → bilkul nayi request.</span>
+      </div>
+      <div class="trace">
+        <span class="nm s">WebSocket</span>
+        <svg viewBox="0 0 300 30" aria-hidden="true">
+          <line class="wire" x1="6" y1="15" x2="294" y2="15"/>
+          <g class="an-r">
+            <circle class="pk-s" cx="20" cy="10" r="3.4"/><circle class="pk-s" cx="88" cy="10" r="3.4"/>
+            <circle class="pk-s" cx="156" cy="10" r="3.4"/><circle class="pk-s" cx="224" cy="10" r="3.4"/>
+          </g>
+          <g class="an-l">
+            <circle class="pk-s" cx="54" cy="21" r="3.4" opacity=".55"/><circle class="pk-s" cx="122" cy="21" r="3.4" opacity=".55"/>
+            <circle class="pk-s" cx="190" cy="21" r="3.4" opacity=".55"/><circle class="pk-s" cx="258" cy="21" r="3.4" opacity=".55"/>
+          </g>
+        </svg>
+        <span class="note">Ek handshake, phir line khuli. Dono taraf se frames, jab tak koi band na kare.</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="wrap">
+<div class="body">
+
+  <nav class="rail" aria-label="Page sections">
+    <ol>
+      <li><a href="#farq">Farq</a></li>
+      <li><a href="#kab">Kab kya</a></li>
+      <li><a href="#design">Design</a></li>
+      <li><a href="#threads">Threads</a></li>
+      <li><a href="#mvc">Code — Spring MVC</a></li>
+      <li><a href="#flux">Code — WebFlux</a></li>
+      <li><a href="#tuning">Tuning knobs</a></li>
+      <li><a href="#checklist">Prod checklist</a></li>
+      <li><a href="#interview">Interview</a></li>
+    </ol>
+  </nav>
+
+  <main>
+
+  <!-- ═══ 1 ═══ -->
+  <section id="farq">
+    <h2>Farq</h2>
+    <p class="sub">Har row ka ek practical consequence hai — sirf yaad karne ke liye nahi.</p>
+
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Axis</th><th class="h">Webhook</th><th class="s">WebSocket</th></tr></thead>
+        <tbody>
+          <tr><td>Kya hai</td><td>HTTP POST callback</td><td>TCP connection, HTTP se upgrade (101)</td></tr>
+          <tr><td>Connection</td><td>Har event pe naya, turant band</td><td>Ek baar khulta hai, ghanton khula</td></tr>
+          <tr><td>Direction</td><td>One-way: unka server → aapka server</td><td>Full-duplex, dono taraf</td></tr>
+          <tr><td>Initiator</td><td>Provider aapke public URL pe aata hai</td><td>Client handshake bhejta hai</td></tr>
+          <tr><td>Receiver kahan</td><td>Public HTTPS endpoint chahiye</td><td>Client NAT ke peechhe ho sakta hai</td></tr>
+          <tr><td>State</td><td>Stateless</td><td>Stateful — per-connection session</td></tr>
+          <tr><td>Reliability</td><td>Built-in retries, at-least-once</td><td>Kuch nahi — ack/resume khud banao</td></tr>
+          <tr><td>Ordering</td><td>Guarantee nahi, out-of-order aata hai</td><td>Ek connection pe ordered</td></tr>
+          <tr><td>Auth</td><td>HMAC signature + timestamp</td><td>Handshake pe token, phir session</td></tr>
+          <tr><td>Scale cost</td><td>Sasta — normal HTTP traffic</td><td>Memory per open connection</td></tr>
+          <tr><td>Latency</td><td>Event-driven, par HTTP overhead</td><td>Open hone ke baad sub-ms</td></tr>
+          <tr><td>Typical</td><td>Stripe, Razorpay, GitHub, Twilio</td><td>Chat, live ticks, dashboards, multiplayer</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="edge-h col">
+      <h4>Webhook = doorbell</h4>
+      <p>Koi aata hai, bell bajata hai, chala jaata hai. Aapko pata nahi wo kaun tha jab tak aap signature verify na karo. Agar aapne darwaza nahi khola — wo dobara aayega, aur dobara, aur dobara.</p>
+    </div>
+
+    <div class="edge-s col">
+      <h4>WebSocket = phone call</h4>
+      <p>Ek baar line judi, dono bol sakte hain. Line khuli rakhne ka kharcha hai, aur line kat jaaye toh <em>kisi</em> ko dobara dial karna padega — aur wo kaam client ka hai, server ka nahi.</p>
+    </div>
+  </section>
+
+  <!-- ═══ 2 ═══ -->
+  <section id="kab">
+    <h2>Kab kya</h2>
+    <p class="sub">Zyadatar galtiyan yahin hoti hain — sahi problem pe galat tool.</p>
+
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Aapko chahiye</th><th>Use karo</th><th>Kyun</th></tr></thead>
+        <tbody>
+          <tr><td>Doosra server aapko event bhejna chahta hai</td><td>Webhook</td><td>Stateless, retried, public URL hi kaafi hai</td></tr>
+          <tr><td>Browser ko live update + browser bhi bhejta hai</td><td>WebSocket</td><td>Full-duplex ki asli zaroorat yahi hai</td></tr>
+          <tr><td>Sirf server → browser, one-way push</td><td>SSE</td><td>Plain HTTP, auto-reconnect built-in, WS se simple</td></tr>
+          <tr><td>Aapke apne services ke beech events</td><td>Kafka / RabbitMQ</td><td>Ordering, replay, DLQ — webhook me kuch nahi</td></tr>
+          <tr><td>Client poochhta rahe, update kabhi-kabhi</td><td>Polling</td><td>Seriously — 30s polling aksar kaafi hai</td></tr>
+          <tr><td>Bada file ya batch data</td><td>Signed URL + webhook</td><td>Payload URL bhejo, data nahi</td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="note s">
+      <b>Interview me SSE bolna strong signal hai.</b> Zyadatar "real-time dashboard" requirements ko SSE se solve kiya ja sakta hai. WebSocket tab chuno jab client bhi bol raha ho — typing indicator, order place, cursor position. Sirf padhna hai toh WebSocket over-engineering hai.
+    </div>
+  </section>
+
+  <!-- ═══ 3 ═══ -->
+  <section id="design">
+    <h2>Design</h2>
+    <p class="sub">Real system me dono chahiye. Classic case: order/payment tracking.</p>
+
+    <div class="flow">
+      <div class="node ext"><div class="t">Payment provider</div><div class="d">Stripe, Razorpay, GitHub</div></div>
+      <div class="link"><span class="ln"></span><span class="lb"><b>HTTP POST</b> — one-shot, signed, retried</span></div>
+      <div class="node own"><div class="t">Webhook endpoint</div><div class="d">Verify → persist → 200 OK (~5ms)</div></div>
+      <div class="link"><span class="ln"></span><span class="lb"><b>Async</b> — apne executor pe process</span></div>
+      <div class="node"><div class="t">Redis pub/sub</div><div class="d">Fan-out to every app node</div></div>
+      <div class="link"><span class="ln"></span><span class="lb"><b>Channel</b> <code>order.&lt;userId&gt;</code></span></div>
+      <div class="node own"><div class="t">WebSocket handler</div><div class="d">Us user ka session dhoondta hai</div></div>
+      <div class="link solid"><span class="ln"></span><span class="lb"><b>Persistent frames</b> — dono taraf</span></div>
+      <div class="node ext"><div class="t">Browser / mobile app</div><div class="d">Live order status</div></div>
+    </div>
+
+    <div class="col">
+      <p>Dono teal boxes <em>wahi ek</em> Spring Boot app hain — bas alag nodes pe chal rahe hain. Aur yahi Redis ka poora point hai.</p>
+    </div>
+
+    <div class="note">
+      <b>Multi-node ka asli problem scale nahi, affinity hai.</b> Webhook load balancer ke through kisi bhi node pe land karega — maan lo node 1. Par us user ka WebSocket node 3 pe khula hai. Bina fan-out ke node 1 ke paas woh session hai hi nahi, aur event chup-chaap gayab ho jaata hai. Staging pe (1 node) sab perfect chalega, production pe randomly fail hoga.
+    </div>
+
+    <p class="col">Do raaste hain: sticky sessions (LB user ko hamesha usi node pe bheje — nazuk hai, node marte hi sab toot jaata hai), ya fan-out (Redis pub/sub, ya STOMP broker relay). Fan-out hamesha better hai.</p>
+  </section>
+
+  <!-- ═══ 4 ═══ -->
+  <section id="threads">
+    <h2>Threads</h2>
+    <p class="sub">Yeh section hi asli interview differentiator hai.</p>
+
+    <h3>Webhook ka lifecycle — Tomcat</h3>
+    <ol class="col">
+      <li>Acceptor thread socket accept karta hai, NIO poller ko de deta hai.</li>
+      <li>Poller ko readable data milta hai → pool se ek worker thread (<code>http-nio-8080-exec-N</code>) uthta hai.</li>
+      <li>Wahi <em>ek</em> thread poora kaam karta hai: filter chain → security → controller → DB → response write.</li>
+      <li>Response jaane ke baad thread pool me wapas.</li>
+    </ol>
+
+    <div class="note">
+      <b>Yahi jagah hai jahan systems marte hain.</b> Agar handler me DB write + fraud API + email hai aur 800ms lagte hain, toh 200 threads ÷ 0.8s ≈ <b>250 webhooks/sec</b> ka hard ceiling. Uske baad accept queue, phir provider timeout, phir provider <em>retry</em> — aur load double. Death spiral, aur aapne khud invite kiya.
+    </div>
+
+    <h3>WebSocket ka lifecycle — Tomcat</h3>
+    <p class="col">Handshake ek normal worker thread pe aata hai (<code>Upgrade: websocket</code> header wali HTTP request). Upgrade ke baad connection <strong>request thread se detach ho jaata hai</strong> aur Tomcat ke NIO poller ke paas chala jaata hai.</p>
+    <p class="col">Matlab: <strong>1 WebSocket ≠ 1 thread.</strong> 50,000 idle connections ho sakte hain aur ek bhi worker thread busy nahi. Thread sirf tab lagta hai jab actual frame aata hai. Asli cost <em>memory</em> hai — per-connection buffers, session object, aur aapka subscription state.</p>
+
+    <h3>Teen models, ek nazar me</h3>
+    <div class="panels">
+      <div class="panel">
+        <div class="t">Tomcat (Spring MVC)</div>
+        <div class="d">200 platform threads, blocking</div>
+        <div class="dots">
+          <i class="dot busy"></i><i class="dot busy"></i><i class="dot busy"></i><i class="dot busy"></i>
+          <i class="dot busy"></i><i class="dot busy"></i><i class="dot free"></i><i class="dot free"></i>
+        </div>
+        <div class="v">Har blocking call ek slot khaa jaati hai. Pool khatam = requests queue me.</div>
+      </div>
+      <div class="panel">
+        <div class="t">Virtual threads</div>
+        <div class="d">Java 21+, Boot 3.2+</div>
+        <div class="dots">
+          <i class="dot sm busy"></i><i class="dot sm busy"></i><i class="dot sm busy"></i><i class="dot sm busy"></i><i class="dot sm busy"></i><i class="dot sm busy"></i>
+          <i class="dot sm busy"></i><i class="dot sm busy"></i><i class="dot sm busy"></i><i class="dot sm busy"></i><i class="dot sm busy"></i><i class="dot sm busy"></i>
+          <i class="dot sm busy"></i><i class="dot sm busy"></i><i class="dot sm busy"></i><i class="dot sm busy"></i><i class="dot sm busy"></i><i class="dot sm busy"></i>
+        </div>
+        <div class="v">Blocking model wahi, cost gayab. JVM virtual thread ko carrier se unmount kar deta hai.</div>
+      </div>
+      <div class="panel">
+        <div class="t">WebFlux (Netty)</div>
+        <div class="d">1 event loop per CPU core</div>
+        <div class="dots">
+          <i class="dot free"></i><i class="dot free"></i><i class="dot free"></i><i class="dot free"></i>
+        </div>
+        <div class="v">Ek blocking call ek loop rok degi — aur us loop pe baithe hazaaron connections freeze.</div>
+      </div>
+    </div>
+    <div class="legend">
+      <span><i class="dot busy"></i> I/O pe blocked</span>
+      <span><i class="dot free"></i> kaam kar raha hai</span>
+    </div>
+
+    <h3>Virtual threads ke caveats</h3>
+    <ul class="col">
+      <li><code>synchronized</code> block ke andar blocking karoge toh carrier thread <em>pin</em> ho jaata hai. JDK 24 (JEP 491) ne ise kaafi had tak fix kiya — purane JDKs pe <code>ReentrantLock</code> use karo.</li>
+      <li>DB connection pool ab bhi aapka asli bottleneck hai. 10,000 virtual threads ek 10-connection HikariCP pool se kuch nahi bana sakte.</li>
+      <li>Thread-local pe heavily depend karne wali purani libraries (kuch APM agents, kuch ORMs) abhi bhi surprise de sakti hain. Load test karke hi enable karo.</li>
+    </ul>
+
+    <div class="note s">
+      <b>Practical faisla:</b> naya project, blocking drivers, team reactive nahi jaanti → Spring MVC + virtual threads. Sabse aasaan raasta, 90% fayda. WebFlux tab chuno jab high-frequency streams pe <em>backpressure</em> chahiye ho — jaise per-second thousands of price ticks.
+    </div>
+  </section>
+
+  <!-- ═══ 5 ═══ -->
+  <section id="mvc">
+    <h2>Code — Spring MVC</h2>
+    <p class="sub">Poora runnable module. Upar se neeche copy karo.</p>
+
+    <h3>Dependencies</h3>
+    <figure class="code"><figcaption>pom.xml<button class="cp">copy</button></figcaption><pre><code class="language-xml">&lt;dependencies&gt;
+  &lt;dependency&gt;
+    &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+    &lt;artifactId&gt;spring-boot-starter-web&lt;/artifactId&gt;
+  &lt;/dependency&gt;
+  &lt;dependency&gt;
+    &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+    &lt;artifactId&gt;spring-boot-starter-websocket&lt;/artifactId&gt;
+  &lt;/dependency&gt;
+  &lt;dependency&gt;
+    &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+    &lt;artifactId&gt;spring-boot-starter-data-jpa&lt;/artifactId&gt;
+  &lt;/dependency&gt;
+  &lt;dependency&gt;
+    &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+    &lt;artifactId&gt;spring-boot-starter-data-redis&lt;/artifactId&gt;
+  &lt;/dependency&gt;
+  &lt;dependency&gt;
+    &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+    &lt;artifactId&gt;spring-boot-starter-security&lt;/artifactId&gt;
+  &lt;/dependency&gt;
+  &lt;dependency&gt;
+    &lt;groupId&gt;org.postgresql&lt;/groupId&gt;
+    &lt;artifactId&gt;postgresql&lt;/artifactId&gt;
+    &lt;scope&gt;runtime&lt;/scope&gt;
+  &lt;/dependency&gt;
+&lt;/dependencies&gt;</code></pre></figure>
+
+    <figure class="code"><figcaption>docker-compose.yml<button class="cp">copy</button></figcaption><pre><code class="language-yaml">services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: orders
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: app
+    ports: ["5432:5432"]
+  redis:
+    image: redis:7
+    ports: ["6379:6379"]</code></pre></figure>
+
+    <figure class="code"><figcaption>application.yml<button class="cp">copy</button></figcaption><pre><code class="language-yaml">server:
+  port: 8080
+  shutdown: graceful
+  tomcat:
+    threads:
+      max: 200            # blocking handlers ka hard concurrency ceiling
+      min-spare: 20
+    max-connections: 10000  # open sockets — threads se bahut zyada ho sakte hain
+    accept-count: 200
+
+spring:
+  threads:
+    virtual:
+      enabled: true       # Java 21+ / Boot 3.2+ — blocking ko sasta banata hai
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
+  datasource:
+    url: jdbc:postgresql://localhost:5432/orders
+    username: app
+    password: app
+    hikari:
+      maximum-pool-size: 20   # asli bottleneck, threads nahi
+  data:
+    redis:
+      host: localhost
+      port: 6379
+
+app:
+  webhook:
+    razorpay-secret: ${RAZORPAY_WEBHOOK_SECRET}
+    max-skew-seconds: 300
+  ws:
+    allowed-origin: https://app.example.com</code></pre></figure>
+
+    <figure class="code"><figcaption>schema.sql<button class="cp">copy</button></figcaption><pre><code class="language-sql">create table webhook_event (
+  id           bigserial   primary key,
+  event_id     text        not null,
+  raw_body     bytea       not null,
+  status       text        not null default 'PENDING',
+  attempts     int         not null default 0,
+  last_error   text,
+  received_at  timestamptz not null default now(),
+  processed_at timestamptz,
+  constraint uq_webhook_event_id unique (event_id)   -- idempotency ki asli guarantee
+);
+
+create index idx_webhook_stuck on webhook_event (status, received_at)
+  where status &lt;&gt; 'DONE';</code></pre></figure>
+
+    <h3>Webhook — receive</h3>
+    <div class="edge-h">
+      <p>Teen cheezein har webhook endpoint me honi chahiye: replay window, raw-bytes signature, aur idempotency. Phir turant 200.</p>
+    </div>
+
+    <figure class="code"><figcaption>PaymentWebhookController.java<button class="cp">copy</button></figcaption><pre><code class="language-java">@RestController
+@RequestMapping("/webhooks")
+public class PaymentWebhookController {
+
+  private static final Logger log = LoggerFactory.getLogger(PaymentWebhookController.class);
+
+  private final WebhookEventRepository repo;
+  private final ApplicationEventPublisher events;
+  private final WebhookProps props;
+
+  public PaymentWebhookController(WebhookEventRepository repo,
+                                  ApplicationEventPublisher events,
+                                  WebhookProps props) {
+    this.repo = repo;
+    this.events = events;
+    this.props = props;
+  }
+
+  @PostMapping("/razorpay")
+  public ResponseEntity&lt;Void&gt; receive(
+      @RequestBody byte[] rawBody,                                 // RAW bytes — DTO nahi
+      @RequestHeader("X-Razorpay-Signature") String signature,
+      @RequestHeader("X-Razorpay-Event-Id")  String eventId,
+      @RequestHeader("X-Razorpay-Timestamp") long sentAtEpoch) {
+
+    // 1 — replay window. Purana signed payload dobara bhejna attack hai.
+    long skew = Math.abs(Instant.now().getEpochSecond() - sentAtEpoch);
+    if (skew &gt; props.maxSkewSeconds()) {
+      return ResponseEntity.status(HttpStatus.REQUEST_TIMEOUT).build();
+    }
+
+    // 2 — signature raw bytes par. Kabhi bhi re-serialized JSON par nahi.
+    if (!SignatureUtil.valid(rawBody, signature, props.razorpaySecret())) {
+      log.warn("bad webhook signature, eventId={}", eventId);
+      return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+    }
+
+    // 3 — idempotency. Unique index hi source of truth hai, koi in-memory cache nahi.
+    try {
+      repo.saveAndFlush(new WebhookEvent(eventId, rawBody));
+    } catch (DataIntegrityViolationException duplicate) {
+      log.debug("duplicate webhook ignored, eventId={}", eventId);
+      return ResponseEntity.ok().build();     // dobara ACK karo, warna wo retry karta rahega
+    }
+
+    // 4 — handoff, aur request thread turant chhod do
+    events.publishEvent(new WebhookReceived(eventId));
+    return ResponseEntity.ok().build();
+  }
+}</code></pre></figure>
+
+    <div class="note">
+      <b><code>byte[]</code> kyun, DTO kyun nahi?</b> Signature raw bytes par HMAC hota hai. Agar aap <code>@RequestBody PaymentDto</code> lete ho, Jackson deserialize karke phir se serialize karega — key order aur whitespace badal jaayenge, aur signature <em>hamesha</em> fail hoga. Yeh webhook integrations ka #1 bug hai. JSON parse baad me karo, async processor ke andar.
+    </div>
+
+    <figure class="code"><figcaption>SignatureUtil.java<button class="cp">copy</button></figcaption><pre><code class="language-java">public final class SignatureUtil {
+
+  private SignatureUtil() {}
+
+  public static boolean valid(byte[] body, String headerSig, String secret) {
+    if (headerSig == null || headerSig.isBlank()) return false;
+    try {
+      Mac mac = Mac.getInstance("HmacSHA256");
+      mac.init(new SecretKeySpec(secret.getBytes(UTF_8), "HmacSHA256"));
+      String computed = HexFormat.of().formatHex(mac.doFinal(body));
+
+      // constant-time compare — String.equals() timing leak karta hai
+      return MessageDigest.isEqual(computed.getBytes(UTF_8), headerSig.getBytes(UTF_8));
+    } catch (GeneralSecurityException e) {
+      return false;
+    }
+  }
+}</code></pre></figure>
+
+    <h3>Webhook — process</h3>
+    <figure class="code"><figcaption>AsyncConfig.java<button class="cp">copy</button></figcaption><pre><code class="language-java">@Configuration
+@EnableAsync
+@EnableScheduling
+public class AsyncConfig {
+
+  @Bean("webhookExecutor")
+  public ThreadPoolTaskExecutor webhookExecutor() {
+    var ex = new ThreadPoolTaskExecutor();
+    ex.setCorePoolSize(8);
+    ex.setMaxPoolSize(32);
+    ex.setQueueCapacity(500);
+    ex.setKeepAliveSeconds(60);
+    ex.setThreadNamePrefix("webhook-");          // thread dumps me dikhega
+    ex.setWaitForTasksToCompleteOnShutdown(true);
+    ex.setAwaitTerminationSeconds(20);
+
+    // Queue full → caller (Tomcat thread) khud chalayega. Natural backpressure:
+    // drop karne se accha hai ki intake dheema ho jaaye.
+    ex.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+    return ex;
+  }
+}</code></pre></figure>
+
+    <figure class="code"><figcaption>WebhookProcessor.java<button class="cp">copy</button></figcaption><pre><code class="language-java">@Component
+public class WebhookProcessor {
+
+  private static final Logger log = LoggerFactory.getLogger(WebhookProcessor.class);
+
+  private final WebhookEventRepository repo;
+  private final OrderService orders;
+  private final StringRedisTemplate redis;
+  private final ObjectMapper mapper;
+  private final ApplicationEventPublisher events;
+
+  // Controller ka save() pehle hi commit ho chuka hai, isliye plain @EventListener
+  // safe hai — @TransactionalEventListener ki zaroorat nahi.
+  @Async("webhookExecutor")
+  @EventListener
+  public void on(WebhookReceived e) {
+    try {
+      WebhookEvent evt = repo.findByEventId(e.eventId()).orElseThrow();
+      JsonNode payload = mapper.readTree(evt.getRawBody());
+
+      // State machine — blind overwrite nahi. payment.captured order.created se
+      // pehle aa sakta hai, aur aksar aata hai.
+      Order order = orders.apply(payload);
+
+      redis.convertAndSend("order." + order.userId(), mapper.writeValueAsString(order));
+      repo.markDone(e.eventId(), Instant.now());
+
+    } catch (Exception ex) {
+      log.error("webhook processing failed, eventId={}", e.eventId(), ex);
+      repo.markFailed(e.eventId(), ex.getMessage());   // sweeper isse uthayega
+    }
+  }
+
+  // Crash, deploy, ya transient failure ke baad stuck events ka safety net
+  @Scheduled(fixedDelay = 30_000)
+  public void sweepStuck() {
+    repo.findStuck(Instant.now().minusSeconds(60), PageRequest.of(0, 100))
+        .forEach(evt -&gt; events.publishEvent(new WebhookReceived(evt.getEventId())));
+  }
+}</code></pre></figure>
+
+    <h3>WebSocket — setup</h3>
+    <div class="edge-s">
+      <p>Auth handshake pe hoti hai, session me nahi. Handshake reject hua toh session banta hi nahi — sabse sasta rejection.</p>
+    </div>
+
+    <figure class="code"><figcaption>WsConfig.java<button class="cp">copy</button></figcaption><pre><code class="language-java">@Configuration
+@EnableWebSocket
+public class WsConfig implements WebSocketConfigurer {
+
+  private final OrderStatusHandler handler;
+  private final JwtHandshakeInterceptor jwtInterceptor;
+  private final WsProps props;
+
+  @Override
+  public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
+    registry.addHandler(handler, "/ws/orders")
+            .addInterceptors(jwtInterceptor)
+            .setAllowedOrigins(props.allowedOrigin());   // kabhi "*" nahi
+  }
+
+  @Bean
+  public ServletServerContainerFactoryBean wsContainer() {
+    var container = new ServletServerContainerFactoryBean();
+    container.setMaxTextMessageBufferSize(32 * 1024);
+    container.setMaxBinaryMessageBufferSize(32 * 1024);
+    container.setMaxSessionIdleTimeout(70_000L);   // client heartbeat se zyada hona chahiye
+    return container;
+  }
+}</code></pre></figure>
+
+    <figure class="code"><figcaption>JwtHandshakeInterceptor.java<button class="cp">copy</button></figcaption><pre><code class="language-java">@Component
+public class JwtHandshakeInterceptor implements HandshakeInterceptor {
+
+  private final JwtVerifier jwt;
+
+  @Override
+  public boolean beforeHandshake(ServerHttpRequest req, ServerHttpResponse res,
+                                 WebSocketHandler handler, Map&lt;String, Object&gt; attrs) {
+
+    // Browser WebSocket API custom headers set nahi kar sakti. Do options:
+    //  (a) query param me short-lived ticket, ya
+    //  (b) normal HTTP se ticket lo, phir usse connect karo.
+    // Long-lived JWT ko URL me mat daalo — wo access logs me chhap jaata hai.
+    String ticket = UriComponentsBuilder.fromUri(req.getURI())
+        .build().getQueryParams().getFirst("ticket");
+
+    var claims = jwt.verifyTicket(ticket);
+    if (claims == null) {
+      res.setStatusCode(HttpStatus.UNAUTHORIZED);
+      return false;                     // handshake reject — koi session nahi banta
+    }
+
+    attrs.put("userId", claims.subject());   // session attributes me chala jaayega
+    return true;
+  }
+
+  @Override
+  public void afterHandshake(ServerHttpRequest req, ServerHttpResponse res,
+                             WebSocketHandler handler, Exception ex) { }
+}</code></pre></figure>
+
+    <figure class="code"><figcaption>OrderStatusHandler.java<button class="cp">copy</button></figcaption><pre><code class="language-java">@Component
+public class OrderStatusHandler extends TextWebSocketHandler {
+
+  private static final Logger log = LoggerFactory.getLogger(OrderStatusHandler.class);
+
+  // userId -&gt; session. Ek user ke kai tabs ho sakte hain — production me
+  // Map&lt;String, Set&lt;WebSocketSession&gt;&gt; chahiye hoga.
+  private final Map&lt;String, WebSocketSession&gt; sessions = new ConcurrentHashMap&lt;&gt;();
+
+  @Override
+  public void afterConnectionEstablished(WebSocketSession raw) {
+    // sendMessage() thread-safe NAHI hai. Redis listener thread aur heartbeat
+    // thread ek saath likhenge → IllegalStateException. Decorator zaroori hai.
+    var safe = new ConcurrentWebSocketSessionDecorator(
+        raw,
+        5_000,                    // send time limit (ms)
+        64 * 1024,                // buffer size limit (bytes)
+        ConcurrentWebSocketSessionDecorator.OverflowStrategy.TERMINATE);
+
+    sessions.put(userId(raw), safe);
+    log.debug("ws open, user={}, total={}", userId(raw), sessions.size());
+  }
+
+  @Override
+  protected void handleTextMessage(WebSocketSession s, TextMessage msg) throws IOException {
+    if ("ping".equals(msg.getPayload())) {
+      s.sendMessage(new TextMessage("pong"));
+      return;
+    }
+    // client -&gt; server: subscribe, ack, jo bhi aapka protocol kahe
+  }
+
+  @Override
+  public void handleTransportError(WebSocketSession s, Throwable t) {
+    sessions.remove(userId(s));
+  }
+
+  @Override
+  public void afterConnectionClosed(WebSocketSession s, CloseStatus status) {
+    sessions.remove(userId(s));   // yeh line bhoolna = sabse common memory leak
+  }
+
+  /** Redis listener thread se call hota hai. */
+  public void push(String userId, String json) {
+    WebSocketSession s = sessions.get(userId);
+    if (s == null || !s.isOpen()) return;
+    try {
+      s.sendMessage(new TextMessage(json));
+    } catch (IOException e) {
+      sessions.remove(userId);
+    }
+  }
+
+  private static String userId(WebSocketSession s) {
+    return (String) s.getAttributes().get("userId");
+  }
+}</code></pre></figure>
+
+    <h3>Dono ko jodne wala bridge</h3>
+    <figure class="code"><figcaption>RedisFanoutConfig.java<button class="cp">copy</button></figcaption><pre><code class="language-java">@Configuration
+public class RedisFanoutConfig {
+
+  private static final String PREFIX = "order.";
+
+  @Bean
+  public RedisMessageListenerContainer fanout(RedisConnectionFactory cf,
+                                              OrderStatusHandler handler) {
+    var container = new RedisMessageListenerContainer();
+    container.setConnectionFactory(cf);
+
+    // Har node yeh subscribe karta hai. Jis node ke paas session hai wahi push karega,
+    // baaki chup-chaap ignore kar denge.
+    container.addMessageListener((message, pattern) -&gt; {
+      String channel = new String(message.getChannel(), UTF_8);   // "order.&lt;userId&gt;"
+      String userId  = channel.substring(PREFIX.length());
+      handler.push(userId, new String(message.getBody(), UTF_8));
+    }, new PatternTopic(PREFIX + "*"));
+
+    return container;
+  }
+}</code></pre></figure>
+
+    <div class="note s">
+      <b>Redis pub/sub fire-and-forget hai.</b> Agar us waqt user ka socket band tha, message chala gaya. Isliye reconnect ke baad client ko hamesha current state <em>HTTP se</em> fetch karni chahiye — WebSocket sirf deltas ke liye. Guaranteed delivery chahiye toh Redis Streams ya ek proper broker use karo.
+    </div>
+
+    <figure class="code"><figcaption>SecurityConfig.java<button class="cp">copy</button></figcaption><pre><code class="language-java">@Configuration
+@EnableWebSecurity
+public class SecurityConfig {
+
+  @Bean
+  public SecurityFilterChain chain(HttpSecurity http) throws Exception {
+    return http
+      // Webhook machine-to-machine hai: koi session nahi, koi CSRF token nahi.
+      // Signature hi authentication hai. Yeh line bhoolne par silent 403 milta hai.
+      .csrf(c -&gt; c.ignoringRequestMatchers("/webhooks/**"))
+      .authorizeHttpRequests(a -&gt; a
+          .requestMatchers("/webhooks/**").permitAll()   // signature se protected
+          .requestMatchers("/ws/**").permitAll()         // handshake interceptor se protected
+          .anyRequest().authenticated())
+      .sessionManagement(s -&gt; s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+      .build();
+  }
+}</code></pre></figure>
+
+    <h3>Client</h3>
+    <figure class="code"><figcaption>client.js<button class="cp">copy</button></figcaption><pre><code class="language-javascript">let ws, attempt = 0, heartbeat;
+
+async function connect() {
+  // short-lived ticket normal HTTP se — long-lived JWT URL me mat daalo
+  const { ticket } = await fetch("/api/ws-ticket").then(r =&gt; r.json());
+  ws = new WebSocket(`wss://api.example.com/ws/orders?ticket=${ticket}`);
+
+  ws.onopen = () =&gt; {
+    attempt = 0;
+    // LB idle timeout (AWS ALB default 60s) se pehle traffic bhejte raho
+    heartbeat = setInterval(() =&gt; ws.readyState === 1 &amp;&amp; ws.send("ping"), 25000);
+    fetch("/api/orders/current").then(r =&gt; r.json()).then(render);  // gap fill karo
+  };
+
+  ws.onmessage = (e) =&gt; {
+    if (e.data === "pong") return;
+    render(JSON.parse(e.data));
+  };
+
+  ws.onclose = () =&gt; {
+    clearInterval(heartbeat);
+    // exponential backoff + JITTER. Bina jitter ke, deploy ke baad saare
+    // clients ek saath wapas aayenge aur aapko khud hi gira denge.
+    const wait = Math.min(30000, 500 * 2 ** attempt++) * (0.5 + Math.random());
+    setTimeout(connect, wait);
+  };
+
+  ws.onerror = () =&gt; ws.close();   // onclose hamesha chalega, cleanup wahin hai
+}
+
+connect();</code></pre></figure>
+  </section>
+
+  <!-- ═══ 6 ═══ -->
+  <section id="flux">
+    <h2>Code — WebFlux</h2>
+    <p class="sub">Wahi design, non-blocking stack pe. Sirf badle hue hisse.</p>
+
+    <figure class="code"><figcaption>pom.xml — reactive deps<button class="cp">copy</button></figcaption><pre><code class="language-xml">&lt;dependency&gt;
+  &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+  &lt;artifactId&gt;spring-boot-starter-webflux&lt;/artifactId&gt;
+&lt;/dependency&gt;
+&lt;dependency&gt;
+  &lt;groupId&gt;org.springframework.boot&lt;/groupId&gt;
+  &lt;artifactId&gt;spring-boot-starter-data-r2dbc&lt;/artifactId&gt;
+&lt;/dependency&gt;
+&lt;dependency&gt;
+  &lt;groupId&gt;org.postgresql&lt;/groupId&gt;
+  &lt;artifactId&gt;r2dbc-postgresql&lt;/artifactId&gt;
+  &lt;scope&gt;runtime&lt;/scope&gt;
+&lt;/dependency&gt;</code></pre></figure>
+
+    <figure class="code"><figcaption>ReactiveWebhookController.java<button class="cp">copy</button></figcaption><pre><code class="language-java">@RestController
+@RequestMapping("/webhooks")
+public class ReactiveWebhookController {
+
+  private final WebhookEventRepository repo;              // R2DBC
+  private final ReactiveStringRedisTemplate redis;
+  private final WebhookProps props;
+
+  @PostMapping("/razorpay")
+  public Mono&lt;ResponseEntity&lt;Void&gt;&gt; receive(
+      @RequestBody byte[] rawBody,
+      @RequestHeader("X-Razorpay-Signature") String signature,
+      @RequestHeader("X-Razorpay-Event-Id")  String eventId) {
+
+    // HMAC pure CPU hai (microseconds) — event loop pe karna theek hai
+    if (!SignatureUtil.valid(rawBody, signature, props.razorpaySecret())) {
+      return Mono.just(ResponseEntity.status(HttpStatus.UNAUTHORIZED).build());
+    }
+
+    return repo.save(new WebhookEvent(eventId, rawBody))
+        .flatMap(evt -&gt; redis.convertAndSend("order." + evt.userId(), evt.json()))
+        .thenReturn(ResponseEntity.ok().&lt;Void&gt;build())
+        .onErrorResume(DuplicateKeyException.class,
+                       e -&gt; Mono.just(ResponseEntity.ok().build()));   // idempotent
+  }
+}</code></pre></figure>
+
+    <div class="note">
+      <b>Agar koi bhi step blocking hai</b> — purana JDBC driver, blocking SDK, file read — toh usse <code>Schedulers.boundedElastic()</code> pe bhejo:
+      <br><br>
+      <code>Mono.fromCallable(() -&gt; legacyDao.save(x)).subscribeOn(Schedulers.boundedElastic())</code>
+      <br><br>
+      Aur tests me <a href="https://github.com/reactor/BlockHound">BlockHound</a> lagao — wo event loop pe koi bhi blocking call hone par turant fail kar dega. Reactive stack pe yeh optional nahi hai.
+    </div>
+
+    <figure class="code"><figcaption>OrderWsHandler.java<button class="cp">copy</button></figcaption><pre><code class="language-java">@Component
+public class OrderWsHandler implements WebSocketHandler {
+
+  private final ReactiveStringRedisTemplate redis;
+
+  @Override
+  public Mono&lt;Void&gt; handle(WebSocketSession session) {
+    String userId = (String) session.getAttributes().get("userId");
+
+    // inbound: client -&gt; server
+    Mono&lt;Void&gt; inbound = session.receive()
+        .map(WebSocketMessage::getPayloadAsText)
+        .doOnNext(this::onClientMessage)
+        .then();
+
+    // outbound: redis -&gt; client. Flux backpressure khud handle karta hai —
+    // yahi WebFlux ka asli fayda hai high-frequency streams pe.
+    Mono&lt;Void&gt; outbound = session.send(
+        redis.listenToChannel("order." + userId)
+             .map(ReactiveSubscription.Message::getMessage)
+             .map(session::textMessage));
+
+    // koi bhi side khatam/error -&gt; poora connection band
+    return Mono.zip(inbound, outbound).then();
+  }
+
+  private void onClientMessage(String text) { /* subscribe, ack, ... */ }
+}</code></pre></figure>
+
+    <figure class="code"><figcaption>ReactiveWsConfig.java<button class="cp">copy</button></figcaption><pre><code class="language-java">@Configuration
+public class ReactiveWsConfig {
+
+  // WebFlux me WebSocket routes @Controller se nahi aate — HandlerMapping chahiye.
+  // Order -1 taaki yeh annotated controller mappings se pehle match kare.
+  @Bean
+  public HandlerMapping wsMapping(OrderWsHandler handler) {
+    var mapping = new SimpleUrlHandlerMapping(Map.of("/ws/orders", handler));
+    mapping.setOrder(-1);
+    return mapping;
+  }
+}</code></pre></figure>
+
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Cheez</th><th>Spring MVC</th><th>WebFlux</th></tr></thead>
+        <tbody>
+          <tr><td>Thread pool</td><td><code>http-nio-*</code>, ~200</td><td><code>reactor-http-nio-*</code>, = CPU cores</td></tr>
+          <tr><td>Blocking call</td><td>Theek hai (virtual threads ke saath sasta)</td><td>Mana hai — loop freeze ho jaayega</td></tr>
+          <tr><td>WS registration</td><td><code>WebSocketConfigurer</code></td><td><code>HandlerMapping</code> bean</td></tr>
+          <tr><td>Backpressure</td><td>Nahi hai — khud banao</td><td>Built-in, <code>Flux</code> me</td></tr>
+          <tr><td>Debugging</td><td>Normal stack traces</td><td>Reactive traces, seekhne padte hain</td></tr>
+          <tr><td>Team ramp-up</td><td>Din bhar ka kaam</td><td>Hafton ka kaam</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ═══ 7 ═══ -->
+  <section id="tuning">
+    <h2>Tuning knobs</h2>
+    <p class="sub">Jo settings interview me aur incident me — dono jagah poochhi jaati hain.</p>
+
+    <div class="scroll">
+      <table>
+        <thead><tr><th>Setting</th><th>Default</th><th>Kab badlo</th></tr></thead>
+        <tbody>
+          <tr><td><code>server.tomcat.threads.max</code></td><td>200</td><td>Blocking handlers + virtual threads off. Badhane se pehle handler ko tez karo.</td></tr>
+          <tr><td><code>server.tomcat.max-connections</code></td><td>8192</td><td>Bahut saare WebSockets. Yeh threads se alag hai — badhao.</td></tr>
+          <tr><td><code>server.tomcat.accept-count</code></td><td>100</td><td>Burst traffic. Queue full = OS connection refuse karega.</td></tr>
+          <tr><td><code>spring.threads.virtual.enabled</code></td><td>false</td><td>Java 21+ pe on karo. Blocking I/O ke liye sabse bada upgrade.</td></tr>
+          <tr><td><code>spring.datasource.hikari.maximum-pool-size</code></td><td>10</td><td>Virtual threads on karne ke baad yahi bottleneck banega.</td></tr>
+          <tr><td><code>server.shutdown</code></td><td>immediate</td><td>Hamesha <code>graceful</code>. In-flight webhooks complete hone do.</td></tr>
+          <tr><td><code>maxTextMessageBufferSize</code></td><td>8 KB</td><td>Bade payloads. Cap rakho — warna client memory bomb bhej sakta hai.</td></tr>
+          <tr><td><code>maxSessionIdleTimeout</code></td><td>unset</td><td>Client heartbeat se zyada rakho, warna healthy connections katenge.</td></tr>
+          <tr><td>LB idle timeout</td><td>60s (ALB)</td><td>Yeh app config nahi hai. Client heartbeat isse kam hona chahiye.</td></tr>
+          <tr><td><code>ulimit -n</code></td><td>1024</td><td>10k+ sockets ke liye badhao — warna connections silently fail honge.</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ═══ 8 ═══ -->
+  <section id="checklist">
+    <h2>Production checklist</h2>
+    <p class="sub">Tick karo — yeh browser me save ho jaayega. Ticks sirf aapko dikhte hain.</p>
+
+    <div class="checks">
+      <div>
+        <h3 class="h">Webhook</h3>
+        <ul>
+          <li><label><input type="checkbox" data-k="h1"><span>Signature raw bytes par verify hoti hai, DTO par nahi</span></label></li>
+          <li><label><input type="checkbox" data-k="h2"><span>Constant-time comparison (<code>MessageDigest.isEqual</code>)</span></label></li>
+          <li><label><input type="checkbox" data-k="h3"><span>Timestamp skew check — purane payloads reject</span></label></li>
+          <li><label><input type="checkbox" data-k="h4"><span>Event ID par DB unique index (cache par bharosa nahi)</span></label></li>
+          <li><label><input type="checkbox" data-k="h5"><span>Duplicate par 200 lautata hai, error nahi</span></label></li>
+          <li><label><input type="checkbox" data-k="h6"><span>Handler &lt; 50ms me ACK karta hai, business logic async</span></label></li>
+          <li><label><input type="checkbox" data-k="h7"><span>Raw body store hoti hai — reprocess possible hai</span></label></li>
+          <li><label><input type="checkbox" data-k="h8"><span>Out-of-order events state machine handle karti hai</span></label></li>
+          <li><label><input type="checkbox" data-k="h9"><span>Stuck events ke liye retry sweeper + DLQ</span></label></li>
+          <li><label><input type="checkbox" data-k="h10"><span>CSRF webhook path par disabled, endpoint permitAll</span></label></li>
+          <li><label><input type="checkbox" data-k="h11"><span>Executor queue full par CallerRuns (drop nahi)</span></label></li>
+          <li><label><input type="checkbox" data-k="h12"><span>Alerting: PENDING backlog badh raha hai toh page karo</span></label></li>
+        </ul>
+      </div>
+      <div>
+        <h3 class="s">WebSocket</h3>
+        <ul>
+          <li><label><input type="checkbox" data-k="s1"><span>Auth handshake pe — reject hua toh session nahi banta</span></label></li>
+          <li><label><input type="checkbox" data-k="s2"><span><code>setAllowedOrigins</code> explicit hai, <code>*</code> nahi</span></label></li>
+          <li><label><input type="checkbox" data-k="s3"><span>Har send <code>ConcurrentWebSocketSessionDecorator</code> se</span></label></li>
+          <li><label><input type="checkbox" data-k="s4"><span>Session map <code>afterConnectionClosed</code> <em>aur</em> <code>handleTransportError</code> dono me clear</span></label></li>
+          <li><label><input type="checkbox" data-k="s5"><span>Heartbeat interval &lt; LB idle timeout</span></label></li>
+          <li><label><input type="checkbox" data-k="s6"><span>Multi-node fan-out (Redis / broker relay) lagi hui hai</span></label></li>
+          <li><label><input type="checkbox" data-k="s7"><span>Client reconnect me exponential backoff + jitter</span></label></li>
+          <li><label><input type="checkbox" data-k="s8"><span>Reconnect ke baad client HTTP se full state fetch karta hai</span></label></li>
+          <li><label><input type="checkbox" data-k="s9"><span>Message size cap + slow-consumer overflow strategy</span></label></li>
+          <li><label><input type="checkbox" data-k="s10"><span><code>ulimit -n</code> expected connections ke liye badha hua</span></label></li>
+          <li><label><input type="checkbox" data-k="s11"><span>Graceful shutdown close frame bhejta hai (1001)</span></label></li>
+          <li><label><input type="checkbox" data-k="s12"><span>Open-connection count ek metric hai, dashboard pe hai</span></label></li>
+        </ul>
+      </div>
+    </div>
+    <button class="reset" id="reset">Sab ticks hatao</button>
+  </section>
+
+  <!-- ═══ 9 ═══ -->
+  <section id="interview">
+    <h2>Interview</h2>
+    <p class="sub">Wo sawaal jo aksar aate hain, aur woh jawab jo alag dikhate hain.</p>
+
+    <details>
+      <summary>Ek line me farq batao</summary>
+      <div class="ans">Webhook HTTP ke upar server-to-server push hai — stateless, provider-retried, at-least-once. WebSocket TCP ke upar persistent full-duplex pipe hai — stateful, no retries, ack aur resume aapko khud banana padta hai.</div>
+    </details>
+
+    <details>
+      <summary>Kya har WebSocket connection ek thread leta hai?</summary>
+      <div class="ans">Nahi. Tomcat NIO pe handshake ke baad connection request thread se detach ho jaata hai aur poller ke paas chala jaata hai. Thread sirf tab lagta hai jab frame aata hai. 50,000 idle connections me ek bhi worker thread busy nahi hoga. Asli cost memory hai — per-connection buffers, session object, subscription state.</div>
+    </details>
+
+    <details>
+      <summary>Webhook handler dheema ho toh kya hota hai?</summary>
+      <div class="ans">Har request ek Tomcat worker thread block karti hai. 200 threads × 800ms handler ≈ 250 req/sec ka ceiling. Uske baad accept queue bharti hai, provider timeout karta hai, aur phir retry karta hai — yaani load double ho jaata hai jab aap pehle hi doob rahe ho. Isliye pattern hai: verify, persist, 200 OK, phir async process.</div>
+    </details>
+
+    <details>
+      <summary>Do nodes hain, webhook node 1 pe aaya, user ka socket node 3 pe hai. Kya karoge?</summary>
+      <div class="ans">Yeh connection affinity ka problem hai. Node 1 ke paas session hai hi nahi. Do options: sticky sessions (nazuk — node marte hi sab toot jaata hai) ya fan-out. Fan-out better hai — Redis pub/sub par channel <code>order.&lt;userId&gt;</code>, har node subscribe karta hai, jiske paas session hai wahi push karta hai. STOMP use kar rahe ho toh <code>enableStompBrokerRelay()</code> se RabbitMQ seedha yeh kaam kar deta hai.</div>
+    </details>
+
+    <details>
+      <summary>Webhook idempotent kaise banaoge?</summary>
+      <div class="ans">Provider ke event ID par database unique index. In-memory cache ya Redis SETNX kaafi nahi — restart ya node change pe duplicate nikal jaayega. Duplicate aane par 200 lautao, error nahi — warna provider retry karta rahega. Aur raw body store karo taaki failure ke baad reprocess kar sako.</div>
+    </details>
+
+    <details>
+      <summary>WebSocket auth kaise karoge? Browser headers set nahi kar sakta.</summary>
+      <div class="ans">Sahi — browser ki WebSocket API custom headers allow nahi karti. Normal HTTP se ek short-lived ticket lo (30 second TTL, single use), usse query param me bhejo, aur <code>HandshakeInterceptor</code> me verify karo. Long-lived JWT URL me mat daalo — wo access logs, proxy logs aur referrer headers me chhap jaata hai. Handshake reject karna sabse sasta rejection hai, kyunki session banta hi nahi.</div>
+    </details>
+
+    <details>
+      <summary>Virtual threads se WebFlux ki zaroorat khatam ho gayi?</summary>
+      <div class="ans">Zyadatar cases me haan. Virtual threads blocking I/O ka cost khatam kar dete hain bina programming model badle — yaani 90% fayda, 10% mehnat. WebFlux tab bhi jeetta hai jab aapko <em>backpressure</em> chahiye: fast producer, slow consumer, aur aapko flow control chahiye. Per-second thousands of price ticks WebSocket pe bhejna exactly aisa case hai. Baki sab ke liye MVC + virtual threads accha hai.</div>
+    </details>
+
+    <details>
+      <summary>Aapka WebSocket har 60 second pe disconnect ho raha hai. Kya problem hai?</summary>
+      <div class="ans">Load balancer ka idle timeout — AWS ALB pe default 60 seconds hai. WebSocket khula toh hai par usme traffic nahi hai, toh LB use idle samajh kar kaat deta hai. Fix: client-side heartbeat 25–30 second par, LB timeout se kam. Saath me server ka <code>maxSessionIdleTimeout</code> heartbeat se zyada rakho, warna server pehle kaat dega.</div>
+    </details>
+
+    <details>
+      <summary>Client WebSocket read nahi kar raha aur messages aate ja rahe hain. Kya hoga?</summary>
+      <div class="ans">Slow consumer problem. Server-side send buffer bharta jaayega aur aakhir me memory khaa jaayega. Isliye <code>ConcurrentWebSocketSessionDecorator</code> me <code>sendTimeLimit</code> aur <code>bufferSizeLimit</code> hain — limit cross hui toh <code>OverflowStrategy.TERMINATE</code> session band kar dega. Ek slow client ko poora node girane dena sabse bada operational risk hai.</div>
+    </details>
+
+    <details>
+      <summary>WebSocket ki jagah kab SSE use karoge?</summary>
+      <div class="ans">Jab traffic sirf server se client ki taraf ho. SSE plain HTTP par chalta hai, proxies ke saath better behave karta hai, auto-reconnect aur <code>Last-Event-ID</code> se resume built-in hai, aur Spring me bas <code>SseEmitter</code> ya <code>Flux&lt;ServerSentEvent&gt;</code> lautana hai. WebSocket tab chuno jab client bhi bol raha ho.</div>
+    </details>
+  </section>
+
+  <footer>
+    <p>Spring Boot 3.x · Java 21 · Tomcat 10 / Netty. Versions check karke hi copy karo — defaults minor releases me badal jaate hain.</p>
+  </footer>
+
+  </main>
+</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>
+(function () {
+  "use strict";
+
+  if (window.hljs) {
+    try { document.querySelectorAll("figure.code code").forEach(function (b) { hljs.highlightElement(b); }); }
+    catch (e) { /* plain text is a fine fallback */ }
+  }
+
+  document.querySelectorAll("figure.code .cp").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var code = btn.closest("figure").querySelector("code");
+      var text = code.innerText;
+      var done = function () {
+        btn.textContent = "copied";
+        setTimeout(function () { btn.textContent = "copy"; }, 1400);
+      };
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, function () { btn.textContent = "press ⌘C"; });
+      } else {
+        var ta = document.createElement("textarea");
+        ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+        document.body.appendChild(ta); ta.select();
+        try { document.execCommand("copy"); done(); } catch (e) { btn.textContent = "press ⌘C"; }
+        document.body.removeChild(ta);
+      }
+    });
+  });
+
+  var jump = document.getElementById("jump");
+  jump.addEventListener("change", function () {
+    var t = document.getElementById(jump.value);
+    if (t) t.scrollIntoView({ behavior: "smooth", block: "start" });
+    jump.value = "";
+  });
+
+  var links = Array.prototype.slice.call(document.querySelectorAll(".rail a"));
+  if (links.length && "IntersectionObserver" in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (!en.isIntersecting) return;
+        links.forEach(function (a) {
+          a.classList.toggle("on", a.getAttribute("href") === "#" + en.target.id);
+        });
+      });
+    }, { rootMargin: "-80px 0px -70% 0px", threshold: 0 });
+    document.querySelectorAll("main section[id]").forEach(function (s) { io.observe(s); });
+  }
+
+  var KEY = "wswh.checks.v1";
+  var boxes = Array.prototype.slice.call(document.querySelectorAll(".checks input"));
+  var state = {};
+  try { state = JSON.parse(localStorage.getItem(KEY) || "{}") || {}; } catch (e) { state = {}; }
+  boxes.forEach(function (b) { b.checked = !!state[b.dataset.k]; });
+  function save() {
+    var next = {};
+    boxes.forEach(function (b) { if (b.checked) next[b.dataset.k] = 1; });
+    try { localStorage.setItem(KEY, JSON.stringify(next)); } catch (e) { /* private mode */ }
+  }
+  boxes.forEach(function (b) { b.addEventListener("change", save); });
+  document.getElementById("reset").addEventListener("click", function () {
+    boxes.forEach(function (b) { b.checked = false; });
+    save();
+  });
+
+  var TKEY = "wswh.theme.v1";
+  var root = document.documentElement;
+  try { var saved = localStorage.getItem(TKEY); if (saved) root.setAttribute("data-theme", saved); } catch (e) {}
+  document.getElementById("tgl").addEventListener("click", function () {
+    var dark = root.getAttribute("data-theme") === "dark" ||
+      (!root.hasAttribute("data-theme") && matchMedia("(prefers-color-scheme: dark)").matches);
+    var next = dark ? "light" : "dark";
+    root.setAttribute("data-theme", next);
+    try { localStorage.setItem(TKEY, next); } catch (e) {}
+  });
+})();
+</script>
+</body>
+</html>

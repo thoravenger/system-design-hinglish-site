@@ -1,0 +1,1414 @@
+<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}</style><style>:root{color-scheme:light dark;--md-bg:#fff;--md-text:rgba(0,0,0,.8);--md-muted:rgba(0,0,0,.6);--md-fill:rgba(0,0,0,.04);--md-fill-strong:rgba(0,0,0,.06);--md-rule:rgba(0,0,0,.1);--md-rule-strong:rgba(0,0,0,.16);--md-link:hsl(210 100% 45%)}@media (prefers-color-scheme:dark){:root:where(:not([data-theme="light"])){--md-bg:#0d0d0d;--md-text:rgba(255,255,255,.85);--md-muted:rgba(255,255,255,.6);--md-fill:rgba(255,255,255,.06);--md-fill-strong:rgba(255,255,255,.09);--md-rule:rgba(255,255,255,.14);--md-rule-strong:rgba(255,255,255,.22);--md-link:hsl(210 100% 72%)}}:root[data-theme="dark"]{color-scheme:dark;--md-bg:#0d0d0d;--md-text:rgba(255,255,255,.85);--md-muted:rgba(255,255,255,.6);--md-fill:rgba(255,255,255,.06);--md-fill-strong:rgba(255,255,255,.09);--md-rule:rgba(255,255,255,.14);--md-rule-strong:rgba(255,255,255,.22);--md-link:hsl(210 100% 72%)}:root[data-theme="light"]{color-scheme:light}@media print{:root,:root[data-theme="dark"]{color-scheme:light;--md-bg:#fff;--md-text:rgba(0,0,0,.8);--md-muted:rgba(0,0,0,.6);--md-fill:rgba(0,0,0,.04);--md-fill-strong:rgba(0,0,0,.06);--md-rule:rgba(0,0,0,.1);--md-rule-strong:rgba(0,0,0,.16);--md-link:hsl(210 100% 45%)}}body{background:var(--md-bg);color:var(--md-text);max-width:720px;margin:0 auto;padding:32px;display:flex;flex-direction:column;gap:10px;font:14px/1.55 -apple-system,BlinkMacSystemFont,'SF Pro','Segoe UI',sans-serif;overflow-wrap:break-word}body>:first-child{margin-top:0}h1,h2,h3,h4,h5,h6{margin:6px 0 0;line-height:1.25;font-weight:600;text-wrap:balance}h1{font-size:1.35em}h2{font-size:1.15em;color:var(--md-muted)}h3,h4,h5,h6{font-size:1em}p,ul,ol,blockquote,table,pre,hr{margin:0}strong{font-weight:600}a{color:var(--md-link);text-decoration:none}a:hover{text-decoration:underline}ul,ol{display:flex;flex-direction:column;gap:6px;padding-left:22px}ul{list-style:disc}ol{list-style:decimal}:is(li,td,th)>*+:is(p,ul,ol,blockquote){margin-top:6px}blockquote{display:flex;flex-direction:column;gap:10px;border-left:2px solid var(--md-rule);padding-left:10px;color:var(--md-muted)}:not(pre)>code{background:var(--md-fill);padding:1px 3px;border-radius:4px;font:.92em 'SF Mono',ui-monospace,Menlo,Consolas,monospace}a>code{background:none;color:inherit}pre{background:var(--md-fill);padding:10px 12px;border-radius:6px;overflow-x:auto;font:12px/1.5 'SF Mono',ui-monospace,Menlo,Consolas,monospace;margin-block:4px}pre code{background:none;padding:0;font:inherit}table{width:100%;border-collapse:separate;border-spacing:2px;font:inherit}th,td{padding:6px 8px;border-radius:3px;text-align:left;vertical-align:top}th{background:var(--md-fill-strong);font-weight:600}td{background:var(--md-fill)}:is(th,td) :not(pre)>code{background:transparent}hr{border:0;border-top:1px solid var(--md-rule-strong);margin-block:10px}img{max-width:100%;height:auto;border-radius:4px}</style>
+</head><body>
+<div id="sdh-libbar" style="position:relative;z-index:2147483000;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0;padding:8px 16px;background:#0f172a;color:#cbd5e1;font:600 13px/1.5 Inter,'Segoe UI',system-ui,-apple-system,sans-serif;border-bottom:2px solid #4f46e5;box-sizing:border-box;width:100%;text-align:left;letter-spacing:0"><a href="../../index.html" style="color:#fff;text-decoration:none;font-weight:800">SystemDesign<span style="color:#8b8cff">.hinglish</span></a><span style="opacity:.45">/</span><a href="../index.html" style="color:#fff;text-decoration:none">📚 Library</a><span style="opacity:.45">/</span><a href="../index.html#genai" style="color:#cbd5e1;text-decoration:none">GenAI &amp; AI</a><a href="../files/enterprise-ai-gateway-architecture-original.html" download style="color:#a5b4fc;text-decoration:none;font-size:12px">⬇ Original</a><span style="margin-left:auto;font-size:11px;padding:2px 9px;border-radius:999px;border:1px solid #6366f1;color:#c7d2fe">📘 HTML ebook</span></div>
+<h1>Enterprise AI Gateway &amp; Orchestrator — Architecture Guide</h1>
+<p><strong>High-Level Design, Low-Level Design and Architecture Decisions</strong></p>
+<p>Status: implemented. The code in this repository follows this design, and where implementation refined a decision the text says so. Stack verified on 16 September 2026 against the Spring Boot v4.1.1 and Spring AI v2.0.1 source trees.</p>
+<p>This guide is written for the engineer who has to defend every line of the system in front of a customer or an interviewer. Sections 1 to 3 are the design you would draw on a whiteboard in the first ten minutes. Section 4 is the low-level design as implemented, with the class names you will find in the code; section 12 maps each part to its source and tests. Section 5 records each decision together with the alternatives that were rejected, because experienced interviewers probe the rejected options harder than the chosen one. Major sections end with an <em>Interview lens</em> note that says what a Forward Deployed Engineer (FDE) or AI Developer interviewer is really testing.</p>
+<hr>
+<h2>1. Context and goals</h2>
+<h3>1.1 The problem</h3>
+<p>Most enterprises no longer buy from one model vendor. Legal wants data residency, finance wants predictable cost, product teams want the best model for each task, and security wants to know exactly which data left the building. When every team calls OpenAI, Anthropic and Google directly, the result is duplicated SDK code, keys scattered across services, no failover when a vendor has an incident, no single view of token spend, and answers that cannot see internal documents.</p>
+<p>The gateway is one governed entry point. It routes each request to the right provider and model, grounds answers in private documents through retrieval-augmented generation (RAG), keeps conversation memory, lets models call approved tools (native Java methods and Model Context Protocol servers), and makes every token observable. It is deliberately a <strong>modular monolith</strong>: a single deployable with strict package boundaries. That is the right starting shape for a small team, and the same boundaries become the seams if the system is ever split into services.</p>
+<h3>1.2 Requirements</h3>
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Requirement</th>
+<th>Where it is addressed</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>FR-1</td>
+<td>Chat over REST (blocking) and Server-Sent Events (token streaming)</td>
+<td>§4.5, §4.8</td>
+</tr>
+<tr>
+<td>FR-2</td>
+<td>Choose provider and model tier per request, with a configurable default</td>
+<td>§4.3</td>
+</tr>
+<tr>
+<td>FR-3</td>
+<td>Fail over to another provider automatically when it is safe to do so</td>
+<td>§4.3, ADR-003</td>
+</tr>
+<tr>
+<td>FR-4</td>
+<td>Durable, tenant-scoped conversation memory</td>
+<td>§4.4, ADR-006</td>
+</tr>
+<tr>
+<td>FR-5</td>
+<td>Ingest PDF, DOCX, PPTX and HTML; answer from those documents</td>
+<td>§4.6, ADR-004, ADR-005</td>
+</tr>
+<tr>
+<td>FR-6</td>
+<td>Tool calling through native <code>@Tool</code> methods and external MCP servers</td>
+<td>§4.8, ADR-007</td>
+</tr>
+<tr>
+<td>FR-7</td>
+<td>Publish governed gateway capabilities to MCP clients such as IDE agents</td>
+<td>§4.8, ADR-007</td>
+</tr>
+<tr>
+<td>FR-8</td>
+<td>Token, latency and cost metrics per provider, model and tier</td>
+<td>§8</td>
+</tr>
+<tr>
+<td>NFR-1</td>
+<td>Gateway overhead before the provider call (routing, memory load, retrieval) under 400 ms at p95</td>
+<td>§4.4, §4.5</td>
+</tr>
+<tr>
+<td>NFR-2</td>
+<td>An outage at one LLM vendor does not take the gateway down</td>
+<td>§4.3, ADR-003</td>
+</tr>
+<tr>
+<td>NFR-3</td>
+<td>Prompts, completions, tool payloads and retrieved text are never logged by default</td>
+<td>ADR-008</td>
+</tr>
+<tr>
+<td>NFR-4</td>
+<td>A tenant can never read another tenant's memory or documents</td>
+<td>§7</td>
+</tr>
+<tr>
+<td>NFR-5</td>
+<td>Cost per request is bounded: token caps, tool-call caps, retry budget</td>
+<td>ADR-003, ADR-007</td>
+</tr>
+<tr>
+<td>NFR-6</td>
+<td>Deploys do not cut open streams</td>
+<td>Graceful shutdown, 45 s shutdown phase</td>
+</tr>
+</tbody>
+</table>
+<h3>1.3 Assumptions and constraints</h3>
+<p>Tenancy is demonstration-grade: the tenant comes from an <code>X-Tenant-Id</code> header, and it must be replaced by a claim from an authenticated principal before any real deployment. Secrets arrive only as environment variables. Embeddings are pinned to OpenAI (ADR-005), so RAG needs an OpenAI key even when chat is routed to Claude or Gemini. Each provider can be switched off on its own with <code>OPENAI_ENABLED</code>, <code>ANTHROPIC_ENABLED</code> or <code>GEMINI_ENABLED</code> set to <code>false</code>, and startup fails fast only for providers that are enabled but have no key. PostgreSQL with the pgvector extension and Redis Stack 7+ run in Docker locally and as managed services in production.</p>
+<hr>
+<h2>2. Verified technology baseline</h2>
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Choice</th>
+<th>Version</th>
+<th>Why this, and not the obvious alternative</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Runtime</td>
+<td>Java</td>
+<td>25 LTS</td>
+<td>Virtual threads no longer pin carrier threads inside <code>synchronized</code> (JEP 491, delivered in JDK 24), and 25 is the LTS release that includes it</td>
+</tr>
+<tr>
+<td>Framework</td>
+<td>Spring Boot</td>
+<td>4.1.1</td>
+<td>Latest 4.1 patch; modular starters; required by Spring AI 2.x</td>
+</tr>
+<tr>
+<td>AI framework</td>
+<td>Spring AI BOM</td>
+<td>2.0.1</td>
+<td>Tool loop now lives in <code>ToolCallingAdvisor</code>; official vendor SDKs underneath; 2.0.1 fixes seven CVEs, including Redis chat-memory tag injection and unadvertised tool dispatch</td>
+</tr>
+<tr>
+<td>OpenAI</td>
+<td><code>spring-ai-starter-model-openai</code></td>
+<td>BOM</td>
+<td>Built on the official <code>openai-java</code> SDK; chat and embeddings</td>
+</tr>
+<tr>
+<td>Anthropic</td>
+<td><code>spring-ai-starter-model-anthropic</code></td>
+<td>BOM</td>
+<td>Built on the official <code>anthropic-java</code> SDK</td>
+</tr>
+<tr>
+<td>Google</td>
+<td><code>spring-ai-starter-model-google-genai</code></td>
+<td>BOM</td>
+<td>One SDK for both the Gemini Developer API and Vertex AI</td>
+</tr>
+<tr>
+<td>Vector store</td>
+<td>PostgreSQL + pgvector</td>
+<td>0.8 or later</td>
+<td>HNSW with cosine distance, SQL filtering, existing backup and HA story (ADR-004)</td>
+</tr>
+<tr>
+<td>Memory</td>
+<td>Redis Stack</td>
+<td>7 or later</td>
+<td>Query Engine and JSON are required by <code>RedisChatMemoryRepository</code>; Redis Stack is what Spring AI's own tests run against (ADR-006)</td>
+</tr>
+<tr>
+<td>MCP</td>
+<td>MCP Java SDK</td>
+<td>2.0 (BOM)</td>
+<td>Streamable HTTP transport; servers validate tool input against its JSON schema by default</td>
+</tr>
+<tr>
+<td>Metrics</td>
+<td>Micrometer + Prometheus registry</td>
+<td>Boot-managed</td>
+<td>Spring AI publishes <code>gen_ai.*</code> observations that become Prometheus metrics</td>
+</tr>
+</tbody>
+</table>
+<h3>2.1 Model catalogue</h3>
+<table>
+<thead>
+<tr>
+<th>Tier</th>
+<th>OpenAI</th>
+<th>Anthropic</th>
+<th>Google</th>
+<th>Typical use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>fast</code></td>
+<td><code>gpt-5.6-luna</code></td>
+<td><code>claude-haiku-4-5-20251001</code></td>
+<td><code>gemini-3.1-flash-lite</code></td>
+<td>Classification, extraction, query rewriting</td>
+</tr>
+<tr>
+<td><code>balanced</code> (default)</td>
+<td><code>gpt-5.6-terra</code></td>
+<td><code>claude-sonnet-5</code></td>
+<td><code>gemini-3.5-flash</code></td>
+<td>Everyday chat and grounded answers</td>
+</tr>
+<tr>
+<td><code>smart</code></td>
+<td><code>gpt-5.6-sol</code></td>
+<td><code>claude-opus-5</code></td>
+<td><code>gemini-3.1-pro-preview</code></td>
+<td>Multi-step reasoning and hard tool use</td>
+</tr>
+</tbody>
+</table>
+<p>All three GPT-5.6 tiers are available on the Chat Completions API, which is the API that Spring AI's OpenAI chat model calls. <code>gemini-3.1-pro-preview</code> is a Preview model and can be retired at short notice, so it is the entry to watch. OpenAI's newer <code>gpt-6-astra</code> is a one-line change to <code>gateway.providers.openai.models.smart</code> once its cost has been evaluated. Model IDs exist only in <code>gateway.providers.*.models</code>; code refers to tiers and never to model names, which is what makes a model upgrade a configuration change instead of a release.</p>
+<h3>2.2 Verification log: what the first draft got wrong</h3>
+<p>Configuration assembled from examples and blog posts is often subtly stale, and Spring Boot silently ignores property keys it does not recognise. Every artifact and key was therefore checked against the auto-configuration conditions and property classes of the exact versions in use. Rows 1 to 8 were found before any code was written; rows 9 to 11 surfaced while implementing against the same sources:</p>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Defect in the first draft</th>
+<th>Consequence</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td><code>&lt;n&gt;</code> instead of <code>&lt;name&gt;</code> in <code>pom.xml</code></td>
+<td>Maven cannot parse the POM</td>
+<td>Corrected the element</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Only <code>spring.ai.model.embedding</code> was set</td>
+<td>Gemini's text-embedding auto-configuration reads <code>spring.ai.model.embedding.text</code>, so a second <code>EmbeddingModel</code> bean appears and <code>PgVectorStore</code> fails on an ambiguous dependency</td>
+<td>Added <code>embedding.text: openai</code> as a dotted YAML key</td>
+</tr>
+<tr>
+<td>3</td>
+<td>No <code>spring.ai.google.genai.embedding.api-key</code></td>
+<td>The Gemini embedding connection bean is created unconditionally; with no key it asserts a Vertex project and location, and startup aborts</td>
+<td>Same sentinel value as the chat key</td>
+</tr>
+<tr>
+<td>4</td>
+<td><code>spring.ai.openai.chat.stream-usage: true</code></td>
+<td>The key no longer exists in 2.0.1 although the reference docs still list it, so it was silently ignored</td>
+<td>Removed; the SDK-based model already requests usage on streamed responses</td>
+</tr>
+<tr>
+<td>5</td>
+<td>Comment implied <code>spring.ai.retry</code> covers every provider</td>
+<td>Only Gemini uses Spring's <code>RetryTemplate</code>; OpenAI and Anthropic retry inside their SDKs, and OpenAI defaults to 3 retries</td>
+<td>Retry layers documented; SDK <code>max-retries: 1</code></td>
+</tr>
+<tr>
+<td>6</td>
+<td>Redis configured only for the memory repository</td>
+<td>The memory starter pulls in Spring Data Redis, whose Actuator health check probes <code>spring.data.redis</code> (localhost), so production would report DOWN</td>
+<td>Redis defined once under <code>spring.data.redis</code> and referenced by the memory repository</td>
+</tr>
+<tr>
+<td>7</td>
+<td><code>spring-boot-starter-micrometer-metrics</code> declared</td>
+<td>Redundant, because the Actuator starter already includes it</td>
+<td>Removed</td>
+</tr>
+<tr>
+<td>8</td>
+<td>MCP server enabled in the base profile</td>
+<td>An unauthenticated <code>/mcp</code> endpoint in the profile described as production-safe</td>
+<td>Disabled by default; when enabled, <code>/mcp</code> sits behind the gateway API key</td>
+</tr>
+<tr>
+<td>9</td>
+<td>Plan to use the built-in <code>MessageChatMemoryAdvisor</code></td>
+<td>In 2.0.1 it writes the user message in <code>before()</code>, ahead of the model call, so a failover replay stores the question twice and sends it twice next turn</td>
+<td><code>ConversationMemoryAdvisor</code> writes the question and answer together, only after the turn succeeds</td>
+</tr>
+<tr>
+<td>10</td>
+<td>Plan to expose the windowed memory as a <code>ChatMemory</code> bean</td>
+<td>The Redis repository auto-configuration backs off when any <code>ChatMemory</code> bean exists, silently removing Redis from the context</td>
+<td>The window is built inside the advisor's configuration and never published as a bean</td>
+</tr>
+<tr>
+<td>11</td>
+<td>Plan to pass tenant and conversation IDs in tool context to every tool</td>
+<td>Spring AI's MCP tool callbacks forward tool-context entries to remote servers as <code>_meta</code> by default</td>
+<td>MCP-backed tools are invoked without tool context</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Interview lens.</strong> &quot;How do you verify configuration you did not write?&quot; is a real FDE question, because customer environments are full of it. A strong answer names the mechanism: read the auto-configuration conditions and property classes for the exact version, remember that unknown keys fail silently, and prove the result with a startup test rather than trusting documentation.</p>
+</blockquote>
+<hr>
+<h2>3. High-level design</h2>
+<h3>3.1 Container view</h3>
+<pre class="mermaid">flowchart LR
+  subgraph CLIENTS[&#34;Clients&#34;]
+    UI[&#34;Dashboard&lt;br/&gt;single-file HTML/JS&#34;]
+    RESTC[&#34;REST and SSE clients&#34;]
+    MCPC[&#34;MCP clients&lt;br/&gt;IDEs and agents&#34;]
+  end
+
+  subgraph GW[&#34;Enterprise AI Gateway · Spring Boot 4.1 · Java 25 virtual threads&#34;]
+    direction TB
+    EDGE[&#34;API layer&lt;br/&gt;Chat · Documents · Catalog&#34;]
+    ORCH[&#34;Orchestration&lt;br/&gt;ChatOrchestrator · RoutingPolicy · ProviderRegistry&#34;]
+    ADV[&#34;Advisor chain&lt;br/&gt;Guardrail · Memory · RAG · Tool loop&#34;]
+    ETL[&#34;Ingestion pipeline&lt;br/&gt;Tika · TokenTextSplitter · Enricher&#34;]
+    TOOLS[&#34;Tools&lt;br/&gt;@Tool beans · MCP client callbacks&#34;]
+    MCPS[&#34;MCP server&lt;br/&gt;/mcp Streamable HTTP&#34;]
+    OBS[&#34;Observability&lt;br/&gt;Micrometer · Actuator&#34;]
+  end
+
+  subgraph LLM[&#34;LLM providers&#34;]
+    OAI[&#34;OpenAI&lt;br/&gt;GPT-5.6 + embeddings&#34;]
+    ANT[&#34;Anthropic&lt;br/&gt;Claude&#34;]
+    GEM[&#34;Google&lt;br/&gt;Gemini&#34;]
+  end
+
+  subgraph STATE[&#34;State&#34;]
+    PG[(&#34;PostgreSQL&lt;br/&gt;pgvector&#34;)]
+    RD[(&#34;Redis Stack&lt;br/&gt;chat memory&#34;)]
+  end
+
+  DOWN[&#34;Downstream&lt;br/&gt;MCP servers&#34;]
+  PROM[&#34;Prometheus&lt;br/&gt;Grafana&#34;]
+
+  UI --&gt; EDGE
+  RESTC --&gt; EDGE
+  MCPC --&gt; MCPS
+  EDGE --&gt; ORCH
+  EDGE --&gt; ETL
+  MCPS --&gt;|knowledge search| PG
+  ORCH --&gt; ADV
+  ADV --&gt;|chat| OAI
+  ADV --&gt;|chat| ANT
+  ADV --&gt;|chat| GEM
+  ADV --&gt;|history| RD
+  ADV --&gt;|similarity search| PG
+  ADV --&gt; TOOLS
+  TOOLS --&gt; DOWN
+  ETL --&gt;|embed| OAI
+  ETL --&gt;|upsert| PG
+  PROM -.-&gt;|scrape| OBS
+</pre>
+<p>The diagram makes one design choice visible: every path to a model passes through the same orchestrator and advisor chain, and every path to documents, whether it starts at the REST API, a model's tool call or the MCP server, goes through the same tenant-filtered retrieval service. Policies such as tenant filtering, token caps and tool allow-lists are therefore enforced once, not re-implemented per entry point.</p>
+<h3>3.2 Component responsibilities</h3>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Owns</th>
+<th>Collaborates with</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>API layer</td>
+<td>Input validation, tenant and conversation resolution, RFC 9457 error bodies, SSE framing</td>
+<td><code>ChatOrchestrator</code>, <code>IngestionService</code></td>
+</tr>
+<tr>
+<td><code>ChatOrchestrator</code></td>
+<td>One chat turn end to end: plan the route, stream an attempt, fail over when safe, emit events</td>
+<td><code>RoutingPolicy</code>, <code>FailoverClassifier</code>, <code>ModelInvoker</code></td>
+</tr>
+<tr>
+<td><code>TierBasedRoutingPolicy</code> and <code>FailoverClassifier</code></td>
+<td>Turning pins, tenant policy and tier into an ordered plan of provider and model candidates; deciding which errors another provider could fix</td>
+<td><code>ProviderHealth</code> (implemented by <code>ProviderRegistry</code>)</td>
+</tr>
+<tr>
+<td><code>ProviderRegistry</code> and <code>ChatClientFactory</code></td>
+<td>One configured <code>ChatClient</code> per enabled provider, sharing advisors, tools and observations</td>
+<td>Spring AI <code>ChatModel</code> beans</td>
+</tr>
+<tr>
+<td>Advisor chain</td>
+<td>Guardrails, memory, retrieval and the tool loop, in a deliberate order (§4.4)</td>
+<td>Redis, pgvector, tools</td>
+</tr>
+<tr>
+<td>Ingestion pipeline</td>
+<td>Read, split, tag, upsert-then-prune, document registry</td>
+<td><code>PgVectorStore</code>, OpenAI embeddings</td>
+</tr>
+<tr>
+<td>Tools</td>
+<td>Native <code>@Tool</code> beans and MCP-backed tool callbacks, attached per request from an allow-list</td>
+<td>MCP client, <code>ToolCallingAdvisor</code></td>
+</tr>
+<tr>
+<td>MCP server</td>
+<td>Publishing selected read-only gateway capabilities as <code>@McpTool</code> methods</td>
+<td><code>RetrievalService</code>, <code>ModelCatalog</code></td>
+</tr>
+<tr>
+<td>Observability</td>
+<td>Metrics, health probes, token and cost accounting</td>
+<td>Micrometer, Actuator</td>
+</tr>
+</tbody>
+</table>
+<h3>3.3 The four core flows</h3>
+<p><strong>Chat.</strong> A client posts a message. The API layer resolves the tenant and a server-side conversation ID, the routing policy plans an ordered list of targets, and the orchestrator runs the advisor chain on that provider's <code>ChatClient</code>. Tokens stream back as SSE events. If the provider fails before the first token, the orchestrator replays the same request on the next candidate.</p>
+<p><strong>Ingestion.</strong> An administrator uploads a file. The service hashes it and skips documents that have not changed. Otherwise it reads, splits and tags the text, embeds the chunks, upserts them under deterministic IDs, and prunes chunks left over from the previous version.</p>
+<p><strong>Outbound tools.</strong> When the model asks for a tool, <code>ToolCallingAdvisor</code> executes it only if the tool was attached to that request, whether it is a native method or backed by an MCP server, and it loops until the model produces an answer or a call cap is reached.</p>
+<p><strong>Inbound MCP.</strong> An IDE agent connects to <code>/mcp</code> and calls a published tool, such as knowledge search, which runs through the same tenant filters as the REST API.</p>
+<blockquote>
+<p><strong>Interview lens.</strong> Interviewers listen for the boundary between what the framework does (provider calls, the tool loop, vector maths) and what your gateway owns: policy about who may use which model, tool and data, and what happens when something fails. That policy layer is the product; everything else is plumbing you chose not to write.</p>
+</blockquote>
+<hr>
+<h2>4. Low-level design</h2>
+<h3>4.1 Package structure</h3>
+<pre><code class="language-text">com.enterprise.gateway
+├── GatewayApplication
+├── config          GatewayProperties (validated records)
+├── api             ChatController, DocumentController, RetrievalController, CatalogController,
+│   │               ChatCommandFactory, ApiExceptionHandler (RFC 9457)
+│   └── dto         ChatRequest, ChatReply, RetrievalQuery
+├── chat            ChatOrchestrator, ChatEvent, ChatCommand, TurnState, GuardrailAdvisor,
+│                   ModelInvoker (port) and SpringAiModelInvoker (adapter), ChatMetrics (port)
+├── routing         RoutingPolicy, TierBasedRoutingPolicy, FailoverClassifier, ProviderHealth,
+│                   ProviderRegistry, ChatClientFactory, ProviderCredentials, ModelCatalog,
+│                   ProviderId, ModelTier
+├── memory          ConversationMemoryAdvisor, ConversationIds
+├── rag             IngestionService, TenantRetrievalAdvisor, RetrievalService, DocumentRegistry,
+│                   ChunkIds, RetrievalFilters
+├── tools           GatewayTools (@Tool), ToolCatalog (allow-lists), GovernedToolCallback
+├── mcp             GatewayMcpTools (@McpTool)
+├── observability   TokenUsageRecorder
+├── security        ApiKeyAuthenticationFilter, TenantResolver, TenantIds
+└── error           GatewayException hierarchy: decisions that must never trigger failover
+</code></pre>
+<p>The code is packaged by feature rather than by layer. <code>routing</code> knows nothing about <code>rag</code>, and only <code>chat</code> composes the two. The failover rules sit behind the <code>ModelInvoker</code> port, so <code>ChatOrchestratorTest</code> exercises them with scripted providers and no database, HTTP or API key at all. These boundaries can later be enforced with ArchUnit or Spring Modulith tests, so that &quot;modular monolith&quot; is a checked property instead of an intention.</p>
+<h3>4.2 Core orchestration classes</h3>
+<pre class="mermaid">classDiagram
+  direction LR
+  class ChatOrchestrator {
+    -RoutingPolicy routingPolicy
+    -ProviderHealth providerHealth
+    -FailoverClassifier failoverClassifier
+    -ModelInvoker modelInvoker
+    +stream(ChatCommand command) Flux~ChatEvent~
+    +call(ChatCommand command) ChatResult
+  }
+  class RoutingPolicy {
+    &lt;&lt;interface&gt;&gt;
+    +plan(RouteRequest request) List~RouteDecision~
+  }
+  class TierBasedRoutingPolicy {
+    -ProviderHealth health
+    +plan(RouteRequest request) List~RouteDecision~
+  }
+  class FailoverClassifier {
+    +isFailoverEligible(Throwable error) boolean
+    +httpStatus(Throwable error) OptionalInt
+  }
+  class ProviderHealth {
+    &lt;&lt;interface&gt;&gt;
+    +isEnabled(ProviderId id) boolean
+    +isCoolingDown(ProviderId id) boolean
+    +recordSuccess(ProviderId id)
+    +recordFailure(ProviderId id)
+  }
+  class ProviderRegistry {
+    +client(ProviderId id) ChatClient
+  }
+  class ChatClientFactory {
+    -ObservationRegistry observationRegistry
+    -ToolCallingManager toolCallingManager
+    +create(ProviderId id) ChatClient
+  }
+  class ModelInvoker {
+    &lt;&lt;interface&gt;&gt;
+    +stream(RouteDecision decision, ChatCommand command, TurnState turn) Flux~ModelChunk~
+  }
+  class SpringAiModelInvoker {
+    -ProviderRegistry registry
+    -ToolCatalog toolCatalog
+  }
+  class RouteRequest {
+    &lt;&lt;record&gt;&gt;
+    +String tenantId
+    +ProviderId requestedProvider
+    +ModelTier tier
+  }
+  class RouteDecision {
+    &lt;&lt;record&gt;&gt;
+    +ProviderId provider
+    +String modelId
+    +ModelTier tier
+    +int hop
+    +boolean pinned
+  }
+  class ProviderId {
+    &lt;&lt;enumeration&gt;&gt;
+    OPENAI
+    ANTHROPIC
+    GEMINI
+  }
+  class ModelTier {
+    &lt;&lt;enumeration&gt;&gt;
+    FAST
+    BALANCED
+    SMART
+  }
+  ChatOrchestrator --&gt; RoutingPolicy
+  ChatOrchestrator --&gt; ProviderHealth
+  ChatOrchestrator --&gt; FailoverClassifier
+  ChatOrchestrator --&gt; ModelInvoker
+  RoutingPolicy &lt;|.. TierBasedRoutingPolicy
+  ProviderHealth &lt;|.. ProviderRegistry
+  ModelInvoker &lt;|.. SpringAiModelInvoker
+  TierBasedRoutingPolicy --&gt; ProviderHealth
+  SpringAiModelInvoker --&gt; ProviderRegistry
+  ProviderRegistry --&gt; ChatClientFactory
+  RoutingPolicy ..&gt; RouteRequest : reads
+  RoutingPolicy ..&gt; RouteDecision : plans
+  RouteDecision --&gt; ProviderId
+  RouteRequest --&gt; ModelTier
+</pre>
+<p>Four choices in this diagram deserve an explanation.</p>
+<p><code>RoutingPolicy</code> is an interface because routing rules are where customers differ. A bank pins regulated tenants to one vendor, a retailer routes by cost, a research team routes by capability. Much real FDE work is writing exactly this kind of customer-specific policy, and the tier-plus-fallback-order implementation is only the default.</p>
+<p><code>RouteDecision</code> is an immutable record that carries its hop count and whether it was pinned. Failover then becomes a pure function of the plan, the error and two facts about the turn (has a token been sent, has a tool run), so every rule in §4.3 can be unit-tested without HTTP, containers or API keys.</p>
+<p><code>ChatClientFactory</code> exists because <code>spring.ai.chat.client.enabled</code> is <code>false</code> (several <code>ChatModel</code> beans make the auto-configured builder ambiguous), so nothing builds <code>ChatClient</code>s for us. The one-argument <code>ChatClient.builder(chatModel)</code> uses a no-op <code>ObservationRegistry</code>; the factory calls the overload that takes the real registry, otherwise ChatClient and advisor spans quietly disappear from traces.</p>
+<p><code>ModelInvoker</code> is a port in the hexagonal sense. The orchestrator streams framework-free <code>ModelChunk</code> records, and <code>SpringAiModelInvoker</code> is the only class that turns a routing decision into ChatClient calls: model override, memory key, tenant filter, tools. Swapping Spring AI for something else, or scripting providers in a test, touches nothing in the failover logic.</p>
+<p>A related rule governs request options. Per-request overrides use exactly one portable <code>ChatOptions</code> field: the model. Even the token limit stays in per-provider defaults, because OpenAI reasoning models reject <code>max_tokens</code> in favour of <code>max_completion_tokens</code>. Provider-native settings such as OpenAI reasoning effort, Gemini thinking level or Anthropic inference geography live in each provider's defaults, because a request that carries OpenAI-only options cannot be replayed on Claude when failover happens.</p>
+<h3>4.3 Routing and failover</h3>
+<pre class="mermaid">flowchart TD
+  A[&#34;ChatCommand arrives&#34;] --&gt; B{&#34;Provider pinned by caller&lt;br/&gt;or tenant policy?&#34;}
+  B --&gt;|yes| C{&#34;Pinned provider enabled?&#34;}
+  C --&gt;|no| C1[&#34;503 Service Unavailable&lt;br/&gt;no silent re-routing&#34;]
+  C --&gt;|yes| D[&#34;Target is the pinned provider&lt;br/&gt;failover disabled&#34;]
+  B --&gt;|no| E[&#34;Default provider, then fallback-order&lt;br/&gt;skip disabled and cooling down&#34;]
+  E --&gt; F{&#34;Candidate left?&#34;}
+  F --&gt;|no| F1[&#34;503 all providers unavailable&#34;]
+  F --&gt;|yes| G[&#34;Resolve tier to model ID&lt;br/&gt;gateway.providers.*.models&#34;]
+  D --&gt; G
+  G --&gt; H[&#34;Call provider ChatClient&lt;br/&gt;SDK retries at most 1&#34;]
+  H --&gt; I{&#34;Outcome&#34;}
+  I --&gt;|tokens flowing| J[&#34;Stream to client&lt;br/&gt;record usage on completion&#34;]
+  I --&gt;|error after first token| L[&#34;Emit SSE error event&lt;br/&gt;never splice two providers&#34;]
+  I --&gt;|error or deadline before first token| K{&#34;Could another provider succeed?&lt;br/&gt;429, 5xx, timeout, connection&#34;}
+  K --&gt;|no, e.g. 400 or 401| M[&#34;Return problem detail&#34;]
+  K --&gt;|yes| N{&#34;Not pinned, no tool has run,&lt;br/&gt;candidate left in hop budget?&#34;}
+  N --&gt;|no| M
+  N --&gt;|yes| O[&#34;Record failure, start cooldown&lt;br/&gt;next candidate, hop plus one&#34;]
+  O --&gt; F
+</pre>
+<p><strong>Pinned means pinned.</strong> A provider pinned by the caller or by tenant policy, for example to keep EU data with one vendor, never fails over. Quietly sending regulated data to a different vendor is a compliance incident, so the gateway returns a retryable error and lets a human decide. A caller asking for a different provider than the tenant's pin gets a 403, never a silent re-route.</p>
+<p><strong>Failover only before the first token.</strong> Once text has reached the user, switching providers would splice two models' answers into one response with different styles and possibly contradictory facts. After the first token the gateway emits an SSE <code>error</code> event instead, and the client may retry the whole turn.</p>
+<p><strong>Only fail over when another provider could succeed.</strong> Rate limits (429), server errors (5xx), timeouts, connection failures and a missed first-token deadline qualify. Validation and authentication errors do not, because they either fail identically everywhere or indicate a bug in the gateway.</p>
+<p><strong>Two different clocks.</strong> The first-token deadline (<code>gateway.routing.first-token-timeout</code>, 20 s) is separate from the SDK's whole-request timeout (120 s). A long answer that is streaming normally must never be cut off, while a request that has produced nothing after 20 seconds is almost certainly stuck. The worst case for an unpinned request is therefore about three first-token deadlines; a typical 429 or 5xx fails over in well under a second.</p>
+<p><strong>No failover once a tool has run.</strong> A model can call a tool and then fail before producing text. Replaying the turn elsewhere would run the tool again, so the orchestrator treats any tool execution as the point of no return. Tool time also pauses the first-token clock, because a slow tool is not a stuck provider.</p>
+<p><strong>Cooldown instead of hammering.</strong> A provider that just failed is skipped for a short cooldown, tracked in <code>ProviderRegistry</code>. When every enabled provider is cooling down, they are tried anyway: a cooldown is a hint, not proof of an outage. This is a deliberately small circuit breaker; Resilience4j is the upgrade path if half-open probing and sliding windows are needed.</p>
+<h3>4.4 Advisor chain order</h3>
+<p>In Spring AI, advisors with lower order values run first on the way in and last on the way out. The order below is part of the design, not a style preference: getting it wrong produces correct-looking answers with hidden cost and data-handling bugs.</p>
+<table>
+<thead>
+<tr>
+<th>Order</th>
+<th>Advisor</th>
+<th>Runs</th>
+<th>Why it sits here</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>HIGHEST_PRECEDENCE + 100</code></td>
+<td><code>GuardrailAdvisor</code> (ours)</td>
+<td>Once per turn</td>
+<td>Size limits, prompt-injection heuristics and redaction policy block a request before any token is spent</td>
+</tr>
+<tr>
+<td><code>HIGHEST_PRECEDENCE + 200</code></td>
+<td><code>ConversationMemoryAdvisor</code> (ours)</td>
+<td>Once per turn</td>
+<td>Loads the history window before the call; stores the user message and final answer together, only after the turn succeeds</td>
+</tr>
+<tr>
+<td><code>HIGHEST_PRECEDENCE + 250</code> (set explicitly)</td>
+<td><code>TenantRetrievalAdvisor</code> (ours) wrapping <code>QuestionAnswerAdvisor</code></td>
+<td>Once per turn</td>
+<td>Retrieves once per user turn with a server-side tenant filter; degrades or fails according to the RAG mode</td>
+</tr>
+<tr>
+<td><code>HIGHEST_PRECEDENCE + 300</code> (default)</td>
+<td><code>ToolCallingAdvisor</code> (auto-registered)</td>
+<td>Loops</td>
+<td>Executes tool calls and re-invokes the advisors after it on every iteration</td>
+</tr>
+</tbody>
+</table>
+<p>Prompt logging in the <code>local</code> profile uses Spring AI's observation settings rather than a logging advisor, so nothing extra runs inside the tool loop.</p>
+<p>Three facts make this order necessary.</p>
+<p>First, <code>ToolCallingAdvisor</code> is recursive. On each tool iteration it re-runs only the advisors ordered after it. <code>QuestionAnswerAdvisor</code> has a default order of <code>0</code>, which places it after the tool loop; left at its default it would issue a fresh embedding call and vector search on every tool iteration and re-augment the prompt each time. Setting it to <code>+250</code> makes retrieval happen once per user turn.</p>
+<p>Second, memory runs before retrieval, so the stored user message is the original question rather than the question inflated with retrieved chunks. Persisting retrieved text into memory would bloat every later prompt, keep stale document versions alive after re-ingestion, and copy confidential passages into a second store with a different retention policy.</p>
+<p>Third, memory is written only when a turn succeeds. Spring AI's built-in <code>MessageChatMemoryAdvisor</code> stores the user message in <code>before()</code>, ahead of the model call; with cross-provider failover a failed attempt would leave the question in memory and the replay would store it again. The gateway's advisor loads history first and writes the question and the final answer together afterwards. It sits outside the tool loop, so intermediate tool calls and results never reach memory, which is right for a gateway because tool results are often large and sensitive. One wiring trap sits next to it: the memory window must not be published as a <code>ChatMemory</code> bean, because the Redis repository auto-configuration backs off whenever one exists.</p>
+<blockquote>
+<p><strong>Interview lens.</strong> Advisor order is an excellent question to answer well, because it separates people who have run an LLM system in production from people who have read a tutorial. Explain the recursive tool loop, then show the cost bug that a default order creates.</p>
+</blockquote>
+<hr>
+<h3>4.5 Streaming chat turn</h3>
+<pre class="mermaid">sequenceDiagram
+  autonumber
+  actor U as Client
+  participant C as ChatController
+  participant O as ChatOrchestrator
+  participant RP as TierBasedRoutingPolicy
+  participant M as ConversationMemoryAdvisor
+  participant Q as TenantRetrievalAdvisor
+  participant T as ToolCallingAdvisor
+  participant P as Chat provider
+  participant E as OpenAI embeddings
+  participant RD as Redis
+  participant PG as pgvector
+
+  U-&gt;&gt;C: POST /api/v1/chat/stream
+  C-&gt;&gt;O: stream(ChatCommand with tenant and conversation ID)
+  O-&gt;&gt;RP: plan(RouteRequest)
+  RP--&gt;&gt;O: openai hop 0, anthropic hop 1, gemini hop 2
+  O--&gt;&gt;U: SSE route event
+  Note over O: GuardrailAdvisor validates the message first
+  O-&gt;&gt;M: enter the advisor chain on the openai ChatClient
+  M-&gt;&gt;RD: load last 20 messages of the tenant conversation
+  RD--&gt;&gt;M: history
+  M-&gt;&gt;Q: request with history
+  Q-&gt;&gt;E: embed the user question
+  E--&gt;&gt;Q: query vector
+  Q-&gt;&gt;PG: similarity search filtered by tenantId
+  PG--&gt;&gt;Q: top-k chunks above threshold
+  Q-&gt;&gt;T: request augmented with context
+  loop until the model stops calling tools or a cap is reached
+    T-&gt;&gt;P: streaming model call
+    P--&gt;&gt;T: tool call request
+    T-&gt;&gt;T: run a tool attached to this request
+    T--&gt;&gt;U: SSE tool event, via the turn state
+  end
+  alt fails before the first token, not pinned, no tool has run
+    P--xO: 429, 5xx, connection error or first-token deadline
+    O--&gt;&gt;U: SSE route event for hop 1
+    O-&gt;&gt;M: replay the same turn on the anthropic ChatClient
+  else tokens flowing
+    P--&gt;&gt;C: token deltas back through the chain
+    C--&gt;&gt;U: SSE token events
+    M-&gt;&gt;RD: store user message and final answer after success
+    C--&gt;&gt;U: SSE done event with usage, provider and hops
+  else fails after the first token
+    C--&gt;&gt;U: SSE error event marked partial, no failover
+  end
+</pre>
+<p>The client sees a small, stable event contract regardless of which provider answered:</p>
+<table>
+<thead>
+<tr>
+<th>SSE event</th>
+<th>Sent when</th>
+<th>Payload</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>route</code></td>
+<td>Before the first token, and again after a failover</td>
+<td>Provider, model, tier, hop</td>
+</tr>
+<tr>
+<td><code>token</code></td>
+<td>For each text delta</td>
+<td>Text fragment</td>
+</tr>
+<tr>
+<td><code>tool</code></td>
+<td>A tool starts or finishes (reported by <code>GovernedToolCallback</code>)</td>
+<td>Tool name and status only, never arguments</td>
+</tr>
+<tr>
+<td><code>error</code></td>
+<td>Any failure that ends the turn: after the first token, not failover-eligible, or no candidate left</td>
+<td>HTTP-style status, stable <code>code</code>, message, <code>retryable</code>, and <code>partial</code> when text was already sent</td>
+</tr>
+<tr>
+<td><code>done</code></td>
+<td>Stream completed</td>
+<td>Conversation ID, provider, model, hops, usage (input, output, cached input), finish reason, first-token and total latency, <code>ragUsed</code>, <code>memoryUsed</code></td>
+</tr>
+</tbody>
+</table>
+<p>SSE comment lines are sent every 15 seconds while tools run, so proxies and load balancers do not close a connection that is quiet but healthy. The stream is requested with <code>POST</code> rather than <code>GET</code>, because prompts do not belong in URLs, browser history or access logs. The browser <code>EventSource</code> API only supports <code>GET</code>, so the dashboard reads the <code>POST</code> response body with <code>fetch()</code> and a stream reader.</p>
+<h3>4.6 Document ingestion</h3>
+<pre class="mermaid">sequenceDiagram
+  autonumber
+  actor A as Admin client
+  participant DC as DocumentController
+  participant IS as IngestionService
+  participant DR as DocumentRegistry
+  participant TK as TikaDocumentReader
+  participant SP as TokenTextSplitter
+  participant VS as PgVectorStore
+  participant EM as OpenAI embeddings
+
+  A-&gt;&gt;DC: POST /api/v1/documents (multipart file)
+  DC-&gt;&gt;IS: ingest(tenantId, file)
+  IS-&gt;&gt;IS: SHA-256 of file bytes
+  IS-&gt;&gt;DR: find(tenantId, sourceId)
+  alt same hash already indexed
+    DR--&gt;&gt;IS: unchanged
+    IS--&gt;&gt;DC: 200 UNCHANGED, no embedding cost
+  else new or changed document
+    IS-&gt;&gt;TK: read(resource)
+    TK--&gt;&gt;IS: Documents with source metadata
+    IS-&gt;&gt;SP: split(documents)
+    SP--&gt;&gt;IS: chunks
+    IS-&gt;&gt;IS: tag tenantId, sourceId, docHash, chunkIndex, embeddingModel and assign deterministic IDs
+    IS-&gt;&gt;VS: add(chunks) in batches
+    VS-&gt;&gt;EM: embed batch
+    EM--&gt;&gt;VS: 1536-dimension vectors
+    VS-&gt;&gt;VS: INSERT ... ON CONFLICT (id) DO UPDATE
+    IS-&gt;&gt;VS: delete where tenantId and sourceId match and docHash differs
+    IS-&gt;&gt;DR: upsert(tenantId, sourceId, docHash, chunkCount)
+    IS--&gt;&gt;DC: 201 indexed with chunk count
+  end
+</pre>
+<p><strong>Hash before anything else.</strong> Embedding is the dominant ingestion cost, so re-uploading an unchanged 300-page PDF should cost zero tokens. The registry lookup makes ingestion idempotent from the caller's point of view.</p>
+<p><strong>Deterministic chunk IDs.</strong> <code>PgVectorStore</code> writes with <code>INSERT ... ON CONFLICT (id) DO UPDATE</code>. Chunk IDs derived from tenant, source and chunk index with <code>UUID.nameUUIDFromBytes</code> (a name-based UUID, because the <code>id</code> column is a UUID) make retries safe and let a new version overwrite the old one in place.</p>
+<p><strong>Upsert, then prune.</strong> Deleting the old chunks first would leave the document missing from search if embedding fails halfway through. Writing first means readers always see either the complete old version or a partly updated one, and a final filtered delete removes chunks whose <code>docHash</code> no longer matches, such as the tail of a document that got shorter.</p>
+<p><strong>Know when to go asynchronous.</strong> Tika parsing runs on the request thread for simplicity. The first scaling step is to return <code>202 Accepted</code> with a job ID and move parsing and embedding to a worker, which is also why the Tika dependency is flagged in <code>pom.xml</code> as a candidate for a separate service.</p>
+<h3>4.7 Data model</h3>
+<pre class="mermaid">erDiagram
+  DOCUMENT_REGISTRY ||--o{ VECTOR_STORE : &#34;owns chunks via metadata.sourceId&#34;
+  DOCUMENT_REGISTRY {
+    varchar tenant_id PK
+    varchar source_id PK
+    char doc_hash &#34;SHA-256 of the uploaded bytes&#34;
+    int chunk_count
+    varchar content_type
+    timestamptz indexed_at
+  }
+  VECTOR_STORE {
+    uuid id PK &#34;name-based UUID of tenant, source, chunk index&#34;
+    text content &#34;chunk text&#34;
+    jsonb metadata &#34;tenantId, sourceId, docHash, chunkIndex, embeddingModel, title&#34;
+    vector embedding &#34;vector(1536) with HNSW cosine index&#34;
+  }
+</pre>
+<p>Both tables are created by the Flyway migration <code>V1__vector_store_and_document_registry.sql</code>, in every environment, and <code>PgVectorStore</code> only validates the schema at startup. <code>vector_store</code> follows Spring AI's schema (a UUID key, the chunk text, a <code>vector(1536)</code> column with an HNSW index using cosine distance, and the same index name) with one deliberate change: <code>metadata</code> is <code>jsonb</code> rather than <code>json</code>. <code>PgVectorStore</code> writes metadata as <code>?::jsonb</code> and its schema validator checks column names only, so the change is invisible to the framework. The relationship lives in metadata rather than a foreign key, because the vector table is owned by the framework and should stay replaceable.</p>
+<p>Two retrieval details matter at scale. Metadata filters compile to <code>metadata::jsonb @@ '&lt;jsonpath&gt;'::jsonpath</code>; on the <code>jsonb</code> column a GIN index with <code>jsonb_path_ops</code> can serve that operator, which also speeds up the filtered deletes that prune old document versions. More importantly, an HNSW search applies the filter to the candidates it finds, so a selective filter such as a small tenant inside a large table can return fewer than <code>top-k</code> results. The mitigations, in order of effort, are pgvector 0.8's iterative index scans and partitioning by tenant.</p>
+<p>Conversation memory in Redis has no schema to draw, but its layout is still a design decision:</p>
+<table>
+<thead>
+<tr>
+<th>Aspect</th>
+<th>Value</th>
+<th>Reason</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Key prefix</td>
+<td><code>gateway:chat-memory:</code></td>
+<td>Isolates gateway keys when Redis is shared</td>
+</tr>
+<tr>
+<td>Search index</td>
+<td><code>gateway-chat-memory-idx</code></td>
+<td>Created idempotently at startup</td>
+</tr>
+<tr>
+<td>Conversation ID</td>
+<td>Built on the server from the authenticated tenant and a validated UUID</td>
+<td>A client can never address another tenant's conversation by guessing an ID</td>
+</tr>
+<tr>
+<td>Retention</td>
+<td>7-day TTL</td>
+<td>Memory is working context, not an audit log</td>
+</tr>
+<tr>
+<td>Window</td>
+<td>Last 20 messages</td>
+<td>Bounded prompt size and cost</td>
+</tr>
+</tbody>
+</table>
+<h3>4.8 API surface</h3>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Path</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/v1/chat</code></td>
+<td>Blocking chat; JSON with answer, routes, usage, latency and tools used</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/v1/chat/stream</code></td>
+<td>SSE stream using the event contract in §4.5</td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/api/v1/conversations/{conversationId}</code></td>
+<td>Clear one conversation's memory for the caller's tenant</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/v1/documents</code></td>
+<td>Upload and ingest a document (<code>201</code> indexed, <code>200</code> unchanged)</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/api/v1/documents</code></td>
+<td>Documents indexed for the caller's tenant</td>
+</tr>
+<tr>
+<td><code>DELETE</code></td>
+<td><code>/api/v1/documents/{sourceId}</code></td>
+<td>Remove a document and its chunks</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/api/v1/retrieval/search</code></td>
+<td>Inspect retrieval results and scores without calling a chat model</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/api/v1/models</code></td>
+<td>Model catalogue with live provider availability</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/api/v1/tools</code></td>
+<td>Tools the caller's tenant may use, native or from MCP servers</td>
+</tr>
+<tr>
+<td><code>POST</code></td>
+<td><code>/mcp</code></td>
+<td>MCP Streamable HTTP endpoint, opt-in and behind the gateway API key</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/</code></td>
+<td>Single-file dashboard</td>
+</tr>
+<tr>
+<td><code>GET</code></td>
+<td><code>/actuator/health/liveness</code>, <code>/actuator/health/readiness</code>, <code>/actuator/prometheus</code></td>
+<td>Probes and metrics</td>
+</tr>
+</tbody>
+</table>
+<p>All errors use RFC 9457 problem details. The API is versioned in the path because a gateway's clients are other teams' services, and path versioning is the least surprising contract for them.</p>
+<h3>4.9 Configuration design</h3>
+<p>Configuration has two layers. <code>spring.ai.*</code> configures the framework, and <code>gateway.*</code> is our own contract, bound to validated <code>@ConfigurationProperties</code> records. Framework keys reference our keys, for example <code>spring.ai.openai.chat.model: ${gateway.providers.openai.models.balanced}</code>, so each fact has exactly one home.</p>
+<p>Provider keys use a sentinel default (<code>not-configured</code>). Without it, auto-configuration for a provider you have no key for would stop the application during startup, before our code runs. With it, every bean starts, and <code>ProviderRegistry</code> fails fast with a readable message only when a provider is enabled but still has no credentials. Switching a provider off is one environment variable.</p>
+<p>Profiles add rather than replace. The base document holds production-safe defaults: no prompt logging, no schema creation, no unauthenticated MCP endpoint. The <code>local</code> profile turns on developer conveniences, and the <code>prod</code> profile adds requirements such as a mandatory Redis password and a mandatory gateway API key. A secret with no default, like <code>${REDIS_PASSWORD}</code>, is deliberate: a missing secret should stop the deployment, not produce a gateway that half works.</p>
+<blockquote>
+<p><strong>Interview lens.</strong> Expect &quot;what happens when a key is missing?&quot; and &quot;how do you roll out a new model?&quot; Good answers are mechanical: sentinel plus validator for the first, a one-line tier mapping change behind a canary for the second.</p>
+</blockquote>
+<hr>
+<h2>5. Architecture decision records</h2>
+<p>Each record states the context, the decision, the options that lost and why, and the consequences you accept. All are <em>Accepted</em> as of 16 September 2026.</p>
+<h3>ADR-001 — Java 25 and Spring MVC on virtual threads, not WebFlux</h3>
+<p><strong>Context.</strong> The workload is dominated by waiting. A model call takes seconds, retrieval waits on an embedding API and PostgreSQL, memory waits on Redis, and Tika parsing is blocking by nature. The gateway must hold many concurrent streams without turning every dependency call into reactive code.</p>
+<p><strong>Decision.</strong> Spring MVC with <code>spring.threads.virtual.enabled: true</code> on Java 25. Streaming endpoints return <code>Flux</code>, which Spring MVC adapts to an asynchronous response.</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Why it lost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>WebFlux end to end</td>
+<td>Best raw efficiency for extreme fan-out, but JDBC, Jedis and Tika block, so each call needs a hop to a bounded elastic scheduler; debugging and context propagation get harder</td>
+</tr>
+<tr>
+<td>Platform threads with a large pool</td>
+<td>Each thread reserves a large stack, so concurrent streams hit memory and pool limits long before CPU does</td>
+</tr>
+<tr>
+<td>Java 21</td>
+<td>Has virtual threads, but still pins carrier threads inside <code>synchronized</code>, which drivers and SDKs use internally; fixed only from JDK 24</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Consequences.</strong> Imperative code stays easy to read, debug and test. Because threads are now cheap, the scarce resources move: the HikariCP pool (20 connections) becomes the real bulkhead in front of PostgreSQL, and each vendor SDK's HTTP client has its own concurrency limits that must be load-tested. One example to check early is OkHttp, used by the Anthropic SDK, whose default dispatcher allows only five concurrent asynchronous requests per host unless the SDK raises it. Revisit if one instance must hold tens of thousands of concurrent streams.</p>
+<h3>ADR-002 — A router facade over one ChatClient per provider</h3>
+<p><strong>Context.</strong> Three <code>ChatModel</code> beans exist, while Spring AI's auto-configured <code>ChatClient.Builder</code> assumes one. The gateway needs per-request provider choice, failover, and one set of policies applied to every provider.</p>
+<p><strong>Decision.</strong> Disable the auto-configured builder. <code>ChatClientFactory</code> builds one <code>ChatClient</code> per enabled provider with shared advisors, tools and the real <code>ObservationRegistry</code>, and the orchestrator picks among them for each attempt in the routing plan.</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Why it lost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>External LLM proxy (LiteLLM or a cloud AI gateway)</td>
+<td>Quick and language-neutral, but it would decide failover without knowing whether tokens already reached the user or a tool already ran, and memory, RAG and tool policy would live in a different system</td>
+</tr>
+<tr>
+<td><code>spring.ai.model.chat</code> selection</td>
+<td>Picks one provider at startup; no runtime routing at all</td>
+</tr>
+<tr>
+<td>Calling vendor SDKs directly</td>
+<td>Full control, at the price of re-implementing memory, retrieval, the tool loop and observations three times</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Consequences.</strong> Adding a provider means a starter, a properties block and an enum constant. We own the ChatClient observability wiring, which the factory makes explicit. Revisit if non-JVM teams need the same routing; a thin proxy in front of this gateway would then be reasonable, but the policies stay here.</p>
+<h3>ADR-003 — A bounded retry and failover budget</h3>
+<p><strong>Context.</strong> Retries multiply across layers: SDK retries, framework retries and gateway failover hops. The defaults are generous. OpenAI's SDK retries three times, and Spring AI's <code>RetryTemplate</code> defaults to ten attempts with backoff up to three minutes. For interactive chat, a user waiting minutes is worse than a fast, clear error, and a retry storm against a vendor that is already rate-limiting makes the incident worse.</p>
+<p><strong>Decision.</strong> One SDK retry per provider attempt. <code>spring.ai.retry.max-attempts: 2</code> with at most five seconds of backoff for Gemini. Cross-provider failover only before the first token, at most two hops, a 20-second first-token deadline, and a short cooldown for a provider that just failed.</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Why it lost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Keep the defaults</td>
+<td>Minutes of silent waiting before an error or a failover</td>
+</tr>
+<tr>
+<td>No retries at all</td>
+<td>Momentary network blips become user-visible errors</td>
+</tr>
+<tr>
+<td>Fail over at any point in the stream</td>
+<td>Spliced answers from two models and duplicated tool side effects</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Consequences.</strong> Worst-case latency is predictable and written down. Rate-limit incidents shift load to other vendors instead of amplifying it. One subtle rule follows: a model can call a tool and then fail before producing text, so replaying the turn on another provider would run the tool twice. The implementation takes the conservative reading: failover is disabled for a turn once any tool has run, and side-effecting tools are additionally idempotent per conversation, as the demo ticket tool shows.</p>
+<h3>ADR-004 — PostgreSQL with pgvector, not a dedicated vector database</h3>
+<p><strong>Context.</strong> Retrieval needs similarity search plus metadata filtering, tenant isolation, backups and operational familiarity, at a scale of up to low tens of millions of chunks for a first customer.</p>
+<p><strong>Decision.</strong> pgvector with an HNSW index and cosine distance through <code>PgVectorStore</code>, in the same PostgreSQL that holds the document registry.</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Why it lost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pinecone, Weaviate, Qdrant or Milvus</td>
+<td>Stronger at very large scale with richer hybrid search, but a second datastore to secure, back up, pay for and keep consistent with the registry</td>
+</tr>
+<tr>
+<td>Redis vector search</td>
+<td>Already deployed for memory, but a memory-priced store is expensive for large corpora</td>
+</tr>
+<tr>
+<td>Elasticsearch or OpenSearch</td>
+<td>Excellent lexical and hybrid ranking; heavy to operate unless the customer already runs it</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Consequences.</strong> Registry and vectors share one transactional store, SQL is available for debugging, and existing backup and HA tooling applies. HNSW on the <code>vector</code> type supports up to 2,000 dimensions, which constrains future embedding models; larger ones need <code>halfvec</code> or reduced dimensions. Filtered search needs the care described in §4.7. Revisit beyond roughly 50 million chunks, or when hybrid lexical and vector ranking becomes a core requirement.</p>
+<h3>ADR-005 — One pinned embedding model, independent of chat routing</h3>
+<p><strong>Context.</strong> Chat routing can change on every request, but the vector index cannot. Vectors from different embedding models live in different spaces. A query embedded by one model and compared with chunks embedded by another returns confident nonsense and no error at all.</p>
+<p><strong>Decision.</strong> All ingestion and retrieval use OpenAI <code>text-embedding-3-small</code> at 1,536 dimensions, selected once in configuration and never routed.</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Why it lost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Route embeddings like chat</td>
+<td>Silently corrupts retrieval the first time a fallback provider embeds a query</td>
+</tr>
+<tr>
+<td>Gemini embeddings</td>
+<td>A valid choice; OpenAI was chosen because its 1,536 dimensions fit HNSW limits and the model is inexpensive</td>
+</tr>
+<tr>
+<td>Self-hosted embeddings</td>
+<td>Removes an external dependency and per-token cost, but adds capacity planning for inference hardware</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Consequences.</strong> RAG depends on OpenAI availability even when Claude or Gemini answers, so an embedding outage must degrade gracefully (§9). Changing the embedding model is a migration: re-embed into a new table, compare results in shadow mode, then switch. The embedding model name is stored in chunk metadata so a mixed index can be detected.</p>
+<h3>ADR-006 — Redis-backed windowed memory with a TTL</h3>
+<p><strong>Context.</strong> Memory must survive restarts, be shared by every instance, stay small enough to keep prompts cheap, and expire.</p>
+<p><strong>Decision.</strong> <code>RedisChatMemoryRepository</code> behind <code>MessageWindowChatMemory</code> (last 20 messages), a 7-day TTL, gateway-specific key prefix and index name, conversation IDs built on the server from the tenant, read and written by the gateway's own <code>ConversationMemoryAdvisor</code> (§4.4), and Spring AI 2.0.1 as the minimum version.</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Why it lost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>In-memory repository</td>
+<td>Lost on restart and wrong as soon as there are two instances</td>
+</tr>
+<tr>
+<td>JDBC memory in PostgreSQL</td>
+<td>Durable and queryable with one less datastore, but no native expiry and a heavier write on every turn</td>
+</tr>
+<tr>
+<td>Vector-store memory</td>
+<td>Useful for very long histories, but adds an embedding call per message and makes recall fuzzy</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Consequences.</strong> Reads and writes are fast and expiry is automatic. Two Redis clients exist, Spring Data Redis for the health check and Jedis for memory, and both point at one configured instance. The memory auto-configuration maps only host, port and credentials, so TLS to a managed Redis requires declaring our own <code>RedisClient</code> bean. Spring AI 2.0.1 fixed a RediSearch tag-injection flaw that could expose other conversations, which is why the version floor belongs to this decision. Revisit when Spring AI 2.1 delivers the session-aware memory it has announced as the successor to <code>ChatMemory</code>.</p>
+<h3>ADR-007 — MCP and tools behind explicit allow-lists</h3>
+<p><strong>Context.</strong> The gateway is an MCP client, calling tools on downstream servers, and an MCP server, offering capabilities to IDE agents. Tools turn text into actions, which means prompt injection becomes a way to act rather than only a way to talk.</p>
+<p><strong>Decision.</strong> The server publishes only explicit <code>@McpTool</code> methods (<code>tool-callback-converter: false</code>), never re-exports downstream tools (<code>expose-mcp-client-tools: false</code>), uses Streamable HTTP, is disabled by default, and sits behind the gateway API key when enabled. Tools are attached per request from a tenant allow-list, the global resolution fallback stays off, and tool calls are capped at 12 per turn and 5 per tool.</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Why it lost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Auto-publish every <code>ToolCallback</code> bean</td>
+<td>Any internal tool becomes remotely callable the moment someone adds a bean</td>
+</tr>
+<tr>
+<td>Re-export downstream MCP tools</td>
+<td>A confused deputy: an external caller borrows the gateway's credentials to reach systems it could not reach directly</td>
+</tr>
+<tr>
+<td>Default call limits (150 per turn, 40 per tool)</td>
+<td>Sized for long batch agents; in chat a runaway loop burns tokens for minutes before anyone notices</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Consequences.</strong> Every remotely callable capability is a deliberate code change that shows up in review, and tool payloads stay out of spans. The shared API key is the first layer on <code>/mcp</code>; the production path is OAuth2, where Spring AI's WebMvc transport hands lower-cased header names to its security validator, plus the server-session caps added in 2.0.1. Tool context is never forwarded to downstream MCP servers, because Spring AI's MCP callbacks send it as <code>_meta</code> by default.</p>
+<h3>ADR-008 — Privacy-first observability</h3>
+<p><strong>Context.</strong> Prompts, completions, tool arguments and retrieved chunks routinely contain personal and confidential data. Logs and traces are copied to more systems, kept longer and read by more people than the primary stores.</p>
+<p><strong>Decision.</strong> Content capture is off in the base profile: prompt and completion logging, tool content in spans, and vector query responses are all disabled. Only the <code>local</code> profile turns prompt and completion logging on. Metrics carry provider, model, tier and outcome, never content.</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Why it lost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Log everything and redact later</td>
+<td>Redaction is never complete, and the copies already exist</td>
+</tr>
+<tr>
+<td>No AI-specific observability</td>
+<td>Cost, latency and failover behaviour become impossible to explain to a customer</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Consequences.</strong> Investigating a production answer needs a deliberate, audited path such as a time-boxed debug flag per tenant. Tenant is used as a metric tag only while the number of tenants is small, because high-cardinality tags overload Prometheus.</p>
+<h3>ADR-009 — Environment secrets and fail-fast configuration</h3>
+<p><strong>Context.</strong> Keys leak through repositories, container images and logs, and Spring Boot misconfiguration fails silently by default.</p>
+<p><strong>Decision.</strong> Secrets only from environment variables; sentinel defaults so auto-configuration can start; typed and validated <code>gateway.*</code> records; a startup check in <code>ProviderRegistry</code> that fails for enabled providers without credentials; production secrets with no default at all.</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Why it lost</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Keys in <code>application.yml</code> or a committed <code>.env</code></td>
+<td>The most common leak in public portfolio repositories</td>
+</tr>
+<tr>
+<td>A secret manager integration from day one</td>
+<td>Right for production but heavy for this stage; the environment-variable contract lets any platform inject secrets from Vault or a cloud manager later</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Consequences.</strong> Local setup needs a documented set of variables, and misconfiguration shows up at startup with a clear message instead of at the first customer request.</p>
+<hr>
+<h2>6. Vendor differences that break naive model swapping</h2>
+<p>&quot;Just change the model name&quot; is the most common wrong assumption about multi-provider systems. These differences were confirmed for the versions in this project, and each one is absorbed by configuration or by the portable-options rule in §4.2.</p>
+<table>
+<thead>
+<tr>
+<th>Concern</th>
+<th>OpenAI (GPT-5.6)</th>
+<th>Anthropic (Claude)</th>
+<th>Google (Gemini 3.x)</th>
+<th>How the gateway handles it</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Output cap property</td>
+<td><code>max-completion-tokens</code>, which includes reasoning tokens and cannot be combined with <code>max-tokens</code></td>
+<td><code>max-tokens</code>, default 4,096 in Spring AI 2.0 (it was 500 in 1.x)</td>
+<td><code>max-output-tokens</code>; leave headroom for thinking</td>
+<td>Per-provider caps in configuration</td>
+</tr>
+<tr>
+<td>Sampling parameters</td>
+<td>Spring AI documents <code>temperature</code> as unsupported on GPT-5 models</td>
+<td><code>top-p</code> below 0.99 and any <code>top-k</code> are rejected on models released after Claude Opus 4.6</td>
+<td><code>thinking-level</code> and <code>thinking-budget</code> are mutually exclusive</td>
+<td>Never sent per request; the only per-request option is the model</td>
+</tr>
+<tr>
+<td>Retries</td>
+<td>Inside the SDK, <code>max-retries</code> (default 3)</td>
+<td>Inside the SDK, <code>max-retries</code></td>
+<td>Spring <code>RetryTemplate</code> via <code>spring.ai.retry.*</code></td>
+<td>Every layer capped; the router owns cross-provider decisions</td>
+</tr>
+<tr>
+<td>Tool schemas</td>
+<td>Strict mode off by default since 2.0.1, because optional parameters broke it</td>
+<td>Standard tool definitions</td>
+<td><code>ToolChoice</code> support added in 2.0.1</td>
+<td>Schemas generated from <code>@Tool</code> method parameters</td>
+</tr>
+<tr>
+<td>Prompt-cache usage</td>
+<td>Cache reads reported</td>
+<td>Cache reads and writes reported</td>
+<td>Cache reads reported</td>
+<td>Normalised through Spring AI's <code>Usage</code> interface</td>
+</tr>
+<tr>
+<td>Data residency</td>
+<td>Not modelled in this project</td>
+<td><code>inference-geo</code> set to <code>us</code> or <code>eu</code></td>
+<td>Vertex AI project and location</td>
+<td>Tenant policy pins a provider; pinned providers never fail over</td>
+</tr>
+</tbody>
+</table>
+<blockquote>
+<p><strong>Interview lens.</strong> Naming two or three of these from memory, with the consequence of each, is the fastest way to show hands-on multi-vendor experience.</p>
+</blockquote>
+<hr>
+<h2>7. Security and multi-tenancy</h2>
+<p>Tenant identity comes from a claim on the authenticated principal in any real deployment; the <code>X-Tenant-Id</code> header exists only for demonstrations. Once resolved, the tenant is enforced at four points, and none of them trusts the client.</p>
+<p>The retrieval filter <code>tenantId == '&lt;tenant&gt;'</code> is built on the server and combined with any narrowing filter the client is allowed to send, so a client can restrict results but never widen them. Conversation IDs are composed on the server from the tenant and a validated UUID, so guessing an ID reveals nothing. Tools receive the tenant through Spring AI's tool context and authorise their own actions. The MCP server's tools call the same tenant-filtered retrieval service as the REST API, so a capability published to IDE agents inherits the same isolation; for now its tenant is fixed per API key.</p>
+<p>Retrieved documents and tool results are untrusted input, because anyone who can write a document can try to write instructions for the model. The mitigations are layered rather than absolute: tools are attached per request from an allow-list, the resolution fallback that could run unadvertised tools is off, calls are capped, side-effecting tools require idempotency keys or explicit confirmation, and the system prompt tells the model that retrieved text is reference data, not instructions. Staying on Spring AI 2.0.1 or later is part of the security posture: that release fixed seven CVEs, three of them in components this design relies on (Redis chat memory, tool dispatch and MCP server sessions).</p>
+<hr>
+<h2>8. Observability and cost</h2>
+<table>
+<thead>
+<tr>
+<th>Signal</th>
+<th>Source</th>
+<th>Answers the question</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>gen_ai.client.operation</code></td>
+<td>Spring AI model observations</td>
+<td>How long do calls take per provider and model?</td>
+</tr>
+<tr>
+<td><code>gen_ai.client.token.usage</code></td>
+<td>Spring AI model observations</td>
+<td>How many input and output tokens per model?</td>
+</tr>
+<tr>
+<td><code>db.vector.client.operation</code></td>
+<td>Spring AI vector store observations</td>
+<td>Is retrieval inside its latency budget?</td>
+</tr>
+<tr>
+<td><code>gateway.chat.turns</code> (ours)</td>
+<td><code>TokenUsageRecorder</code>, fed by <code>ChatOrchestrator</code></td>
+<td>Outcome, provider, tier and error code per turn</td>
+</tr>
+<tr>
+<td><code>gateway.chat.attempt.failures</code> (ours)</td>
+<td><code>TokenUsageRecorder</code></td>
+<td>Which providers fail, with which code, and whether the gateway failed over</td>
+</tr>
+<tr>
+<td><code>gateway.tokens</code> (ours)</td>
+<td><code>TokenUsageRecorder</code></td>
+<td>Input, output and cached input tokens per provider, model and tier</td>
+</tr>
+<tr>
+<td><code>gateway.chat.first_token</code> (ours)</td>
+<td><code>TokenUsageRecorder</code></td>
+<td>Time to first token, the user-perceived latency</td>
+</tr>
+<tr>
+<td><code>gateway.cost.estimated</code> (ours)</td>
+<td><code>TokenUsageRecorder</code> with a price table in configuration</td>
+<td>Estimated spend per provider, model and tier</td>
+</tr>
+</tbody>
+</table>
+<p>Three details make token accounting trustworthy. Since 2.0.1, <code>ToolCallingAdvisor</code> accumulates usage across every model call in the tool loop, so a turn's usage is its real cost rather than the last call's. Cached input tokens are reported through the same <code>Usage</code> interface for all three providers, which matters because cached tokens are billed differently. Streamed OpenAI responses request usage by default in 2.0.1; an integration test that fails when streamed usage comes back empty belongs in the Testcontainers suite on the hardening list. Prices live in configuration because they change more often than code.</p>
+<hr>
+<h2>9. Failure modes and degradation</h2>
+<table>
+<thead>
+<tr>
+<th>Failure</th>
+<th>Gateway behaviour</th>
+<th>What the client sees</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>One provider returns 429 or 5xx before the first token</td>
+<td>Fail over if not pinned and within the hop limit</td>
+<td>A new <code>route</code> event, then tokens</td>
+</tr>
+<tr>
+<td>Provider fails after the first token</td>
+<td>Stop the stream</td>
+<td>Partial answer, then an <code>error</code> event marked retryable</td>
+</tr>
+<tr>
+<td>No provider available</td>
+<td>Return immediately</td>
+<td>503 problem detail, no hanging connection</td>
+</tr>
+<tr>
+<td>Embedding API or PostgreSQL unavailable</td>
+<td>Turns that require RAG fail with 503; optional RAG answers without context</td>
+<td><code>ragUsed: false</code> in the <code>done</code> event</td>
+</tr>
+<tr>
+<td>Redis unavailable</td>
+<td><code>ConversationMemoryAdvisor</code> answers without history and skips the write</td>
+<td><code>memoryUsed: false</code> in the <code>done</code> event</td>
+</tr>
+<tr>
+<td>A tool ran, then the provider fails</td>
+<td>No failover, because a replay could repeat the tool's side effects</td>
+<td><code>tool</code> events, then an <code>error</code> event</td>
+</tr>
+<tr>
+<td>A downstream MCP server is down</td>
+<td>Its tools are not attached to the request</td>
+<td>The model answers without those tools</td>
+</tr>
+</tbody>
+</table>
+<p>Readiness probes deliberately exclude PostgreSQL, Redis and the model providers. If a shared dependency blips and every pod reports not-ready at once, the load balancer removes the whole fleet, turning a partial degradation into a full outage. The gateway stays in rotation and degrades visibly instead.</p>
+<hr>
+<h2>10. What to revisit as the system grows</h2>
+<p>The first split is ingestion: parsing and embedding move to an asynchronous worker fed by a queue, which also removes the heavy Tika dependency from the request-serving service. Retrieval quality improves next with hybrid lexical and vector search, a re-ranking step and query rewriting on the <code>fast</code> tier. Per-tenant rate limits and token budgets in Redis protect shared provider quotas, and a semantic response cache can remove repeated calls for frequent questions, provided its keys are tenant-scoped. Distributed tracing with OpenTelemetry joins gateway spans to provider latency. Finally, memory should move to the session-aware model planned for Spring AI 2.1 once it is released, and routing policies could become data managed per tenant instead of configuration.</p>
+<hr>
+<h2>11. Interview questions this design prepares you for</h2>
+<p><strong>Why not put LiteLLM or a cloud AI gateway in front of the providers and stop there?</strong>
+A proxy solves key management and basic fallback, but it cannot see what the application already did. It does not know whether tokens reached the user, whether a tool ran, or which tenant's documents were retrieved, so it cannot apply the failover rules in §4.3 or the tenant rules in §7. Those policies belong where the context lives.</p>
+<p><strong>OpenAI returns 429 halfway through a streamed answer. What happens?</strong>
+Nothing is spliced. Because the first token has been sent, the gateway stops, emits an <code>error</code> event marked retryable, and records the failure so the provider cools down. Had the 429 arrived before the first token, the router would have replayed the turn on Anthropic, unless the tenant was pinned to OpenAI.</p>
+<p><strong>How do you guarantee one tenant never sees another tenant's documents?</strong>
+The tenant filter is added on the server to every similarity search and cannot be removed by the client, conversation IDs are built from the tenant, and tools authorise with the tenant from the tool context. At scale, selective tenant filters can under-fill results, so iterative index scans or per-tenant partitions keep answers complete as well as isolated.</p>
+<p><strong>Why does advisor order matter?</strong>
+Because the tool loop is recursive. Anything ordered after <code>ToolCallingAdvisor</code> runs on every tool iteration, so a retrieval advisor at its default order embeds and searches repeatedly. Memory placed after retrieval would persist retrieved chunks. Both bugs pass functional tests and show up only on the invoice or in a data-handling review.</p>
+<p><strong>How do you control cost?</strong>
+In layers: tier routing so most traffic uses <code>balanced</code> or <code>fast</code>, per-provider output caps, tool-call caps, a bounded retry budget, hash-based ingestion so unchanged documents cost nothing, a 20-message memory window, and cost metrics that make overspend visible within minutes.</p>
+<p><strong>Why virtual threads instead of WebFlux for a streaming product?</strong>
+The system mostly waits on blocking dependencies. Virtual threads give high concurrency with ordinary code, and JDK 24 removed the pinning problem that made Java 21 risky. The trade-off is that limits move to connection pools and SDK HTTP clients, which have to be sized and load-tested.</p>
+<p><strong>What are the risks of MCP, and how are they mitigated here?</strong>
+Remote callers invoking tools they should not see, confused-deputy access through re-exported tools, prompt injection that triggers actions, and runaway loops. The design publishes only explicit <code>@McpTool</code> methods, never re-exports, attaches tools per request from allow-lists, caps calls, keeps tool content out of telemetry, never forwards tool context to remote servers, and puts the endpoint behind the gateway API key.</p>
+<p><strong>The team wants to switch embedding models. What breaks?</strong>
+Every stored vector becomes incomparable with new query vectors, and nothing throws an error. It is a data migration: embed into a new table, compare retrieval quality on a golden question set, switch reads, then retire the old index. Storing the model name in chunk metadata makes accidental mixing detectable.</p>
+<hr>
+<h2>12. Implementation map and next steps</h2>
+<table>
+<thead>
+<tr>
+<th>Design element</th>
+<th>Where it lives</th>
+<th>How it is verified</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Routing plan, pins, hop budget, cooldown (§4.3)</td>
+<td><code>TierBasedRoutingPolicy</code>, <code>ProviderRegistry</code></td>
+<td><code>TierBasedRoutingPolicyTest</code></td>
+</tr>
+<tr>
+<td>Failover eligibility</td>
+<td><code>FailoverClassifier</code></td>
+<td><code>FailoverClassifierTest</code></td>
+</tr>
+<tr>
+<td>Failover timing rules, first-token deadline, tool point of no return</td>
+<td><code>ChatOrchestrator</code></td>
+<td><code>ChatOrchestratorTest</code> with scripted providers</td>
+</tr>
+<tr>
+<td>Advisor order and guardrails (§4.4)</td>
+<td><code>GuardrailAdvisor</code>, <code>ConversationMemoryAdvisor</code>, <code>TenantRetrievalAdvisor</code></td>
+<td><code>GuardrailAdvisorTest</code></td>
+</tr>
+<tr>
+<td>Tenant isolation in filters and memory keys (§7)</td>
+<td><code>TenantIds</code>, <code>RetrievalFilters</code>, <code>ConversationIds</code></td>
+<td><code>IdentifiersTest</code></td>
+</tr>
+<tr>
+<td>Ingestion (§4.6) and schema (§4.7)</td>
+<td><code>IngestionService</code>, <code>DocumentRegistry</code>, Flyway <code>V1</code></td>
+<td>Manual walkthrough in <code>scripts/curl-examples.sh</code></td>
+</tr>
+<tr>
+<td>Tools and MCP (ADR-007)</td>
+<td><code>ToolCatalog</code>, <code>GovernedToolCallback</code>, <code>GatewayTools</code>, <code>GatewayMcpTools</code></td>
+<td>Manual walkthrough, sections 10, 11 and 15</td>
+</tr>
+<tr>
+<td>Metrics (§8)</td>
+<td><code>TokenUsageRecorder</code></td>
+<td><code>/actuator/prometheus</code></td>
+</tr>
+</tbody>
+</table>
+<p>The next steps are the ones in the README's production hardening list: OAuth2 with the tenant taken from a token claim, Testcontainers integration tests for pgvector and Redis Stack with WireMock provider failures, asynchronous ingestion, Resilience4j when half-open probing is needed, per-tenant token budgets, and authenticated per-caller tenancy for MCP.</p>
+
+
+<!--claude-mermaid-runtime-begin:3477-->
+<style>.mermaid-diagram{margin-block:4px}.mermaid-diagram svg{display:block;margin:0 auto;max-width:100%;height:auto}</style>
+<script src="/_runtime/mermaid-11.16.1.min.js"></script>
+<script>(function(){
+var CFG={"palettes":{"light":{"surface":"#f4efe4","text":"#42392e","line":"#8a7f6d","border":"#7a6c52","bg":"#fffdf8"},"dark":{"surface":"#262b34","text":"#f2f3f5","line":"#a8adb8","border":"#9aa4b8","bg":"#1f232b"}}};
+if(typeof mermaid==='undefined')return;
+var pres=Array.prototype.slice.call(document.querySelectorAll('pre.mermaid')).filter(function(p){if(p.hasAttribute('data-claude-mermaid-claimed'))return false;p.setAttribute('data-claude-mermaid-claimed','1');return true;});
+if(!pres.length)return;
+var mq=window.matchMedia?window.matchMedia('(prefers-color-scheme: dark)'):null;
+var root=document.documentElement;
+var items=pres.map(function(pre){
+var mount=document.createElement('div');mount.className='mermaid-diagram';
+return {pre:pre,mount:mount,src:pre.textContent||''};
+});
+var seq=0;
+var renderGen=0;
+var lastKey='';
+function pageBg(fallback){
+var els=[document.body,document.documentElement];
+for(var i=0;i<els.length;i++){
+var c=els[i]&&getComputedStyle(els[i]).backgroundColor;
+if(c&&c!=='transparent'&&c!=='rgba(0, 0, 0, 0)')return c;
+}
+return fallback;
+}
+function render(){
+var theme=root.getAttribute('data-theme');
+var dark=theme==='dark'||(!!(mq&&mq.matches)&&theme!=='light');
+var pal=dark?CFG.palettes.dark:CFG.palettes.light;
+var bg=pageBg(pal.bg);
+var key=(dark?'d':'l')+'|'+bg;
+if(key===lastKey)return;
+lastKey=key;
+var gen=++renderGen;
+var font=getComputedStyle(document.body).fontFamily||'sans-serif';
+var nat={useMaxWidth:false};
+mermaid.initialize({
+startOnLoad:false,securityLevel:'strict',theme:'base',
+flowchart:nat,sequence:nat,er:nat,state:nat,class:nat,pie:nat,
+gantt:nat,journey:nat,timeline:nat,gitGraph:nat,mindmap:nat,xyChart:nat,
+quadrantChart:nat,sankey:nat,c4:nat,requirement:nat,block:nat,
+packet:nat,kanban:nat,architecture:nat,radar:nat,
+themeVariables:{background:bg,mainBkg:pal.surface,primaryColor:pal.surface,
+primaryTextColor:pal.text,lineColor:pal.line,primaryBorderColor:pal.border,
+nodeBorder:pal.border,clusterBorder:pal.border,edgeLabelBackground:bg,
+clusterBkg:'rgba(127,127,127,0.07)',titleColor:pal.text,
+darkMode:dark,rowOdd:bg,rowEven:'rgba(127,127,127,0.07)',
+attributeBackgroundColorOdd:bg,attributeBackgroundColorEven:'rgba(127,127,127,0.07)',
+fontSize:'16px',fontFamily:font},
+themeCSS:'.node rect, .node circle, .node polygon, .node path, .cluster rect { stroke-width: 2px; }'
+});
+items.forEach(function(it){
+var id='claude-mermaid-'+seq++;
+mermaid.render(id,it.src).then(function(r){
+if(gen!==renderGen)return;
+var prev=it.pre.previousElementSibling;
+if(prev&&prev.className==='mermaid-diagram'&&prev!==it.mount)return;
+it.mount.innerHTML=r.svg;
+if(!it.mount.parentNode)it.pre.parentNode.insertBefore(it.mount,it.pre);
+it.pre.style.display='none';
+},function(){
+var scratch=document.getElementById(id);
+if(scratch)scratch.parentNode.removeChild(scratch);
+scratch=document.getElementById('d'+id);
+if(scratch)scratch.parentNode.removeChild(scratch);
+if(gen!==renderGen)return;
+if(it.mount.parentNode)it.mount.parentNode.removeChild(it.mount);
+it.pre.style.display='';
+});
+});
+}
+render();
+if(mq&&mq.addEventListener)mq.addEventListener('change',render);
+if(typeof MutationObserver!=='undefined')new MutationObserver(render).observe(root,{attributes:true,attributeFilter:['data-theme']});
+})();</script>
+<!--claude-mermaid-runtime-end-->
+</body></html>

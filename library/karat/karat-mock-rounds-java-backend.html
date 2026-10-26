@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Three mock Karat rounds: Java backend, GCB4</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=JetBrains+Mono:wght@400;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&display=swap" rel="stylesheet">
+<style>
+  :root {
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+
+    --paper: #F5F7FA;
+    --grid: #E6EBF1;
+    --sheet: #FFFFFF;
+    --ink: #1B2430;
+    --muted: #56606E;
+    --rule: #CDD5DE;
+    --pen: #C62839;
+    --pen-soft: #FBEAEC;
+    --fix: #0E7263;
+    --fix-soft: #E3F2EF;
+    --code-bg: #EAEFF4;
+    --seg-read: #8C98A8;
+    --seg-p2: #0A574C;
+    --seg-wrap: #B9C3CF;
+    --focus: #1F5FD6;
+
+    --serif: "Source Serif 4", Georgia, "Times New Roman", serif;
+    --hand: "Caveat", "Segoe Print", "Bradley Hand", "Comic Sans MS", cursive;
+    --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper: #0E1726;
+      --grid: #152238;
+      --sheet: #132038;
+      --ink: #E3EAF3;
+      --muted: #9CA8B8;
+      --rule: #273652;
+      --pen: #FF7D89;
+      --pen-soft: #3A1B25;
+      --fix: #5FD1B9;
+      --fix-soft: #10302C;
+      --code-bg: #1A2842;
+      --seg-read: #5E6B7E;
+      --seg-p2: #2E9C88;
+      --seg-wrap: #3A4960;
+      --focus: #8AB4FF;
+    }
+  }
+  :root[data-theme="dark"] {
+    --paper: #0E1726;
+    --grid: #152238;
+    --sheet: #132038;
+    --ink: #E3EAF3;
+    --muted: #9CA8B8;
+    --rule: #273652;
+    --pen: #FF7D89;
+    --pen-soft: #3A1B25;
+    --fix: #5FD1B9;
+    --fix-soft: #10302C;
+    --code-bg: #1A2842;
+    --seg-read: #5E6B7E;
+    --seg-p2: #2E9C88;
+    --seg-wrap: #3A4960;
+    --focus: #8AB4FF;
+  }
+
+  *, *::before, *::after { box-sizing: inherit; }
+  html { scroll-padding-top: env(safe-area-inset-top, 0px); -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    background-color: var(--paper);
+    background-image:
+      linear-gradient(var(--grid) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+    background-size: 28px 28px;
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: 1.0625rem;
+    line-height: 1.65;
+    font-optical-sizing: auto;
+  }
+  main { max-width: 44rem; margin: 0 auto; padding: 2.5rem 1.25rem 4rem; }
+
+  h1, h2, h3 { line-height: 1.2; font-weight: 700; margin: 0; }
+  h1 { font-size: clamp(2rem, 1.4rem + 2.6vw, 2.9rem); letter-spacing: -0.01em; }
+  h2 { font-size: 1.6rem; margin-top: 3.5rem; padding-bottom: 0.5rem; border-bottom: 2px solid var(--ink); }
+  h3 { font-size: 1.25rem; }
+  p { margin: 0.75rem 0 0; }
+  a { color: inherit; }
+  code, .file { font-family: var(--mono); font-size: 0.86em; }
+  code { background: var(--code-bg); padding: 0.1em 0.35em; border-radius: 3px; }
+
+  :focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+
+  /* ---------- Opening ---------- */
+  .intro { margin-top: 0.9rem; color: var(--muted); max-width: 36rem; }
+  .note {
+    font-family: var(--hand);
+    font-weight: 700;
+    color: var(--pen);
+    font-size: 1.55rem;
+    line-height: 1;
+    transform: rotate(-2deg);
+    display: inline-block;
+    margin-top: 1.75rem;
+  }
+  .timeline {
+    display: grid;
+    grid-template-columns: 15fr 5fr 10fr 25fr 5fr;
+    height: 3rem;
+    margin-top: 0.6rem;
+    border: 2px solid var(--ink);
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--sheet);
+  }
+  .seg {
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-size: 0.85rem; font-weight: 600;
+    color: #fff; min-width: 0;
+  }
+  .seg + .seg { border-left: 2px solid var(--sheet); }
+  .seg-design { background: var(--pen); }
+  .seg-read { background: var(--seg-read); }
+  .seg-p1 { background: var(--fix); }
+  .seg-p2 { background: var(--seg-p2); }
+  .seg-wrap { background: var(--seg-wrap); color: var(--ink); }
+  .legend { list-style: none; padding: 0; margin: 0.9rem 0 0; display: grid; gap: 0.3rem; font-size: 0.97rem; }
+  .legend li { display: flex; gap: 0.6rem; align-items: baseline; }
+  .swatch { flex: none; width: 0.8rem; height: 0.8rem; border-radius: 2px; transform: translateY(0.1rem); }
+  .legend .mins { color: var(--muted); margin-left: auto; font-family: var(--mono); font-size: 0.85rem; white-space: nowrap; }
+
+  /* ---------- Plan ---------- */
+  .table-wrap { overflow-x: auto; margin-top: 1rem; }
+  table { border-collapse: collapse; width: 100%; min-width: 30rem; background: var(--sheet); }
+  th, td { text-align: left; padding: 0.6rem 0.8rem; border: 1px solid var(--rule); vertical-align: top; }
+  th { font-weight: 600; background: var(--code-bg); }
+  .rules { padding-left: 1.2rem; margin: 1rem 0 0; }
+  .rules li + li { margin-top: 0.4rem; }
+
+  /* ---------- Scenarios ---------- */
+  .scenario { margin-top: 2.5rem; }
+  .scenario-head { display: flex; gap: 0.8rem; align-items: baseline; }
+  .num {
+    flex: none; font-family: var(--hand); font-weight: 700; font-size: 2rem;
+    color: var(--pen); line-height: 1; width: 1.6rem;
+  }
+  .prompt { font-weight: 600; }
+  details {
+    margin-top: 1rem;
+    background: var(--sheet);
+    border: 1px solid var(--rule);
+    border-radius: 4px;
+  }
+  summary {
+    cursor: pointer;
+    list-style: none;
+    padding: 0.7rem 1rem;
+    font-weight: 600;
+    display: flex; align-items: center; gap: 0.6rem;
+    user-select: none;
+  }
+  summary::-webkit-details-marker { display: none; }
+  summary::before {
+    content: "";
+    width: 0; height: 0;
+    border-left: 0.45rem solid currentColor;
+    border-top: 0.32rem solid transparent;
+    border-bottom: 0.32rem solid transparent;
+    transition: transform 150ms ease;
+  }
+  details[open] > summary::before { transform: rotate(90deg); }
+  details[open] > summary { border-bottom: 1px solid var(--rule); }
+  .when-open { display: none; }
+  details[open] .when-open { display: inline; }
+  details[open] .when-closed { display: none; }
+  .answer { padding: 0.4rem 1.1rem 1.1rem; }
+  .label {
+    font-family: var(--hand); font-weight: 700; font-size: 1.45rem; line-height: 1.1;
+    margin: 1rem 0 0.2rem; display: block;
+  }
+  .label-wrong { color: var(--pen); }
+  .label-fix { color: var(--fix); }
+  .label-plain { color: var(--muted); }
+  .answer ul { margin: 0.2rem 0 0; padding-left: 1.2rem; }
+  .answer li + li { margin-top: 0.35rem; }
+  .wrong { border-left: 3px solid var(--pen); background: var(--pen-soft); padding: 0.5rem 0.8rem 0.6rem; border-radius: 0 3px 3px 0; }
+  .fix { border-left: 3px solid var(--fix); background: var(--fix-soft); padding: 0.5rem 0.8rem 0.6rem; border-radius: 0 3px 3px 0; }
+  .closing { font-style: italic; margin-top: 0.2rem; }
+
+  /* ---------- Coding ---------- */
+  .problem { margin-top: 2.5rem; }
+  .files { margin: 0.6rem 0 0; padding: 0; list-style: none; }
+  .files li { font-size: 0.95rem; }
+  .files .file { background: var(--code-bg); padding: 0.1em 0.4em; border-radius: 3px; }
+  .files .role { color: var(--muted); }
+  .hint-title { font-weight: 600; margin-top: 0.9rem; }
+  pre {
+    font-family: var(--mono); font-size: 0.85rem; line-height: 1.5;
+    background: var(--sheet); border: 1px solid var(--rule); border-radius: 4px;
+    padding: 0.8rem 1rem; overflow-x: auto; margin: 0.8rem 0 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    summary::before { transition: none; }
+  }
+  @media (max-width: 30rem) {
+    main { padding-top: 1.75rem; }
+    .seg { font-size: 0.72rem; }
+  }
+</style>
+</head>
+<body>
+<div id="sdh-libbar" style="position:relative;z-index:2147483000;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0;padding:8px 16px;background:#0f172a;color:#cbd5e1;font:600 13px/1.5 Inter,'Segoe UI',system-ui,-apple-system,sans-serif;border-bottom:2px solid #4f46e5;box-sizing:border-box;width:100%;text-align:left;letter-spacing:0"><a href="../../index.html" style="color:#fff;text-decoration:none;font-weight:800">SystemDesign<span style="color:#8b8cff">.hinglish</span></a><span style="opacity:.45">/</span><a href="../index.html" style="color:#fff;text-decoration:none">📚 Library</a><span style="opacity:.45">/</span><a href="../index.html#karat" style="color:#cbd5e1;text-decoration:none">Karat Rounds · HSBC GCB-4</a><a href="../files/karat-mock-rounds-java-backend-original.html" download style="color:#a5b4fc;text-decoration:none;font-size:12px">⬇ Original</a><span style="margin-left:auto;font-size:11px;padding:2px 9px;border-radius:999px;border:1px solid #6366f1;color:#c7d2fe">📘 HTML ebook</span></div>
+<main>
+
+  <header>
+    <h1>Three mock Karat rounds</h1>
+    <p class="intro">Java backend, pitched at GCB4 level. Six "find the problem" design scenarios and three debug-and-extend coding problems, in the same format as the real 60-minute round.</p>
+
+    <span class="note">Timed, and out loud</span>
+    <div class="timeline" role="img" aria-label="A 60-minute round: 15 minutes of design scenarios, 5 minutes reading the code, 10 minutes on Part 1, 25 minutes on Part 2, and 5 minutes to wrap up.">
+      <div class="seg seg-design">15</div>
+      <div class="seg seg-read">5</div>
+      <div class="seg seg-p1">10</div>
+      <div class="seg seg-p2">25</div>
+      <div class="seg seg-wrap">5</div>
+    </div>
+    <ol class="legend">
+      <li><span class="swatch seg-design"></span>Design scenarios<span class="mins">15 min</span></li>
+      <li><span class="swatch seg-read"></span>Read the code and run it<span class="mins">5 min</span></li>
+      <li><span class="swatch seg-p1"></span>Part 1: fix the bug<span class="mins">10 min</span></li>
+      <li><span class="swatch seg-p2"></span>Part 2: add the new methods<span class="mins">25 min</span></li>
+      <li><span class="swatch seg-wrap"></span>Wrap up and follow-up questions<span class="mins">5 min</span></li>
+    </ol>
+  </header>
+
+  <section aria-labelledby="plan">
+    <h2 id="plan">How to run each mock</h2>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th scope="col">Mock</th><th scope="col">Design (15 min)</th><th scope="col">Coding (40 min)</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>1</td><td>Scenarios 1 and 2</td><td>Practice 1: bank transactions</td></tr>
+          <tr><td>2</td><td>Scenarios 3 and 4</td><td>Practice 2: parcel tracking</td></tr>
+          <tr><td>3</td><td>Scenarios 5 and 6</td><td>Practice 3: leave management</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <ul class="rules">
+      <li>Set a timer and talk through your thinking the whole time, as if the interviewer is listening.</li>
+      <li>Answer each scenario out loud before you open its model answer.</li>
+      <li>Work out the Part 2 method signatures from the tests. That's where the attempt in your sheet went wrong.</li>
+      <li>Always run with <code>java -ea</code>. If you see the assertions warning, the tests aren't checking anything.</li>
+      <li>When the timer ends, open the solution file and compare, including the follow-up questions at the top.</li>
+    </ul>
+  </section>
+
+  <section aria-labelledby="design">
+    <h2 id="design">Design scenarios</h2>
+    <p>For each one, spend about 7 minutes: name the problems, starting with the most serious, then give a fix and a trade-off for each.</p>
+
+    <article class="scenario">
+      <div class="scenario-head"><span class="num">1</span><h3>Charged twice after a timeout</h3></div>
+      <p>A payment service charges cards by calling an external card processor. If the processor hasn't answered within 3 seconds, the service treats the call as failed and retries, up to 3 times. Support keeps hearing from customers who were charged twice, mostly at busy times.</p>
+      <p class="prompt">What is causing the double charges, and how would you fix the design?</p>
+      <details>
+        <summary><span class="when-closed">Show model answer</span><span class="when-open">Hide model answer</span></summary>
+        <div class="answer">
+          <span class="label label-wrong">What's wrong</span>
+          <div class="wrong"><ul>
+            <li>A timeout doesn't mean the charge failed. The processor may have charged the card and simply answered late, so each retry can create another charge.</li>
+            <li>Busy periods bring more slow responses, so more retries and more duplicates.</li>
+            <li>Nothing on our side records which attempt actually succeeded.</li>
+          </ul></div>
+          <span class="label label-fix">How to fix it</span>
+          <div class="fix"><ul>
+            <li>Send an idempotency key, created once per payment (such as the order ID), with every attempt, so the processor returns the original result instead of charging again. Store it with a unique constraint on our side too.</li>
+            <li>On a timeout, mark the payment as pending and ask the processor for its status (or wait for its webhook) before retrying.</li>
+            <li>Model payments as a state machine (created, pending, succeeded, failed) where only one move to succeeded is possible.</li>
+            <li>Retry with exponential backoff and jitter, and add a circuit breaker for when the processor is struggling.</li>
+            <li>Reconcile daily against the processor's settlement report to catch and refund anything that slips through.</li>
+          </ul></div>
+          <span class="label label-plain">Trade-off to mention</span>
+          <p>Status checks make the unhappy path slower, and customers may briefly see "payment processing". For money, correctness beats speed.</p>
+          <span class="label label-plain">Line to end on</span>
+          <p class="closing">In payments, a timeout means unknown, not failed.</p>
+        </div>
+      </details>
+    </article>
+
+    <article class="scenario">
+      <div class="scenario-head"><span class="num">2</span><h3>Stale balances and a morning spike</h3></div>
+      <p>To reduce database load, the mobile banking app caches every customer's balance in Redis with a fixed 30-minute expiry. A job loads all balances into the cache at 6:00 every morning. Customers say their balance doesn't change after a transfer, and some repeat the transfer. Separately, database CPU jumps to 100% at about 6:30 every day.</p>
+      <p class="prompt">What problems do you see, and how would you fix them?</p>
+      <details>
+        <summary><span class="when-closed">Show model answer</span><span class="when-open">Hide model answer</span></summary>
+        <div class="answer">
+          <span class="label label-wrong">What's wrong</span>
+          <div class="wrong"><ul>
+            <li>The cache isn't updated when money moves, so customers see the old balance for up to 30 minutes.</li>
+            <li>If transfers are checked against the cached balance, repeated transfers can overdraw the account.</li>
+            <li>Every key loaded at 6:00 expires at 6:30 at the same moment, so all requests hit the database together (a cache stampede).</li>
+            <li>Pre-loading every customer fills the cache with accounts nobody opens.</li>
+          </ul></div>
+          <span class="label label-fix">How to fix it</span>
+          <div class="fix"><ul>
+            <li>Delete or update the cached balance in the same flow that commits the transfer (after the commit), and read from the database right after a customer's own write.</li>
+            <li>Never make money decisions from the cache. Check the balance in the database inside the transaction; the cache is for display only.</li>
+            <li>Add random jitter to expiry times, refresh popular keys before they expire, and let only one request rebuild a missing key while the others wait.</li>
+            <li>Cache on first read (cache-aside) instead of pre-loading everything.</li>
+          </ul></div>
+          <span class="label label-plain">Trade-off to mention</span>
+          <p>A shorter expiry means fresher data but more database load. Updating the cache on every write adds a little latency to writes.</p>
+          <span class="label label-plain">Line to end on</span>
+          <p class="closing">Use the cache for reading, and the database for deciding.</p>
+        </div>
+      </details>
+    </article>
+
+    <article class="scenario">
+      <div class="scenario-head"><span class="num">3</span><h3>One slow service takes down checkout</h3></div>
+      <p>When a customer places an order, the order service calls inventory to reserve stock, then payment to charge the card, then shipping to create a shipment. All three are synchronous HTTP calls, one after another, with no timeouts, and the customer only gets a reply when all three succeed. During a sale, shipping slows down, the whole site stops responding, and some customers are charged for orders that show as failed.</p>
+      <p class="prompt">What is wrong with this design?</p>
+      <details>
+        <summary><span class="when-closed">Show model answer</span><span class="when-open">Hide model answer</span></summary>
+        <div class="answer">
+          <span class="label label-wrong">What's wrong</span>
+          <div class="wrong"><ul>
+            <li>With no timeouts, threads wait forever on the slow shipping service until the order service runs out of threads and the whole site stalls (a cascading failure).</li>
+            <li>A long synchronous chain adds up latency and multiplies failure: three services at 99.9% each give about 99.7% together.</li>
+            <li>There's no plan for partial failure, so payment can succeed while a later step fails, leaving paid-but-failed orders.</li>
+            <li>The customer waits for shipping, which they don't need to wait for.</li>
+          </ul></div>
+          <span class="label label-fix">How to fix it</span>
+          <div class="fix"><ul>
+            <li>Put timeouts on every call, add circuit breakers, and give each dependency its own thread pool (bulkheads).</li>
+            <li>Confirm the order once payment succeeds, and create the shipment asynchronously from an "order paid" event on a queue.</li>
+            <li>Use the saga pattern: each step has a compensating action (release the stock, refund the payment), and the order's state is stored so it can be recovered.</li>
+            <li>Make every step idempotent, because retries and saga recovery will call steps more than once.</li>
+          </ul></div>
+          <span class="label label-plain">Trade-off to mention</span>
+          <p>Asynchronous steps mean eventual consistency, so the customer sees "shipment pending". Sagas add complexity and need monitoring for stuck orders.</p>
+          <span class="label label-plain">Line to end on</span>
+          <p class="closing">Keep only what the customer must wait for on the synchronous path.</p>
+        </div>
+      </details>
+    </article>
+
+    <article class="scenario">
+      <div class="scenario-head"><span class="num">4</span><h3>A rate limit that isn't a limit</h3></div>
+      <p>The public API allows each client 100 requests per minute. Each API gateway instance counts requests in its own memory. There are 5 instances behind a round-robin load balancer, and autoscaling adds up to 15 more at peak. Partners say the limit behaves inconsistently, and at peak some clients send far more than 100 requests a minute without being blocked.</p>
+      <p class="prompt">Explain what's happening and how you would fix it.</p>
+      <details>
+        <summary><span class="when-closed">Show model answer</span><span class="when-open">Hide model answer</span></summary>
+        <div class="answer">
+          <span class="label label-wrong">What's wrong</span>
+          <div class="wrong"><ul>
+            <li>Each instance sees only part of a client's traffic, so the real limit is about 100 times the number of instances: roughly 500 normally and up to 2,000 at peak.</li>
+            <li>The limit shifts whenever autoscaling adds or removes instances, and counters reset when an instance restarts.</li>
+          </ul></div>
+          <span class="label label-fix">How to fix it</span>
+          <div class="fix"><ul>
+            <li>Keep the counters in a shared store such as Redis, with an atomic token bucket or sliding window (a Lua script, or INCR with EXPIRE), so every instance checks the same count.</li>
+            <li>Or route each client to the same instance with consistent hashing. It's simpler, but load gets uneven and it breaks when instances change.</li>
+            <li>Decide what happens when Redis is down: fail open (allow traffic, risk overload) or fail closed (block traffic, risk an outage). Public APIs often fail open with a local fallback limit.</li>
+            <li>Return 429 with a Retry-After header, and support different limits per partner tier.</li>
+          </ul></div>
+          <span class="label label-plain">Trade-off to mention</span>
+          <p>One extra network hop per request, and Redis becomes a critical dependency that needs replication.</p>
+          <span class="label label-plain">Line to end on</span>
+          <p class="closing">A limit that must be global needs shared state.</p>
+        </div>
+      </details>
+    </article>
+
+    <article class="scenario">
+      <div class="scenario-head"><span class="num">5</span><h3>Missing receipts, then double receipts</h3></div>
+      <p>A notification service reads "transaction posted" events from Kafka and emails a receipt for each one. It used auto-commit, which commits offsets every 5 seconds. After crashes, some customers never got their receipt. The team changed it to commit the offset only after the email is sent. Now some customers get the same receipt twice.</p>
+      <p class="prompt">Explain both problems, and how you would make the service reliable.</p>
+      <details>
+        <summary><span class="when-closed">Show model answer</span><span class="when-open">Hide model answer</span></summary>
+        <div class="answer">
+          <span class="label label-wrong">What's wrong</span>
+          <div class="wrong"><ul>
+            <li>Auto-commit can commit an offset before the email is sent. If the service crashes in between, that event is skipped for good (at-most-once delivery).</li>
+            <li>Committing after sending fixes that, but a crash after sending and before committing means the event is read and sent again (at-least-once delivery).</li>
+            <li>Exactly-once isn't possible end to end when the side effect is an external email.</li>
+          </ul></div>
+          <span class="label label-fix">How to fix it</span>
+          <div class="fix"><ul>
+            <li>Accept at-least-once delivery and make the consumer idempotent: before sending, record the transaction ID in a "sent receipts" table with a unique constraint, and skip events that are already there.</li>
+            <li>Use the email provider's idempotency key if it offers one, to close the gap between sending and recording.</li>
+            <li>Retry temporary failures with backoff, send repeatedly failing events to a dead-letter queue, and monitor consumer lag.</li>
+          </ul></div>
+          <span class="label label-plain">Trade-off to mention</span>
+          <p>One extra database write per event, and the dedupe table needs a retention period, such as 30 days.</p>
+          <span class="label label-plain">Line to end on</span>
+          <p class="closing">Design for at-least-once delivery, and make the consumer idempotent.</p>
+        </div>
+      </details>
+    </article>
+
+    <article class="scenario">
+      <div class="scenario-head"><span class="num">6</span><h3>The nightly statement job</h3></div>
+      <p>Every night, a batch job creates monthly statements for 5 million accounts. It loads all accounts into memory, processes them one at a time on a single thread, and writes the statements to the primary database. To make it highly available, the team set up the same cron job on two servers. It now takes 7 hours, sometimes crashes near 90% with an OutOfMemoryError and starts again from the beginning, and some customers received two statements.</p>
+      <p class="prompt">What are the problems, and how would you fix them?</p>
+      <details>
+        <summary><span class="when-closed">Show model answer</span><span class="when-open">Hide model answer</span></summary>
+        <div class="answer">
+          <span class="label label-wrong">What's wrong</span>
+          <div class="wrong"><ul>
+            <li>Loading every account into memory causes the out-of-memory crashes.</li>
+            <li>With no checkpoints, a crash means starting over from zero.</li>
+            <li>Both servers run the same cron job and both do the work, which causes the duplicate statements.</li>
+            <li>A single thread over 5 million accounts is simply slow.</li>
+          </ul></div>
+          <span class="label label-fix">How to fix it</span>
+          <div class="fix"><ul>
+            <li>Process accounts in chunks (for example 1,000 at a time) with a streaming cursor, so memory stays flat.</li>
+            <li>Save progress after each chunk so a rerun resumes, and make writes idempotent (an upsert keyed by account and month) so redoing a chunk is harmless.</li>
+            <li>Make sure only one runner starts the job, with a distributed lock or leader election such as a database lock or ShedLock in Spring. Idempotent writes are the safety net.</li>
+            <li>Split the work by account ranges across several workers, with a cap so the database isn't overwhelmed. Spring Batch partitioning does this.</li>
+            <li>Alert on run time and failures, not only on success.</li>
+          </ul></div>
+          <span class="label label-plain">Trade-off to mention</span>
+          <p>More workers finish sooner but put more load on the database. Locks need an expiry so a crashed runner can't block every future run.</p>
+          <span class="label label-plain">Line to end on</span>
+          <p class="closing">A batch job must be restartable, idempotent, and run exactly once, by design rather than by luck.</p>
+        </div>
+      </details>
+    </article>
+  </section>
+
+  <section aria-labelledby="coding">
+    <h2 id="coding">Coding problems</h2>
+    <p>Each starter file has a planted bug and a failing Part 1 test, just like the real round. Part 2's tests stay switched off until you're ready, the same way the interviewer only hands you Part 2 after Part 1.</p>
+    <pre>javac P1_BankTransactions.java &amp;&amp; java -ea P1_BankTransactions</pre>
+    <p>To start Part 2, uncomment the two test calls in <code>main()</code> and delete the two comment-marker lines around the Part 2 tests. Solutions are in the matching <span class="file">_Solution</span> files, which explain the bug and list the follow-up questions a GCB4 interviewer is likely to ask.</p>
+
+    <article class="problem">
+      <h3>Practice 1: bank transactions</h3>
+      <ul class="files">
+        <li><span class="file">P1_BankTransactions.java</span> <span class="role">starter</span></li>
+        <li><span class="file">P1_BankTransactions_Solution.java</span> <span class="role">solution</span></li>
+      </ul>
+      <p>Practises a Java equality trap that small test IDs never reveal, validation with an exact-boundary case, and sorting with a tie-breaker.</p>
+      <details>
+        <summary><span class="when-closed">Show hints</span><span class="when-open">Hide hints</span></summary>
+        <div class="answer">
+          <p class="hint-title">Part 1</p>
+          <p>The totals come out as 0. Look closely at the type of <code>accountId</code> and how it's compared.</p>
+          <p class="hint-title">Part 2</p>
+          <p>Reuse <code>getAccountSummary</code> for the balance check. Write the comparator out in full rather than chaining <code>reversed()</code>.</p>
+        </div>
+      </details>
+    </article>
+
+    <article class="problem">
+      <h3>Practice 2: parcel tracking</h3>
+      <ul class="files">
+        <li><span class="file">P2_ParcelTracking.java</span> <span class="role">starter</span></li>
+        <li><span class="file">P2_ParcelTracking_Solution.java</span> <span class="role">solution</span></li>
+      </ul>
+      <p>Practises events that arrive out of order, joining data from two maps, leaving out incomplete records, and sorted output.</p>
+      <details>
+        <summary><span class="when-closed">Show hints</span><span class="when-open">Hide hints</span></summary>
+        <div class="answer">
+          <p class="hint-title">Part 1</p>
+          <p>Is the list of events guaranteed to be in time order?</p>
+          <p class="hint-title">Part 2</p>
+          <p>Collect each parcel's CREATED and DELIVERED times first, then join them. Check the parcel is registered before reading its city.</p>
+        </div>
+      </details>
+    </article>
+
+    <article class="problem">
+      <h3>Practice 3: leave management</h3>
+      <ul class="files">
+        <li><span class="file">P3_LeaveManagement.java</span> <span class="role">starter</span></li>
+        <li><span class="file">P3_LeaveManagement_Solution.java</span> <span class="role">solution</span></li>
+      </ul>
+      <p>Practises inclusive day ranges, overlapping intervals, status rules, and a result that must never go negative.</p>
+      <details>
+        <summary><span class="when-closed">Show hints</span><span class="when-open">Hide hints</span></summary>
+        <div class="answer">
+          <p class="hint-title">Part 1</p>
+          <p>Count the days from 10 to 12 by hand. Then follow every method call, not just the one the test names.</p>
+          <p class="hint-title">Part 2</p>
+          <p>Two inclusive ranges overlap when <code>a.start &lt;= b.end</code> and <code>b.start &lt;= a.end</code>.</p>
+        </div>
+      </details>
+    </article>
+  </section>
+
+</main>
+</body>
+</html>

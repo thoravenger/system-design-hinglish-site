@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LRU Cache — Java Visual Explainer</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600;700&family=DM+Serif+Display&display=swap');
+  :root {
+    --bg:#f5f0e8;--surface:#faf7f2;--border:#d9d0be;--ink:#1a1208;
+    --orange:#e07800;--blue:#1a4d8f;--red:#c0392b;--green:#1a6b3a;
+    --muted:#8a7d6a;--code-bg:#1c1a15;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:var(--bg);color:var(--ink);font-family:'IBM Plex Mono',monospace;min-height:100vh;
+    background-image:radial-gradient(circle at 20% 20%,rgba(224,120,0,.06) 0%,transparent 50%),
+    radial-gradient(circle at 80% 80%,rgba(26,77,143,.04) 0%,transparent 50%);}
+  .container{max-width:1080px;margin:0 auto;padding:48px 28px;}
+  header{display:grid;grid-template-columns:1fr auto;align-items:end;margin-bottom:64px;
+    border-bottom:3px solid var(--ink);padding-bottom:24px;gap:20px;}
+  .edition-tag{font-size:10px;font-weight:700;letter-spacing:3px;text-transform:uppercase;
+    color:var(--orange);margin-bottom:8px;}
+  h1{font-family:'DM Serif Display',serif;font-size:clamp(2.8rem,6vw,5rem);line-height:1;letter-spacing:-1px;}
+  h1 em{font-style:italic;color:var(--orange);}
+  .subtitle{font-size:11px;color:var(--muted);margin-top:10px;letter-spacing:1px;}
+  .java-badge{background:var(--orange);color:white;font-size:11px;font-weight:700;
+    padding:8px 20px;letter-spacing:2px;text-transform:uppercase;border-radius:2px;align-self:start;}
+  .section{margin-bottom:64px;}
+  .sec-header{display:flex;align-items:center;gap:14px;margin-bottom:24px;}
+  .sec-num{font-size:11px;font-weight:700;color:var(--orange);letter-spacing:2px;text-transform:uppercase;white-space:nowrap;}
+  .sec-title{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:2px;}
+  .sec-line{flex:1;height:1px;background:var(--border);}
+  .code-wrap{border:2px solid var(--ink);overflow:hidden;box-shadow:6px 6px 0 var(--orange);}
+  .code-topbar{background:var(--ink);padding:10px 18px;display:flex;align-items:center;gap:10px;}
+  .code-topbar .fname{color:var(--orange);font-size:12px;font-weight:600;letter-spacing:1px;}
+  .code-topbar .pkg{color:#6a6050;font-size:11px;margin-left:auto;}
+  pre{background:var(--code-bg);padding:28px 0;overflow-x:auto;font-size:13px;line-height:1.85;counter-reset:ln;}
+  .ln{display:block;counter-increment:ln;padding:0 28px 0 56px;position:relative;
+    cursor:pointer;transition:background .12s;border-left:3px solid transparent;}
+  .ln::before{content:counter(ln);position:absolute;left:16px;width:28px;text-align:right;
+    color:#3a3530;font-size:11px;line-height:1.85;}
+  .ln:hover{background:rgba(224,120,0,.08);}
+  .ln.active{background:rgba(224,120,0,.14);border-left-color:var(--orange);}
+  .ln.active::before{color:var(--orange);}
+  .kw{color:#cc99ff}.typ{color:#66d9ef}.fn{color:#a6e22e}.str{color:#e6db74}
+  .num{color:#ae81ff}.cmt{color:#3a3530;font-style:italic}.cls{color:#66d9ef}
+  .tip{display:none;background:var(--surface);border:2px solid var(--orange);
+    padding:14px 18px;margin:0 28px 4px 56px;font-size:12.5px;line-height:1.7;color:var(--ink);}
+  .tip::before{content:'EXPLANATION';display:block;font-size:9px;font-weight:700;
+    letter-spacing:2px;color:var(--orange);margin-bottom:6px;}
+  .tip.show{display:block;animation:sd .15s ease;}
+  @keyframes sd{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+  .diagram-panel{border:2px solid var(--ink);background:var(--surface);box-shadow:6px 6px 0 var(--blue);}
+  .diag-toolbar{background:var(--ink);padding:12px 20px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;}
+  .btn{font-family:'IBM Plex Mono',monospace;font-size:11px;font-weight:700;letter-spacing:1px;
+    text-transform:uppercase;padding:7px 16px;border:2px solid;cursor:pointer;transition:all .15s;background:transparent;}
+  .btn-o{border-color:var(--orange);color:var(--orange);}
+  .btn-o:hover{background:var(--orange);color:white;}
+  .btn-r{border-color:var(--red);color:var(--red);}
+  .btn-r:hover{background:var(--red);color:white;}
+  .tb-input{font-family:'IBM Plex Mono',monospace;font-size:11px;padding:7px 10px;
+    background:#2a2520;border:2px solid #3a3530;color:#f5f0e8;width:64px;outline:none;transition:border-color .15s;}
+  .tb-input:focus{border-color:var(--orange);}
+  .tb-input::placeholder{color:#4a4540;}
+  .tb-label{color:#6a6050;font-size:10px;letter-spacing:1px;text-transform:uppercase;}
+  .diag-body{padding:28px 24px;}
+  .viz-label{font-size:10px;font-weight:700;letter-spacing:2px;text-transform:uppercase;
+    color:var(--muted);margin-bottom:10px;display:flex;justify-content:space-between;}
+  .viz-label span{color:var(--orange);}
+  .dll-row{display:flex;align-items:center;min-height:90px;overflow-x:auto;
+    padding:16px;border:1px solid var(--border);background:white;margin-bottom:20px;}
+  .node-wrap{display:flex;align-items:center;}
+  .nd{border:2px solid var(--border);background:white;padding:10px 14px;text-align:center;
+    min-width:78px;position:relative;transition:all .3s;animation:pop .25s ease;}
+  @keyframes pop{0%{transform:scale(.5);opacity:0}70%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
+  .nd.mru{border-color:var(--orange);background:#fff8f0;box-shadow:3px 3px 0 var(--orange);}
+  .nd.lru{border-color:var(--red);background:#fff0ef;box-shadow:3px 3px 0 var(--red);}
+  .nd.fresh{border-color:var(--green);background:#f0fff5;box-shadow:3px 3px 0 var(--green);}
+  .nd.evict{border-color:var(--red);background:#ffeeee;animation:shake .3s ease;}
+  @keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-4px)}75%{transform:translateX(4px)}}
+  .nd-badge{position:absolute;top:-11px;left:50%;transform:translateX(-50%);
+    font-size:8px;font-weight:700;letter-spacing:1px;padding:2px 7px;white-space:nowrap;}
+  .badge-m{background:var(--orange);color:white;}
+  .badge-l{background:var(--red);color:white;}
+  .nd-k{font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;}
+  .nd-v{font-size:1.3rem;font-weight:700;color:var(--ink);margin:2px 0;}
+  .sentinel-nd{width:40px;height:40px;border-radius:50%;border:2px dashed;
+    display:flex;align-items:center;justify-content:center;font-size:8px;
+    font-weight:700;letter-spacing:.5px;flex-shrink:0;}
+  .sentinel-nd.h{border-color:var(--orange);color:var(--orange);}
+  .sentinel-nd.t{border-color:var(--red);color:var(--red);}
+  .arr{display:flex;flex-direction:column;gap:3px;padding:0 3px;align-items:center;flex-shrink:0;}
+  .af,.ab{height:2px;width:26px;position:relative;}
+  .af{background:var(--orange);}
+  .ab{background:var(--red);}
+  .af::after{content:'▶';position:absolute;right:-6px;top:-5px;font-size:8px;color:var(--orange);}
+  .ab::before{content:'◀';position:absolute;left:-6px;top:-5px;font-size:8px;color:var(--red);}
+  .hm-row{display:flex;flex-wrap:wrap;gap:8px;min-height:46px;align-items:center;
+    background:white;border:1px solid var(--border);padding:10px 14px;margin-bottom:20px;}
+  .hm-chip{font-size:11px;padding:5px 12px;border:1px solid var(--border);
+    background:#faf0e0;animation:pop .2s ease;}
+  .hm-chip b{color:var(--orange);}
+  .empty-msg{font-size:11px;color:var(--muted);}
+  .log-box{background:var(--ink);padding:14px 16px;font-size:11px;line-height:1.9;
+    max-height:100px;overflow-y:auto;}
+  .lg{color:#6a6050;}
+  .lg.ok{color:#a6e22e;}
+  .lg.ev{color:#fd971f;}
+  .lg.ms{color:#f92672;}
+  .cards{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  @media(max-width:600px){.cards{grid-template-columns:1fr}}
+  .card{border:2px solid var(--ink);padding:20px;background:white;}
+  .card-title{font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;
+    color:var(--orange);margin-bottom:10px;padding-bottom:8px;border-bottom:1px solid var(--border);}
+  .card p{font-size:12px;color:var(--muted);line-height:1.8;}
+  .ctbl{width:100%;border-collapse:collapse;font-size:12px;margin-top:20px;border:2px solid var(--ink);}
+  .ctbl th{background:var(--ink);color:var(--orange);padding:9px 14px;text-align:left;
+    font-size:10px;letter-spacing:1.5px;text-transform:uppercase;}
+  .ctbl td{padding:9px 14px;border-bottom:1px solid var(--border);}
+  .ctbl td.o1{font-weight:700;color:var(--green);}
+  footer{text-align:center;margin-top:60px;padding-top:24px;border-top:1px solid var(--border);
+    font-size:10px;color:var(--muted);letter-spacing:2px;text-transform:uppercase;padding-bottom:40px;}
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <div>
+    <div class="edition-tag">Java Edition · Data Structures</div>
+    <h1>LRU <em>Cache</em></h1>
+    <p class="subtitle">// HashMap + DoublyLinkedList · O(1) get &amp; put · Interactive</p>
+  </div>
+  <div class="java-badge">Java</div>
+</header>
+
+<!-- CODE -->
+<div class="section">
+  <div class="sec-header">
+    <span class="sec-num">01</span>
+    <span class="sec-title">The Code — click any line</span>
+    <div class="sec-line"></div>
+  </div>
+  <div class="code-wrap">
+    <div class="code-topbar">
+      <span class="fname">LRUCache.java</span>
+      <span class="pkg">// custom DLL + HashMap implementation</span>
+    </div>
+    <pre id="codeBlock"></pre>
+  </div>
+</div>
+
+<!-- DIAGRAM -->
+<div class="section">
+  <div class="sec-header">
+    <span class="sec-num">02</span>
+    <span class="sec-title">Live Diagram — capacity: 4</span>
+    <div class="sec-line"></div>
+  </div>
+  <div class="diagram-panel">
+    <div class="diag-toolbar">
+      <button class="btn btn-o" onclick="demoPreset()">▶ Run Demo</button>
+      <button class="btn btn-r" onclick="resetCache()">↺ Reset</button>
+      <div style="margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+        <span class="tb-label">key</span>
+        <input class="tb-input" id="putKey" placeholder="A">
+        <span class="tb-label">val</span>
+        <input class="tb-input" id="putVal" placeholder="10">
+        <button class="btn btn-o" onclick="doPut()">put()</button>
+        <input class="tb-input" id="getKey" placeholder="key">
+        <button class="btn" style="border-color:#6a6050;color:#a09070;" onclick="doGet()">get()</button>
+      </div>
+    </div>
+    <div class="diag-body">
+      <div class="viz-label">
+        <span>← LRU (next to evict)</span>
+        <span>Doubly Linked List</span>
+        <span>MRU (most recent) →</span>
+      </div>
+      <div class="dll-row" id="dllRow"><span class="empty-msg">Cache is empty</span></div>
+      <div class="viz-label">
+        <span>HashMap&lt;Integer, Node&gt;</span>
+        <span>O(1) lookup</span>
+      </div>
+      <div class="hm-row" id="hmRow"><span class="empty-msg">{ }</span></div>
+      <div class="viz-label"><span>System.out</span></div>
+      <div class="log-box" id="logBox"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ARCH -->
+<div class="section">
+  <div class="sec-header">
+    <span class="sec-num">03</span>
+    <span class="sec-title">Architecture</span>
+    <div class="sec-line"></div>
+  </div>
+  <div class="cards">
+    <div class="card">
+      <div class="card-title">Doubly Linked List</div>
+      <p>Tracks access order. HEAD sentinel anchors the MRU end; TAIL sentinel anchors the LRU end. Every get/put moves the accessed node to HEAD.next — O(1) via direct pointer rewiring.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">HashMap&lt;K, Node&gt;</div>
+      <p>Provides O(1) key → node lookup. Without it, finding a node in the linked list would be O(n). Together, HashMap + DLL give constant time for every operation.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">Sentinel Nodes</div>
+      <p>Dummy head and tail nodes act as immovable anchors. They eliminate null-checks at list boundaries — insert always goes after head, eviction always removes tail.prev.</p>
+    </div>
+    <div class="card">
+      <div class="card-title">LinkedHashMap Alternative</div>
+      <p>Java's built-in LinkedHashMap with accessOrder=true provides LRU behavior out-of-the-box. Override removeEldestEntry() to auto-evict. The custom implementation teaches the internals.</p>
+    </div>
+  </div>
+  <table class="ctbl">
+    <thead>
+      <tr><th>Operation</th><th>Time</th><th>Space</th><th>Reason</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>get(key)</td><td class="o1">O(1)</td><td>O(1)</td><td>HashMap.get() + pointer move</td></tr>
+      <tr><td>put(key, val)</td><td class="o1">O(1)</td><td>O(1)</td><td>HashMap.put() + addToFront()</td></tr>
+      <tr><td>evict LRU</td><td class="o1">O(1)</td><td>O(1)</td><td>tail.prev direct removal</td></tr>
+      <tr><td>Total space</td><td>—</td><td>O(cap)</td><td>N nodes + N map entries</td></tr>
+    </tbody>
+  </table>
+</div>
+
+</div>
+<footer>LRU Cache · Java · O(1) get &amp; put · Doubly Linked List + HashMap</footer>
+
+<script>
+const lines = [
+  {c:`<span class="kw">import</span> java.util.HashMap;`,e:`Import Java's built-in HashMap — provides O(1) amortized get/put using hash tables internally.`},
+  {c:``,e:null},
+  {c:`<span class="kw">class</span> <span class="cls">LRUCache</span> {`,e:`The main LRUCache class. Uses a private inner Node class + a HashMap + a doubly linked list.`},
+  {c:``,e:null},
+  {c:`  <span class="cmt">// ── Inner Node class ──────────────────</span>`,e:null},
+  {c:`  <span class="kw">private class</span> <span class="cls">Node</span> {`,e:`Private inner class — each cache entry is represented as a Node in the doubly linked list.`},
+  {c:`    <span class="typ">int</span> key, val;`,e:`Stores the key AND value. Storing the key is critical — when we evict this node, we need its key to delete it from the HashMap.`},
+  {c:`    <span class="cls">Node</span> prev, next;`,e:`Two pointers making this a doubly linked list. prev points toward TAIL (LRU side), next points toward HEAD (MRU side).`},
+  {c:`    <span class="cls">Node</span>(<span class="typ">int</span> k, <span class="typ">int</span> v) { key = k; val = v; }`,e:`Constructor: create a node with a key and value. prev and next start as null.`},
+  {c:`  }`,e:null},
+  {c:``,e:null},
+  {c:`  <span class="cmt">// ── Fields ────────────────────────────</span>`,e:null},
+  {c:`  <span class="kw">private final int</span> capacity;`,e:`Maximum cache size. Declared final — it never changes after construction. When map.size() > capacity, we evict.`},
+  {c:`  <span class="kw">private</span> HashMap&lt;<span class="typ">Integer</span>, <span class="cls">Node</span>&gt; map;`,e:`The hashmap: maps Integer keys → their Node in the linked list. This is what makes lookup O(1) instead of O(n).`},
+  {c:`  <span class="kw">private</span> <span class="cls">Node</span> head, tail; <span class="cmt">// sentinels</span>`,e:`Two dummy sentinel nodes. head = MRU boundary, tail = LRU boundary. They never hold real data and never move.`},
+  {c:``,e:null},
+  {c:`  <span class="kw">public</span> <span class="cls">LRUCache</span>(<span class="typ">int</span> capacity) {`,e:`Constructor — called as new LRUCache(4) to create a cache of capacity 4.`},
+  {c:`    <span class="kw">this</span>.capacity = capacity;`,e:`Store the capacity. Uses 'this.' to distinguish the field from the parameter.`},
+  {c:`    map  = <span class="kw">new</span> HashMap<>();`,e:`Initialize empty HashMap. Java infers the generic types from context (diamond operator <>).`},
+  {c:`    head = <span class="kw">new</span> <span class="cls">Node</span>(<span class="num">0</span>, <span class="num">0</span>); <span class="cmt">// dummy</span>`,e:`Create HEAD sentinel with placeholder values (0,0). Real nodes go right after it. It is always the first node.`},
+  {c:`    tail = <span class="kw">new</span> <span class="cls">Node</span>(<span class="num">0</span>, <span class="num">0</span>); <span class="cmt">// dummy</span>`,e:`Create TAIL sentinel. The LRU node to evict is always at tail.prev. It is always the last node.`},
+  {c:`    head.next = tail;`,e:`Wire HEAD → TAIL. Empty list = HEAD ↔ TAIL. Any real node inserts between them.`},
+  {c:`    tail.prev = head;`,e:`Wire TAIL ← HEAD. Completes the two-way sentinel connection.`},
+  {c:`  }`,e:null},
+  {c:``,e:null},
+  {c:`  <span class="kw">public int</span> <span class="fn">get</span>(<span class="typ">int</span> key) {`,e:`get(key) — returns the cached value if found, else -1. Also promotes the node to MRU position.`},
+  {c:`    <span class="kw">if</span> (!map.containsKey(key)) <span class="kw">return</span> <span class="num">-1</span>;`,e:`O(1) check. If the key isn't in our HashMap, it's a cache miss — return -1.`},
+  {c:`    <span class="cls">Node</span> node = map.get(key);`,e:`O(1) map retrieval — get the actual Node object. No list traversal needed.`},
+  {c:`    remove(node);`,e:`Unlink this node from its current position. O(1) — just rewires two neighbor pointers.`},
+  {c:`    addToFront(node);`,e:`Reinsert right after HEAD. O(1) — marks this node as the most-recently-used.`},
+  {c:`    <span class="kw">return</span> node.val;`,e:`Return the cached value. Node is now at the MRU position.`},
+  {c:`  }`,e:null},
+  {c:``,e:null},
+  {c:`  <span class="kw">public void</span> <span class="fn">put</span>(<span class="typ">int</span> key, <span class="typ">int</span> val) {`,e:`put(key, val) — inserts or updates a cache entry. Evicts LRU if capacity is exceeded.`},
+  {c:`    <span class="kw">if</span> (map.containsKey(key)) remove(map.get(key));`,e:`If key exists, remove the old node first. We'll replace it with a fresh node with the updated value.`},
+  {c:`    <span class="cls">Node</span> node = <span class="kw">new</span> <span class="cls">Node</span>(key, val);`,e:`Create a new Node for this entry.`},
+  {c:`    map.put(key, node);`,e:`Register in HashMap: key → node. Future get() calls will find it in O(1).`},
+  {c:`    addToFront(node);`,e:`Insert at MRU position. This is the freshest item in the cache.`},
+  {c:`    <span class="kw">if</span> (map.size() > capacity) {`,e:`Check if over capacity. map.size() is O(1) in Java's HashMap.`},
+  {c:`      <span class="cls">Node</span> lru = tail.prev;`,e:`The LRU node is ALWAYS at tail.prev. That's the guarantee the DLL structure gives us.`},
+  {c:`      remove(lru);`,e:`Detach the LRU node from the list. O(1).`},
+  {c:`      map.remove(lru.key);`,e:`Delete from HashMap too (using the key stored on the node). Cache is now within capacity.`},
+  {c:`    }`,e:null},
+  {c:`  }`,e:null},
+  {c:``,e:null},
+  {c:`  <span class="kw">private void</span> <span class="fn">remove</span>(<span class="cls">Node</span> n) {`,e:`O(1) helper — detaches node n from wherever it is in the list by rewiring its neighbors.`},
+  {c:`    n.prev.next = n.next;`,e:`The node before n now skips PAST n, pointing directly to n's successor.`},
+  {c:`    n.next.prev = n.prev;`,e:`The node after n now skips PAST n, pointing directly to n's predecessor. n is now unlinked.`},
+  {c:`  }`,e:null},
+  {c:``,e:null},
+  {c:`  <span class="kw">private void</span> <span class="fn">addToFront</span>(<span class="cls">Node</span> n) {`,e:`O(1) helper — inserts node n right after the HEAD sentinel (MRU position).`},
+  {c:`    n.next         = head.next;`,e:`n's next pointer = what HEAD was pointing to (the old first real node).`},
+  {c:`    n.prev         = head;`,e:`n's prev pointer = HEAD sentinel. n will sit directly after HEAD.`},
+  {c:`    head.next.prev = n;`,e:`The old first-real-node's prev pointer now points back to n (bi-directional link).`},
+  {c:`    head.next      = n;`,e:`HEAD.next now points to n. n is fully inserted at the MRU position.`},
+  {c:`  }`,e:null},
+  {c:`}`,e:null},
+];
+
+const cb = document.getElementById('codeBlock');
+lines.forEach((item, i) => {
+  const span = document.createElement('span');
+  span.className = 'ln';
+  span.innerHTML = item.c || ' ';
+  cb.appendChild(span);
+  if (item.e) {
+    const tip = document.createElement('div');
+    tip.className = 'tip';
+    tip.id = 'tip' + i;
+    tip.textContent = item.e;
+    cb.appendChild(tip);
+    span.addEventListener('click', () => {
+      const open = tip.classList.contains('show');
+      document.querySelectorAll('.tip').forEach(t => t.classList.remove('show'));
+      document.querySelectorAll('.ln').forEach(l => l.classList.remove('active'));
+      if (!open) { tip.classList.add('show'); span.classList.add('active'); }
+    });
+  }
+});
+
+class JNode { constructor(k,v){this.key=k;this.val=v;this.prev=null;this.next=null;} }
+class LRUCache {
+  constructor(cap){
+    this.cap=cap;this.map=new Map();
+    this.head=new JNode(0,0);this.tail=new JNode(0,0);
+    this.head.next=this.tail;this.tail.prev=this.head;
+  }
+  _rm(n){n.prev.next=n.next;n.next.prev=n.prev;}
+  _add(n){n.next=this.head.next;n.prev=this.head;this.head.next.prev=n;this.head.next=n;}
+  get(k){if(!this.map.has(k))return -1;const n=this.map.get(k);this._rm(n);this._add(n);return n.val;}
+  put(k,v){
+    if(this.map.has(k))this._rm(this.map.get(k));
+    const n=new JNode(k,v);this.map.set(k,n);this._add(n);
+    if(this.map.size>this.cap){const lru=this.tail.prev;this._rm(lru);this.map.delete(lru.key);return lru.key;}
+    return null;
+  }
+  toArr(){const a=[];let c=this.head.next;while(c!==this.tail){a.push({key:c.key,val:c.val});c=c.next;}return a;}
+}
+
+const CAP=4; let cache=new LRUCache(CAP);
+
+function log(msg,cls=''){
+  const el=document.getElementById('logBox');
+  const d=document.createElement('div');d.className='lg '+cls;d.textContent=msg;
+  el.appendChild(d);el.scrollTop=el.scrollHeight;
+}
+
+function render(hi=null,ev=null){
+  const dll=document.getElementById('dllRow'),hm=document.getElementById('hmRow');
+  const arr=cache.toArr();
+  if(!arr.length){dll.innerHTML='<span class="empty-msg">Cache is empty</span>';}
+  else{
+    let h='<div class="node-wrap"><div class="sentinel-nd h">HEAD</div>';
+    arr.forEach((it,i)=>{
+      let cls=it.key===hi?'fresh':it.key===ev?'evict':i===0?'mru':i===arr.length-1?'lru':'';
+      h+=`<div class="arr"><div class="af"></div><div class="ab"></div></div>`;
+      h+=`<div class="nd ${cls}">`;
+      if(i===0)h+=`<div class="nd-badge badge-m">MRU</div>`;
+      if(i===arr.length-1)h+=`<div class="nd-badge badge-l">LRU</div>`;
+      h+=`<div class="nd-k">${it.key}</div><div class="nd-v">${it.val}</div></div>`;
+    });
+    h+=`<div class="arr"><div class="af"></div><div class="ab"></div></div><div class="sentinel-nd t">TAIL</div></div>`;
+    dll.innerHTML=h;
+  }
+  if(!cache.map.size){hm.innerHTML='<span class="empty-msg">{ }</span>';}
+  else{
+    hm.innerHTML='';
+    for(const[k,n]of cache.map){
+      const c=document.createElement('div');c.className='hm-chip';
+      c.innerHTML=`${k} → <b>${n.val}</b>`;hm.appendChild(c);
+    }
+  }
+}
+
+function doPut(){
+  const k=document.getElementById('putKey').value.trim();
+  const v=document.getElementById('putVal').value.trim();
+  if(!k||!v){log('// Enter key and value','ms');return;}
+  const ev=cache.put(k,v);
+  if(ev!==null)log(`cache.put(${k}, ${v}); // evicted LRU: ${ev}`,'ev');
+  else log(`cache.put(${k}, ${v}); // ✓`,'ok');
+  render(k,ev);
+  document.getElementById('putKey').value='';
+  document.getElementById('putVal').value='';
+}
+
+function doGet(){
+  const k=document.getElementById('getKey').value.trim();if(!k)return;
+  const r=cache.get(k);
+  if(r===-1){log(`cache.get(${k}) = -1  // miss`,'ms');render(null);}
+  else{log(`cache.get(${k}) = ${r}  // hit, promoted to MRU`,'ok');render(k);}
+  document.getElementById('getKey').value='';
+}
+
+function resetCache(){
+  cache=new LRUCache(CAP);
+  document.getElementById('logBox').innerHTML='';
+  render();log('// new LRUCache('+CAP+') — ready');
+}
+
+async function demoPreset(){
+  resetCache();
+  const ops=[['put','A',10],['put','B',20],['put','C',30],['put','D',40],
+    ['get','A'],['put','E',50],['get','C'],['put','F',60]];
+  for(const[op,k,v]of ops){
+    await new Promise(r=>setTimeout(r,950));
+    if(op==='put'){
+      document.getElementById('putKey').value=k;
+      document.getElementById('putVal').value=v;
+      doPut();
+    }else{
+      document.getElementById('getKey').value=k;
+      doGet();
+    }
+  }
+}
+
+render();log('// Ready — LRUCache(capacity=4)');
+</script>
+</body>
+</html>

@@ -1,0 +1,434 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Java Stream Methods - Learn These First - 1_Learn</title><style>body{font-family:system-ui,sans-serif;max-width:860px;margin:2rem auto;padding:0 16px;line-height:1.6}pre,code{background:#f4f4f4}pre{padding:12px;overflow:auto}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 8px}</style></head><body><h1 id="java-stream-methods-learn-these-first">Java Stream Methods — Learn These First</h1>
+<p><time data-atom="date" datetime="2026-10-03">2026-10-03</time> · <span data-atom="mention" data-principal="u_I6FOpjcCjjb50Mzghgt1DQ">@u_I6FOpjcCjjb50Mzghgt1DQ</span></p>
+<h2 id="how-a-stream-works">How a stream works</h2>
+<p>A stream reads a collection, passes each element through a chain of steps, and produces one result; it never changes the original collection.</p>
+<p>Every stream has three parts:</p>
+<ol><li><p>A source: <code>txns.stream()</code>.</p></li><li><p>Zero or more intermediate operations, such as <code>filter</code>, <code>map</code> or <code>sorted</code>. Each one returns a new stream, and nothing runs yet.</p></li><li><p>Exactly one terminal operation, such as <code>collect</code>, <code>count</code>, <code>sum</code> or <code>findFirst</code>. It runs the whole chain and produces the result.</p></li></ol>
+<pre><code class="language-java">List&lt;String&gt; debitIds = txns.stream()                    // source
+        .filter(t -&gt; &quot;DEBIT&quot;.equals(t.getType()))        // intermediate
+        .map(Transaction::getId)                         // intermediate
+        .collect(Collectors.toList());                   // terminal
+// [T2, T3, T5, T6]</code></pre>
+<p>Three rules to remember:</p>
+<ol><li><p>The source list is never changed; the result is always new.</p></li><li><p>A stream can be used only once. Using it again throws <code>IllegalStateException: stream has already been operated upon or closed</code>.</p></li><li><p>Without a terminal operation, nothing happens at all.</p></li></ol>
+<p><code>t -&gt; t.getId()</code> and <code>Transaction::getId</code> mean the same thing; the second form is called a method reference.</p>
+<p>Every method section below has the same shape: what it does, a simple example, a transaction example, the common mistake, and a mini exercise with its expected result. Answers are in the Exercise answers tab.</p>
+<h3 id="sample-data-used-in-every-example">Sample data used in every example</h3>
+<pre><code class="language-java">List&lt;Integer&gt; nums = List.of(5, 3, 8, 3, 10, 1);
+List&lt;String&gt; names = List.of(&quot;Asha&quot;, &quot;Ben&quot;, &quot;Chen&quot;, &quot;Ben&quot;, &quot;Dev&quot;);
+
+// Transaction(id, accountId, type, amount, status, tags)
+List&lt;Transaction&gt; txns = List.of(
+    new Transaction(&quot;T1&quot;, &quot;ACC-1&quot;, &quot;CREDIT&quot;, 500.00, &quot;SUCCESS&quot;, List.of(&quot;salary&quot;)),
+    new Transaction(&quot;T2&quot;, &quot;ACC-1&quot;, &quot;DEBIT&quot;,  120.50, &quot;SUCCESS&quot;, List.of(&quot;rent&quot;, &quot;monthly&quot;)),
+    new Transaction(&quot;T3&quot;, &quot;ACC-2&quot;, &quot;DEBIT&quot;,   75.25, &quot;FAILED&quot;,  List.of(&quot;bills&quot;)),
+    new Transaction(&quot;T4&quot;, &quot;ACC-2&quot;, &quot;CREDIT&quot;, 900.00, &quot;SUCCESS&quot;, null),
+    new Transaction(&quot;T5&quot;, &quot;ACC-3&quot;, &quot;DEBIT&quot;,  300.00, &quot;PENDING&quot;, List.of(&quot;rent&quot;)),
+    new Transaction(&quot;T6&quot;, &quot;ACC-1&quot;, &quot;DEBIT&quot;,   45.00, &quot;SUCCESS&quot;, List.of(&quot;monthly&quot;))
+);</code></pre>
+<p>This <code>Transaction</code> is a smaller version of the study guide&#39;s class, with a getter for every field. Outputs show transactions by id (T1, T2, and so on) to keep them short. Imports: <code>java.util.*</code> and <code>java.util.stream.*</code>.</p>
+<h2 id="part-1-intermediate-operations-they-return-a-new-stream">Part 1 — Intermediate operations: they return a new stream</h2>
+<h3 id="1-filter">1. filter()</h3>
+<p>Keeps the elements that pass a test and drops the rest.</p>
+<p>How to call it: <code>filter(element -&gt; condition)</code>, where the condition returns true (keep) or false (drop).</p>
+<p>Example 1, numbers:</p>
+<pre><code class="language-java">List&lt;Integer&gt; big = nums.stream()
+        .filter(n -&gt; n &gt; 4)
+        .collect(Collectors.toList());
+// [5, 8, 10]</code></pre>
+<p>Example 2, successful debits:</p>
+<pre><code class="language-java">List&lt;Transaction&gt; successfulDebits = txns.stream()
+        .filter(t -&gt; &quot;DEBIT&quot;.equals(t.getType()))
+        .filter(t -&gt; &quot;SUCCESS&quot;.equals(t.getStatus()))
+        .collect(Collectors.toList());
+// [T2, T6]</code></pre>
+<p>Two <code>filter()</code> calls in a row mean AND. An OR rule must sit inside one filter: <code>.filter(t -&gt; isA(t) || isB(t))</code>.</p>
+<p>Common mistake: writing <code>txns.stream().filter(...)</code> without <code>collect()</code>. Nothing runs, and <code>txns</code> doesn&#39;t change. Also compare strings with <code>&quot;SUCCESS&quot;.equals(...)</code>, never <code>==</code>.</p>
+<p>Mini exercise 1: return the transactions whose status is FAILED or PENDING. Expected: [T3, T5].</p>
+<h3 id="2-map">2. map()</h3>
+<p>Turns each element into another value: one element in, one element out.</p>
+<p>How to call it: <code>map(element -&gt; newValue)</code>. The new value can be a different type, for example a <code>Transaction</code> turning into a <code>String</code>.</p>
+<p>Example 1, numbers:</p>
+<pre><code class="language-java">List&lt;Integer&gt; doubled = nums.stream()
+        .map(n -&gt; n * 2)
+        .collect(Collectors.toList());
+// [10, 6, 16, 6, 20, 2]</code></pre>
+<p>Example 2, transactions:</p>
+<pre><code class="language-java">List&lt;String&gt; accounts = txns.stream()
+        .map(Transaction::getAccountId)
+        .collect(Collectors.toList());
+// [ACC-1, ACC-1, ACC-2, ACC-2, ACC-3, ACC-1]
+
+List&lt;String&gt; labels = txns.stream()
+        .map(t -&gt; t.getId() + &quot;:&quot; + t.getStatus())
+        .collect(Collectors.toList());
+// [T1:SUCCESS, T2:SUCCESS, T3:FAILED, T4:SUCCESS, T5:PENDING, T6:SUCCESS]</code></pre>
+<p>Common mistake: filtering after you have mapped the field away. After <code>.map(Transaction::getAmount)</code> the stream holds plain numbers, so <code>.filter(t -&gt; &quot;SUCCESS&quot;.equals(t.getStatus()))</code> won&#39;t compile: filter first, then map. And never call setters inside <code>map()</code>; that changes the original objects.</p>
+<p>Mini exercise 2: for SUCCESS transactions only, return strings like &quot;T1=500.0&quot;. Expected: [T1=500.0, T2=120.5, T4=900.0, T6=45.0].</p>
+<h3 id="3-flatmap">3. flatMap()</h3>
+<p>Use it when each element holds a list (or produces several items) and you want one flat stream of all of them: one element in, many out.</p>
+<p>How to call it: <code>flatMap(element -&gt; a stream)</code>, usually <code>flatMap(List::stream)</code> after mapping to the inner list.</p>
+<p>Example 1, nested lists:</p>
+<pre><code class="language-java">List&lt;List&lt;Integer&gt;&gt; nested = List.of(List.of(1, 2), List.of(3), List.of(4, 5));
+
+List&lt;Integer&gt; flat = nested.stream()
+        .flatMap(List::stream)
+        .collect(Collectors.toList());
+// [1, 2, 3, 4, 5]</code></pre>
+<p>Example 2, every tag on every transaction:</p>
+<pre><code class="language-java">List&lt;String&gt; allTags = txns.stream()
+        .map(Transaction::getTags)
+        .filter(Objects::nonNull)        // T4 has no tags
+        .flatMap(List::stream)
+        .collect(Collectors.toList());
+// [salary, rent, monthly, bills, rent, monthly]</code></pre>
+<p>It also splits text: <code>Stream.of(&quot;rent,bills&quot;, &quot;salary&quot;).flatMap(s -&gt; Arrays.stream(s.split(&quot;,&quot;)))</code> gives [rent, bills, salary].</p>
+<p>Common mistake: using <code>map()</code> instead, which gives a stream of lists (<code>List&lt;List&lt;String&gt;&gt;</code>). And skipping the null filter: T4&#39;s null tag list makes <code>flatMap(t -&gt; t.getTags().stream())</code> throw <code>NullPointerException</code>.</p>
+<p>Mini exercise 3: return every tag used on DEBIT transactions, duplicates included. Expected: [rent, monthly, bills, rent, monthly].</p>
+<h3 id="4-distinct">4. distinct()</h3>
+<p>Removes duplicates and keeps the first occurrence of each value, in the original order.</p>
+<p>How to call it: <code>distinct()</code>, with no arguments. It decides what counts as a duplicate with <code>equals()</code> and <code>hashCode()</code>.</p>
+<p>Example 1, numbers:</p>
+<pre><code class="language-java">List&lt;Integer&gt; unique = nums.stream()
+        .distinct()
+        .collect(Collectors.toList());
+// [5, 3, 8, 10, 1]</code></pre>
+<p>Example 2, the accounts that appear in the data:</p>
+<pre><code class="language-java">List&lt;String&gt; accounts = txns.stream()
+        .map(Transaction::getAccountId)
+        .distinct()
+        .collect(Collectors.toList());
+// [ACC-1, ACC-2, ACC-3]</code></pre>
+<p>Common mistake: <code>distinct()</code> on your own objects removes nothing unless the class overrides <code>equals()</code> and <code>hashCode()</code>. To dedupe by a field, map to that field first (as above), or keep one object per key with <code>toMap()</code> (section 18).</p>
+<p>Mini exercise 4: return the distinct statuses in the order they first appear. Expected: [SUCCESS, FAILED, PENDING].</p>
+<h3 id="5-sorted">5. sorted()</h3>
+<p>Sorts the stream: <code>sorted()</code> uses natural order, and <code>sorted(comparator)</code> uses your own rule.</p>
+<p>Natural order means numbers smallest first and strings A to Z. Objects with no natural order, like <code>Transaction</code>, always need a comparator (section 6 shows how to build one).</p>
+<p>Example 1, numbers and names:</p>
+<pre><code class="language-java">nums.stream().sorted().collect(Collectors.toList());
+// [1, 3, 3, 5, 8, 10]
+
+nums.stream().sorted(Comparator.reverseOrder()).collect(Collectors.toList());
+// [10, 8, 5, 3, 3, 1]
+
+names.stream().sorted().collect(Collectors.toList());
+// [Asha, Ben, Ben, Chen, Dev]</code></pre>
+<p>Example 2, transactions by amount, highest first:</p>
+<pre><code class="language-java">List&lt;String&gt; byAmountDesc = txns.stream()
+        .sorted(Comparator.comparingDouble(Transaction::getAmount).reversed())
+        .map(Transaction::getId)
+        .collect(Collectors.toList());
+// [T4, T1, T5, T2, T3, T6]</code></pre>
+<p>Common mistake: <code>txns.stream().sorted()</code> with no comparator throws <code>ClassCastException</code> (Transaction cannot be cast to Comparable), because Java doesn&#39;t know how to order transactions.</p>
+<p>Mini exercise 5: return transaction ids sorted by account A to Z, then by amount, highest first, within each account. Expected: [T1, T2, T6, T4, T3, T5].</p>
+<h3 id="6-comparator">6. Comparator</h3>
+<p>A <code>Comparator</code> is a sorting rule; build it from fields with <code>Comparator.comparing...</code> instead of writing <code>compare()</code> by hand.</p>
+<table><thead><tr><th>You want</th><th>Write</th></tr></thead><tbody><tr><td>Ascending by a field</td><td><code>Comparator.comparing(Transaction::getAccountId)</code></td></tr><tr><td>A number field</td><td><code>Comparator.comparingDouble(Transaction::getAmount)</code> (also <code>comparingInt</code>, <code>comparingLong</code>)</td></tr><tr><td>Descending</td><td>add <code>.reversed()</code></td></tr><tr><td>A second field for ties</td><td><code>.thenComparing(Transaction::getId)</code></td></tr><tr><td>Only the second field descending</td><td><code>.thenComparing(Comparator.comparingDouble(Transaction::getAmount).reversed())</code></td></tr><tr><td>Nulls at the end</td><td><code>Comparator.comparing(Transaction::getAccountId, Comparator.nullsLast(Comparator.naturalOrder()))</code></td></tr><tr><td>Natural or reverse order</td><td><code>Comparator.naturalOrder()</code>, <code>Comparator.reverseOrder()</code></td></tr></tbody></table>
+<p>Example 1, names by length, then A to Z:</p>
+<pre><code class="language-java">names.stream()
+        .sorted(Comparator.comparingInt(String::length).thenComparing(Comparator.naturalOrder()))
+        .collect(Collectors.toList());
+// [Ben, Ben, Dev, Asha, Chen]</code></pre>
+<p>Example 2, a business order (PENDING first, then FAILED, then SUCCESS; ties by id):</p>
+<pre><code class="language-java">static int rank(String status) {
+    if (&quot;PENDING&quot;.equals(status)) return 0;
+    if (&quot;FAILED&quot;.equals(status)) return 1;
+    return 2;
+}
+
+txns.stream()
+        .sorted(Comparator.comparingInt((Transaction t) -&gt; rank(t.getStatus()))
+                .thenComparing(Transaction::getId))
+        .map(t -&gt; t.getId() + &quot;:&quot; + t.getStatus())
+        .collect(Collectors.toList());
+// [T5:PENDING, T3:FAILED, T1:SUCCESS, T2:SUCCESS, T4:SUCCESS, T6:SUCCESS]</code></pre>
+<p>The lambda is written <code>(Transaction t) -&gt;</code> because it starts a chain; without the type, Java can&#39;t tell what <code>t</code> is and the code won&#39;t compile.</p>
+<p>Common mistake: a <code>.reversed()</code> at the end of a chain flips every field. <code>comparingInt(String::length).thenComparing(Comparator.naturalOrder()).reversed()</code> gives [Chen, Asha, Dev, Ben, Ben]: longest first, but also Z to A. And never write <code>(a, b) -&gt; a - b</code> or cast a difference to <code>int</code>.</p>
+<p>Mini exercise 6: sort the names longest first, then A to Z. Expected: [Asha, Chen, Ben, Ben, Dev].</p>
+<h3 id="7-limit-skip">7. limit() / skip()</h3>
+<p><code>limit(n)</code> keeps the first n elements and <code>skip(n)</code> drops the first n; after <code>sorted()</code>, they give you &quot;top N&quot; and paging.</p>
+<p>Both are safe when the stream has fewer elements than n: <code>limit(100)</code> on 6 elements simply returns all 6.</p>
+<p>Example 1, numbers:</p>
+<pre><code class="language-java">nums.stream().limit(3).collect(Collectors.toList());   // [5, 3, 8]
+nums.stream().skip(4).collect(Collectors.toList());    // [10, 1]</code></pre>
+<p>Example 2, the top 2 transactions by amount, and page 2 of the ids (2 per page):</p>
+<pre><code class="language-java">List&lt;String&gt; top2 = txns.stream()
+        .sorted(Comparator.comparingDouble(Transaction::getAmount).reversed())
+        .limit(2)
+        .map(Transaction::getId)
+        .collect(Collectors.toList());
+// [T4, T1]
+
+List&lt;String&gt; page2 = txns.stream()
+        .map(Transaction::getId)
+        .skip(2)        // skip page 1
+        .limit(2)       // take one page
+        .collect(Collectors.toList());
+// [T3, T4]</code></pre>
+<p>For page p (starting at 1) of size s: <code>.skip((long) (p - 1) * s).limit(s)</code>.</p>
+<p>Common mistake: the order matters. <code>limit(3)</code> before <code>sorted()</code> takes the first 3 and then sorts them: <code>nums.stream().limit(3).sorted(Comparator.reverseOrder())</code> gives [8, 5, 3], while the real top 3 is [10, 8, 5] (<code>sorted</code> first, then <code>limit</code>).</p>
+<p>Mini exercise 7: return the 3 smallest DEBIT amounts, smallest first. Expected: [45.0, 75.25, 120.5].</p>
+<h2 id="part-2-terminal-operations-that-return-one-value">Part 2 — Terminal operations that return one value</h2>
+<h3 id="8-count">8. count()</h3>
+<p>Returns how many elements reach the end of the stream, as a <code>long</code>.</p>
+<p>Example 1:</p>
+<pre><code class="language-java">long bigCount = nums.stream()
+        .filter(n -&gt; n &gt; 4)
+        .count();
+// 3</code></pre>
+<p>Example 2:</p>
+<pre><code class="language-java">long successCount = txns.stream()
+        .filter(t -&gt; &quot;SUCCESS&quot;.equals(t.getStatus()))
+        .count();
+// 4</code></pre>
+<p>Common mistake: <code>int c = stream.count();</code> doesn&#39;t compile, because <code>count()</code> returns <code>long</code>. Also, <code>collect(Collectors.toList()).size()</code> builds a whole list just to count it, where <code>count()</code> is simpler. To count per group, use <code>groupingBy(..., counting())</code> (section 19).</p>
+<p>Mini exercise 8: how many different accounts have at least one DEBIT? Expected: 3.</p>
+<h3 id="9-sum">9. sum()</h3>
+<p><code>sum()</code> exists only on number streams, so first convert with <code>mapToInt()</code>, <code>mapToLong()</code> or <code>mapToDouble()</code>.</p>
+<p>Example 1:</p>
+<pre><code class="language-java">int total = nums.stream()
+        .mapToInt(Integer::intValue)
+        .sum();
+// 30</code></pre>
+<p>Example 2, the total of successful debits:</p>
+<pre><code class="language-java">double successfulDebitTotal = txns.stream()
+        .filter(t -&gt; &quot;DEBIT&quot;.equals(t.getType()))
+        .filter(t -&gt; &quot;SUCCESS&quot;.equals(t.getStatus()))
+        .mapToDouble(Transaction::getAmount)
+        .sum();
+// 165.5   (T2 120.50 + T6 45.00)</code></pre>
+<p>The sum of an empty stream is 0. To sum per group, use <code>groupingBy(..., summingDouble(...))</code> (section 19).</p>
+<p>Common mistake: <code>.map(Transaction::getAmount).sum()</code> doesn&#39;t compile, because <code>Stream&lt;Double&gt;</code> has no <code>sum()</code>. And <code>mapToInt(t -&gt; (int) t.getAmount())</code> silently drops the pence: 1940 instead of 1940.75 for all six transactions.</p>
+<p>Mini exercise 9: the total amount of successful CREDIT transactions. Expected: 1400.0.</p>
+<h3 id="10-average">10. average()</h3>
+<p><code>average()</code> on a number stream returns an <code>OptionalDouble</code>, because an empty stream has no average.</p>
+<p>Example 1:</p>
+<pre><code class="language-java">double avg = nums.stream()
+        .mapToInt(Integer::intValue)
+        .average()          // OptionalDouble[5.0]
+        .orElse(0.0);
+// 5.0</code></pre>
+<p>Example 2, the average amount for ACC-2:</p>
+<pre><code class="language-java">double acc2Average = txns.stream()
+        .filter(t -&gt; &quot;ACC-2&quot;.equals(t.getAccountId()))
+        .mapToDouble(Transaction::getAmount)
+        .average()
+        .orElse(0.0);
+// 487.625   ((75.25 + 900.00) / 2)</code></pre>
+<p>Common mistake: <code>.getAsDouble()</code> on an empty result throws <code>NoSuchElementException: No value present</code>, for example for an account that doesn&#39;t exist. Use <code>orElse(...)</code>, or return the <code>OptionalDouble</code> and let the caller decide. The result is always a <code>double</code>, even for whole numbers: 5.0, not 5.</p>
+<p>Mini exercise 10: the average DEBIT amount, or 0.0 if there are none. Expected: 135.1875.</p>
+<h3 id="11-max-min">11. max() / min()</h3>
+<p>Return the largest or smallest element by a comparator, wrapped in an <code>Optional</code> because the stream might be empty.</p>
+<p>Example 1:</p>
+<pre><code class="language-java">nums.stream().max(Comparator.naturalOrder());       // Optional[10]
+nums.stream().min(Comparator.naturalOrder());       // Optional[1]
+nums.stream().mapToInt(Integer::intValue).max();    // OptionalInt[10]</code></pre>
+<p>Example 2:</p>
+<pre><code class="language-java">Optional&lt;Transaction&gt; biggest = txns.stream()
+        .max(Comparator.comparingDouble(Transaction::getAmount));
+// Optional[T4]   (900.00)
+
+String smallestDebitId = txns.stream()
+        .filter(t -&gt; &quot;DEBIT&quot;.equals(t.getType()))
+        .min(Comparator.comparingDouble(Transaction::getAmount))
+        .map(Transaction::getId)
+        .orElse(&quot;NONE&quot;);
+// T6   (45.00)</code></pre>
+<p>Common mistake: calling <code>.get()</code> straight away, which throws <code>NoSuchElementException</code> when nothing matched. Also mixing up the direction: &quot;oldest&quot; is <code>min()</code> of a date and &quot;newest&quot; is <code>max()</code>.</p>
+<p>Mini exercise 11: return the id of the largest transaction that is PENDING or FAILED, or &quot;NONE&quot;. Expected: T5.</p>
+<h3 id="12-findfirst-findany">12. findFirst() / findAny()</h3>
+<p>Return the first element that reaches the end of the stream, as an <code>Optional</code>, and stop as soon as one is found.</p>
+<p><code>findFirst()</code> respects the list order. <code>findAny()</code> may return any match; it exists for parallel streams, so use <code>findFirst()</code> whenever the answer must be predictable.</p>
+<p>Example 1:</p>
+<pre><code class="language-java">nums.stream().filter(n -&gt; n &gt; 6).findFirst();     // Optional[8]
+nums.stream().filter(n -&gt; n &gt; 100).findFirst();   // Optional.empty</code></pre>
+<p>Example 2, the first FAILED transaction:</p>
+<pre><code class="language-java">String firstFailedId = txns.stream()
+        .filter(t -&gt; &quot;FAILED&quot;.equals(t.getStatus()))
+        .findFirst()
+        .map(Transaction::getId)
+        .orElse(&quot;NONE&quot;);
+// T3</code></pre>
+<p>Common mistake: <code>.findFirst().get()</code> throws <code>NoSuchElementException</code> when nothing matches. Also, <code>findFirst()</code> throws <code>NullPointerException</code> if the element it finds is null.</p>
+<p>Mini exercise 12: find the first transaction of ACC-3 and return its status, or &quot;NOT FOUND&quot;. Expected: PENDING.</p>
+<h3 id="13-anymatch-allmatch-nonematch">13. anyMatch() / allMatch() / noneMatch()</h3>
+<p>Yes/no questions about the stream; each returns a <code>boolean</code> and stops as soon as the answer is known.</p>
+<table><thead><tr><th>Method</th><th>True when</th></tr></thead><tbody><tr><td><code>anyMatch(test)</code></td><td>at least one element passes</td></tr><tr><td><code>allMatch(test)</code></td><td>every element passes</td></tr><tr><td><code>noneMatch(test)</code></td><td>no element passes</td></tr></tbody></table>
+<p>Example 1:</p>
+<pre><code class="language-java">nums.stream().anyMatch(n -&gt; n &gt; 9);    // true  (10)
+nums.stream().allMatch(n -&gt; n &gt; 0);    // true
+nums.stream().noneMatch(n -&gt; n &lt; 0);   // true</code></pre>
+<p>Example 2:</p>
+<pre><code class="language-java">boolean anyFailed    = txns.stream().anyMatch(t -&gt; &quot;FAILED&quot;.equals(t.getStatus()));   // true
+boolean allPositive  = txns.stream().allMatch(t -&gt; t.getAmount() &gt; 0);                 // true
+boolean noneOver1000 = txns.stream().noneMatch(t -&gt; t.getAmount() &gt; 1000);             // true</code></pre>
+<p>Common mistake: <code>allMatch()</code> and <code>noneMatch()</code> return true for an empty stream, so &quot;every payment succeeded&quot; is also true when there were no payments; check for empty first. And <code>filter(...).count() &gt; 0</code> works but scans everything, while <code>anyMatch()</code> stops at the first hit.</p>
+<p>Mini exercise 13: does every transaction of ACC-1 have status SUCCESS? Expected: true (and false for ACC-2).</p>
+<h3 id="14-reduce">14. reduce()</h3>
+<p>Combines all elements into one value by applying an operation again and again, such as adding two numbers.</p>
+<p>Two forms:</p>
+<ul><li><p><code>reduce(identity, operation)</code> returns a plain value. The identity is the starting value and also the answer for an empty stream: 0 for sums, 1 for products.</p></li><li><p><code>reduce(operation)</code> returns an <code>Optional</code>, because an empty stream has no answer.</p></li></ul>
+<p>Example 1:</p>
+<pre><code class="language-java">nums.stream().reduce(0, Integer::sum);           // 30
+nums.stream().reduce(1, (a, b) -&gt; a * b);        // 3600
+nums.stream().reduce(Integer::max);              // Optional[10]</code></pre>
+<p>Example 2, the total of all amounts, and the money-safe version:</p>
+<pre><code class="language-java">double total = txns.stream()
+        .map(Transaction::getAmount)
+        .reduce(0.0, Double::sum);
+// 1940.75
+
+BigDecimal exactTotal = txns.stream()
+        .map(t -&gt; BigDecimal.valueOf(t.getAmount()))
+        .reduce(BigDecimal.ZERO, BigDecimal::add);
+// 1940.75</code></pre>
+<p><code>reduce</code> is how you add up <code>BigDecimal</code> values, because there&#39;s no <code>BigDecimal</code> stream with a <code>sum()</code>.</p>
+<p>Common mistake: a wrong identity changes the answer, so <code>nums.stream().reduce(10, Integer::sum)</code> gives 40, not 30. When <code>sum()</code>, <code>max()</code> or <code>count()</code> exist, prefer them; they&#39;re clearer.</p>
+<p>Mini exercise 14: using <code>reduce</code>, return the longest name; the first one wins a tie. Expected: Optional[Asha].</p>
+<h2 id="part-3-optional">Part 3 — Optional</h2>
+<h3 id="15-optional">15. Optional</h3>
+<p>An <code>Optional</code> is a box that holds one value or nothing; <code>findFirst()</code>, <code>max()</code>, <code>min()</code> and <code>reduce(op)</code> return one, so you must decide what &quot;nothing&quot; means.</p>
+<table><thead><tr><th>Method</th><th>What it does</th></tr></thead><tbody><tr><td><code>isPresent()</code>, <code>isEmpty()</code></td><td>check whether a value is there (<code>isEmpty()</code> is Java 11+)</td></tr><tr><td><code>ifPresent(x -&gt; ...)</code></td><td>run code only when a value is there</td></tr><tr><td><code>map(f)</code></td><td>transform the value if present; empty stays empty</td></tr><tr><td><code>filter(test)</code></td><td>keep the value only if it passes</td></tr><tr><td><code>orElse(default)</code></td><td>the value, or a default (the default is always evaluated)</td></tr><tr><td><code>orElseGet(() -&gt; default)</code></td><td>the value, or a default computed only when needed</td></tr><tr><td><code>orElseThrow(() -&gt; new SomeException(...))</code></td><td>the value, or an exception</td></tr><tr><td><code>Optional.ofNullable(x)</code></td><td>wrap a value that might be null</td></tr></tbody></table>
+<p>Example 1:</p>
+<pre><code class="language-java">Optional&lt;String&gt; c = names.stream().filter(n -&gt; n.startsWith(&quot;C&quot;)).findFirst();
+
+c.isPresent();                      // true
+c.map(String::toUpperCase);         // Optional[CHEN]
+c.filter(n -&gt; n.length() &gt; 10);     // Optional.empty
+c.orElse(&quot;none&quot;);                   // Chen
+
+names.stream().filter(n -&gt; n.startsWith(&quot;Z&quot;)).findFirst().orElse(&quot;none&quot;);   // none</code></pre>
+<p>Example 2:</p>
+<pre><code class="language-java">String biggestDebitAccount = txns.stream()
+        .filter(t -&gt; &quot;DEBIT&quot;.equals(t.getType()))
+        .max(Comparator.comparingDouble(Transaction::getAmount))
+        .map(Transaction::getAccountId)
+        .orElseThrow(() -&gt; new IllegalStateException(&quot;No debits&quot;));
+// ACC-3   (T5, 300.00)
+
+txns.stream()
+        .filter(t -&gt; &quot;PENDING&quot;.equals(t.getStatus()))
+        .findFirst()
+        .ifPresent(t -&gt; System.out.println(t.getId()));   // prints T5</code></pre>
+<p>Common mistake: calling <code>get()</code> without knowing a value exists. <code>Optional.of(null)</code> throws <code>NullPointerException</code>, so use <code>ofNullable()</code> for values that might be null. And <code>orElse(loadFromDatabase())</code> runs the database call even when a value exists; write <code>orElseGet(() -&gt; loadFromDatabase())</code> instead.</p>
+<p>Mini exercise 15: return the amount of the first FAILED transaction, or 0.0 if there is none, using <code>map</code> and <code>orElse</code>. Expected: 75.25.</p>
+<h2 id="part-4-collectors-lists-strings-and-maps">Part 4 — Collectors: lists, strings and maps</h2>
+<h3 id="16-collect-basics-tolist-toset-tocollection">16. collect() basics: toList, toSet, toCollection</h3>
+<p><code>collect()</code> gathers the stream into a container, and the collector you pass decides which one.</p>
+<table><thead><tr><th>Collector</th><th>Gives you</th><th>Order</th><th>Duplicates</th></tr></thead><tbody><tr><td><code>Collectors.toList()</code></td><td><code>List</code></td><td>kept</td><td>kept</td></tr><tr><td><code>Collectors.toSet()</code></td><td><code>Set</code></td><td>not guaranteed</td><td>removed</td></tr><tr><td><code>Collectors.toCollection(TreeSet::new)</code></td><td><code>TreeSet</code></td><td>sorted</td><td>removed</td></tr><tr><td><code>Collectors.toCollection(LinkedHashSet::new)</code></td><td><code>LinkedHashSet</code></td><td>first seen</td><td>removed</td></tr></tbody></table>
+<p>Example 1:</p>
+<pre><code class="language-java">nums.stream().collect(Collectors.toList());                     // [5, 3, 8, 3, 10, 1]
+nums.stream().collect(Collectors.toSet());                      // [1, 3, 5, 8, 10]  (order not guaranteed)
+nums.stream().collect(Collectors.toCollection(TreeSet::new));   // [1, 3, 5, 8, 10]  (always sorted)</code></pre>
+<p>Example 2:</p>
+<pre><code class="language-java">Set&lt;String&gt; statuses = txns.stream()
+        .map(Transaction::getStatus)
+        .collect(Collectors.toSet());
+// [SUCCESS, FAILED, PENDING]   (in some order)</code></pre>
+<p>Common mistake: Java 16+ has a shorter <code>.toList()</code>, but the list it returns is unmodifiable, so calling <code>add()</code> on it throws <code>UnsupportedOperationException</code>. <code>Collectors.toList()</code> returns a list you can change. Also, don&#39;t rely on the order of a <code>toSet()</code> result; it can change between Java versions or as the data grows.</p>
+<p>Mini exercise 16: collect the accounts that have a FAILED or PENDING transaction into a sorted set. Expected: [ACC-2, ACC-3].</p>
+<h3 id="17-joining">17. joining()</h3>
+<p><code>Collectors.joining()</code> glues a stream of strings into one <code>String</code>, with an optional separator, prefix and suffix.</p>
+<p>Example 1:</p>
+<pre><code class="language-java">names.stream().collect(Collectors.joining(&quot;, &quot;));
+// &quot;Asha, Ben, Chen, Ben, Dev&quot;
+
+names.stream().distinct().collect(Collectors.joining(&quot;, &quot;, &quot;[&quot;, &quot;]&quot;));
+// &quot;[Asha, Ben, Chen, Dev]&quot;</code></pre>
+<p>Example 2, a CSV line of ids:</p>
+<pre><code class="language-java">String csv = txns.stream()
+        .map(Transaction::getId)
+        .collect(Collectors.joining(&quot;,&quot;));
+// &quot;T1,T2,T3,T4,T5,T6&quot;</code></pre>
+<p>Common mistake: <code>joining()</code> only accepts strings, so <code>nums.stream().collect(Collectors.joining(&quot;-&quot;))</code> won&#39;t compile. Convert first: <code>nums.stream().map(String::valueOf).collect(Collectors.joining(&quot;-&quot;))</code> gives &quot;5-3-8-3-10-1&quot;.</p>
+<p>Mini exercise 17: build the string &quot;ACC-1: T1, T2, T6&quot; from the data. Expected: ACC-1: T1, T2, T6.</p>
+<h3 id="18-tomap">18. toMap()</h3>
+<p><code>Collectors.toMap()</code> builds a <code>Map</code> from the stream: you say how to get each element&#39;s key and its value.</p>
+<table><thead><tr><th>Form</th><th>Use it when</th></tr></thead><tbody><tr><td><code>toMap(keyFn, valueFn)</code></td><td>every key is unique</td></tr><tr><td><code>toMap(keyFn, valueFn, mergeFn)</code></td><td>keys can repeat; <code>mergeFn</code> combines two values for the same key</td></tr><tr><td><code>toMap(keyFn, valueFn, mergeFn, TreeMap::new)</code></td><td>you also need sorted keys (or <code>LinkedHashMap::new</code> for insertion order)</td></tr></tbody></table>
+<p>Example 1:</p>
+<pre><code class="language-java">Map&lt;String, Integer&gt; lengths = names.stream()
+        .distinct()
+        .collect(Collectors.toMap(n -&gt; n, String::length));
+// {Asha=4, Dev=3, Ben=3, Chen=4}   (a HashMap, so the order isn&#39;t guaranteed)</code></pre>
+<p>Example 2:</p>
+<pre><code class="language-java">Map&lt;String, Transaction&gt; byId = txns.stream()
+        .collect(Collectors.toMap(Transaction::getId, t -&gt; t));
+byId.get(&quot;T3&quot;).getStatus();   // FAILED: fast lookup by id
+
+Map&lt;String, Double&gt; totalByAccount = txns.stream()
+        .collect(Collectors.toMap(Transaction::getAccountId, Transaction::getAmount, Double::sum, TreeMap::new));
+// {ACC-1=665.5, ACC-2=975.25, ACC-3=300.0}</code></pre>
+<p>Common mistakes:</p>
+<ul><li><p>A repeated key without a merge function throws <code>IllegalStateException: Duplicate key ACC-1 (attempted merging values 500.0 and 120.5)</code>. Ben appears twice in <code>names</code>, which is why Example 1 calls <code>distinct()</code> first.</p></li><li><p>A null value throws <code>NullPointerException</code>: <code>toMap(Transaction::getId, Transaction::getTags)</code> fails on T4.</p></li></ul>
+<p>Mini exercise 18: map each account to its largest transaction amount, sorted by account. Expected: {ACC-1=500.0, ACC-2=900.0, ACC-3=300.0}.</p>
+<h3 id="19-groupingby">19. groupingBy()</h3>
+<p><code>Collectors.groupingBy()</code> puts elements into groups by a key. By default each group is a <code>List</code>, and a second collector (the downstream collector) changes what each group holds.</p>
+<p>Example 1:</p>
+<pre><code class="language-java">Map&lt;Integer, List&lt;String&gt;&gt; byLength = names.stream()
+        .collect(Collectors.groupingBy(String::length));
+// {3=[Ben, Ben, Dev], 4=[Asha, Chen]}</code></pre>
+<p>Example 2:</p>
+<pre><code class="language-java">Map&lt;String, List&lt;String&gt;&gt; idsByAccount = txns.stream()
+        .collect(Collectors.groupingBy(
+                Transaction::getAccountId,
+                TreeMap::new,                                                  // sorted keys
+                Collectors.mapping(Transaction::getId, Collectors.toList())));
+// {ACC-1=[T1, T2, T6], ACC-2=[T3, T4], ACC-3=[T5]}
+
+Map&lt;String, Long&gt; countByStatus = txns.stream()
+        .collect(Collectors.groupingBy(Transaction::getStatus, Collectors.counting()));
+// {SUCCESS=4, FAILED=1, PENDING=1}   (order not guaranteed)</code></pre>
+<p>The three-argument form takes the key, the map type, then the downstream collector; use it when you want the keys sorted.</p>
+<p>Downstream collectors, grouped by account unless noted:</p>
+<table><thead><tr><th>Downstream collector</th><th>Each group becomes</th><th>Result on the sample data</th></tr></thead><tbody><tr><td>none</td><td><code>List&lt;Transaction&gt;</code></td><td>{ACC-1=[T1, T2, T6], ACC-2=[T3, T4], ACC-3=[T5]}</td></tr><tr><td><code>counting()</code></td><td><code>Long</code></td><td>{ACC-1=3, ACC-2=2, ACC-3=1}</td></tr><tr><td><code>summingDouble(Transaction::getAmount)</code></td><td>a total</td><td>{ACC-1=665.5, ACC-2=975.25, ACC-3=300.0}</td></tr><tr><td><code>averagingDouble(Transaction::getAmount)</code></td><td>an average</td><td>by type: {CREDIT=700.0, DEBIT=135.1875}</td></tr><tr><td><code>mapping(Transaction::getId, Collectors.toList())</code></td><td>a list of one field</td><td>{ACC-1=[T1, T2, T6], ACC-2=[T3, T4], ACC-3=[T5]}</td></tr><tr><td><code>maxBy(Comparator.comparingDouble(Transaction::getAmount))</code></td><td>an <code>Optional</code> of the largest</td><td>{ACC-1=Optional[T1], ACC-2=Optional[T4], ACC-3=Optional[T5]}</td></tr></tbody></table>
+<p>Common mistakes:</p>
+<ul><li><p>A group with no elements has no key at all: <code>countByStatus.get(&quot;CANCELLED&quot;)</code> returns null, and unboxing it into a <code>long</code> throws <code>NullPointerException</code>. Use <code>getOrDefault(&quot;CANCELLED&quot;, 0L)</code>.</p></li><li><p>A null key, such as a null status, throws <code>NullPointerException: element cannot be mapped to a null key</code>. Filter nulls out first.</p></li></ul>
+<p>Mini exercise 19: the total SUCCESS amount per account, sorted by account. Expected: {ACC-1=665.5, ACC-2=900.0}. ACC-3 is missing because it has no SUCCESS transactions.</p>
+<h3 id="20-partitioningby">20. partitioningBy()</h3>
+<p><code>Collectors.partitioningBy()</code> splits elements into exactly two groups, <code>true</code> and <code>false</code>, and both keys are always present.</p>
+<p>Example 1:</p>
+<pre><code class="language-java">Map&lt;Boolean, List&lt;Integer&gt;&gt; evenOdd = nums.stream()
+        .collect(Collectors.partitioningBy(n -&gt; n % 2 == 0));
+// {false=[5, 3, 3, 1], true=[8, 10]}</code></pre>
+<p>Example 2, amounts of 300 or more versus the rest, keeping only the ids:</p>
+<pre><code class="language-java">Map&lt;Boolean, List&lt;String&gt;&gt; bigVsSmall = txns.stream()
+        .collect(Collectors.partitioningBy(
+                t -&gt; t.getAmount() &gt;= 300,
+                Collectors.mapping(Transaction::getId, Collectors.toList())));
+// {false=[T2, T3, T6], true=[T1, T4, T5]}</code></pre>
+<p>It accepts the same downstream collectors as <code>groupingBy()</code>.</p>
+<p>Common mistake: using <code>groupingBy()</code> with a true/false key. When one side is empty its key is missing: <code>groupingBy(t -&gt; t.getAmount() &gt; 5000, counting())</code> gives {false=6}, so <code>get(true)</code> returns null. <code>partitioningBy()</code> gives {false=6, true=0}.</p>
+<p>Mini exercise 20: count the SUCCESS transactions versus all the others. Expected: {false=2, true=4}.</p>
+<h2 id="part-5-streaming-over-a-map">Part 5 — Streaming over a Map</h2>
+<h3 id="21-streaming-a-map-map-list">21. Streaming a Map: Map → List</h3>
+<p>A <code>Map</code> has no <code>stream()</code> method, so stream one of its three views: <code>entrySet()</code> for keys and values together, <code>keySet()</code> for keys, <code>values()</code> for values.</p>
+<p>Example 1:</p>
+<pre><code class="language-java">Map&lt;String, Integer&gt; stock = Map.of(&quot;apple&quot;, 5, &quot;pear&quot;, 0, &quot;fig&quot;, 12);
+
+List&lt;String&gt; inStock = stock.entrySet().stream()
+        .filter(e -&gt; e.getValue() &gt; 0)
+        .map(Map.Entry::getKey)
+        .sorted()
+        .collect(Collectors.toList());
+// [apple, fig]</code></pre>
+<p>Example 2, accounts ranked by total, highest first:</p>
+<pre><code class="language-java">Map&lt;String, Double&gt; totals = txns.stream()
+        .collect(Collectors.groupingBy(Transaction::getAccountId,
+                 Collectors.summingDouble(Transaction::getAmount)));
+
+List&lt;String&gt; ranking = totals.entrySet().stream()
+        .sorted(Map.Entry.comparingByValue(Comparator.reverseOrder()))
+        .map(e -&gt; e.getKey() + &quot;=&quot; + e.getValue())
+        .collect(Collectors.toList());
+// [ACC-2=975.25, ACC-1=665.5, ACC-3=300.0]
+
+double grandTotal = totals.values().stream().mapToDouble(Double::doubleValue).sum();
+// 1940.75</code></pre>
+<p>For sorting entries, use <code>Map.Entry.comparingByKey()</code> and <code>Map.Entry.comparingByValue()</code>, each optionally with a comparator such as <code>Comparator.reverseOrder()</code>.</p>
+<p>Common mistake: expecting a <code>HashMap</code> to come out in a particular order; sort the entries whenever order matters. And never add or remove entries in a map while you are streaming over that same map.</p>
+<p>Mini exercise 21: from <code>totals</code>, return the accounts whose total is above 500, A to Z. Expected: [ACC-1, ACC-2].</p>
+<h2 id="cheat-sheet-which-method-answers-which-question">Cheat sheet: which method answers which question</h2>
+<p>Find the question you&#39;re asking in the left column; the middle column is the method to reach for.</p>
+<table><thead><tr><th>I want to…</th><th>Use</th><th>You get</th></tr></thead><tbody><tr><td>keep some elements</td><td><code>filter</code></td><td>a stream</td></tr><tr><td>change each element</td><td><code>map</code>, <code>mapToInt</code>, <code>mapToDouble</code></td><td>a stream</td></tr><tr><td>flatten lists inside elements</td><td><code>flatMap</code></td><td>a stream</td></tr><tr><td>remove duplicates</td><td><code>distinct</code></td><td>a stream</td></tr><tr><td>sort</td><td><code>sorted()</code>, <code>sorted(comparator)</code></td><td>a stream</td></tr><tr><td>take the top N, or one page</td><td><code>sorted</code>, then <code>limit</code> and <code>skip</code></td><td>a stream</td></tr><tr><td>count</td><td><code>count</code></td><td><code>long</code></td></tr><tr><td>a total</td><td><code>mapToDouble(...).sum()</code></td><td><code>double</code></td></tr><tr><td>an average</td><td><code>mapToDouble(...).average()</code></td><td><code>OptionalDouble</code></td></tr><tr><td>the biggest or smallest</td><td><code>max(comparator)</code>, <code>min(comparator)</code></td><td><code>Optional</code></td></tr><tr><td>the first match</td><td><code>filter(...).findFirst()</code></td><td><code>Optional</code></td></tr><tr><td>a yes/no answer</td><td><code>anyMatch</code>, <code>allMatch</code>, <code>noneMatch</code></td><td><code>boolean</code></td></tr><tr><td>combine everything into one value</td><td><code>reduce</code></td><td>a value or an <code>Optional</code></td></tr><tr><td>a list or a set</td><td><code>Collectors.toList()</code>, <code>toSet()</code>, <code>toCollection(...)</code></td><td><code>List</code>, <code>Set</code></td></tr><tr><td>one string</td><td><code>Collectors.joining(&quot;, &quot;)</code></td><td><code>String</code></td></tr><tr><td>a key-to-value lookup</td><td><code>Collectors.toMap(...)</code></td><td><code>Map</code></td></tr><tr><td>groups</td><td><code>Collectors.groupingBy(...)</code></td><td>a <code>Map</code> of lists, counts or totals</td></tr><tr><td>exactly two groups</td><td><code>Collectors.partitioningBy(...)</code></td><td><code>Map&lt;Boolean, ...&gt;</code></td></tr><tr><td>work on a map</td><td><code>map.entrySet().stream()</code></td><td>a stream of entries</td></tr></tbody></table>
+<p>Next step: once these exercises feel easy, move on to <a data-atom="container" data-ref="project/4b9a6603-07cb-4968-a6f3-0e15976adc5a">Java Bug-Fix Patterns — Study Guide</a>, then <a data-atom="container" data-ref="project/f43ffbad-5ce9-4d21-8612-ecd5ba86857b">Java Bug-Fix Practice Drills</a>. Every bug pattern there is built from the methods on this page.</p>
+</body></html>

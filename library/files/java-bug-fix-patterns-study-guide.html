@@ -1,0 +1,762 @@
+<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Java Bug-Fix Patterns - Study Guide</title><style>body{font-family:system-ui,sans-serif;max-width:860px;margin:2rem auto;padding:0 16px;line-height:1.6}pre,code{background:#f4f4f4}pre{padding:12px;overflow:auto}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:4px 8px}</style></head><body><h1 id="java-bug-fix-patterns-study-guide">Java Bug-Fix Patterns — Study Guide</h1>
+<p><time data-atom="date" datetime="2026-10-03">2026-10-03</time> · <span data-atom="mention" data-principal="u_I6FOpjcCjjb50Mzghgt1DQ">@u_I6FOpjcCjjb50Mzghgt1DQ</span></p>
+<h2 id="how-to-use-this-guide">How to use this guide</h2>
+<p>Every pattern has the same four parts: the task, the buggy code, the fix, and why it breaks. Cover the fix, read the buggy code, and name the bug out loud before you look.</p>
+<p>Code targets Java 11+ and uses only the standard library. Amounts are <code>double</code> to keep the stream code readable; pattern 32 shows why real banking code uses <code>BigDecimal</code>.</p>
+<h3 id="the-60-second-bug-hunt-checklist">The 60-second bug-hunt checklist</h3>
+<p>Run these ten questions against any method before you change a line.</p>
+<ol><li><p>Inputs: can the list, an element, or a field be <code>null</code>? What happens with an empty list or a single item?</p></li><li><p>Conditions: is every <code>&gt;</code> / <code>&gt;=</code> right at the exact boundary value? Are <code>&amp;&amp;</code> and <code>||</code> grouped the way the rule says?</p></li><li><p>Loops and indexes: does the loop stop at <code>size() - 1</code>? Can <code>get()</code> or <code>subList()</code> go out of range?</p></li><li><p>Equality: is <code>==</code> used on <code>String</code> or <code>Integer</code>? Does the class override both <code>equals()</code> and <code>hashCode()</code>?</p></li><li><p>Maps: can a key repeat? What does <code>get()</code> return for a key that is missing?</p></li><li><p>Streams: is the stream result actually used? Does <code>get()</code> or <code>getAsDouble()</code> assume a value exists?</p></li><li><p>Ordering and mutation: does the result need an order? Does the method change the caller&#39;s list?</p></li><li><p>Numbers: integer division, <code>(int)</code> casts, overflow, <code>double</code> used for money?</p></li><li><p>Exceptions: is anything swallowed, or caught too broadly?</p></li><li><p>Dates: are range ends inclusive or exclusive? Which time zone? Is <code>now()</code> called inside the logic?</p></li></ol>
+<h3 id="shared-model-used-in-every-example">Shared model used in every example</h3>
+<pre><code class="language-java">public class Transaction {
+    private String id;               // &quot;T1&quot;
+    private String accountId;        // &quot;ACC-1&quot;
+    private String type;             // &quot;CREDIT&quot; or &quot;DEBIT&quot;
+    private double amount;           // 150.75
+    private String currency;         // &quot;GBP&quot;, &quot;USD&quot;, &quot;HKD&quot;
+    private String status;           // &quot;SUCCESS&quot;, &quot;FAILED&quot;, &quot;PENDING&quot;
+    private LocalDateTime timestamp; // 2026-10-03T09:15
+    private List&lt;String&gt; tags;       // [&quot;salary&quot;, &quot;monthly&quot;], can be null
+
+    // constructor, getters and setters omitted
+}</code></pre>
+<p>The class is mutable (it has setters), like a lot of real legacy code; that is what makes the mutation bugs in patterns 8 and 25 possible. Imports assumed everywhere: <code>java.util.*</code>, <code>java.util.stream.*</code>, <code>java.time.*</code>.</p>
+<h2 id="part-a-the-20-core-patterns">Part A — The 20 core patterns</h2>
+<h3 id="1-equals-hashcode">1. equals() / hashCode()</h3>
+<p>If you override <code>equals()</code>, override <code>hashCode()</code> with the same fields, or hash-based collections keep &quot;duplicates&quot;.</p>
+<p>Task: two <code>Customer</code> objects with the same id are the same customer, so a <code>HashSet</code> should hold only one.</p>
+<pre><code class="language-java">class Customer {
+    private final String id;
+    private final String name;
+    // constructor and getters omitted
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Customer)) return false;
+        Customer other = (Customer) o;
+        return id.equals(other.id);
+    }
+    // BUG: no hashCode()
+}
+
+Set&lt;Customer&gt; customers = new HashSet&lt;&gt;();
+customers.add(new Customer(&quot;C1&quot;, &quot;Asha&quot;));
+customers.add(new Customer(&quot;C1&quot;, &quot;Asha&quot;));
+customers.size();   // 2, expected 1</code></pre>
+<p>Fix:</p>
+<pre><code class="language-java">@Override
+public boolean equals(Object o) {
+    if (this == o) return true;
+    if (!(o instanceof Customer)) return false;
+    Customer other = (Customer) o;
+    return Objects.equals(id, other.id);   // null-safe
+}
+
+@Override
+public int hashCode() {
+    return Objects.hash(id);               // same field(s) as equals()
+}</code></pre>
+<p>Why: a <code>HashSet</code> or <code>HashMap</code> uses <code>hashCode()</code> to pick a bucket first, and only calls <code>equals()</code> inside that bucket. Without <code>hashCode()</code>, each object gets an identity hash, lands in a different bucket, and <code>equals()</code> is never called.</p>
+<p>Also watch for:</p>
+<ul><li><p><code>public boolean equals(Customer other)</code> is an overload, not an override, so collections ignore it and the set still holds 2. Always <code>equals(Object o)</code> with <code>@Override</code>.</p></li><li><p>Don&#39;t use mutable fields in <code>hashCode()</code> for objects stored in sets or used as map keys. If the field changes after insertion, <code>contains()</code> returns false.</p></li></ul>
+<p>Test with: same id with a different name, a null id, the same instance added twice, the object used as a <code>HashMap</code> key.</p>
+<h3 id="2-list-map-with-a-loop">2. List → Map with a loop</h3>
+<p>When you build a map of lists or counts in a loop, use <code>computeIfAbsent()</code> or <code>merge()</code>; a plain <code>put()</code> overwrites what was there.</p>
+<p>Task: group transactions by account.</p>
+<pre><code class="language-java">Map&lt;String, List&lt;Transaction&gt;&gt; byAccount = new HashMap&lt;&gt;();
+for (Transaction t : transactions) {
+    List&lt;Transaction&gt; list = new ArrayList&lt;&gt;();
+    list.add(t);
+    byAccount.put(t.getAccountId(), list);   // BUG: replaces the earlier list
+}
+// ACC-1 had T1 and T2, but the map holds only [T2]</code></pre>
+<p>Fix:</p>
+<pre><code class="language-java">Map&lt;String, List&lt;Transaction&gt;&gt; byAccount = new HashMap&lt;&gt;();
+for (Transaction t : transactions) {
+    byAccount.computeIfAbsent(t.getAccountId(), k -&gt; new ArrayList&lt;&gt;()).add(t);
+}</code></pre>
+<p>Same family, counting per key:</p>
+<pre><code class="language-java">// BUG: get() returns null the first time an account appears → null + 1 → NullPointerException
+counts.put(t.getAccountId(), counts.get(t.getAccountId()) + 1);
+
+// Fix
+counts.merge(t.getAccountId(), 1, Integer::sum);
+// or: counts.put(id, counts.getOrDefault(id, 0) + 1);</code></pre>
+<p>Why: <code>put()</code> always replaces the existing value. <code>computeIfAbsent()</code> creates the list only for a new key and returns the existing list otherwise. <code>merge()</code> inserts 1 for a new key, or adds 1 to the old value.</p>
+<p>Stream equivalent: <code>groupingBy(Transaction::getAccountId)</code> (pattern 6). Test with: one account with several transactions, an empty list.</p>
+<h3 id="3-map-list">3. Map → List</h3>
+<p>A <code>HashMap</code> has no order, so &quot;the first N keys&quot; means nothing; sort the entries, then <code>limit()</code>.</p>
+<p>Task: return the 3 accounts with the highest balance, highest first.</p>
+<pre><code class="language-java">List&lt;String&gt; top3(Map&lt;String, Double&gt; balances) {
+    List&lt;String&gt; result = new ArrayList&lt;&gt;(balances.keySet());   // BUG: random order
+    return result.subList(0, 3);                                 // BUG: crashes with fewer than 3 accounts
+}</code></pre>
+<p>Fix:</p>
+<pre><code class="language-java">List&lt;String&gt; top3(Map&lt;String, Double&gt; balances) {
+    return balances.entrySet().stream()
+            .sorted(Map.Entry.comparingByValue(Comparator.reverseOrder()))
+            .limit(3)
+            .map(Map.Entry::getKey)
+            .collect(Collectors.toList());
+}</code></pre>
+<p>Why: streaming over <code>entrySet()</code> keeps each key next to its value while you sort. <code>limit(3)</code> is safe when only 2 entries exist, while <code>subList(0, 3)</code> throws <code>IndexOutOfBoundsException: toIndex = 3</code>.</p>
+<p>Also watch for:</p>
+<ul><li><p>Ties: if equal balances must come out in a fixed order, add a key tie-breaker. It needs a type hint: <code>Map.Entry.&lt;String, Double&gt;comparingByValue(Comparator.reverseOrder()).thenComparing(Map.Entry.comparingByKey())</code>.</p></li><li><p><code>keySet()</code>, <code>values()</code> and <code>entrySet()</code> are live views of the map. Copy them with <code>new ArrayList&lt;&gt;(...)</code> before you change either side.</p></li></ul>
+<p>Test with: an empty map, fewer than 3 entries, ties, a null balance (<code>comparingByValue</code> throws on null).</p>
+<h3 id="4-tomap">4. toMap()</h3>
+<p><code>Collectors.toMap()</code> throws <code>NullPointerException</code> if any value is null, even though a plain <code>HashMap</code> accepts null values.</p>
+<p>Task: build a lookup of transaction id → currency. Some old records have no currency.</p>
+<pre><code class="language-java">Map&lt;String, String&gt; currencyById = transactions.stream()
+        .collect(Collectors.toMap(Transaction::getId, Transaction::getCurrency));
+// NullPointerException as soon as one currency is null</code></pre>
+<p>Fix: decide what a missing value means, then say it in code.</p>
+<pre><code class="language-java">// Option A: skip records with no currency
+Map&lt;String, String&gt; currencyById = transactions.stream()
+        .filter(t -&gt; t.getCurrency() != null)
+        .collect(Collectors.toMap(Transaction::getId, Transaction::getCurrency));
+
+// Option B: keep them with a default
+Map&lt;String, String&gt; currencyById = transactions.stream()
+        .collect(Collectors.toMap(
+                Transaction::getId,
+                t -&gt; t.getCurrency() == null ? &quot;UNKNOWN&quot; : t.getCurrency()));</code></pre>
+<p>Why: <code>toMap()</code> rejects null values internally, so one bad record kills the whole <code>collect()</code>. If you truly need null values in the map, use a plain loop with <code>HashMap.put()</code>.</p>
+<p>Also: <code>toMap()</code> promises no key order. If order matters, use the 4-argument form with <code>LinkedHashMap::new</code> (insertion order) or <code>TreeMap::new</code> (sorted), shown in pattern 5.</p>
+<p>Test with: a null value, an empty list, a repeated id (pattern 5).</p>
+<h3 id="5-duplicate-keys-in-tomap">5. Duplicate keys in toMap()</h3>
+<p>Before every <code>toMap()</code>, ask &quot;can this key repeat?&quot; If yes, you need a merge function, and it has to match the business rule.</p>
+<p>Task: keep the latest transaction for each account.</p>
+<pre><code class="language-java">Map&lt;String, Transaction&gt; latestByAccount = transactions.stream()
+        .collect(Collectors.toMap(Transaction::getAccountId, t -&gt; t));
+// IllegalStateException: Duplicate key ACC-1 (attempted merging values ...)</code></pre>
+<p>The tempting fix is still wrong:</p>
+<pre><code class="language-java">.collect(Collectors.toMap(Transaction::getAccountId, t -&gt; t, (a, b) -&gt; b));
+// keeps the LAST one in the list, which is the latest only if the list is sorted by time</code></pre>
+<p>Fix:</p>
+<pre><code class="language-java">Map&lt;String, Transaction&gt; latestByAccount = transactions.stream()
+        .collect(Collectors.toMap(
+                Transaction::getAccountId,
+                t -&gt; t,
+                (a, b) -&gt; b.getTimestamp().isAfter(a.getTimestamp()) ? b : a));</code></pre>
+<p>Pick the merge function from the rule:</p>
+<table><thead><tr><th>Rule</th><th>Merge function</th></tr></thead><tbody><tr><td>Total per key</td><td><code>Double::sum</code></td></tr><tr><td>Keep the first seen</td><td><code>(a, b) -&gt; a</code></td></tr><tr><td>Keep the latest by time</td><td><code>(a, b) -&gt; b.getTimestamp().isAfter(a.getTimestamp()) ? b : a</code></td></tr><tr><td>Keep the largest</td><td><code>BinaryOperator.maxBy(Comparator.comparingDouble(Transaction::getAmount))</code></td></tr><tr><td>Need every value</td><td>not <code>toMap()</code>: use <code>groupingBy()</code> (pattern 6)</td></tr></tbody></table>
+<p>Need sorted keys as well: <code>Collectors.toMap(Transaction::getAccountId, Transaction::getAmount, Double::sum, TreeMap::new)</code>.</p>
+<p>Test with: two transactions for one account in reverse time order, a single transaction, equal timestamps.</p>
+<h3 id="6-groupingby-partitioningby">6. groupingBy / partitioningBy</h3>
+<p><code>groupingBy()</code> only creates keys that actually occur, so a group with zero items has no key and <code>get()</code> returns null.</p>
+<p>Task: show the number of FAILED transactions on a dashboard.</p>
+<pre><code class="language-java">Map&lt;String, Long&gt; countByStatus = transactions.stream()
+        .collect(Collectors.groupingBy(Transaction::getStatus, Collectors.counting()));
+
+long failed = countByStatus.get(&quot;FAILED&quot;);   // NullPointerException on a day with no failures</code></pre>
+<p>Fix:</p>
+<pre><code class="language-java">long failed = countByStatus.getOrDefault(&quot;FAILED&quot;, 0L);</code></pre>
+<p>For a yes/no split, <code>partitioningBy()</code> always returns both keys, even when one side is empty:</p>
+<pre><code class="language-java">Map&lt;Boolean, Long&gt; bySize = transactions.stream()
+        .collect(Collectors.partitioningBy(t -&gt; t.getAmount() &gt;= 10_000, Collectors.counting()));
+// {false=4, true=0}, so bySize.get(true) is safe</code></pre>
+<p>Also watch for:</p>
+<ul><li><p>A null classifier result (a null status) throws <code>NullPointerException: element cannot be mapped to a null key</code>. Filter nulls first, or map them to &quot;UNKNOWN&quot;.</p></li><li><p><code>counting()</code> returns <code>Long</code>, so assigning to <code>Map&lt;String, Integer&gt;</code> won&#39;t compile.</p></li><li><p>Pick the downstream collector from the question: <code>counting()</code>, <code>summingDouble()</code>, <code>averagingDouble()</code>, <code>mapping(f, Collectors.toList())</code>, or <code>maxBy(cmp)</code>, which gives an <code>Optional</code> per group.</p></li></ul>
+<p>Test with: a status that never occurs, a null status, an empty list.</p>
+<h3 id="7-filter">7. filter</h3>
+<p>Streams never change the list they came from; if you don&#39;t collect the result, the filter did nothing.</p>
+<p>Task: keep only successful transactions.</p>
+<pre><code class="language-java">List&lt;Transaction&gt; successfulOnly(List&lt;Transaction&gt; transactions) {
+    transactions.stream().filter(t -&gt; &quot;SUCCESS&quot;.equals(t.getStatus()));   // BUG: result thrown away
+    return transactions;                                                   // still has FAILED and PENDING
+}</code></pre>
+<p>Fix:</p>
+<pre><code class="language-java">List&lt;Transaction&gt; successfulOnly(List&lt;Transaction&gt; transactions) {
+    return transactions.stream()
+            .filter(t -&gt; &quot;SUCCESS&quot;.equals(t.getStatus()))
+            .collect(Collectors.toList());
+}</code></pre>
+<p>Why: <code>filter()</code> returns a new stream, and nothing runs until a terminal operation such as <code>collect()</code>. To change the list in place, use <code>transactions.removeIf(t -&gt; !&quot;SUCCESS&quot;.equals(t.getStatus()))</code>, but only when the caller expects their list to change.</p>
+<p>Also watch for:</p>
+<ul><li><p>Write string checks as <code>&quot;SUCCESS&quot;.equals(t.getStatus())</code>. The literal on the left can never be null.</p></li><li><p>Two <code>.filter()</code> calls in a row mean AND. An OR rule must sit inside one filter: <code>.filter(t -&gt; isA(t) || isB(t))</code>.</p></li><li><p><code>removeIf()</code> on <code>List.of(...)</code> throws <code>UnsupportedOperationException</code>, even when nothing matches.</p></li></ul>
+<p>Test with: no successful transactions, a null status, an immutable input list.</p>
+<h3 id="8-map">8. map</h3>
+<p><code>map()</code> should turn each element into a new value; calling setters inside <code>map()</code> corrupts the original data.</p>
+<p>Task: show amounts in USD (rate 1.25) without touching the stored GBP data.</p>
+<pre><code class="language-java">List&lt;Transaction&gt; toUsd(List&lt;Transaction&gt; transactions) {
+    return transactions.stream()
+            .map(t -&gt; { t.setAmount(t.getAmount() * 1.25); return t; })   // BUG: changes the original
+            .collect(Collectors.toList());
+}
+// Call it twice: the stored 100.0 becomes 156.25</code></pre>
+<p>Fix:</p>
+<pre><code class="language-java">List&lt;Double&gt; toUsd(List&lt;Transaction&gt; transactions) {
+    return transactions.stream()
+            .map(t -&gt; t.getAmount() * 1.25)    // a new value; the original stays 100.0
+            .collect(Collectors.toList());
+}</code></pre>
+<p>Why: the stream holds references to the same objects the caller owns, so a setter inside <code>map()</code> edits shared data. If the caller needs whole objects, build new ones (a DTO or a copy) inside <code>map()</code>.</p>
+<p>Also watch for:</p>
+<ul><li><p><code>map(Transaction::getAmount)</code> gives <code>Stream&lt;Double&gt;</code>, which has no <code>sum()</code>. Use <code>mapToDouble()</code> for number work.</p></li><li><p>Filter before you map away the fields you need: after <code>.map(Transaction::getAmount)</code>, the status is gone.</p></li><li><p><code>map()</code> is one in, one out. One in, many out is <code>flatMap()</code> (pattern 9).</p></li></ul>
+<p>Test with: calling the method twice on the same list, then checking the original amounts.</p>
+<h3 id="9-flatmap">9. flatMap</h3>
+<p>Use <code>flatMap()</code> when each element holds a list and you want one flat stream of the inner items; filter out null inner lists first.</p>
+<p>Task: return every distinct tag used across transactions. Data: T1 [salary, monthly], T2 [rent, monthly], T3 [salary], T4 no tags (null).</p>
+<pre><code class="language-java">List&lt;List&lt;String&gt;&gt; allTags = transactions.stream()
+        .map(Transaction::getTags)            // BUG: Stream&lt;List&lt;String&gt;&gt;, not Stream&lt;String&gt;
+        .distinct()
+        .collect(Collectors.toList());
+// [[salary, monthly], [rent, monthly], [salary], null]: tags repeat and a null slipped in</code></pre>
+<p>Fix:</p>
+<pre><code class="language-java">List&lt;String&gt; allTags = transactions.stream()
+        .map(Transaction::getTags)
+        .filter(Objects::nonNull)             // T4 has no tag list
+        .flatMap(List::stream)
+        .distinct()
+        .collect(Collectors.toList());
+// [salary, monthly, rent]</code></pre>
+<p>Why: <code>map()</code> gives one output per input, so you get a stream of lists and <code>distinct()</code> compares whole lists. <code>flatMap()</code> pours each inner list into the main stream, so <code>distinct()</code> works on single tags. Without the null filter, <code>flatMap(t -&gt; t.getTags().stream())</code> throws <code>NullPointerException</code>.</p>
+<p>Test with: a null tag list, an empty tag list, the same tag on different transactions. Need them sorted? Add <code>.sorted()</code> before <code>collect()</code>.</p>
+<h3 id="10-sum">10. sum</h3>
+<p>Sum with <code>mapToDouble()</code> over exactly the records the rule names; an <code>(int)</code> cast or a missing filter gives a confident, wrong total.</p>
+<p>Task: total of successful debits. Data: 10.50 (SUCCESS), 20.75 (SUCCESS), 99.00 (FAILED).</p>
+<pre><code class="language-java">int total = transactions.stream()
+        .filter(t -&gt; &quot;DEBIT&quot;.equals(t.getType()))   // BUG 1: the FAILED debit is included
+        .mapToInt(t -&gt; (int) t.getAmount())          // BUG 2: drops the pence
+        .sum();
+// 129, expected 31.25</code></pre>
+<p>Fix:</p>
+<pre><code class="language-java">double total = transactions.stream()
+        .filter(t -&gt; &quot;DEBIT&quot;.equals(t.getType()))
+        .filter(t -&gt; &quot;SUCCESS&quot;.equals(t.getStatus()))
+        .mapToDouble(Transaction::getAmount)
+        .sum();
+// 31.25</code></pre>
+<p>Why: a cast to <code>int</code> truncates (10.50 becomes 10) with no warning. Each word in the rule (&quot;successful&quot;, &quot;debit&quot;) should map to one filter you can point at.</p>
+<p>Also: the sum of an empty stream is 0, which is usually right, unlike <code>average()</code>. Summing large <code>int</code> values overflows silently; use <code>mapToLong()</code> or <code>Math.addExact()</code> when totals can pass about 2.1 billion. Real money belongs in <code>BigDecimal</code> (pattern 32).</p>
+<p>Test with: a FAILED debit, a CREDIT, amounts with pence, an empty list.</p>
+<h3 id="11-average">11. average</h3>
+<p><code>average()</code> returns <code>OptionalDouble</code> because an empty input has no average; decide what &quot;no data&quot; means before you unwrap it.</p>
+<p>Task: average transaction amount for one account.</p>
+<pre><code class="language-java">double averageAmount(List&lt;Transaction&gt; transactions, String accountId) {
+    return transactions.stream()
+            .filter(t -&gt; accountId.equals(t.getAccountId()))
+            .mapToDouble(Transaction::getAmount)
+            .average()
+            .getAsDouble();   // NoSuchElementException: No value present, for an account with no transactions
+}</code></pre>
+<p>Fix:</p>
+<pre><code class="language-java">double averageAmount(List&lt;Transaction&gt; transactions, String accountId) {
+    return transactions.stream()
+            .filter(t -&gt; accountId.equals(t.getAccountId()))
+            .mapToDouble(Transaction::getAmount)
+            .average()
+            .orElse(0.0);     // or return the OptionalDouble and let the caller decide
+}</code></pre>
+<p>Hand-written averages have their own traps:</p>
+<table><thead><tr><th>Code</th><th>Result</th><th>Problem</th></tr></thead><tbody><tr><td><code>int sum = 25, count = 2; sum / count</code></td><td>12</td><td>integer division drops the .5</td></tr><tr><td><code>(double) sum / count</code></td><td>12.5</td><td>correct</td></tr><tr><td><code>int</code> division when <code>count == 0</code></td><td><code>ArithmeticException: / by zero</code></td><td>crash</td></tr><tr><td><code>double</code> total divided by 0</td><td><code>NaN</code> or <code>Infinity</code></td><td>silent nonsense</td></tr></tbody></table>
+<p>Ask the interviewer whether &quot;no data&quot; should be 0, empty, or an error; a 0 can look like a real average.</p>
+<p>Test with: an account with no transactions, a single transaction, amounts that don&#39;t divide evenly.</p>
+<h3 id="12-max-min">12. max / min</h3>
+<p><code>max()</code> and <code>min()</code> return <code>Optional</code> because the stream may be empty; read the requirement twice to pick the direction.</p>
+<p>Task: return the largest successful transaction.</p>
+<pre><code class="language-java">Transaction largest(List&lt;Transaction&gt; transactions) {
+    return transactions.stream()
+            .filter(t -&gt; &quot;SUCCESS&quot;.equals(t.getStatus()))
+            .min(Comparator.comparingDouble(Transaction::getAmount))   // BUG 1: min, not max
+            .get();                                                     // BUG 2: crashes when nothing matches
+}</code></pre>
+<p>Fix:</p>
+<pre><code class="language-java">Optional&lt;Transaction&gt; largest(List&lt;Transaction&gt; transactions) {
+    return transactions.stream()
+            .filter(t -&gt; &quot;SUCCESS&quot;.equals(t.getStatus()))
+            .max(Comparator.comparingDouble(Transaction::getAmount));
+}</code></pre>
+<p>Why: on an empty stream <code>max()</code> returns <code>Optional.empty</code>, and <code>get()</code> throws <code>NoSuchElementException</code>. The non-stream <code>Collections.max(list)</code> also throws on an empty list.</p>
+<p>Also watch for:</p>
+<ul><li><p>&quot;Oldest&quot; is <code>min()</code> of the timestamp and &quot;newest&quot; is <code>max()</code>. Swapping them is one of the most common bugs in these rounds.</p></li><li><p>On ties, don&#39;t rely on which element wins. Add <code>.thenComparing(Transaction::getId)</code> if the result must be predictable.</p></li><li><p><code>Comparator.comparing(Transaction::getAmount)</code> boxes every value; <code>comparingDouble()</code> avoids that.</p></li></ul>
+<p>Test with: no successful transactions, two equal maximums, a single element.</p>
+<h3 id="13-comparator-business-ordering">13. Comparator: business ordering</h3>
+<p>Alphabetical order is rarely the business order; when the spec gives a priority, encode it explicitly.</p>
+<p>Task: the support queue shows PENDING first, then FAILED, then SUCCESS. Unknown or missing statuses go last.</p>
+<pre><code class="language-java">transactions.sort(Comparator.comparing(Transaction::getStatus));
+// BUG: alphabetical gives FAILED, PENDING, SUCCESS, and a null status throws NullPointerException</code></pre>
+<p>Fix:</p>
+<pre><code class="language-java">private static int priority(String status) {
+    if (&quot;PENDING&quot;.equals(status)) return 0;
+    if (&quot;FAILED&quot;.equals(status))  return 1;
+    if (&quot;SUCCESS&quot;.equals(status)) return 2;
+    return 3;                                   // unknown or null go last
+}
+
+transactions.sort(Comparator.comparingInt(t -&gt; priority(t.getStatus())));
+// PENDING, FAILED, SUCCESS, null</code></pre>
+<p>Why: <code>comparing(Transaction::getStatus)</code> uses <code>String</code>&#39;s natural, alphabetical order. A rank function makes the rule visible, handles null safely, and puts unknown values somewhere on purpose. In production code an <code>enum</code> with a priority field does the same job.</p>
+<p>Also watch for:</p>
+<ul><li><p><code>List.of(...).indexOf(null)</code> and <code>Map.of(...).get(null)</code> throw <code>NullPointerException</code>, so rank lookups built on them break on a null status.</p></li><li><p>Highest first is <code>.reversed()</code>, for example <code>Comparator.comparingDouble(Transaction::getAmount).reversed()</code>.</p></li></ul>
+<p>Test with: every status once, a null status, an unexpected value such as &quot;CANCELLED&quot;.</p>
+<h3 id="14-multi-field-comparator">14. Multi-field comparator</h3>
+<p>A <code>.reversed()</code> at the end of a chain reverses every field in it; reverse a single field inside its own <code>thenComparing()</code>.</p>
+<p>Task: sort by account A→Z, then by amount, highest first.</p>
+<pre><code class="language-java">transactions.sort(Comparator.comparing(Transaction::getAccountId)
+        .thenComparingDouble(Transaction::getAmount)
+        .reversed());
+// BUG: ACC-2 500, ACC-2 50, ACC-1 300, ACC-1 100 (accounts are now Z→A as well)</code></pre>
+<p>Fix:</p>
+<pre><code class="language-java">transactions.sort(Comparator.comparing(Transaction::getAccountId)
+        .thenComparing(Comparator.comparingDouble(Transaction::getAmount).reversed()));
+// ACC-1 300, ACC-1 100, ACC-2 500, ACC-2 50</code></pre>
+<p>Why: each chained call wraps everything before it, so a trailing <code>.reversed()</code> flips the whole comparator, not just the last field.</p>
+<p>Also watch for:</p>
+<ul><li><p>Two separate sorts (by amount, then by account) only work because <code>List.sort()</code> is stable, and they&#39;re easy to write in the wrong order. Build one comparator.</p></li><li><p>In a chain, an untyped lambda loses its type: <code>Comparator.comparing(t -&gt; t.getAccountId()).thenComparing(...)</code> doesn&#39;t compile. Use method references or <code>(Transaction t) -&gt; t.getAccountId()</code>.</p></li><li><p>Null keys: wrap the key comparator, e.g. <code>Comparator.comparing(Transaction::getAccountId, Comparator.nullsLast(Comparator.naturalOrder()))</code>.</p></li></ul>
+<p>Test with: two accounts with two amounts each, equal amounts, a null account id.</p>
+<h3 id="15-null-handling">15. Null handling</h3>
+<p>Check nulls at three levels: the collection, each element, and each field you read.</p>
+<p>Task: total amount in a given currency.</p>
+<pre><code class="language-java">double totalFor(List&lt;Transaction&gt; transactions, String currency) {
+    double total = 0;
+    for (Transaction t : transactions) {            // NPE if the list is null
+        if (t.getCurrency().equals(currency)) {     // NPE if t is null, or if its currency is null
+            total += t.getAmount();
+        }
+    }
+    return total;
+}</code></pre>
+<p>Fix:</p>
+<pre><code class="language-java">double totalFor(List&lt;Transaction&gt; transactions, String currency) {
+    if (transactions == null || currency == null) {
+        return 0.0;                                    // or fail fast; see the contract note
+    }
+    return transactions.stream()
+            .filter(Objects::nonNull)                  // null elements
+            .filter(t -&gt; currency.equals(t.getCurrency()))   // currency is known non-null here
+            .mapToDouble(Transaction::getAmount)
+            .sum();
+}</code></pre>
+<p>Contract note: a null argument is usually a caller bug, so failing fast with <code>Objects.requireNonNull(transactions, &quot;transactions&quot;)</code> is often better than returning 0. Null data inside records is normal real-world mess: skip it, default it, or report it. Say which one you chose; interviewers listen for that.</p>
+<p>Null-safe tools: <code>&quot;LITERAL&quot;.equals(x)</code>, <code>Objects.equals(a, b)</code>, <code>Objects.requireNonNull(x, &quot;message&quot;)</code>, <code>map.getOrDefault(key, default)</code>, <code>Comparator.nullsLast(...)</code>, <code>Optional.ofNullable(x)</code>.</p>
+<p>Test with: a null list, a null element, a null currency field, a null <code>currency</code> argument.</p>
+<h3 id="16-empty-list">16. Empty list</h3>
+<p>Return an empty collection, never null, and know what each operation does when there is nothing to process.</p>
+<p>Task: return the ids of failed transactions.</p>
+<pre><code class="language-java">List&lt;String&gt; failedIds(List&lt;Transaction&gt; transactions) {
+    if (transactions.isEmpty()) {
+        return null;        // BUG: every caller must now null-check, and most won&#39;t
+    }
+    return transactions.stream()
+            .filter(t -&gt; &quot;FAILED&quot;.equals(t.getStatus()))
+            .map(Transaction::getId)
+            .collect(Collectors.toList());
+}</code></pre>
+<p>Fix: delete the special case. The stream already returns <code>[]</code> for an empty input, so callers can loop or call <code>size()</code> safely.</p>
+<p>Empty-input cheat sheet (every row checked on Java 21):</p>
+<table><thead><tr><th>Operation on empty input</th><th>Result</th></tr></thead><tbody><tr><td><code>sum()</code>, <code>count()</code></td><td>0</td></tr><tr><td><code>average()</code></td><td><code>OptionalDouble.empty</code>; <code>getAsDouble()</code> throws</td></tr><tr><td><code>max()</code>, <code>min()</code>, <code>findFirst()</code>, <code>findAny()</code></td><td><code>Optional.empty</code>; <code>get()</code> throws</td></tr><tr><td><code>reduce(0.0, Double::sum)</code></td><td>the identity, 0.0</td></tr><tr><td><code>reduce(Double::sum)</code></td><td><code>Optional.empty</code></td></tr><tr><td><code>allMatch(...)</code></td><td><code>true</code> (pattern 28)</td></tr><tr><td><code>anyMatch(...)</code></td><td><code>false</code></td></tr><tr><td><code>noneMatch(...)</code></td><td><code>true</code></td></tr><tr><td><code>collect(Collectors.toList())</code>, <code>groupingBy(...)</code></td><td><code>[]</code>, <code>{}</code></td></tr><tr><td><code>partitioningBy(...)</code></td><td><code>{false=[], true=[]}</code></td></tr><tr><td><code>list.get(0)</code>, <code>list.subList(0, 3)</code></td><td><code>IndexOutOfBoundsException</code></td></tr><tr><td><code>Collections.max(list)</code>, <code>iterator().next()</code></td><td><code>NoSuchElementException</code></td></tr></tbody></table>
+<p>Test with: an empty list, a list where nothing matches the filter (same result, different cause).</p>
+<h3 id="17-boundary-conditions">17. Boundary conditions</h3>
+<p>Translate the words of the rule into operators exactly, then test the exact boundary values.</p>
+<p>Task: fees are free up to £100, £1.50 up to £1,000, and £5 above £1,000. Negative amounts are invalid.</p>
+<pre><code class="language-java">double fee(double amount) {
+    if (amount &lt; 100) return 0.0;
+    if (amount &gt; 100 &amp;&amp; amount &lt; 1000) return 1.5;
+    return 5.0;
+}
+// fee(100) = 5.0 (should be 0.0)
+// fee(1000) = 5.0 (should be 1.5)
+// fee(-50) = 0.0 (should be rejected)</code></pre>
+<p>Fix:</p>
+<pre><code class="language-java">double fee(double amount) {
+    if (amount &lt; 0) {
+        throw new IllegalArgumentException(&quot;Amount cannot be negative: &quot; + amount);
+    }
+    if (amount &lt;= 100) return 0.0;
+    if (amount &lt;= 1000) return 1.5;
+    return 5.0;
+}</code></pre>
+<p>Why: the buggy tiers leave gaps at exactly 100 and 1000, so those values fall through to the last <code>return</code>. An ordered chain of <code>&lt;=</code> checks has no gaps, because each tier starts where the previous one ended.</p>
+<table><thead><tr><th>Words in the spec</th><th>Operator</th></tr></thead><tbody><tr><td>at least, minimum, from, or more</td><td><code>&gt;=</code></td></tr><tr><td>more than, above, over, exceeds</td><td><code>&gt;</code></td></tr><tr><td>up to, at most, maximum, no more than</td><td><code>&lt;=</code></td></tr><tr><td>less than, below, under</td><td><code>&lt;</code></td></tr></tbody></table>
+<p>Test with: -1, 0, 100, 100.01, 1000, 1000.01. Ask whether 0 is a valid amount.</p>
+<h3 id="18-duplicate-records">18. Duplicate records</h3>
+<p><code>distinct()</code> and <code>HashSet</code> only remove duplicates that <code>equals()</code> and <code>hashCode()</code> call equal; to dedupe by a field, track the keys you have already seen.</p>
+<p>Task: upstream sometimes sends the same transaction twice (same id). Keep the first occurrence and the original order.</p>
+<pre><code class="language-java">List&lt;Transaction&gt; dedupe(List&lt;Transaction&gt; transactions) {
+    return transactions.stream()
+            .distinct()      // BUG: Transaction doesn&#39;t override equals()/hashCode(), so nothing is removed
+            .collect(Collectors.toList());
+}</code></pre>
+<p>Fix:</p>
+<pre><code class="language-java">List&lt;Transaction&gt; dedupe(List&lt;Transaction&gt; transactions) {
+    Set&lt;String&gt; seenIds = new HashSet&lt;&gt;();
+    List&lt;Transaction&gt; result = new ArrayList&lt;&gt;();
+    for (Transaction t : transactions) {
+        if (seenIds.add(t.getId())) {     // add() returns false if the id was already seen
+            result.add(t);
+        }
+    }
+    return result;
+}</code></pre>
+<p>Stream version with the same result:</p>
+<pre><code class="language-java">new ArrayList&lt;&gt;(transactions.stream()
+        .collect(Collectors.toMap(Transaction::getId, t -&gt; t, (first, second) -&gt; first, LinkedHashMap::new))
+        .values());</code></pre>
+<p>Why: without an overridden <code>equals()</code>, two objects are equal only when they are the same instance, so <code>distinct()</code> sees four different objects. <code>LinkedHashMap</code> keeps first-seen order; a plain <code>HashMap</code> would scramble it.</p>
+<p>Ask first: what makes two records duplicates? The same id, or the same account, amount and timestamp? Keep the first or the latest? Asking that question out loud scores points by itself.</p>
+<p>Test with: the same id twice, three copies, no duplicates, duplicates far apart in the list.</p>
+<h3 id="19-optional">19. Optional</h3>
+<p>Never call <code>get()</code> on an <code>Optional</code> you haven&#39;t proven is present; transform it with <code>map()</code> and finish with <code>orElse()</code>, <code>orElseGet()</code> or <code>orElseThrow()</code>.</p>
+<p>Task: return the id of the first FAILED transaction, or &quot;NONE&quot;.</p>
+<pre><code class="language-java">String firstFailedId(List&lt;Transaction&gt; transactions) {
+    Optional&lt;Transaction&gt; failed = transactions.stream()
+            .filter(t -&gt; &quot;FAILED&quot;.equals(t.getStatus()))
+            .findFirst();
+    return failed.get().getId();    // NoSuchElementException: No value present
+}</code></pre>
+<p>Fix:</p>
+<pre><code class="language-java">String firstFailedId(List&lt;Transaction&gt; transactions) {
+    return transactions.stream()
+            .filter(t -&gt; &quot;FAILED&quot;.equals(t.getStatus()))
+            .findFirst()
+            .map(Transaction::getId)
+            .orElse(&quot;NONE&quot;);
+}</code></pre>
+<p>Rules that catch most Optional bugs:</p>
+<table><thead><tr><th>Situation</th><th>Do this</th></tr></thead><tbody><tr><td>The value may be null</td><td><code>Optional.ofNullable(x)</code>; <code>Optional.of(null)</code> throws <code>NullPointerException</code></td></tr><tr><td>The default is a cheap constant</td><td><code>orElse(&quot;NONE&quot;)</code></td></tr><tr><td>The default is expensive or has side effects</td><td><code>orElseGet(() -&gt; loadDefault())</code>; <code>orElse(loadDefault())</code> runs it even when a value exists</td></tr><tr><td>Missing means an error</td><td><code>orElseThrow(() -&gt; new AccountNotFoundException(id))</code></td></tr><tr><td>Your method returns Optional</td><td>return <code>Optional.empty()</code>, never <code>null</code></td></tr><tr><td>Fields and parameters</td><td>plain values with null checks; Optional is meant for return types</td></tr></tbody></table>
+<p><code>findFirst()</code> vs <code>findAny()</code>: <code>findFirst()</code> respects list order, while <code>findAny()</code> may return any match and exists for parallel streams. <code>findFirst()</code> also throws <code>NullPointerException</code> if the element it finds is null.</p>
+<p>Test with: no match, a match in the middle of the list, a null element.</p>
+<h3 id="20-fix-a-method-so-all-hidden-edge-cases-pass">20. Fix a method so all hidden edge cases pass</h3>
+<p>Hidden tests hit the same dozen cases every time; list them before you touch the code, then fix everything in one pass.</p>
+<p>Task: for each account, return the average amount of SUCCESSFUL DEBIT transactions, rounded to 2 decimals, sorted by account id.</p>
+<pre><code class="language-java">Map&lt;String, Double&gt; avgDebitByAccount(List&lt;Transaction&gt; transactions) {
+    Map&lt;String, Double&gt; result = new HashMap&lt;&gt;();
+    for (Transaction t : transactions) {
+        if (t.getType() == &quot;DEBIT&quot;) {
+            result.put(t.getAccountId(), (result.get(t.getAccountId()) + t.getAmount()) / 2);
+        }
+    }
+    return result;
+}</code></pre>
+<p>Bugs, in the order you would say them:</p>
+<ol><li><p><code>t.getType() == &quot;DEBIT&quot;</code> compares references. It passes with literal test data and fails with strings read from a database or JSON.</p></li><li><p><code>result.get(...)</code> is null the first time, so the addition throws <code>NullPointerException</code>.</p></li><li><p><code>(old + new) / 2</code> is not an average: for 10, 20, 60 it gives 37.5 instead of 30.</p></li><li><p>FAILED and PENDING debits are counted.</p></li><li><p>A <code>HashMap</code> is not sorted by account id.</p></li><li><p>Nothing handles a null list, null elements or a null account id, and nothing rounds.</p></li></ol>
+<p>Fix:</p>
+<pre><code class="language-java">Map&lt;String, Double&gt; avgDebitByAccount(List&lt;Transaction&gt; transactions) {
+    if (transactions == null) {
+        return new TreeMap&lt;&gt;();
+    }
+    Map&lt;String, Double&gt; averages = transactions.stream()
+            .filter(Objects::nonNull)
+            .filter(t -&gt; t.getAccountId() != null)
+            .filter(t -&gt; &quot;DEBIT&quot;.equals(t.getType()))
+            .filter(t -&gt; &quot;SUCCESS&quot;.equals(t.getStatus()))
+            .collect(Collectors.groupingBy(
+                    Transaction::getAccountId,
+                    TreeMap::new,                                         // sorted keys
+                    Collectors.averagingDouble(Transaction::getAmount)));
+    averages.replaceAll((account, avg) -&gt; Math.round(avg * 100) / 100.0);
+    return averages;
+}</code></pre>
+<p><code>Math.round(avg * 100) / 100.0</code> is fine for display; for money, round a <code>BigDecimal</code> with <code>setScale(2, RoundingMode.HALF_EVEN)</code> (pattern 32).</p>
+<p>Hidden-test checklist:</p>
+<ol><li><p>Null list: empty result, or the exception you agreed.</p></li><li><p>Empty list: empty result.</p></li><li><p>Exactly one element.</p></li><li><p>A null element in the list.</p></li><li><p>Null fields (account, type, status).</p></li><li><p>Nothing matches the filter.</p></li><li><p>Duplicate records.</p></li><li><p>Exact boundary values, zero, negatives.</p></li><li><p>Ties when sorting.</p></li><li><p>Very large values, precision and rounding.</p></li><li><p>The required order of the output.</p></li><li><p>Case: &quot;debit&quot; vs &quot;DEBIT&quot; (ask).</p></li></ol>
+<p>How to run it in the interview:</p>
+<ol><li><p>Restate the rule in one sentence and confirm it.</p></li><li><p>Say the edge cases out loud from the checklist.</p></li><li><p>Fix the code, smallest safe change first.</p></li><li><p>Trace two inputs by hand: a normal case and an edge case.</p></li><li><p>State complexity: here O(n) time and O(a) extra space for a accounts.</p></li></ol>
+<h2 id="part-b-level-3-bug-types">Part B — Level 3 bug types</h2>
+<h3 id="21-wrong-condition-vs">21. Wrong condition: &amp;&amp; vs ||</h3>
+<p>To negate &quot;A or B&quot; you need &quot;not A and not B&quot;; read every compound condition aloud with one concrete value.</p>
+<p>Task: retry a transaction unless it is SUCCESS or CANCELLED.</p>
+<pre><code class="language-java">boolean shouldRetry(Transaction t) {
+    return !t.getStatus().equals(&quot;SUCCESS&quot;) || !t.getStatus().equals(&quot;CANCELLED&quot;);
+}
+// Always true: a SUCCESS payment is &quot;not CANCELLED&quot;, so it gets retried (a double charge)</code></pre>
+<p>Fix:</p>
+<pre><code class="language-java">boolean shouldRetry(Transaction t) {
+    return !&quot;SUCCESS&quot;.equals(t.getStatus()) &amp;&amp; !&quot;CANCELLED&quot;.equals(t.getStatus());
+}</code></pre>
+<p>Why: De Morgan&#39;s law says <code>!(A || B)</code> equals <code>!A &amp;&amp; !B</code>. Plug in SUCCESS: &quot;not SUCCESS&quot; is false, &quot;not CANCELLED&quot; is true, and false OR true is true. One concrete value exposes the bug in seconds.</p>
+<p>Also watch for:</p>
+<ul><li><p><code>&amp;&amp;</code> binds tighter than <code>||</code>, so <code>a || b &amp;&amp; c</code> means <code>a || (b &amp;&amp; c)</code>. Add brackets whenever you mix them.</p></li><li><p><code>Set.of(&quot;SUCCESS&quot;, &quot;CANCELLED&quot;).contains(status)</code> reads well but throws <code>NullPointerException</code> for a null status.</p></li><li><p>Inverted checks copied from a neighbouring line: <code>if (!isValid)</code> vs <code>if (isValid)</code>, <code>&lt;</code> vs <code>&gt;</code>.</p></li></ul>
+<p>Test with: every status once, plus null.</p>
+<h3 id="22-off-by-one">22. Off-by-one</h3>
+<p>Valid indexes run from 0 to <code>size() - 1</code>, and <code>subList(from, to)</code> excludes <code>to</code>; clamp both ends.</p>
+<p>Task: return the last N transactions from a list sorted oldest to newest.</p>
+<pre><code class="language-java">List&lt;Transaction&gt; lastN(List&lt;Transaction&gt; transactions, int n) {
+    List&lt;Transaction&gt; result = new ArrayList&lt;&gt;();
+    for (int i = transactions.size() - n; i &lt;= transactions.size(); i++) {   // BUG: &lt;= runs one past the end
+        result.add(transactions.get(i));                                      // BUG: negative index when n &gt; size
+    }
+    return result;
+}
+// 5 items, n = 2: IndexOutOfBoundsException, index 5 for length 5
+// 5 items, n = 7: index -2</code></pre>
+<p>Fix:</p>
+<pre><code class="language-java">List&lt;Transaction&gt; lastN(List&lt;Transaction&gt; transactions, int n) {
+    if (n &lt;= 0) {
+        return new ArrayList&lt;&gt;();
+    }
+    int start = Math.max(0, transactions.size() - n);
+    return new ArrayList&lt;&gt;(transactions.subList(start, transactions.size()));
+}
+// n = 2 gives [T4, T5]; n = 7 gives all 5; an empty list gives []</code></pre>
+<p>Why: index loops use <code>i &lt; size()</code>. <code>Math.max(0, ...)</code> clamps the start when n is bigger than the list. Copying the <code>subList()</code> into a new <code>ArrayList</code> detaches the result from the caller&#39;s list (pattern 25).</p>
+<p>Quick rules: n items run <code>i = 0; i &lt; n</code>. The last element is <code>get(size() - 1)</code>. &quot;First k&quot; is <code>subList(0, Math.min(k, size()))</code>. A page numbered from 1 starts at index <code>(page - 1) * pageSize</code>.</p>
+<p>Test with: n = 0, n = 1, n = size, n &gt; size, negative n, an empty list.</p>
+<h3 id="23-wrong-null-assumption">23. Wrong null assumption</h3>
+<p>Any lookup can come back empty (a map <code>get()</code>, a repository find, a field from JSON), so handle &quot;not found&quot; where it happens.</p>
+<p>Task: add 2% interest to an account&#39;s balance. <code>Account</code> and <code>AccountRepository</code> are simple classes for this example.</p>
+<pre><code class="language-java">double balanceAfterInterest(AccountRepository repo, String accountId) {
+    Account account = repo.findById(accountId);   // returns null for an unknown id
+    return account.getBalance() * 1.02;           // NullPointerException, far from the real cause
+}</code></pre>
+<p>Fix:</p>
+<pre><code class="language-java">double balanceAfterInterest(AccountRepository repo, String accountId) {
+    Account account = repo.findById(accountId);
+    if (account == null) {
+        throw new AccountNotFoundException(accountId);   // your own exception, clear message at the source
+    }
+    return account.getBalance() * 1.02;
+}</code></pre>
+<p>Better design: make the lookup return <code>Optional&lt;Account&gt;</code> (Spring Data&#39;s <code>findById</code> already does), so every caller is forced to handle &quot;not found&quot;:</p>
+<pre><code class="language-java">return repo.findById(accountId)
+        .map(account -&gt; account.getBalance() * 1.02)
+        .orElseThrow(() -&gt; new AccountNotFoundException(accountId));</code></pre>
+<p>Same bug, other places: <code>double limit = limits.get(accountId);</code> throws <code>NullPointerException</code> when the key is missing, because the null <code>Double</code> is unboxed (use <code>getOrDefault</code>). Any <code>Integer</code> or <code>Long</code> from a map or entity unboxed into a primitive has the same risk.</p>
+<p>Test with: an unknown id, an existing id, a null id.</p>
+<h3 id="24-wrong-collection">24. Wrong collection</h3>
+<p>Choose the collection by the question you ask it: order, uniqueness, sorted keys, or fast lookup.</p>
+<p>Task A: return each account id once, in the order first seen. Task B: find transactions from blocked accounts.</p>
+<pre><code class="language-java">List&lt;String&gt; uniqueAccounts(List&lt;Transaction&gt; transactions) {
+    Set&lt;String&gt; ids = new HashSet&lt;&gt;();            // BUG: HashSet scrambles the order
+    for (Transaction t : transactions) {
+        ids.add(t.getAccountId());
+    }
+    return new ArrayList&lt;&gt;(ids);
+}
+
+List&lt;Transaction&gt; fromBlocked(List&lt;Transaction&gt; transactions, List&lt;String&gt; blocked) {
+    return transactions.stream()
+            .filter(t -&gt; blocked.contains(t.getAccountId()))   // BUG: List.contains scans the whole list every time
+            .collect(Collectors.toList());
+}</code></pre>
+<p>Fix:</p>
+<pre><code class="language-java">Set&lt;String&gt; ids = new LinkedHashSet&lt;&gt;();           // unique, and keeps first-seen order
+
+Set&lt;String&gt; blockedSet = new HashSet&lt;&gt;(blocked);   // build once, then O(1) lookups
+return transactions.stream()
+        .filter(t -&gt; blockedSet.contains(t.getAccountId()))
+        .collect(Collectors.toList());</code></pre>
+<p>With ids seen in the order ACC-9, ACC-1, ACC-5, ACC-20, ACC-3: <code>HashSet</code> returned ACC-20, ACC-3, ACC-1, ACC-5, ACC-9, and <code>TreeSet</code> would return ACC-1, ACC-20, ACC-3, ACC-5, ACC-9 (string order, so &quot;20&quot; sorts before &quot;3&quot;).</p>
+<table><thead><tr><th>You need</th><th>Use</th></tr></thead><tbody><tr><td>Index access, duplicates allowed</td><td><code>ArrayList</code></td></tr><tr><td>Uniqueness and fast <code>contains()</code></td><td><code>HashSet</code></td></tr><tr><td>Uniqueness and first-seen order</td><td><code>LinkedHashSet</code></td></tr><tr><td>Sorted values or keys</td><td><code>TreeSet</code> / <code>TreeMap</code></td></tr><tr><td>Key lookup and insertion order</td><td><code>LinkedHashMap</code></td></tr><tr><td>Queue or stack</td><td><code>ArrayDeque</code></td></tr><tr><td>A map shared between threads</td><td><code>ConcurrentHashMap</code></td></tr></tbody></table>
+<p>Complexity: n transactions against m blocked ids is O(n × m) with a list and O(n + m) with a set. Say this out loud; it&#39;s an easy senior-level point.</p>
+<p>Test with: repeated ids, the order of the output, a large blocked list.</p>
+<h3 id="25-mutation-bug">25. Mutation bug</h3>
+<p>A method should not change its inputs unless that is its job: sort or filter a copy, and never hand out your internal list.</p>
+<p>Task: return the 3 largest transactions for a report.</p>
+<pre><code class="language-java">List&lt;Transaction&gt; top3(List&lt;Transaction&gt; transactions) {
+    transactions.sort(Comparator.comparingDouble(Transaction::getAmount).reversed());   // BUG: reorders the caller&#39;s list
+    return transactions.subList(0, Math.min(3, transactions.size()));                   // BUG: a live view, not a copy
+}</code></pre>
+<p>What goes wrong:</p>
+<ul><li><p>The caller&#39;s list, maybe a statement in date order, is now sorted by amount.</p></li><li><p>An input built with <code>List.of(...)</code> throws <code>UnsupportedOperationException</code>.</p></li><li><p>The returned <code>subList()</code> is a view; once the caller adds to their list, touching the result throws <code>ConcurrentModificationException</code>.</p></li></ul>
+<p>Fix:</p>
+<pre><code class="language-java">List&lt;Transaction&gt; top3(List&lt;Transaction&gt; transactions) {
+    return transactions.stream()
+            .sorted(Comparator.comparingDouble(Transaction::getAmount).reversed())
+            .limit(3)
+            .collect(Collectors.toList());     // a new list; the input is untouched
+}</code></pre>
+<p>The class-level version of the same bug is a getter that leaks internal state:</p>
+<pre><code class="language-java">public List&lt;Transaction&gt; getTransactions() {
+    return transactions;                                // BUG: callers can add, remove or clear
+}
+
+// Fix
+public List&lt;Transaction&gt; getTransactions() {
+    return Collections.unmodifiableList(transactions);  // read-only view
+    // or new ArrayList&lt;&gt;(transactions) for an independent copy
+}</code></pre>
+<p>Test with: check the input order after the call, pass <code>List.of(...)</code>, change the input after the call and reuse the result.</p>
+<h3 id="26-incorrect-comparator">26. Incorrect comparator</h3>
+<p>A comparator must return a consistent negative, zero or positive; never subtract or cast, use <code>Double.compare</code>, <code>Integer.compare</code> or <code>Comparator.comparing*</code>.</p>
+<p>Task: sort transactions by amount, smallest first.</p>
+<pre><code class="language-java">transactions.sort((a, b) -&gt; (int) (a.getAmount() - b.getAmount()));
+// 10.75 vs 10.25: the difference is 0.5, and (int) 0.5 is 0, so they count as &quot;equal&quot;
+// Result: [10.75, 10.25], not ascending</code></pre>
+<p>Fix:</p>
+<pre><code class="language-java">transactions.sort(Comparator.comparingDouble(Transaction::getAmount));
+// or (a, b) -&gt; Double.compare(a.getAmount(), b.getAmount())</code></pre>
+<p>Why: casting a difference to <code>int</code> throws away anything under 1. For <code>int</code> keys, <code>a - b</code> can overflow: -2,000,000,000 minus 2,000,000,000 gives +294,967,296, so the sign flips. <code>Integer.compare(a, b)</code> never overflows.</p>
+<p>Second trap: <code>TreeSet</code> and <code>TreeMap</code> treat <code>compare() == 0</code> as &quot;the same element&quot;.</p>
+<pre><code class="language-java">Set&lt;Transaction&gt; byAmount = new TreeSet&lt;&gt;(Comparator.comparingDouble(Transaction::getAmount));
+byAmount.add(t1);   // 100.0
+byAmount.add(t2);   // also 100.0, but a different transaction
+byAmount.size();    // 1: t2 was silently dropped
+
+// Fix: a tie-breaker, so only truly identical elements compare as 0
+new TreeSet&lt;&gt;(Comparator.comparingDouble(Transaction::getAmount).thenComparing(Transaction::getId));</code></pre>
+<p>Test with: amounts that differ by less than 1, equal amounts, very large and very negative <code>int</code> keys.</p>
+<h3 id="27-duplicate-key-composite-keys-that-collide">27. Duplicate key: composite keys that collide</h3>
+<p>Gluing fields into one string can make two different keys identical; use a separator that can&#39;t appear in the data, or a real key object.</p>
+<p>Task: total payments per (customer id, account number) pair, using a simple <code>Payment</code> class with <code>customerId</code>, <code>accountNo</code> and <code>amount</code>.</p>
+<pre><code class="language-java">Map&lt;String, Double&gt; totals = new HashMap&lt;&gt;();
+for (Payment p : payments) {
+    String key = p.getCustomerId() + p.getAccountNo();   // BUG: &quot;C1&quot; + &quot;23&quot; and &quot;C12&quot; + &quot;3&quot; are both &quot;C123&quot;
+    totals.merge(key, p.getAmount(), Double::sum);
+}
+// Two customers&#39; money lands in one total, and nothing throws</code></pre>
+<p>Fix:</p>
+<pre><code class="language-java">// Quick fix: a separator that never appears in ids
+String key = p.getCustomerId() + &quot;|&quot; + p.getAccountNo();
+
+// Cleaner: a key with real equals() and hashCode() (pattern 1)
+Map&lt;List&lt;String&gt;, Double&gt; totals = new HashMap&lt;&gt;();
+totals.merge(Arrays.asList(p.getCustomerId(), p.getAccountNo()), p.getAmount(), Double::sum);
+
+// Java 16+: record PaymentKey(String customerId, String accountNo) {} generates both methods</code></pre>
+<p>Why: <code>put()</code> and <code>merge()</code> never complain about a repeated key; they silently overwrite or combine. Only <code>toMap()</code> throws (pattern 5). <code>Arrays.asList</code> is used instead of <code>List.of</code> because <code>List.of</code> rejects null parts.</p>
+<p>Test with: ids that are prefixes of each other (&quot;C1&quot; and &quot;C12&quot;), a null part, the same pair twice.</p>
+<h3 id="28-empty-stream-allmatch-on-nothing">28. Empty stream: allMatch on nothing</h3>
+<p><code>allMatch()</code> returns true for an empty stream, so &quot;every item passed&quot; is also true when there were no items.</p>
+<p>Task: mark a batch COMPLETE only if every transaction in it succeeded.</p>
+<pre><code class="language-java">String batchStatus(List&lt;Transaction&gt; batch) {
+    boolean allOk = batch.stream().allMatch(t -&gt; &quot;SUCCESS&quot;.equals(t.getStatus()));
+    return allOk ? &quot;COMPLETE&quot; : &quot;INCOMPLETE&quot;;
+}
+// An empty batch (say, the upstream file failed to load) is reported COMPLETE</code></pre>
+<p>Fix:</p>
+<pre><code class="language-java">String batchStatus(List&lt;Transaction&gt; batch) {
+    if (batch == null || batch.isEmpty()) {
+        return &quot;EMPTY&quot;;      // or INCOMPLETE: agree it with the business
+    }
+    boolean allOk = batch.stream().allMatch(t -&gt; &quot;SUCCESS&quot;.equals(t.getStatus()));
+    return allOk ? &quot;COMPLETE&quot; : &quot;INCOMPLETE&quot;;
+}</code></pre>
+<p>Why: logically, &quot;all of zero items&quot; is vacuously true. <code>noneMatch()</code> is also true on empty input, and <code>anyMatch()</code> is false. Any rule phrased &quot;all&quot;, &quot;none&quot; or &quot;every&quot; needs an explicit empty check.</p>
+<p>Related: <code>reduce(Double::sum)</code> without an identity returns <code>Optional.empty</code> on empty input, while <code>reduce(0.0, Double::sum)</code> returns 0.0. The full table is in pattern 16.</p>
+<p>Test with: an empty batch, a null batch, one FAILED item, all SUCCESS.</p>
+<h3 id="29-incorrect-exception-handling">29. Incorrect exception handling</h3>
+<p>Catch the specific exception, as close to the risky line as possible, and never swallow it silently.</p>
+<p>Task: total the amount column (third field) of an uploaded CSV. A bad row must not hide problems.</p>
+<pre><code class="language-java">double totalFromCsv(List&lt;String&gt; rows) {
+    double total = 0;
+    try {
+        for (String row : rows) {
+            String[] cols = row.split(&quot;,&quot;);
+            total += Double.parseDouble(cols[2]);
+        }
+    } catch (Exception e) {
+        // ignore
+    }
+    return total;
+}
+// Rows: &quot;T1,ACC-1,10.50&quot;, &quot;T2,ACC-1,abc&quot;, &quot;T3,ACC-2&quot;, &quot;T4,ACC-2,5.25&quot;
+// Returns 10.5: row 2 stops the loop, row 4 is never read, and nobody is told</code></pre>
+<p>Fix (skip bad rows and report them):</p>
+<pre><code class="language-java">double totalFromCsv(List&lt;String&gt; rows, List&lt;String&gt; errors) {
+    double total = 0;
+    for (int i = 0; i &lt; rows.size(); i++) {
+        String[] cols = rows.get(i).split(&quot;,&quot;);
+        if (cols.length &lt; 3) {                       // a check, not an exception
+            errors.add(&quot;Row &quot; + (i + 1) + &quot;: expected 3 columns, got &quot; + cols.length);
+            continue;
+        }
+        try {
+            total += Double.parseDouble(cols[2].trim());
+        } catch (NumberFormatException e) {          // only the failure we expect
+            errors.add(&quot;Row &quot; + (i + 1) + &quot;: invalid amount &#39;&quot; + cols[2] + &quot;&#39;&quot;);
+        }
+    }
+    return total;
+}
+// Returns 15.75; errors = [Row 2: invalid amount &#39;abc&#39;, Row 3: expected 3 columns, got 2]</code></pre>
+<p>If the business wants all-or-nothing instead, fail fast and keep the cause: <code>throw new InvalidFileException(&quot;Row &quot; + (i + 1) + &quot; has an invalid amount&quot;, e);</code>.</p>
+<p>Rules:</p>
+<ul><li><p>Catch the narrowest type (<code>NumberFormatException</code>). Catching <code>Exception</code> also hides real bugs such as <code>NullPointerException</code>.</p></li><li><p>Put the <code>try</code> around the risky line; a <code>try</code> around the whole loop turns one bad row into a silent stop.</p></li><li><p>When you wrap an exception, pass the original as the cause.</p></li><li><p>Log or record context: which row, which id, which value.</p></li><li><p>Close resources with try-with-resources, and never <code>return</code> from a <code>finally</code> block, because it swallows the exception.</p></li></ul>
+<p>Test with: a non-numeric amount, a short row, an empty file, spaces around numbers (<code>Double.parseDouble(&quot; 5.25&quot;)</code> works, but <code>Integer.parseInt(&quot; 5&quot;)</code> throws).</p>
+<h3 id="30-date-and-time-handling">30. Date and time handling</h3>
+<p>Use half-open ranges [start, next start), store moments as <code>Instant</code>, and format years with <code>yyyy</code>, never <code>YYYY</code>.</p>
+<p>Task: return all transactions on a given date.</p>
+<pre><code class="language-java">List&lt;Transaction&gt; onDate(List&lt;Transaction&gt; transactions, LocalDate date) {
+    LocalDateTime start = date.atStartOfDay();
+    LocalDateTime end = date.atTime(23, 59, 59);
+    return transactions.stream()
+            .filter(t -&gt; t.getTimestamp().isAfter(start) &amp;&amp; t.getTimestamp().isBefore(end))
+            .collect(Collectors.toList());
+}
+// From 00:00:00, 12:00, 23:59:59 and 23:59:59.5 it keeps only 12:00</code></pre>
+<p>Fix:</p>
+<pre><code class="language-java">List&lt;Transaction&gt; onDate(List&lt;Transaction&gt; transactions, LocalDate date) {
+    LocalDateTime start = date.atStartOfDay();
+    LocalDateTime nextDay = date.plusDays(1).atStartOfDay();
+    return transactions.stream()
+            .filter(t -&gt; !t.getTimestamp().isBefore(start)      // start included
+                      &amp;&amp; t.getTimestamp().isBefore(nextDay))    // next day excluded
+            .collect(Collectors.toList());
+}
+// Simpler for one day: t.getTimestamp().toLocalDate().equals(date)</code></pre>
+<p>Why: <code>isAfter()</code> and <code>isBefore()</code> are strict, so both ends were dropped, and 23:59:59 can&#39;t cover the fractions of the last second. <code>!isBefore(start)</code> means &quot;at or after start&quot;. The same shape works for months, from <code>YearMonth.of(2026, 2).atDay(1).atStartOfDay()</code> up to the next month&#39;s start, with no 28/30/31-day logic (<code>LocalDateTime.of(2026, 2, 30, 23, 59)</code> throws <code>DateTimeException</code>).</p>
+<p>More date traps:</p>
+<table><thead><tr><th>Trap</th><th>Example</th><th>Fix</th></tr></thead><tbody><tr><td>Week-based year</td><td><code>ofPattern(&quot;YYYY-MM-dd&quot;)</code> formats 29 Dec 2025 as 2026-12-29</td><td><code>yyyy</code></td></tr><tr><td>Minutes vs month</td><td><code>&quot;yyyy-mm-dd&quot;</code> formats 3 Oct 2026 09:15 as 2026-15-03</td><td><code>MM</code> is month, <code>mm</code> is minutes</td></tr><tr><td>Time zones</td><td>20:00 UTC is 21:00 on 3 Oct in London but 04:00 on 4 Oct in Hong Kong</td><td>store <code>Instant</code>; convert with <code>ZoneId</code> for display or business-day rules</td></tr><tr><td><code>now()</code> inside logic</td><td><code>LocalDate.now()</code> makes results depend on the day the test runs</td><td>pass in a <code>Clock</code> or the date</td></tr><tr><td>Old APIs</td><td><code>SimpleDateFormat</code> is not thread-safe</td><td><code>java.time</code> and <code>DateTimeFormatter</code></td></tr></tbody></table>
+<p>Test with: exactly midnight, 23:59:59.999, the next day&#39;s midnight, 29 to 31 December, February, two time zones.</p>
+<h2 id="part-c-extra-traps">Part C — Extra traps</h2>
+<h3 id="31-integer-trap">31. Integer == trap</h3>
+<p><code>==</code> on <code>Integer</code>, <code>Long</code> or <code>String</code> compares object references; for integers it happens to work from -128 to 127 because those values are cached, then fails.</p>
+<p>Task: flag two accounts that have the same number of transactions.</p>
+<pre><code class="language-java">Map&lt;String, Integer&gt; counts = ...;                   // {ACC-1=500, ACC-2=500}
+if (counts.get(&quot;ACC-1&quot;) == counts.get(&quot;ACC-2&quot;)) {   // BUG: false for 500
+    flagSameActivity();
+}</code></pre>
+<p>What Java actually does:</p>
+<pre><code class="language-java">Integer a = 127, b = 127;
+a == b;        // true: both come from the cache
+Integer c = 1000, d = 1000;
+c == d;        // false: two different objects
+c.equals(d);   // true</code></pre>
+<p>Fix:</p>
+<pre><code class="language-java">if (Objects.equals(counts.get(&quot;ACC-1&quot;), counts.get(&quot;ACC-2&quot;))) {   // compares values, null-safe
+    flagSameActivity();
+}</code></pre>
+<p>Why: autoboxing reuses cached objects for small values only, so tests with small numbers pass and production numbers fail. <code>Long</code> behaves the same way. <code>String</code> has the same problem: literals are shared, but strings from a database, JSON or <code>new String(...)</code> are separate objects (pattern 20).</p>
+<p>Also: unboxing a null <code>Integer</code> into an <code>int</code> (<code>int n = counts.get(&quot;ACC-9&quot;);</code>) throws <code>NullPointerException</code>.</p>
+<p>Test with: values above 127, a missing key, strings built at runtime.</p>
+<h3 id="32-double-vs-bigdecimal-for-money">32. double vs BigDecimal for money</h3>
+<p><code>double</code> can&#39;t store most decimal amounts exactly, so totals drift; banking code uses <code>BigDecimal</code> built from strings and compared with <code>compareTo()</code>.</p>
+<p>Task: add up payments of 0.10 and 0.20.</p>
+<pre><code class="language-java">double total = 0.1 + 0.2;     // 0.30000000000000004
+total == 0.3;                 // false
+// adding 0.1 ten times gives 0.9999999999999999</code></pre>
+<p>Fix:</p>
+<pre><code class="language-java">BigDecimal total = new BigDecimal(&quot;0.10&quot;).add(new BigDecimal(&quot;0.20&quot;));   // 0.30
+
+// Summing a list
+BigDecimal sum = amounts.stream().reduce(BigDecimal.ZERO, BigDecimal::add);</code></pre>
+<p><code>BigDecimal</code> has its own traps:</p>
+<table><thead><tr><th>Trap</th><th>What happens</th><th>Do this</th></tr></thead><tbody><tr><td><code>new BigDecimal(0.1)</code></td><td>0.1000000000000000055511151231257827021181583404541015625</td><td><code>new BigDecimal(&quot;0.1&quot;)</code> or <code>BigDecimal.valueOf(0.1)</code></td></tr><tr><td><code>equals()</code></td><td><code>new BigDecimal(&quot;2.0&quot;).equals(new BigDecimal(&quot;2.00&quot;))</code> is false, because the scale differs</td><td><code>a.compareTo(b) == 0</code></td></tr><tr><td>Set elements and map keys</td><td>2.0 and 2.00 count as two different keys</td><td><code>stripTrailingZeros()</code> first, or a <code>TreeSet</code></td></tr><tr><td><code>divide()</code></td><td>1 divided by 3 throws <code>ArithmeticException: Non-terminating decimal expansion</code></td><td><code>divide(x, 2, RoundingMode.HALF_EVEN)</code></td></tr><tr><td>Rounding with <code>double</code></td><td><code>Math.round(1.005 * 100) / 100.0</code> gives 1.0</td><td><code>new BigDecimal(&quot;1.005&quot;).setScale(2, RoundingMode.HALF_UP)</code> gives 1.01</td></tr><tr><td>Ignored result</td><td><code>total.add(x);</code> on its own line changes nothing (immutable)</td><td><code>total = total.add(x);</code></td></tr></tbody></table>
+<p>Ask which rounding mode the business uses: <code>HALF_EVEN</code> (banker&#39;s rounding) is common in finance, <code>HALF_UP</code> is school rounding.</p>
+<p>Test with: 0.1 + 0.2, values with different scales, a division that doesn&#39;t terminate.</p>
+<h3 id="33-removing-from-a-list-while-looping-over-it">33. Removing from a list while looping over it</h3>
+<p>Never call <code>list.remove()</code> inside a for-each loop over the same list; use <code>removeIf()</code>, an <code>Iterator</code>, or build a new list.</p>
+<p>Task: remove FAILED transactions from a working list.</p>
+<pre><code class="language-java">for (Transaction t : transactions) {
+    if (&quot;FAILED&quot;.equals(t.getStatus())) {
+        transactions.remove(t);          // BUG
+    }
+}</code></pre>
+<p>What actually happens:</p>
+<ul><li><p>Usually <code>ConcurrentModificationException</code> on the next loop step.</p></li><li><p>Worse: if the removed item is second-to-last, the loop just stops. [A SUCCESS, B FAILED, C FAILED] ends as [A, C], so a FAILED item survives with no error.</p></li></ul>
+<p>The index version fails more quietly:</p>
+<pre><code class="language-java">for (int i = 0; i &lt; transactions.size(); i++) {
+    if (&quot;FAILED&quot;.equals(transactions.get(i).getStatus())) {
+        transactions.remove(i);          // BUG: the next item shifts into slot i and is skipped
+    }
+}
+// [A FAILED, B FAILED, C SUCCESS] ends as [B, C]</code></pre>
+<p>Fix:</p>
+<pre><code class="language-java">transactions.removeIf(t -&gt; &quot;FAILED&quot;.equals(t.getStatus()));
+
+// or, when each item needs more logic
+Iterator&lt;Transaction&gt; it = transactions.iterator();
+while (it.hasNext()) {
+    if (&quot;FAILED&quot;.equals(it.next().getStatus())) {
+        it.remove();                     // the iterator&#39;s own remove is safe
+    }
+}</code></pre>
+<p>Why: a for-each loop runs a hidden iterator that checks whether the list changed behind its back. Removing by index shifts every later element left by one. Looping backwards by index also works, but <code>removeIf()</code> says what you mean.</p>
+<p>Also: maps behave the same way (removing inside a loop over <code>keySet()</code> throws; use <code>map.entrySet().removeIf(...)</code>), and <code>List.of(...)</code> or <code>Collections.unmodifiableList(...)</code> throw <code>UnsupportedOperationException</code> on any removal.</p>
+<p>Test with: two FAILED items next to each other, a FAILED item first, a FAILED item last, an immutable list.</p>
+<h2 id="one-page-cheat-sheet">One-page cheat sheet</h2>
+<p>One rule per pattern; reread this table the night before the interview.</p>
+<table><thead><tr><th>#</th><th>Pattern</th><th>Rule to remember</th></tr></thead><tbody><tr><td>1</td><td>equals / hashCode</td><td>Override both, with the same fields; no mutable fields in <code>hashCode()</code></td></tr><tr><td>2</td><td>List → Map loop</td><td><code>computeIfAbsent()</code> for lists, <code>merge()</code> for counts; <code>put()</code> overwrites</td></tr><tr><td>3</td><td>Map → List</td><td>Stream <code>entrySet()</code>, sort, <code>limit()</code>; a <code>HashMap</code> has no order</td></tr><tr><td>4</td><td>toMap</td><td>A null value throws; filter or default it first</td></tr><tr><td>5</td><td>toMap duplicates</td><td>Ask whether the key can repeat; the merge function is the business rule</td></tr><tr><td>6</td><td>groupingBy</td><td>Empty groups have no key: <code>getOrDefault()</code>; <code>partitioningBy()</code> always has both keys</td></tr><tr><td>7</td><td>filter</td><td>Streams never change the source; collect the result</td></tr><tr><td>8</td><td>map</td><td>Produce new values; no setters inside <code>map()</code></td></tr><tr><td>9</td><td>flatMap</td><td>Flatten inner lists; filter out null lists first</td></tr><tr><td>10</td><td>sum</td><td><code>mapToDouble()</code> over exactly the records the rule names; no <code>(int)</code> casts</td></tr><tr><td>11</td><td>average</td><td>It returns <code>OptionalDouble</code>; decide what &quot;no data&quot; means</td></tr><tr><td>12</td><td>max / min</td><td>They return <code>Optional</code>; oldest is <code>min()</code>, newest is <code>max()</code></td></tr><tr><td>13</td><td>Comparator</td><td>Business order needs an explicit rank, not alphabetical</td></tr><tr><td>14</td><td>Multi-field comparator</td><td>A trailing <code>reversed()</code> flips every field</td></tr><tr><td>15</td><td>Null handling</td><td>Check the collection, the element and the field; fail fast on null arguments</td></tr><tr><td>16</td><td>Empty list</td><td>Return empty, never null; know what each operation returns on empty input</td></tr><tr><td>17</td><td>Boundaries</td><td>Map spec words to operators; test the boundary, one below, one above</td></tr><tr><td>18</td><td>Duplicates</td><td>Define &quot;duplicate&quot; first; dedupe with a seen-set or <code>LinkedHashMap</code></td></tr><tr><td>19</td><td>Optional</td><td>No blind <code>get()</code>; <code>ofNullable()</code>; <code>orElseGet()</code> for expensive defaults</td></tr><tr><td>20</td><td>Hidden edge cases</td><td>Checklist first, then fix, trace two inputs, state complexity</td></tr><tr><td>21</td><td>Wrong condition</td><td>not (A or B) is (not A) and (not B); bracket mixed <code>&amp;&amp;</code> and OR</td></tr><tr><td>22</td><td>Off-by-one</td><td><code>i &lt; size()</code>; the <code>subList()</code> end is exclusive; clamp both ends</td></tr><tr><td>23</td><td>Null assumption</td><td>Lookups can miss; return <code>Optional</code> or throw a clear exception</td></tr><tr><td>24</td><td>Wrong collection</td><td><code>HashSet</code> for lookups, <code>LinkedHash*</code> for order, <code>Tree*</code> for sorting</td></tr><tr><td>25</td><td>Mutation</td><td>Don&#39;t sort or edit inputs; don&#39;t leak internal lists</td></tr><tr><td>26</td><td>Comparator contract</td><td>Never subtract or cast; add a tie-breaker in <code>TreeSet</code> / <code>TreeMap</code></td></tr><tr><td>27</td><td>Composite keys</td><td>Use a separator or a key object; <code>put()</code> and <code>merge()</code> never warn</td></tr><tr><td>28</td><td>Empty stream</td><td><code>allMatch()</code> on empty is true; check for empty first</td></tr><tr><td>29</td><td>Exceptions</td><td>Catch narrowly, close to the risky line; never swallow</td></tr><tr><td>30</td><td>Dates</td><td>Half-open ranges, <code>Instant</code> plus <code>ZoneId</code>, <code>yyyy</code> not <code>YYYY</code></td></tr><tr><td>31</td><td>Integer ==</td><td>Use <code>equals()</code> or <code>Objects.equals()</code>; the cache stops at 127</td></tr><tr><td>32</td><td>Money</td><td><code>BigDecimal</code> from strings, <code>compareTo()</code>, explicit rounding</td></tr><tr><td>33</td><td>Remove in a loop</td><td><code>removeIf()</code> or <code>Iterator.remove()</code></td></tr></tbody></table>
+</body></html>
