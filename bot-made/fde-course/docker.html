@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Run the database in Docker</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="sdh-libbar" style="position:relative;z-index:2147483000;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0;padding:8px 16px;background:#0f172a;color:#cbd5e1;font:600 13px/1.5 Inter,'Segoe UI',system-ui,-apple-system,sans-serif;border-bottom:2px solid #0d9488;box-sizing:border-box;width:100%;text-align:left;letter-spacing:0"><a href="../../index.html" style="color:#fff;text-decoration:none;font-weight:800">SystemDesign<span style="color:#8b8cff">.hinglish</span></a><span style="opacity:.45">/</span><a href="../../all-topics.html" style="color:#fff;text-decoration:none">🗂 All Topics</a><span style="opacity:.45">·</span><a href="../../bot-made/index.html" style="color:#fff;text-decoration:none">🤖 Bots ne banaya</a><a href="https://github.com/thoravenger/fde-self-study" target="_blank" rel="noopener" style="color:#a5b4fc;text-decoration:none;font-size:12px">💻 Code on GitHub ↗</a><span style="margin-left:auto;font-size:11px;padding:2px 9px;border-radius:999px;border:1px solid #14b8a6;color:#99f6e4">🤖 Bot-made</span></div>
+<main>
+  <nav>
+    <a href="index.html">Start</a>
+    <a href="python.html">Python</a>
+    <a href="spring.html">Spring Boot</a>
+    <a href="fintech.html">Fintech project</a>
+  </nav>
+  <h1>Run Postgres in Docker</h1>
+  <p>You do not install Postgres yourself. Docker runs it, and the SQL file creates the Northline ledger the first time the volume is empty.</p>
+  <h2>Steps</h2>
+  <ol>
+    <li>Install Docker Desktop and wait until it says it is running.</li>
+    <li>Open a terminal at the root of this repo. That is the folder that contains <code>docker-compose.yml</code>.</li>
+    <li>Start the database.</li>
+  </ol>
+  <pre>docker compose up -d
+docker compose ps
+python python/weeks/week10_docker.py
+python python/weeks/week07_sql.py</pre>
+  <h2>Look inside</h2>
+  <pre>docker compose exec db psql -U northline -d northline</pre>
+  <p>Then type:</p>
+  <pre>SELECT c.full_name, a.name, a.balance_cents
+FROM accounts a
+JOIN customers c ON c.id = a.customer_id;</pre>
+  <p>Leave psql with <code>\q</code>.</p>
+  <h2>Local password</h2>
+  <p>User <code>northline</code>, password <code>northline</code>, database <code>northline</code>, port <code>5432</code>. This is only for study on your machine. Do not reuse it.</p>
+  <h2>Start over</h2>
+  <p>The SQL runs only when the data volume is created. To wipe and reload:</p>
+  <pre>docker compose down -v
+docker compose up -d</pre>
+</main>
+</body>
+</html>

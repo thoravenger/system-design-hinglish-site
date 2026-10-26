@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Northline fintech project</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="sdh-libbar" style="position:relative;z-index:2147483000;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0;padding:8px 16px;background:#0f172a;color:#cbd5e1;font:600 13px/1.5 Inter,'Segoe UI',system-ui,-apple-system,sans-serif;border-bottom:2px solid #0d9488;box-sizing:border-box;width:100%;text-align:left;letter-spacing:0"><a href="../../index.html" style="color:#fff;text-decoration:none;font-weight:800">SystemDesign<span style="color:#8b8cff">.hinglish</span></a><span style="opacity:.45">/</span><a href="../../all-topics.html" style="color:#fff;text-decoration:none">🗂 All Topics</a><span style="opacity:.45">·</span><a href="../../bot-made/index.html" style="color:#fff;text-decoration:none">🤖 Bots ne banaya</a><a href="https://github.com/thoravenger/fde-self-study" target="_blank" rel="noopener" style="color:#a5b4fc;text-decoration:none;font-size:12px">💻 Code on GitHub ↗</a><span style="margin-left:auto;font-size:11px;padding:2px 9px;border-radius:999px;border:1px solid #14b8a6;color:#99f6e4">🤖 Bot-made</span></div>
+<main>
+  <nav>
+    <a href="index.html">Start</a>
+    <a href="spring.html">Spring Boot</a>
+    <a href="python.html">Python</a>
+    <a href="console.html">Try the API</a>
+  </nav>
+  <h1>Northline, end to end</h1>
+  <p>Northline is a tiny consumer ledger. Ada has a checking account and a savings account. Grace is an advisor. Both the Spring app and the Python app use the same tables and the same rules.</p>
+  <h2>Rules</h2>
+  <ul>
+    <li>Money is integer cents.</li>
+    <li>A transfer cannot overdraft, cannot use the same account twice, and needs a note above 200000 cents.</li>
+    <li>Ada sees only her accounts. Grace sees all of them. Send <code>X-Customer-Email</code>.</li>
+    <li>The assistant must call a tool for a balance. Offline mode does that without a model.</li>
+  </ul>
+  <h2>Same endpoints</h2>
+  <table>
+    <tr><th>Action</th><th>Path</th></tr>
+    <tr><td>Health</td><td>GET /api/health</td></tr>
+    <tr><td>Accounts</td><td>GET /api/accounts</td></tr>
+    <tr><td>Transactions</td><td>GET /api/accounts/1/transactions</td></tr>
+    <tr><td>Transfer</td><td>POST /api/transfers</td></tr>
+    <tr><td>Ask</td><td>POST /api/ask</td></tr>
+    <tr><td>Advisor SQL</td><td>POST /api/report</td></tr>
+  </table>
+  <p>Python is port 8090. Spring is port 8091. Run one, or run both and compare.</p>
+  <h2>A transfer</h2>
+  <p>Python, port 8090. The fields are snake_case.</p>
+  <pre>curl -H "Content-Type: application/json" -H "X-Customer-Email: ada@northline.test" \
+  -d "{\"from_account_id\":1,\"to_account_id\":2,\"amount_cents\":500,\"note\":\"save\"}" \
+  http://127.0.0.1:8090/api/transfers</pre>
+  <p>Spring, port 8091. The same call, camelCase.</p>
+  <pre>curl -H "Content-Type: application/json" -H "X-Customer-Email: ada@northline.test" \
+  -d "{\"fromAccountId\":1,\"toAccountId\":2,\"amountCents\":500,\"note\":\"save\"}" \
+  http://127.0.0.1:8091/api/transfers</pre>
+  <p>On Windows PowerShell, use <code>curl.exe</code> and a single line. The rule underneath both calls is the same.</p>
+  <h2>People</h2>
+  <p><code>ada@northline.test</code> is the customer. <code>grace@northline.test</code> is the advisor. Grace is the only one who can post a SELECT to <code>/api/report</code>.</p>
+</main>
+</body>
+</html>

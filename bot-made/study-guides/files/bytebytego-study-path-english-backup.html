@@ -1,0 +1,228 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ByteByteGo study path: AI engineering and system design</title>
+<style>
+body{font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif;margin:0;background:#f6f7fb;color:#1d2330}
+.wrap{max-width:1100px;margin:0 auto;padding:24px 16px 60px}
+h1{font-size:26px;margin:0 0 6px}h2{font-size:20px;margin:28px 0 6px}
+.sub{color:#5b6477;margin:0 0 18px}
+.card{background:#fff;border:1px solid #e3e6ee;border-radius:12px;padding:16px;margin:12px 0}
+.ctrl{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+input[type=search],select{padding:8px 10px;border:1px solid #cdd2de;border-radius:8px;font-size:14px}
+input[type=search]{flex:1;min-width:220px}
+.seg button{border:1px solid #cdd2de;background:#fff;padding:7px 12px;cursor:pointer;font-size:14px}
+.seg button:first-child{border-radius:8px 0 0 8px}.seg button:last-child{border-radius:0 8px 8px 0}
+.seg button.on{background:#3b5bdb;color:#fff;border-color:#3b5bdb}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:8px 6px;border-bottom:1px solid #eef0f5;vertical-align:top}
+th{color:#5b6477;font-weight:600}
+a{color:#3b5bdb;text-decoration:none;font-weight:600}a:hover{text-decoration:underline}
+.note{color:#5b6477;font-size:13px;margin-top:2px}
+.b{display:inline-block;font-size:12px;padding:2px 8px;border-radius:99px}
+.free{background:#e6f4ea;color:#1e7b34}.paid{background:#eceef3;color:#5b6477}
+.bar{height:8px;background:#eceef3;border-radius:99px;overflow:hidden}.bar>div{height:100%;background:#3b5bdb}
+.pr{margin:8px 0}.pr .l{display:flex;justify-content:space-between;font-size:13px;color:#5b6477;margin-bottom:3px}
+details>summary{cursor:pointer;font-size:19px;font-weight:700;margin:22px 0 4px}
+.blurb{color:#5b6477;font-size:14px;margin:0 0 6px}
+tr.done td{opacity:.55}
+</style></head><body><div class="wrap">
+<h1>ByteByteGo study path: AI engineering and system design</h1>
+<p class="sub" id="summary"></p>
+<h2>Start here</h2><div class="card"><table id="picks"><thead><tr><th>#</th><th>Article</th><th>Why it matters for you</th><th>Access</th><th>Read</th></tr></thead><tbody></tbody></table></div>
+<h2>Your progress</h2><div class="card" id="progress"></div>
+<h2>Find articles</h2><div class="card ctrl">
+<input type="search" id="q" placeholder="Search, e.g. Kafka, MCP, idempotency">
+<select id="track"></select>
+<span class="seg" id="seg"><button data-v="all" class="on">All</button><button data-v="free">Free</button><button data-v="paid">Paid</button></span>
+<label><input type="checkbox" id="hide"> Hide read</label>
+<span id="count" class="note"></span></div>
+<div id="tracks"></div>
+<p class="note">Source: <a href="https://blog.bytebytego.com/archive" target="_blank">ByteByteGo archive</a>. Read marks are saved in this browser.</p>
+</div><script>
+const TRACKS = [{"id": "ai", "name": "AI and LLM foundations", "blurb": "How LLMs work, from first concepts to fine-tuning and alignment."}, {"id": "llmops", "name": "LLMs in production", "blurb": "Evals, failure handling, security, caching, routing and inference speed."}, {"id": "rag", "name": "RAG and Agentic RAG", "blurb": "Grounding LLMs in your data: chunking, embeddings, agentic and graph RAG."}, {"id": "agents", "name": "AI agents and MCP", "blurb": "Agent loops, tool calling, MCP, multi-agent patterns and enterprise case studies."}, {"id": "sd", "name": "System design fundamentals", "blurb": "Scaling, load balancing, caching, databases, sharding and consistency."}, {"id": "dist", "name": "Distributed systems and messaging", "blurb": "Queues, Kafka, delivery semantics, event-driven patterns, sagas and failure modes."}, {"id": "arch", "name": "Architecture and migration", "blurb": "Monolith to microservices, DDD, gateways, meshes, deployments and migrations."}, {"id": "api", "name": "APIs and security", "blurb": "REST, protocols, idempotency, JWT, OAuth, authentication and authorisation."}, {"id": "pay", "name": "Payments and fintech", "blurb": "Payment flows, double-payment prevention, reconciliation, FX and fintech case studies."}, {"id": "cases", "name": "Real-world case studies", "blurb": "How well-known companies scaled databases, caches and Kafka."}];
+const RAW = [["ai",1,"EP168: AI Vs Machine Learning Vs Deep Learning Vs Generative AI","ep168-ai-vs-machine-learning-vs-deep","2025-06-21",0,"How AI, machine learning, deep learning and generative AI relate to each other."],
+["ai",2,"EP167: Top 20 AI Concepts You Should Know","ep167-top-20-ai-concepts-you-should","2025-06-14",0,"A quick glossary of 20 core AI concepts in one visual."],
+["ai",3,"What Actually Happens When You Press ‘Send’ to ChatGPT","what-actually-happens-when-you-press","2025-10-20",0,"The technologies behind what happens when you hit send in ChatGPT."],
+["ai",4,"How Large Language Models Learn","how-large-language-models-learn","2026-02-23",0,"Three core concepts that shape how LLMs learn and behave."],
+["ai",5,"How LLMs Learn from the Internet: The Training Process","how-llms-learn-from-the-internet","2025-12-01",0,"The full training journey, from raw web data to a conversational assistant."],
+["ai",6,"How Transformers Architecture Powers Modern LLMs","how-transformers-architecture-powers","2026-02-02",0,"A step-by-step walk through the transformer architecture behind modern LLMs."],
+["ai",7,"A Guide to Effective Prompt Engineering","a-guide-to-effective-prompt-engineering","2026-02-04",0,"Prompting approaches from zero-shot instructions to chain-of-thought reasoning."],
+["ai",8,"A Guide to Context Engineering for LLMs","a-guide-to-context-engineering-for","2026-04-06",0,"How LLMs process the context you give them, and strategies to engineer it well."],
+["ai",9,"The Memory Problem: Why LLMs Sometimes Forget Your Conversation","the-memory-problem-why-llms-sometimes","2025-10-22",0,"Why LLMs do not really remember, and how context windows limit conversations."],
+["ai",10,"The LLM Blindspot: Why Models Forget What’s in the Middle of Your Prompt","the-llm-blindspot-why-models-forget","2026-10-05",0,"The lost-in-the-middle problem: why models neglect the middle of long prompts."],
+["ai",11,"Why Do LLMs Lie?","why-do-llms-lie","2026-09-29",0,"Why hallucinations happen and techniques that make answers more dependable."],
+["ai",12,"Large Language Models vs Small Language Models","large-language-models-vs-small-language","2026-06-24",0,"Trade-offs between large and small models across three layers of model design."],
+["ai",13,"EP171: The Generative AI Tech Stack","ep171-the-generative-ai-tech-stack","2025-07-12",0,"The layers of the generative AI tech stack in one diagram."],
+["ai",14,"How Fine-Tuning Transforms Generic AI Models into Specialists","how-fine-tuning-transforms-generic","2025-09-24",0,"How fine-tuning works, the main approaches, and techniques such as LoRA."],
+["ai",15,"How LLMs Learn to Be Helpful (RLHF vs DPO)","how-llms-learn-to-be-helpful-rlhf","2026-07-14",0,"How models learn to be helpful: RLHF versus DPO explained."],
+["ai",16,"The Architecture Behind Open-Source LLMs","the-architecture-behind-open-source","2026-03-02",0,"The engineering bets behind the major open-source LLMs."],
+["llmops",1,"A Guide to LLM Evals","a-guide-to-llm-evals","2026-01-12",0,"Why evaluating LLMs is hard, the types of evals, and practical guidance."],
+["llmops",2,"LLMs as a Judge: How to Know if Your LLM is Healthy","llms-as-a-judge-how-to-know-if-your","2026-09-14",0,"Using an LLM as a judge to evaluate the health of LLM output in detail."],
+["llmops",3,"How DoorDash Built a Testing System to Evaluate LLMs","how-doordash-built-a-testing-system","2026-05-30",0,"Case study: DoorDash's evaluation flywheel for testing LLM features."],
+["llmops",4,"How to Deal With Errors and Failures in LLM-Powered Applications","how-to-deal-with-errors-and-failures","2026-09-07",0,"How to handle errors, timeouts and bad outputs when your app depends on an LLM."],
+["llmops",5,"LLM Security Basics: The Full Threat Model","llm-security-basics-the-full-threat","2026-08-03",0,"A map of the full attack surface of an LLM application, prompt injection included."],
+["llmops",6,"LLM Prompt Caching Versus Semantic Caching","llm-prompt-caching-versus-semantic","2026-10-21",0,"How prompt caching and semantic caching work, and when to use each."],
+["llmops",7,"Token Spend Out of Control? The Case for Smarter Routing","token-spend-out-of-control-the-case","2026-06-08",0,"Interview with Kilo's founders on keeping token spend under control with routing."],
+["llmops",8,"How Smart Model Routing Can Cut LLM Costs by 10X","how-smart-model-routing-can-cut-llm","2026-09-09",0,"When smart model routing really cuts costs, and what it depends on."],
+["llmops",9,"How to Make LLMs 3X Faster","how-to-make-llms-3x-faster","2026-08-26",0,"How speculative decoding speeds up LLM inference."],
+["llmops",10,"A Guide to AI Inference Engineering","a-guide-to-ai-inference-engineering","2026-06-15",0,"How inference works and why each optimisation technique exists."],
+["llmops",11,"How OpenAI Uses Kubernetes And Apache Kafka for GenAI","how-openai-uses-kubernetes-and-apache","2025-10-06",0,"How OpenAI runs Kubernetes and Kafka for its GenAI workloads, and the challenges."],
+["rag",1,"How RAG Enables AI For Your Data","how-rag-enables-ai-for-your-data","2025-09-23",0,"Why RAG exists and how it connects LLMs to your own data."],
+["rag",2,"EP229: 8 Chunking strategies for RAG-based agents","ep229-8-chunking-strategies-for-rag","2026-10-17",0,"Eight chunking strategies for RAG pipelines, compared visually."],
+["rag",3,"How CockroachDB Built Vector Indexing at Scale","how-cockroachdb-built-vector-indexing","2026-05-25",0,"Case study: building a vector index at scale inside a distributed SQL database."],
+["rag",4,"Why Your RAG System Is Only as Good as Its Translator Model","how-to-shrink-a-language-model-without","2026-09-02",0,"How the embedding model works in a RAG setup and why it is so critical."],
+["rag",5,"EP169: RAG vs Agentic RAG","ep169-rag-vs-agentic-rag","2025-06-28",0,"Visual comparison of classic RAG and agentic RAG."],
+["rag",6,"How Agentic RAG Works?","how-agentic-rag-works","2026-03-23",0,"How agentic RAG improves on standard RAG, and the trade-offs to weigh."],
+["rag",7,"EP220: RAG vs Graph RAG vs Agentic RAG","ep220-rag-vs-graph-rag-vs-agentic","2026-06-27",0,"Three ways to connect LLMs to data: RAG, GraphRAG and agentic RAG."],
+["rag",8,"GraphRAG: How AI Answers Questions Hidden Across Many Documents","graphrag-how-ai-answers-questions","2026-08-19",0,"How GraphRAG answers questions whose evidence is spread across many documents."],
+["rag",9,"How Airtable Built the Search Layer Behind Their AI Features","how-airtable-built-the-search-layer","2026-05-27",0,"Case study: the search and retrieval layer behind Airtable's AI features."],
+["rag",10,"How Dropbox Built an AI Product Dash with RAG and AI Agents","how-dropbox-built-an-ai-product-dash","2025-09-02",0,"Case study: how Dropbox combined RAG and AI agents to build Dash."],
+["rag",11,"How Uber Built a Genie to Answer Questions Correctly","how-uber-built-a-genie-to-answer-051","2026-10-19",0,"Case study: how Uber's Genie prepares knowledge, retrieves it and generates answers."],
+["rag",12,"How Perplexity Built an AI Google","how-perplexity-built-an-ai-google","2025-11-03",0,"Case study: how Perplexity built an answer engine on retrieval and LLMs."],
+["agents",1,"What are AI Agents?","what-are-ai-agents","2025-10-29",0,"What AI agents are, their defining traits, and the spectrum of agent types."],
+["agents",2,"EP215: The Anatomy of an AI Agent","ep215-the-anatomy-of-an-ai-agent","2026-05-16",0,"An agent as a simple while-loop: the parts every agent has."],
+["agents",3,"The Agent Loop: How AI Goes From Answering Questions to Doing Things","the-agent-loop-how-ai-goes-from-answering","2026-07-08",0,"How an agent is structured, what the model decides each turn, and the scaffolding around it."],
+["agents",4,"Connecting LLMs to the Real World: Tool Use, Function Calling, and MCP","connecting-llms-to-the-real-world","2026-05-04",0,"The progression from tool use to function calling to the Model Context Protocol."],
+["agents",5,"EP154: What is MCP?","ep154-what-is-mcp","2025-03-15",0,"A short visual introduction to MCP and why everyone is talking about it."],
+["agents",6,"Why Anthropic’s MCP is a Big Deal","why-anthropics-mcp-is-a-big-deal","2025-09-30",0,"MCP in detail and why it matters in the AI landscape."],
+["agents",7,"EP224: MCP vs RAG vs AI Agents","ep224-mcp-vs-rag-vs-ai-agents","2026-09-05",0,"How MCP, RAG and AI agents differ and fit together."],
+["agents",8,"Top AI Agentic Workflow Patterns","top-ai-agentic-workflow-patterns","2025-12-15",0,"The most popular agentic workflow patterns and how they work."],
+["agents",9,"How AI Agents Manage Memory and Avoid Forgetfulness","how-ai-agents-manage-memory-and-avoid","2026-06-29",0,"How agent memory architectures are built and the trade-offs that follow."],
+["agents",10,"EP218: The Typical AI Agent Stack, Explained","ep218-the-typical-ai-agent-stack","2026-06-13",0,"The layers of a typical production AI agent stack."],
+["agents",11,"MCP vs A2A vs ACP: How AI Agents Actually Talk to Each Other","mcp-vs-a2a-vs-acp-how-ai-agents-actually","2026-07-18",0,"How agents talk to tools and each other: MCP versus A2A versus ACP."],
+["agents",12,"Best Practices for Building AI Agents That Work in Production","best-practices-for-building-ai-agents","2026-07-22",0,"A distilled set of practices for building agents that hold up in production."],
+["agents",13,"How Anthropic Built a Multi-Agent Research System","how-anthropic-built-a-multi-agent","2025-09-16",0,"Case study: the architecture of Anthropic's multi-agent research system."],
+["agents",14,"How OpenAI, Gemini, and Claude Use Agents to Power Deep Research","how-openai-gemini-and-claude-use","2025-12-12",0,"How Deep Research works across OpenAI, Gemini and Claude, and how agents coordinate."],
+["agents",15,"How Pinterest Built a Production MCP Ecosystem","how-pinterest-built-a-production","2026-05-11",0,"Case study: designing a production MCP ecosystem at Pinterest, beyond the protocol."],
+["agents",16,"How DoorDash Built a Toolbox for AI Agents","how-doordash-built-a-toolbox-for","2026-09-30",0,"Case study: the gateway DoorDash built to give AI agents tools."],
+["agents",17,"How Microsoft Ships AI Agents at Enterprise Scale","how-microsoft-ships-ai-agents-at","2026-07-13",0,"Interview with Microsoft's Core AI VP on shipping agents at enterprise scale."],
+["agents",18,"What Salesforce Learned from 20,000 Enterprise Agent Deployments","what-salesforce-learned-from-20000","2026-06-09",0,"Lessons from 20,000 Agentforce deployments on what makes agents deliver value."],
+["agents",19,"How Uber Built a Conversational AI Agent For Financial Analysis","how-uber-built-a-conversational-ai","2025-11-10",0,"Case study: Finch, Uber's conversational agent for financial analysis in Slack."],
+["agents",20,"The Security Architecture of GitHub Agentic Workflow","the-security-architecture-of-github","2026-04-20",0,"How GitHub secures agentic workflows by assuming the agent is already compromised."],
+["agents",21,"AI Agents Can Think. Now They Can Pay.","ai-agents-can-think-now-they-can","2026-09-28",0,"Agentic payments: notes from a Stripe event on letting AI agents pay."],
+["sd",1,"EP160: Top 20 System Design Concepts You Should Know","ep160-top-20-system-design-concepts","2025-04-26",0,"The 20 system design concepts that come up most, from load balancing onwards."],
+["sd",2,"From 0 to Millions: A Guide to Scaling Your App - Part 1","from-0-to-millions-a-guide-to-scaling","2023-02-15",1,"How a typical app's architecture evolves stage by stage as it scales (part 1 of 4)."],
+["sd",3,"Non-Functional Requirements: The Backbone of Great Software - Part 1","non-functional-requirements-the-backbone","2025-02-13",1,"Non-functional requirements and why they define a system's qualities (part 1)."],
+["sd",4,"The Path of a Request: A Tour of Modern Web Architecture","the-path-of-a-request-a-tour-of-modern","2026-06-04",1,"Following a web request hop by hop through modern web architecture."],
+["sd",5,"Understanding Load Balancers: Traffic Management at Scale","understanding-load-balancers-traffic","2025-09-18",1,"How load balancers distribute traffic as you outgrow a single server."],
+["sd",6,"A Guide to Top Caching Strategies","a-guide-to-top-caching-strategies","2025-08-14",1,"The critical caching strategies behind fast, reliable systems."],
+["sd",7,"Distributed Caching: The Secret to High-Performance Applications","distributed-caching-the-secret-to","2024-11-21",1,"How distributed caching works and why it boosts performance."],
+["sd",8,"A Detailed Guide to Content Delivery Networks","a-detailed-guide-to-content-delivery","2025-08-28",1,"How CDNs work and why they matter for speed on the modern web."],
+["sd",9,"SQL vs NoSQL: Choosing the Right Database for An Application","sql-vs-nosql-choosing-the-right-database","2025-06-05",1,"SQL versus NoSQL and specialised databases, and how to choose."],
+["sd",10,"Database Indexing Demystified: Index Types and Use-Cases","database-indexing-demystified-index","2025-06-26",1,"The basics of database indexing and the different index types."],
+["sd",11,"A Guide to Database Transactions: From ACID to Concurrency Control","a-guide-to-database-transactions","2025-06-19",1,"Transactions from ACID to concurrency control, the building blocks of reliability."],
+["sd",12,"What are database isolation levels (Episode 8)","what-are-database-isolation-levels","2022-05-21",0,"Database isolation levels explained visually."],
+["sd",13,"A Guide to Database Replication: Key Concepts and Strategies","a-guide-to-database-replication-key","2025-07-03",1,"Single-leader, multi-leader and leaderless replication and their trade-offs."],
+["sd",14,"A Guide to Database Sharding: Key Strategies","a-guide-to-database-sharding-key","2025-07-17",1,"Why sharding matters, how it works and the strategies and trade-offs involved."],
+["sd",15,"Consistent Hashing 101: How Modern Systems Handle Growth and Failure","consistent-hashing-101-how-modern","2025-09-11",1,"How consistent hashing lets systems grow and survive failures."],
+["sd",16,"Consistency and Partition Tolerance: Understanding CAP vs PACELC","consistency-and-partition-tolerance","2025-07-24",1,"CAP versus PACELC applied to real-world database design."],
+["sd",17,"Eventual Consistency: The Key Trade-Off Behind Modern Databases","eventual-consistency-the-key-trade","2026-02-19",1,"What eventual consistency is, how to control it and handle its challenges."],
+["sd",18,"Strong Consistency In Databases: Promises and Costs","strong-consistency-in-databases-promises","2026-02-26",1,"What strong consistency really means, how systems deliver it and what it costs."],
+["sd",19,"How Databases Keep Their Sanity with Concurrency Control","how-databases-keep-their-sanity-with","2026-09-03",1,"How databases handle concurrency bugs with concurrency control."],
+["sd",20,"A Guide to Rate Limiting Strategies","a-guide-to-rate-limiting-strategies","2025-09-04",1,"Why rate limiting matters and practical strategies for different scenarios."],
+["sd",21,"Top Scalability Strategies for Real-World Load","top-scalability-strategies-for-real","2025-08-07",1,"Scalability strategies for handling real-world load and spikes."],
+["sd",22,"Top Strategies to Build High Availability Systems","top-strategies-to-build-high-availability","2025-11-20",1,"What availability means and popular strategies to achieve high availability."],
+["sd",23,"Multi-Region Architecture: Going Global Without Going Broke","multi-region-architecture-going-global","2026-07-02",1,"How to go multi-region for latency and availability without overspending."],
+["dist",1,"The Must-Know Fundamentals of Distributed Systems","the-must-know-fundamentals-of-distributed","2026-01-22",1,"Five foundations: networking, protocols and the core ideas of distributed systems."],
+["dist",2,"Synchronous vs Asynchronous Communication: When to Use What?","synchronous-vs-asynchronous-communication","2025-05-01",1,"When an interaction should be synchronous versus asynchronous."],
+["dist",3,"Understanding Message Queues","understanding-message-queues","2025-01-09",1,"Why message queues matter for asynchronous, large-scale systems."],
+["dist",4,"Messaging Patterns Explained: Pub-Sub, Queues, and Event Streams","messaging-patterns-explained-pub","2025-05-08",1,"Pub-sub, queues and event streams, and what to use when downstream is slow or down."],
+["dist",5,"EP126: The Ultimate Kafka 101 You Cannot Miss","ep126-the-ultimate-kafka-101-you","2024-08-24",0,"A visual Kafka 101 refresher."],
+["dist",6,"Why is Kafka fast?","why-is-kafka-fast","2022-03-23",0,"The design choices that make Kafka fast, in one visual."],
+["dist",7,"EP203: RabbitMQ vs Kafka vs Pulsar","ep203-rabbitmq-vs-kafka-vs-pulsar","2026-02-21",0,"RabbitMQ, Kafka and Pulsar compared: same job, very different internals."],
+["dist",8,"Message Brokers 101: Storage, Replication, and Delivery Guarantees","message-brokers-101-storage-replication","2026-01-01",1,"How message brokers store, replicate and guarantee delivery of messages."],
+["dist",9,"Must-Know Message Broker Patterns","must-know-message-broker-patterns","2026-01-08",1,"The key message broker patterns and where each helps most."],
+["dist",10,"At most once, at least once, exactly once","at-most-once-at-least-once-exactly","2022-02-24",0,"Delivery semantics: at-most-once, at-least-once and exactly-once."],
+["dist",11,"A Detailed Guide to Idempotency, Delivery Semantics, and Deduplication","a-detailed-guide-to-idempotency-delivery","2026-07-30",1,"Idempotency, delivery semantics and deduplication, starting from a timed-out charge request."],
+["dist",12,"A Guide To Event-Driven Architectural Patterns","a-guide-to-event-driven-architectural","2026-05-14",1,"Event-driven architecture patterns for services that need to communicate."],
+["dist",13,"A Pattern Every Modern Developer Should Know: CQRS","a-pattern-every-modern-developer","2024-11-07",1,"CQRS: separating reads from writes, and when it pays off."],
+["dist",14,"Event Sourcing Explained: Benefits and Use Cases","event-sourcing-explained-benefits","2026-03-19",1,"Event sourcing, its benefits and its trade-offs."],
+["dist",15,"Saga Pattern Demystified: Orchestration vs Choreography","saga-pattern-demystified-orchestration","2025-11-27",1,"How the Saga pattern works: orchestration versus choreography."],
+["dist",16,"Mastering Data Consistency Across Microservices","mastering-data-consistency-across","2025-02-27",1,"Keeping data consistent across independent microservices."],
+["dist",17,"A Guide to Retry Pattern in Distributed Systems","a-guide-to-retry-pattern-in-distributed","2025-12-18",1,"The retry pattern in depth, and how to use it safely."],
+["dist",18,"Must-Know Failure Modes in Distributed Systems","must-know-failure-modes-in-distributed","2026-05-28",1,"The most significant failure modes in distributed systems and how to handle each."],
+["dist",19,"Observability for Beginners: Logs, Metrics, Traces, and Everything Around Them","observability-for-beginners-logs","2026-06-18",1,"Logs, metrics and traces: the basics of observability."],
+["arch",1,"Monolith vs Microservices vs Modular Monoliths: What's the Right Choice","monolith-vs-microservices-vs-modular","2025-03-20",1,"Monolith, microservices or modular monolith: how to choose."],
+["arch",2,"Domain-Driven Design (DDD) Demystified","domain-driven-design-ddd-demystified","2025-04-24",1,"Domain-driven design and why it matters more than code-level correctness."],
+["arch",3,"From Monolith to Microservices: Key Transition Patterns","from-monolith-to-microservices-key","2025-01-16",1,"Key patterns for migrating from a monolith to microservices."],
+["arch",4,"A Guide to Microservices Architecture for Building Scalable Systems","a-guide-to-microservices-architecture","2025-10-16",1,"Patterns and components of production-ready microservices."],
+["arch",5,"Top Service-to-Service Communication Patterns","top-service-to-service-communication","2025-10-30",1,"Service-to-service communication patterns and their pros and cons."],
+["arch",6,"Top Strategies to Share Data Between Services","top-strategies-to-share-data-between","2025-11-06",1,"Sharing a data source versus sharing data between services, and the strategies."],
+["arch",7,"API Gateways 101: The Core of Modern API Management & Security","api-gateways-101-the-core-of-modern","2025-10-23",1,"API gateways in detail: architecture and features."],
+["arch",8,"A Guide to Service Mesh Architectural Pattern","a-guide-to-service-mesh-architectural","2025-12-04",1,"Why service meshes exist, how they work and when to use one."],
+["arch",9,"Top Anti-Patterns to Avoid in Service Architecture","top-anti-patterns-to-avoid-in-service","2026-06-25",1,"Service architecture anti-patterns, how they arise and how to avoid them."],
+["arch",10,"Must- Know Deployment Strategies: From Big-Bang to Progressive Delivery","must-know-deployment-strategies-from","2026-06-11",1,"Deployment strategies from big-bang to progressive delivery, with costs and fit."],
+["arch",11,"Schema Evolution: Changing the Contract Without Breaking What Runs","schema-evolution-changing-the-contract","2026-08-20",1,"Schema evolution: changing contracts without breaking what is running."],
+["arch",12,"Migrations at Scale: Changing the Application Engine at 30,000 Feet","migrations-at-scale-changing-the","2026-09-17",1,"How large migrations work and strategies to run them efficiently."],
+["api",1,"Why is RESTful API so popular?","why-is-restful-api-so-popular","2022-08-25",0,"Why REST became the dominant API style."],
+["api",2,"API Protocols 101: A Guide to Choose the Right One","api-protocols-101-a-guide-to-choose","2025-03-13",1,"How the main API protocols differ and how to choose the right one."],
+["api",3,"The Art of REST API Design: Idempotency, Pagination, and Security","the-art-of-rest-api-design-idempotency","2025-04-03",1,"REST API design essentials: idempotency, pagination and security."],
+["api",4,"Mastering Idempotency: Building Reliable APIs","mastering-idempotency-building-reliable","2025-02-06",1,"Idempotency for reliable APIs: same request, same outcome."],
+["api",5,"A Guide to Async Patterns in API Design","a-guide-to-async-patterns-in-api","2026-05-21",1,"The main async patterns in API design and when each helps."],
+["api",6,"How to Scale An API","how-to-scale-an-api","2026-01-29",1,"Strategies for scaling APIs effectively."],
+["api",7,"EP164: JWT Simply Explained","ep164-jwt-simply-explained","2025-05-24",0,"JWT explained: structure and use for authentication and authorisation."],
+["api",8,"EP72: OAuth 2.0 Explained With Simple Terms","ep72-oauth-20-explained-with-simple","2023-08-12",0,"OAuth 2.0 explained in simple terms, plus the top forms of authentication."],
+["api",9,"Mastering Modern Authentication: Cookies, Sessions, JWT, and PASETO","mastering-modern-authentication-cookies","2024-12-05",1,"Cookies, sessions, JWT and PASETO compared for modern authentication."],
+["api",10,"Top Authentication Techniques to Build Secure Applications","top-authentication-techniques-to","2026-02-05",1,"Authentication techniques and their advantages and disadvantages."],
+["api",11,"How to Implement API Security","how-to-implement-api-security","2026-03-26",1,"Going beyond HTTPS and API keys to implement real API security."],
+["api",12,"How Google Manages Trillions of Authorizations with Zanzibar","how-google-manages-trillions-of-authorizations","2026-01-27",0,"Case study: Google Zanzibar and authorisation at trillions-of-checks scale."],
+["api",13,"How Uber Reinvented Access Control for Microservices","how-uber-reinvented-access-control","2026-02-24",0,"Case study: Charter, Uber's access-control system for microservices."],
+["pay",1,"Payment system","payment-system","2021-11-29",0,"A walk through the building blocks of a payment system."],
+["pay",2,"How to learn payments?","how-to-learn-payments","2022-06-23",0,"A mind map outlining the payments knowledge you need."],
+["pay",3,"Money movement when you buy a product online","money-movement-when-you-buy-a-product","2022-01-18",0,"How money moves between parties when you buy something online."],
+["pay",4,"How to avoid double payment?","how-to-avoid-double-payment","2022-01-04",0,"How payment systems avoid double-charging customers with idempotency."],
+["pay",5,"Payment reconciliation","payment-reconciliation","2022-01-11",0,"Why reconciliation is the most painful part of a payment system, and how it works."],
+["pay",6,"EP 39: Accounting 101 in Payment Systems","ep-39-accounting-101-in-payment-systems","2022-12-31",0,"Accounting fundamentals every payment-system engineer needs."],
+["pay",7,"How does foreign exchange work from the system's perspective?","how-does-foreign-exchange-work-from","2022-02-16",0,"What happens under the hood when you pay in USD and the seller receives EUR."],
+["pay",8,"SWIFT payment messaging system","swift-payment-messaging-system","2022-02-25",0,"How the SWIFT payment messaging network works."],
+["pay",9,"Low latency stock exchange","low-latency-stock-exchange","2021-12-10",0,"How a modern stock exchange achieves microsecond latency."],
+["pay",10,"The First 10-Year Evolution of Stripe’s Payments API","the-first-10-year-evolution-of-stripes","2026-02-18",0,"Case study: ten years of Stripe's payments API design decisions."],
+["pay",11,"How AMEX Processes Millions of Daily Transactions With Millisecond Latency","how-amex-processes-millions-of-daily","2025-04-01",0,"Case study: how AMEX processes millions of daily transactions at millisecond latency."],
+["pay",12,"Built for Reliability: How American Express Processes Payments at Scale","built-for-reliability-how-american","2026-09-08",0,"Case study: AMEX's cell-based architecture keeping payments up when services fail."],
+["pay",13,"How Stripe Detects Fraudulent Transactions Within 100 ms","how-stripe-detects-fraudulent-transactions","2026-04-28",0,"Case study: how Stripe Radar scores fraud within 100 ms."],
+["pay",14,"How Nubank Uses AI Models to Analyze Transaction Data for 100M Users","how-nubank-uses-ai-models-to-analyze","2025-07-22",0,"Case study: Nubank's foundation-model approach to transaction data."],
+["pay",15,"How Airbnb Rolled Out 20+ Local Payment Methods in 360 Days","how-airbnb-rolled-out-20-local-payment","2026-03-10",0,"Case study: the architecture behind Airbnb's rollout of 20+ local payment methods."],
+["pay",16,"How Uber Unified Checkouts Across Billion-Dollar Business Lines","how-uber-unified-checkouts-across","2025-01-14",0,"Case study: how Uber unified checkout across its business lines."],
+["pay",17,"How Agoda Built a Single Source of Truth for Financial Data","how-agoda-built-a-single-source-of","2026-03-03",0,"Case study: how Agoda built a single source of truth for financial data."],
+["pay",18,"Trillions of Indexes: How Uber’s LedgerStore Supports Such Massive Scale","trillions-of-indexes-how-ubers-ledgerstore","2024-08-20",0,"Case study: Uber's LedgerStore and indexing for financial ledgers at scale."],
+["pay",19,"The Tech Stack Powering Wise","the-tech-stack-powering-wise","2026-04-29",0,"Case study: the tech stack behind Wise, including deployment safety."],
+["pay",20,"How PayPal Scaled Kafka to 1.3 Trillion Daily Messages","how-paypal-scaled-kafka-to-13-trillion","2024-06-11",0,"Case study: how PayPal scaled Kafka to 1.3 trillion messages a day."],
+["cases",1,"How Stripe Scaled to 5 Million Database Queries Per Second","how-stripe-scaled-to-5-million-database","2024-07-23",0,"Case study: how Stripe's database layer scaled to 5 million queries per second."],
+["cases",2,"How OpenAI Scaled to 800 Million Users With Postgres","how-openai-scaled-to-800-million","2026-02-16",0,"Case study: how OpenAI scaled Postgres to serve 800 million users."],
+["cases",3,"How Discord Stores Trillions of Messages with High Performance","how-discord-stores-trillions-of-messages","2025-07-08",0,"Case study: how Discord rebuilt message storage after hitting limits with Cassandra."],
+["cases",4,"How Uber Serves over 150 Million Reads per Second from Integrated Cache","how-uber-serves-over-150-million","2026-01-14",0,"Case study: Uber's integrated cache serving 150 million+ reads per second."],
+["cases",5,"1.8 Trillion Events Per Day with Kafka: How Agoda Handles it","18-trillion-events-per-day-with-kafka","2024-10-29",0,"Case study: how Agoda runs Kafka at 1.8 trillion events per day."],
+["cases",6,"How LinkedIn Customizes Its 7 Trillion Message Kafka Ecosystem","how-linkedin-customizes-its-7-trillion","2024-12-03",0,"Case study: how LinkedIn customises Kafka for 7 trillion messages."],
+["cases",7,"Uber’s Billion Trips Migration Setup with Zero Downtime","ubers-billion-trips-migration-setup","2024-11-19",0,"Case study: Uber's zero-downtime migration of its trip fulfilment system."],
+["cases",8,"How Shopify Prepares for Black Friday","how-shopify-prepares-for-black-friday","2025-12-23",0,"Case study: how Shopify prepares its platform for Black Friday."],
+["cases",9,"How Cursor Serves Billions of AI Code Completions Every Day","how-cursor-serves-billions-of-ai","2025-07-29",0,"Case study: the features and infrastructure behind Cursor's AI code completions."],
+["cases",10,"How OpenAI Delivers Low-Latency Voice AI for 900M Users","how-openai-delivers-low-latency-voice","2026-07-01",0,"Case study: how OpenAI delivers low-latency voice AI to 900 million users."],
+["cases",11,"How LinkedIn Feed Uses LLMs to Serve 1.3 Billion Users","how-linkedin-feed-uses-llms-to-serve","2026-04-13",0,"Case study: how LinkedIn rebuilt its Feed with LLMs for 1.3 billion users."]];
+const PICKS = [{"id": 27, "why": "Start with why RAG exists; the base of most enterprise AI work."}, {"id": 32, "why": "The step up from basic RAG that interviewers now expect you to know."}, {"id": 42, "why": "Tool calling and MCP, the glue between Spring AI apps and real systems."}, {"id": 46, "why": "The vocabulary for designing agent systems in interviews."}, {"id": 16, "why": "How to prove an AI feature works, essential for Forward Deployed roles."}, {"id": 57, "why": "A finance-domain agent in production, close to banking use cases."}, {"id": 104, "why": "Migration patterns that map straight onto a bank monolith migration."}, {"id": 93, "why": "Exactly-once thinking for payments and Kafka consumers."}, {"id": 97, "why": "Distributed transactions across payment and FX services."}, {"id": 138, "why": "A cell-based payments architecture at card-network scale."}];
+const ARTS=RAW.map((r,i)=>({id:i,t:r[0],o:r[1],title:r[2],url:"https://blog.bytebytego.com/p/"+r[3],date:r[4],paid:r[5]===1,note:r[6]}));
+const KEY="bbg-study-read-v1";let read={};try{read=JSON.parse(localStorage.getItem(KEY)||"{}")}catch(e){}
+let st={q:"",track:"all",acc:"all",hide:false};
+const M=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const fd=d=>{const[y,m,da]=d.split("-");return parseInt(da)+" "+M[m-1]+" "+y};
+const esc=s=>s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const badge=a=>a.paid?'<span class="b paid">Paid</span>':'<span class="b free">Free</span>';
+const cell=a=>`<a href="${a.url}" target="_blank" rel="noopener">${esc(a.title)}</a><div class="note">${esc(a.note)}</div>`;
+const chk=a=>`<input type="checkbox" data-id="${a.id}" ${read[a.id]?"checked":""}>`;
+const free=ARTS.filter(a=>!a.paid).length;
+document.getElementById("summary").textContent=`${ARTS.length} hand-picked ByteByteGo articles in ${TRACKS.length} tracks, each ordered from beginner to advanced. ${free} are free; paid ones show a preview only.`;
+const sel=document.getElementById("track");sel.innerHTML='<option value="all">All tracks</option>'+TRACKS.map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join("");
+function render(){
+ document.querySelector("#picks tbody").innerHTML=PICKS.map((p,i)=>{const a=ARTS[p.id];return `<tr class="${read[a.id]?"done":""}"><td>${i+1}</td><td>${cell(a)}</td><td>${esc(p.why)}</td><td>${badge(a)}</td><td>${chk(a)}</td></tr>`}).join("");
+ const rows=[{l:"All tracks",d:ARTS.filter(a=>read[a.id]).length,n:ARTS.length}].concat(TRACKS.map(t=>{const L=ARTS.filter(a=>a.t===t.id);return{l:t.name,d:L.filter(a=>read[a.id]).length,n:L.length}}));
+ document.getElementById("progress").innerHTML=rows.map(r=>{const p=r.n?Math.round(r.d/r.n*100):0;return `<div class="pr"><div class="l"><span>${esc(r.l)}</span><span>${r.d} of ${r.n} read · ${p}%</span></div><div class="bar"><div style="width:${p}%"></div></div></div>`}).join("");
+ const s=st.q.trim().toLowerCase();
+ const f=ARTS.filter(a=>(st.track==="all"||a.t===st.track)&&(st.acc==="all"||(st.acc==="paid"?a.paid:!a.paid))&&(!st.hide||!read[a.id])&&(!s||a.title.toLowerCase().includes(s)||a.note.toLowerCase().includes(s)));
+ document.getElementById("count").textContent=`Showing ${f.length} of ${ARTS.length}`;
+ document.getElementById("tracks").innerHTML=TRACKS.filter(t=>f.some(a=>a.t===t.id)).map(t=>{const L=f.filter(a=>a.t===t.id).sort((x,y)=>x.o-y.o);return `<details open><summary>${esc(t.name)}</summary><p class="blurb">${esc(t.blurb)}</p><div class="card"><table><thead><tr><th>Step</th><th>Article</th><th>Date</th><th>Access</th><th>Read</th></tr></thead><tbody>${L.map(a=>`<tr class="${read[a.id]?"done":""}"><td>${a.o}</td><td>${cell(a)}</td><td style="white-space:nowrap">${fd(a.date)}</td><td>${badge(a)}</td><td>${chk(a)}</td></tr>`).join("")}</tbody></table></div></details>`}).join("");
+}
+document.addEventListener("change",e=>{const id=e.target.dataset&&e.target.dataset.id;if(id!==undefined){read[id]=e.target.checked;try{localStorage.setItem(KEY,JSON.stringify(read))}catch(_){}render()}});
+document.getElementById("q").oninput=e=>{st.q=e.target.value;render()};
+sel.onchange=e=>{st.track=e.target.value;render()};
+document.getElementById("hide").onchange=e=>{st.hide=e.target.checked;render()};
+document.querySelectorAll("#seg button").forEach(b=>b.onclick=()=>{document.querySelectorAll("#seg button").forEach(x=>x.classList.remove("on"));b.classList.add("on");st.acc=b.dataset.v;render()});
+render();
+</script></body></html>

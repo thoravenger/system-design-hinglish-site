@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="hi-Latn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>System Design Interview – Hinglish Guide (Vivek)</title>
+<style>
+:root{--bg:#0f1218;--panel:#161b24;--panel2:#1d2430;--text:#e6e9ef;--muted:#9aa4b2;--acc:#5aa9ff;--acc2:#7ee0a1;--warn:#ffcc66;--border:#2a3240;--code:#0b0e13}
+body.light{--bg:#f6f7fb;--panel:#ffffff;--panel2:#eef1f7;--text:#1b2230;--muted:#5b6575;--acc:#0b63ce;--acc2:#16794a;--warn:#9a6400;--border:#d8dde7;--code:#f3f5f9}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font:16px/1.6 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+a{color:var(--acc)}
+#topbar{position:sticky;top:0;z-index:20;display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:8px 12px;background:var(--panel);border-bottom:1px solid var(--border)}
+#topbar h1{font-size:16px;margin:0 8px 0 0;white-space:nowrap}
+#topbar .grp{display:flex;gap:4px;align-items:center}
+button,.btn{background:var(--panel2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:14px}
+button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
+#search{flex:1;min-width:160px;padding:7px 10px;border-radius:8px;border:1px solid var(--border);background:var(--panel2);color:var(--text);font-size:14px}
+#menuBtn{display:none}
+#layout{display:flex}
+#sidebar{width:300px;flex-shrink:0;height:calc(100vh - 52px);position:sticky;top:52px;overflow:auto;background:var(--panel);border-right:1px solid var(--border);padding:8px}
+#sidebar a{display:flex;gap:6px;align-items:flex-start;padding:6px 8px;border-radius:6px;text-decoration:none;color:var(--text);font-size:14px}
+#sidebar a:hover{background:var(--panel2)}
+#sidebar a.read{opacity:.6}
+#sidebar a.read .t::after{content:" ✔";color:var(--acc2)}
+#sidebar .num{color:var(--muted);min-width:22px}
+#sidebar .sec{font-size:12px;text-transform:uppercase;color:var(--muted);margin:10px 8px 4px}
+#progress{font-size:13px;color:var(--muted);padding:4px 8px}
+main{flex:1;min-width:0;padding:16px 22px 80px;max-width:1100px}
+section.design,section.intro{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:16px 20px;margin:0 0 22px;scroll-margin-top:64px}
+section.hidden{display:none}
+h2{margin:.2em 0 .3em;font-size:22px}
+h3{margin:1.1em 0 .3em;font-size:17px;color:var(--acc)}
+h4{margin:.8em 0 .2em;font-size:15px}
+.badge{display:inline-block;font-size:12px;padding:2px 8px;border-radius:999px;margin-right:6px;border:1px solid var(--border)}
+.badge.free{background:rgba(126,224,161,.15);color:var(--acc2);border-color:var(--acc2)}
+.badge.paid{background:rgba(255,204,102,.12);color:var(--warn);border-color:var(--warn)}
+.note{border-left:4px solid var(--warn);background:var(--panel2);padding:8px 12px;border-radius:6px;font-size:14px;margin:8px 0}
+.note.ok{border-left-color:var(--acc2)}
+.naya{border:1px dashed var(--acc);background:rgba(90,169,255,.08);padding:8px 12px;border-radius:8px}
+.fin{border-left:4px solid var(--acc2);background:var(--panel2);padding:8px 12px;border-radius:6px}
+ul{padding-left:22px;margin:.3em 0}
+li{margin:.25em 0}
+.en{color:var(--muted);font-style:italic}
+body.mode-hi .en{display:none}
+body.mode-en .hi{display:none}
+body.mode-en .en{color:var(--text);font-style:normal}
+body.mode-both .en::before{content:"EN: ";font-weight:600;font-style:normal}
+.pair{display:block}
+li .pair + .pair{margin-top:2px}
+.diagram{background:var(--code);border:1px solid var(--border);border-radius:8px;padding:10px;overflow:auto;margin:8px 0}
+.diagram pre{margin:0;font-size:12.5px;white-space:pre;color:var(--text)}
+.diagram svg{max-width:100%;height:auto}
+.diagram .fallback-label{font-size:11px;color:var(--muted);margin-bottom:4px}
+.readchk{display:inline-flex;gap:6px;align-items:center;font-size:14px;margin-top:8px;cursor:pointer}
+.src{font-size:13px;color:var(--muted)}
+table.cmp{border-collapse:collapse;width:100%;font-size:13.5px}
+table.cmp th,table.cmp td{border:1px solid var(--border);padding:6px 8px;vertical-align:top;text-align:left}
+table.cmp th{background:var(--panel2);position:sticky;top:0}
+.tablewrap{overflow:auto;max-height:75vh}
+mark{background:#ffe08a;color:#000;padding:0 1px}
+@media (max-width:860px){
+ #menuBtn{display:inline-block}
+ #sidebar{position:fixed;left:0;top:52px;z-index:30;transform:translateX(-105%);transition:transform .2s;box-shadow:2px 0 12px rgba(0,0,0,.4);width:82vw;max-width:320px}
+ body.nav-open #sidebar{transform:none}
+ main{padding:10px 10px 60px}
+ section.design,section.intro{padding:12px}
+ #topbar h1{font-size:14px}
+}
+</style>
+</head>
+<body class="mode-hi">
+<div id="topbar">
+ <button id="menuBtn" aria-label="menu">☰</button>
+ <h1>🧠 System Design – Hinglish</h1>
+ <div class="grp" id="langGrp">
+  <button data-mode="hi" class="on">Show Hinglish</button>
+  <button data-mode="en">Show English</button>
+  <button data-mode="both">Both</button>
+ </div>
+ <input id="search" type="search" placeholder="Search… (e.g. kafka, idempotency, trie)">
+ <button id="themeBtn" title="dark / light">🌓</button>
+</div>
+<div id="layout">
+ <nav id="sidebar"></nav>
+ <main id="main"></main>
+</div>
+<script>
+const B=(h,e)=>({h,e});
+const SRC="https://bytebytego.com/courses/system-design-interview/";
+const DESIGNS=[];
+DESIGNS.push({
+id:"design-a-rate-limiter",ch:5,title:"Design A Rate Limiter",free:true,
+table:{problem:"Ek client kitni requests bheje, limit karo (abuse/cost control)",naya:"Token bucket + rate limiting algorithms, HTTP 429",storage:"Redis (in-memory counters)",tradeoff:"Accuracy vs memory (sliding log vs counter); central Redis vs local"},
+summary:B("Har user/IP/API key ke liye ek time window mein requests ki limit lagani hai. Limit cross ho to request drop karke HTTP 429 return karo.","Throttle the number of requests a client (user/IP/API key) can send in a time window; reject excess with HTTP 429."),
+req:{f:[B("Server-side API rate limiter, alag-alag rules (per user, per IP, per endpoint).","Server-side API rate limiting with flexible rules (per user, IP, endpoint)."),B("Throttle hone par user ko clear message/headers milein (429, Retry-After).","Throttled users get a clear response (429 + headers like Retry-After)."),B("Distributed environment mein kaam kare – multiple servers ek hi limit share karein.","Must work across many servers sharing the same limits.")],
+nf:[B("Low latency – limiter khud request ko slow na kare.","Low latency – the limiter must not slow down requests."),B("Kam memory use.","Use little memory."),B("Fault tolerant – limiter down ho to bhi system chale (fail-open).","Fault tolerant – if the limiter fails the whole system shouldn't go down.")]},
+est:[B("Is chapter mein heavy estimation nahi hai; focus algorithm choice par hai. Example: 2 req/sec allowed, 3rd request ko 429.","No heavy estimation here; the focus is algorithm choice. Example: 2 req/s allowed, the 3rd gets a 429.")],
+hld:{m:`flowchart LR
+  C["Client"] --> RL["Rate Limiter Middleware / API Gateway"]
+  RL -->|"allowed"| API["API Servers"]
+  RL -->|"over limit"| R429["HTTP 429 Too Many Requests"]
+  RL <--> REDIS[("Redis counters")]
+  RULES["Rules config files"] --> CACHE["Rules cache"] --> RL`,
+t:[B("Limiter ko client side mat rakho (client trust nahi kar sakte). Server ke saamne middleware ya API Gateway mein rakho.","Don't put the limiter on the client (untrusted). Put it as middleware or in the API gateway in front of servers."),B("Counters Redis mein: INCR se count badhao, EXPIRE se window ke baad reset. DB disk-based hai, slow hoga.","Counters live in Redis: INCR increments, EXPIRE resets after the window. A disk DB would be too slow."),B("Rules (jaise 5 login/min) config files mein, workers unhe cache mein load karte hain.","Rules (e.g. 5 logins/min) are kept in config files and loaded into a cache by workers.")]},
+deep:[B("<b>Token bucket</b>: bucket mein fixed capacity ke tokens, refill rate se bharte hain. Har request ek token khaati hai; token nahi to drop. Burst allow karta hai. Amazon/Stripe jaisa common choice.","<b>Token bucket</b>: a bucket of fixed capacity refilled at a fixed rate; each request consumes a token, none left = drop. Allows bursts; very common (Amazon, Stripe)."),
+B("<b>Leaking bucket</b>: FIFO queue, fixed rate se process. Stable outflow, par burst mein naye requests drop ho sakte hain.","<b>Leaking bucket</b>: FIFO queue processed at a fixed rate. Stable outflow, but bursts can starve new requests."),
+B("<b>Fixed window counter</b>: har window (jaise 1 min) ka counter. Simple, par window ke edge par 2x traffic nikal sakta hai.","<b>Fixed window counter</b>: one counter per window. Simple, but a burst at window edges can let ~2x through."),
+B("<b>Sliding window log</b>: har request ka timestamp (Redis sorted set). Accurate, par memory zyada.","<b>Sliding window log</b>: keep timestamps (e.g. Redis sorted set). Accurate but memory-heavy."),
+B("<b>Sliding window counter</b>: current + previous window ka weighted mix. Memory kam, approx accurate.","<b>Sliding window counter</b>: weighted mix of current and previous window counts. Low memory, approximately accurate."),
+B("Response headers: X-Ratelimit-Remaining, X-Ratelimit-Limit, X-Ratelimit-Retry-After. Dropped requests ko queue mein bhi daal sakte ho baad mein process karne ke liye.","Headers: X-Ratelimit-Remaining, X-Ratelimit-Limit, X-Ratelimit-Retry-After. Throttled requests may also be queued for later.")],
+flow:{m:`sequenceDiagram
+  participant C as Client
+  participant RL as RateLimiter
+  participant R as Redis
+  participant S as APIServer
+  C->>RL: request
+  RL->>R: get bucket / counter
+  alt tokens available
+    RL->>R: decrement / INCR
+    RL->>S: forward
+    S-->>C: 200 OK
+  else limit exceeded
+    RL-->>C: 429 + Retry-After
+  end`,t:[B("Request aayi → Redis se counter/bucket check → allow to forward, warna 429.","Request arrives → check counter/bucket in Redis → forward if allowed, else 429.")]},
+tradeoffs:[B("Accuracy vs memory: sliding log accurate par costly; counter sasta par approx.","Accuracy vs memory: sliding log is accurate but costly; counters are cheap but approximate."),B("Central Redis (consistent) vs local in-memory (fast par inconsistent across servers).","Central Redis (consistent) vs local memory (faster but inconsistent across nodes)."),B("Hard limit vs soft limit (thoda exceed allow).","Hard vs soft limits.")],
+failures:[B("Race condition: do requests ek saath read-then-write karein → Lua script ya Redis sorted set se atomic banao.","Race conditions in read-then-write: fix with Lua scripts or sorted sets (atomic ops)."),B("Multiple limiter nodes ka sync: centralized Redis use karo, sticky session nahi.","Sync across limiter nodes: use centralized Redis, not sticky sessions."),B("Redis down ho jaye to fail-open (allow) ya fail-closed – business decide kare.","If Redis is down: fail-open vs fail-closed is a business decision.")],
+points:[B("Pehle poochho: client ya server side? kis basis par throttle (IP/user)? scale? distributed?","Clarify first: client vs server side, throttle key (IP/user), scale, distributed?"),B("Kam se kam 2-3 algorithms ke pros/cons bolo, phir token bucket choose karo.","Compare 2–3 algorithms, then justify token bucket."),B("Race condition + sync + monitoring zaroor bolo.","Mention race conditions, synchronization and monitoring.")],
+naya:[B("Pehla 'design' chapter: yahan naya hai <b>rate limiting algorithms</b> (token bucket, leaking bucket, windows) aur <b>HTTP 429</b> ka concept. Ye system ko protect karne ka pattern hai, data store karne ka nahi.","First design chapter: introduces <b>rate limiting algorithms</b> (token bucket etc.) and <b>HTTP 429</b> – a protection pattern rather than a data store."),B("Redis ko as a fast shared counter use karna (INCR + EXPIRE) – aage bahut designs mein repeat hoga.","Using Redis as a fast shared counter (INCR + EXPIRE) – a building block reused later.")],
+fintech:B("HSBC payments API par per-client/per-merchant TPS limit, OTP/login brute-force protection, Kafka consumer ke saamne downstream core-banking ko protect karne ke liye token bucket (Spring Cloud Gateway RequestRateLimiter = Redis token bucket).","Per-merchant TPS limits on payment APIs, OTP/login brute-force protection, protecting core banking downstream of Kafka consumers; Spring Cloud Gateway's RequestRateLimiter is a Redis token bucket.")
+});
+
+DESIGNS.push({
+id:"design-consistent-hashing",ch:6,title:"Design Consistent Hashing",free:true,
+table:{problem:"Servers add/remove hone par data/keys kam se kam move hon",naya:"Hash ring + virtual nodes",storage:"N/A (distribution technique)",tradeoff:"Zyada virtual nodes = better balance par zyada metadata"},
+summary:B("Normal hash (key % N) mein server add/remove karte hi lagbhag saari keys reshuffle ho jaati hain. Consistent hashing se sirf ~k/n keys move hoti hain.","With key % N, adding/removing a server remaps almost all keys. Consistent hashing moves only ~k/n keys."),
+req:{f:[B("Keys ko servers par evenly distribute karna.","Distribute keys evenly across servers."),B("Server add/remove par minimum keys move hon.","Minimal key movement when servers join/leave.")],nf:[B("Hotspot avoid karna (celebrity/hot keys).","Avoid hotspots."),B("Horizontal scaling easy ho.","Easy horizontal scaling.")]},
+est:[B("Estimation nahi; concept chapter hai.","No estimation; it's a concept chapter.")],
+hld:{m:`flowchart LR
+  K1["key1"] -->|"clockwise"| S1(("Server 1"))
+  K2["key2"] -->|"clockwise"| S2(("Server 2"))
+  S1 --- S2 --- S3(("Server 3")) --- S0(("Server 0")) --- S1
+  S1 -.-> V1["S1 virtual nodes: s1_0, s1_1, s1_2"]`,
+t:[B("Hash space (jaise SHA-1 0..2^160-1) ko ek ring maan lo. Servers aur keys dono ko same hash function se ring par rakho.","Treat the hash space as a ring. Map both servers and keys onto it with the same hash function."),B("Key ka server = key se clockwise chalte hue pehla server.","A key belongs to the first server found going clockwise.")]},
+deep:[B("<b>Add server</b>: sirf naye server aur uske anticlockwise wale pichle server ke beech ki keys move hongi.","<b>Add server</b>: only keys between the new server and its anticlockwise neighbour move."),B("<b>Remove server</b>: sirf us server ki keys agle clockwise server par jaayengi.","<b>Remove server</b>: only that server's keys move to the next clockwise server."),B("Problem: partitions uneven ho sakte hain aur keys non-uniform. Solution: <b>virtual nodes</b> – har real server ring par kai jagah (s0_0, s0_1...). Zyada vnodes = kam standard deviation = better balance.","Problem: uneven partitions/key distribution. Fix: <b>virtual nodes</b> – each server appears many times on the ring; more vnodes = lower std deviation = better balance."),B("Heterogeneous servers: bade server ko zyada vnodes de do.","Give bigger servers more vnodes.")],
+flow:null,
+tradeoffs:[B("Zyada vnodes → better balance, par ring metadata zyada store karna padta hai.","More vnodes → better balance, more metadata to store.")],
+failures:[B("Server fail → uski keys next node par; replication ke saath data loss nahi.","Failed server's keys go to the next node; with replication there's no data loss.")],
+points:[B("Rehashing problem (% N) se start karo, phir ring, phir vnodes.","Start with the rehashing problem, then ring, then vnodes."),B("Real use: DynamoDB, Cassandra partitioning, Discord, Akamai CDN, Maglev load balancer.","Real-world: Dynamo/Cassandra partitioning, Discord, Akamai, Google Maglev.")],
+naya:[B("Naya concept: <b>hash ring</b> aur <b>virtual nodes</b>. Rate limiter mein ek counter tha; yahan sawaal hai data ko <i>bahut saare nodes</i> mein kaise baante bina har baar reshuffle ke. Ye agle KV store design ki neev hai.","New: <b>hash ring</b> + <b>virtual nodes</b>. It answers how to spread data across many nodes without reshuffling – the foundation of the next KV store design.")],
+fintech:B("Kafka partitioning (key → partition) aur Redis Cluster ke hash slots isi idea se related hain; account-id based sharding mein bhi same soch – rebalancing kam se kam ho.","Related to Kafka key→partition and Redis Cluster hash slots; account-id sharding should minimize rebalancing.")
+});
+
+DESIGNS.push({
+id:"design-a-key-value-store",ch:7,title:"Design A Key-value Store",free:true,
+table:{problem:"Distributed, highly available put/get store (Dynamo jaisa)",naya:"CAP, quorum N/W/R, vector clocks, gossip, hinted handoff, Merkle tree",storage:"Memtable + commit log + SSTable (LSM)",tradeoff:"Consistency vs availability (CAP), W/R tuning"},
+summary:B("put(key,value) aur get(key) wala store jo bahut bada data, high availability aur tunable consistency de.","A put/get store that handles big data with high availability and tunable consistency."),
+req:{f:[B("put(key, value), get(key). Value chhoti (<10KB).","put(key,value) and get(key); small values (<10KB)."),B("Bada data store kar sake.","Store large datasets.")],nf:[B("High availability – failure mein bhi jaldi response.","High availability even during failures."),B("Scalable, automatic scaling.","Scalable with auto scaling."),B("Tunable consistency, low latency.","Tunable consistency, low latency.")]},
+est:[B("Specific numbers nahi; Merkle tree example: 1 billion keys ko 1 million buckets mein (har bucket ~1000 keys).","No traffic numbers; Merkle example: 1B keys in 1M buckets (~1000 keys each).")],
+hld:{m:`flowchart LR
+  C["Client"] --> CO["Coordinator node"]
+  CO --> N1["Node A"]
+  CO --> N2["Node B"]
+  CO --> N3["Node C"]
+  N1 <-.->|"gossip"| N2
+  N2 <-.->|"gossip"| N3
+  subgraph Node internals
+   W["write"] --> CL["commit log"] --> MT["memtable"] --> SS[("SSTables")]
+  end`,
+t:[B("Single server (hash table) chhota pad jaata hai → distributed. Har node same kaam karta hai (decentralized, koi master nahi).","Single-node hash table won't fit → distribute. All nodes are equal (no master)."),B("Client ka request coordinator node lega jo replicas tak forward karega.","A coordinator node forwards client requests to replicas.")]},
+deep:[B("<b>CAP theorem</b>: network partition hoga hi, to C ya A mein se choose karo. Bank balance = CP; social likes = AP.","<b>CAP</b>: partitions happen, so choose consistency or availability. Bank balance = CP, likes = AP."),
+B("<b>Partition</b>: consistent hashing + vnodes. <b>Replication</b>: key ko ring par next N unique servers par copy (alag data centers mein).","<b>Partitioning</b>: consistent hashing + vnodes. <b>Replication</b>: copy to next N distinct servers on the ring, across DCs."),
+B("<b>Quorum</b>: N replicas, W writes ka ack, R reads. W + R > N to strong consistency. R=1,W=N fast read; W=1,R=N fast write.","<b>Quorum</b>: N replicas, W write acks, R read replies; W+R>N gives strong consistency. Tune for read- or write-heavy."),
+B("<b>Consistency models</b>: strong, weak, eventual (Dynamo/Cassandra eventual).","<b>Consistency models</b>: strong, weak, eventual."),
+B("<b>Vector clocks</b>: [server, version] pairs se pata chalta hai do versions mein conflict hai ya ek dusre ka ancestor. Conflict client resolve karta hai.","<b>Vector clocks</b>: [server, version] pairs detect whether versions conflict or descend; client resolves conflicts."),
+B("<b>Gossip protocol</b>: har node heartbeat counter random nodes ko bhejta hai; bahut der tak counter na badhe to node down maana jaata hai.","<b>Gossip</b>: nodes exchange heartbeat counters with random peers; a stale counter marks a node offline."),
+B("<b>Sloppy quorum + hinted handoff</b>: temporary failure mein dusra healthy node writes le leta hai, wapas aane par hand back.","<b>Sloppy quorum + hinted handoff</b> for temporary failures."),
+B("<b>Merkle tree (anti-entropy)</b>: permanent failure ke baad replicas sync – sirf alag buckets transfer.","<b>Merkle trees</b> sync replicas after permanent failure, transferring only differing buckets."),
+B("<b>Write path</b>: commit log → memtable → full hone par SSTable flush. <b>Read path</b>: memtable → Bloom filter → SSTable.","<b>Write</b>: commit log → memtable → SSTable. <b>Read</b>: memtable → bloom filter → SSTable.")],
+flow:{m:`sequenceDiagram
+  participant C as Client
+  participant CO as Coordinator
+  participant A as ReplicaA
+  participant B as ReplicaB
+  participant D as ReplicaC
+  C->>CO: put(k,v)
+  CO->>A: write
+  CO->>B: write
+  CO->>D: write
+  A-->>CO: ack
+  B-->>CO: ack
+  Note over CO: W=2 acks received
+  CO-->>C: success`,t:[B("N=3, W=2: do acks milte hi client ko success.","N=3, W=2: success after two acks.")]},
+tradeoffs:[B("Consistency vs availability vs latency (W/R tuning).","Consistency vs availability vs latency via W/R."),B("Eventual consistency = conflict handling client par.","Eventual consistency pushes conflict resolution to clients."),B("Vector clock size badh sakta hai → threshold par purane pairs hatao.","Vector clocks can grow; trim old pairs.")],
+failures:[B("Detection: gossip. Temporary: hinted handoff. Permanent: Merkle tree. Data center outage: multi-DC replication.","Detection: gossip; temporary: hinted handoff; permanent: Merkle; DC outage: multi-DC replication.")],
+points:[B("Ek table yaad rakho: goal → technique (bada data→consistent hashing, high-avail reads→replication, high-avail writes→vector clocks, temp failure→sloppy quorum, perm failure→Merkle, DC outage→cross-DC).","Remember the goal→technique table: big data→consistent hashing, available writes→vector clocks, temp failure→sloppy quorum, etc.")],
+naya:[B("Sabse zyada naye concepts isi chapter mein: <b>CAP, quorum (N/W/R), vector clocks, gossip, hinted handoff, Merkle tree, LSM (memtable/SSTable), Bloom filter</b>. Consistent hashing yahan ek building block ban jaata hai.","Concept-heavy: <b>CAP, quorum, vector clocks, gossip, hinted handoff, Merkle trees, LSM, Bloom filters</b>. Consistent hashing becomes a building block.")],
+fintech:B("Banking mein balance/ledger = CP (strong consistency). Kafka ka acks=all + min.insync.replicas bhi ek tarah ka W quorum hai. Cassandra/Dynamo jaise AP stores sirf non-critical data (sessions, prefs) ke liye.","Ledgers need CP. Kafka acks=all + min.insync.replicas is like a write quorum. AP stores suit non-critical data.")
+});
+
+DESIGNS.push({
+id:"design-a-unique-id-generator-in-distributed-systems",ch:8,title:"Design A Unique ID Generator In Distributed Systems",free:false,
+table:{problem:"Bahut saare servers par unique, sortable 64-bit IDs",naya:"Snowflake (timestamp + DC + machine + sequence)",storage:"Koi DB nahi (in-memory generation)",tradeoff:"Clock sync dependency vs central ticket server SPOF"},
+summary:B("Distributed system mein auto_increment nahi chalta. Unique, time-sortable, numeric 64-bit IDs high rate par chahiye.","Generate unique, roughly time-sorted 64-bit numeric IDs at high rate across many machines."),
+req:{f:[B("IDs unique aur numeric, 64-bit mein fit.","Unique numeric IDs fitting in 64 bits."),B("Time ke hisaab se roughly ordered.","Roughly ordered by time.")],nf:[B("Bahut high throughput (10k+/sec per node).","Very high throughput."),B("No single point of failure.","No SPOF.")]},
+est:[],
+hld:{m:`flowchart LR
+  A["Sign 1 bit"] --- T["Timestamp 41 bits (ms since custom epoch)"] --- D["Datacenter 5 bits"] --- M["Machine 5 bits"] --- S["Sequence 12 bits"]`,
+t:[B("Options: multi-master auto_increment (step k), UUID (128-bit, unsortable), ticket server (central, SPOF), Snowflake (best).","Options: multi-master increments, UUID, ticket server, Snowflake (preferred).")]},
+deep:[B("Snowflake: 41-bit timestamp ~69 saal chalta hai; 12-bit sequence = 4096 IDs per ms per machine.","41-bit timestamp lasts ~69 years; 12-bit sequence = 4096 IDs/ms/machine."),B("Har machine independent ID banati hai – koi coordination nahi.","Each machine generates independently – no coordination.")],
+flow:null,
+tradeoffs:[B("Clock skew/NTP par depend; clock peeche gaya to duplicates ka risk.","Depends on clocks; clock moving backwards risks duplicates."),B("UUID simple par 128-bit aur sortable nahi, index ke liye kharab.","UUIDs are simple but 128-bit and unsortable – bad for indexes.")],
+failures:[B("Clock backwards detect karke wait/reject karo. Machine ID assignment ZooKeeper se.","Detect clock rollback and wait/refuse; assign machine IDs via ZooKeeper.")],
+points:[B("Bit layout bolna aur 69 saal / 4096 per ms calculate karna.","State the bit layout and derive 69 years / 4096 per ms.")],
+naya:[B("Naya: <b>Snowflake ID</b> – bina central DB ke unique + sortable IDs. URL shortener aur chat (message ID) isi ko reuse karte hain.","New: <b>Snowflake IDs</b>, reused by URL shortener and chat message IDs.")],
+fintech:B("Payment/transaction reference IDs, Kafka event IDs, idempotency keys – Snowflake jaise IDs time-sortable hone se ledger aur audit query aasaan.","Transaction reference IDs, event IDs and idempotency keys benefit from sortable IDs.")
+});
+DESIGNS.push({
+id:"design-a-url-shortener",ch:9,title:"Design A URL Shortener",free:true,
+table:{problem:"Lambi URL → chhoti URL, aur fast redirect",naya:"Base62 encoding, 301 vs 302 redirect",storage:"Relational DB (id, shortURL, longURL) + cache",tradeoff:"Hash+collision check vs base62(unique ID); 301 (kam load) vs 302 (analytics)"},
+summary:B("Lambi URL ko tinyurl jaisi chhoti URL mein badalna aur us par click karne par original URL par redirect karna.","Shorten long URLs and redirect short URLs to the original."),
+req:{f:[B("URL shortening: long → short.","Shorten long URL."),B("Redirect: short → long.","Redirect short to long."),B("Short URL mein sirf [0-9a-zA-Z], update/delete nahi (simple rakho).","Short URLs use [0-9a-zA-Z]; no update/delete for simplicity.")],nf:[B("High availability, scalability, fault tolerance.","High availability, scalability, fault tolerance."),B("Read-heavy: read:write = 10:1.","Read-heavy, 10:1.")]},
+est:[B("100 million URLs/din → write ≈ 1160/sec; read ≈ 11,600/sec.","100M URLs/day → ~1160 writes/s, ~11,600 reads/s."),B("10 saal: 365 billion records; avg URL 100 bytes → ~36.5 TB.","10 years: 365B records × 100 bytes ≈ 36.5 TB."),B("62^n ≥ 365 billion → n = 7 (62^7 ≈ 3.5 trillion).","62^n ≥ 365B → length 7 (≈3.5T).")],
+hld:{m:`flowchart LR
+  U["User"] --> LB["Load Balancer"] --> WS["Web/API Servers"]
+  WS --> CA[("Cache: short to long")]
+  WS --> DB[("DB: id, shortURL, longURL")]
+  WS --> IDG["Unique ID Generator"]`,
+t:[B("APIs: POST /api/v1/data/shorten (longUrl) → shortURL; GET /api/v1/{shortUrl} → 301/302 redirect.","APIs: POST shorten, GET short → redirect."),B("Hash table ka idea, par memory mein sab fit nahi hoga → DB + cache.","Conceptually a hash table, but stored in DB with a cache.")]},
+deep:[B("<b>301 (permanent)</b>: browser cache kar leta hai → server load kam. <b>302 (temporary)</b>: har click server se → click analytics milta hai.","<b>301</b> is cached by browsers (less load); <b>302</b> hits the server each time (good for analytics)."),
+B("<b>Option 1: hash + collision resolution</b>: CRC32/MD5/SHA-1 ke pehle 7 chars; collision ho to predefined string jodkar dobara hash. DB lookup costly → Bloom filter.","<b>Hash + collision resolution</b>: take 7 chars of a hash; on collision append a string and rehash; Bloom filter speeds checks."),
+B("<b>Option 2: base62 conversion</b>: pehle unique ID (Snowflake) lo, phir base62 mein convert. Collision impossible, par next URL guess ho sakta hai (security concern).","<b>Base62</b>: generate a unique ID then encode in base62. No collisions, but next URL is predictable."),
+B("Example: 11157 (base10) = '2TX' (base62).","Example: 11157 → '2TX'.")],
+flow:{m:`sequenceDiagram
+  participant U as User
+  participant S as WebServer
+  participant C as Cache
+  participant D as DB
+  U->>S: GET /zn9edcu
+  S->>C: lookup
+  alt cache hit
+    C-->>S: longURL
+  else miss
+    S->>D: select longURL
+    D-->>S: longURL
+    S->>C: put
+  end
+  S-->>U: 301/302 Location longURL`,t:[B("Shorten flow: longURL DB mein hai? haan to purana short return; nahi to naya ID → base62 → save.","Shorten: if longURL exists return existing; else new ID → base62 → save.")]},
+tradeoffs:[B("Hash approach: fixed length, par collision handling. Base62: no collision, length ID ke saath badhti hai, guessable.","Hash: fixed length but collisions. Base62: no collisions but predictable."),B("301 vs 302: performance vs analytics.","301 vs 302: performance vs analytics.")],
+failures:[B("Rate limiter lagao (abuse). Web tier stateless, DB replication + sharding, cache.","Add rate limiting; stateless web tier; DB replication/sharding; caching.")],
+points:[B("Estimation se length 7 derive karna interviewer ko pasand aata hai.","Deriving length 7 from estimates impresses."),B("Analytics, availability, consistency wrap-up mein bolo.","Mention analytics, availability, consistency in wrap-up.")],
+naya:[B("Naya: <b>base62 encoding</b> aur <b>redirect semantics (301 vs 302)</b>. Unique ID generator (Snowflake) ko yahan reuse karte hain – pehli baar ek design dusre design ko building block banata hai.","New: <b>base62</b> and <b>301 vs 302</b>; reuses the unique ID generator as a building block.")],
+fintech:B("Payment links / UPI-collect style short links, SMS mein short links – 302 + analytics, aur ID guessable na ho isliye random salt/encryption.","Payment links in SMS: use 302 for tracking and make IDs non-guessable.")
+});
+
+DESIGNS.push({
+id:"design-a-web-crawler",ch:10,title:"Design A Web Crawler",free:true,
+table:{problem:"Billions of pages ko efficiently aur politely download karna",naya:"URL frontier (priority + politeness queues), robots.txt, content/URL seen dedup",storage:"Disk + memory buffers; content storage; URL seen store (Bloom filter)",tradeoff:"BFS throughput vs politeness; memory vs disk for frontier"},
+summary:B("Seed URLs se shuru karke pages download, links nikalna, aur naye URLs crawl karna – search engine indexing, archiving, monitoring ke liye.","Start from seed URLs, download pages, extract links, repeat – for indexing, archiving, monitoring."),
+req:{f:[B("Search engine indexing ke liye HTML pages crawl karna.","Crawl HTML for search indexing."),B("1 billion pages/month; 5 saal store; duplicate content ignore.","1B pages/month, store 5 years, skip duplicates.")],nf:[B("Scalability (parallel), Robustness (bad HTML, traps, crashes), Politeness (ek site par zyada load nahi), Extensibility (naye content types).","Scalability, robustness, politeness, extensibility.")]},
+est:[B("1B pages/month → ~400 pages/sec, peak ~800.","~400 pages/s, peak 800."),B("Avg page 500KB → 500 TB/month → 5 saal mein ~30 PB.","500 KB/page → 500 TB/month → ~30 PB over 5 years.")],
+hld:{m:`flowchart LR
+  SEED["Seed URLs"] --> F["URL Frontier"] --> HD["HTML Downloader"]
+  HD <--> DNS["DNS Resolver cache"]
+  HD --> CP["Content Parser"] --> CS{"Content Seen?"}
+  CS -->|"new"| ST[("Content Storage")]
+  CS -->|"new"| LE["Link Extractor"] --> UF["URL Filter"] --> US{"URL Seen?"}
+  US -->|"new"| F
+  US --> USS[("URL Storage")]`,
+t:[B("Frontier se URL → download (DNS cache) → parse → content seen? (hash compare) → links extract → filter → URL seen? (Bloom filter) → frontier.","Frontier → download → parse → content seen → extract links → filter → URL seen → frontier.")]},
+deep:[B("<b>DFS vs BFS</b>: web graph bahut deep hai, isliye BFS (FIFO). Par plain BFS impolite hai (ek host ke saare links ek saath) aur priority nahi deta.","<b>BFS over DFS</b>, but plain BFS is impolite and has no priority."),
+B("<b>URL frontier</b>: <i>front queues</i> = priority (PageRank, traffic, update frequency) via prioritizer; <i>back queues</i> = politeness – har queue mein sirf ek host ke URLs, har worker ek queue, downloads ke beech delay.","<b>Frontier</b>: front queues for priority, back queues for politeness (one host per queue, delay between fetches)."),
+B("<b>Freshness</b>: important/often-changing pages ko zyada baar recrawl.","<b>Freshness</b>: recrawl important pages more."),
+B("<b>Frontier storage</b>: hundreds of millions URLs → zyada disk par, memory buffers enqueue/dequeue ke liye.","Hybrid disk + memory buffers for frontier."),
+B("<b>Downloader</b>: robots.txt cache karo, distributed crawl, DNS cache (DNS slow hota hai), geo-locality, short timeouts.","<b>Downloader</b>: cache robots.txt, distribute, DNS cache, locality, timeouts."),
+B("<b>Robustness</b>: consistent hashing se load distribute, crawl state save karo, exceptions handle, data validation.","Consistent hashing, saved state, exception handling.")],
+flow:null,
+tradeoffs:[B("Politeness vs speed; priority vs freshness; memory (fast) vs disk (scalable).","Politeness vs speed; priority vs freshness; memory vs disk.")],
+failures:[B("Spider traps (infinite deep URLs) → max URL length/ manual blacklist. Data noise (ads, spam) filter. Crash recovery via saved state.","Spider traps → length limits/blacklists; filter noise; restart from saved state.")],
+points:[B("Politeness aur priority = front/back queues – ye diagram zaroor banao.","Draw front/back queues."),B("~29% pages duplicate hote hain → content hash se dedup.","~29% duplicates → hash-based dedup.")],
+naya:[B("Naya: <b>URL frontier with politeness + priority queues</b>, <b>robots.txt</b>, aur do level ka dedup (<b>content seen</b> by hash, <b>URL seen</b> by Bloom filter). Pehli baar ek 'pipeline / worker' style batch system aata hai, request-response nahi.","New: <b>URL frontier</b> with politeness/priority, <b>robots.txt</b>, and two-level dedup; first pipeline-style batch system.")],
+fintech:B("Kafka-based pipelines jaisa: topic = queue, partition-per-key se politeness (ek merchant/bank partner par concurrency limit), dedup via idempotent consumer. Statement/scraping jobs mein bhi ye pattern.","Like Kafka pipelines: per-key partitions for politeness, dedup via idempotent consumers.")
+});
+
+DESIGNS.push({
+id:"design-a-notification-system",ch:11,title:"Design A Notification System",free:false,
+table:{problem:"Push/SMS/email notifications reliably bhejna",naya:"Queue per channel, retry + dedup, third-party providers (APNs/FCM)",storage:"User/device DB, notification log, message queues",tradeoff:"At-least-once delivery (retry) vs duplicates (dedup)"},
+summary:B("iOS push, Android push, SMS aur email – millions notifications/day, soft real-time, reliable.","iOS/Android push, SMS and email at millions/day, reliably."),
+req:{f:[B("Push (APNs/FCM), SMS (Twilio etc.), email (SendGrid etc.).","Push, SMS, email."),B("User opt-out settings, templates, scheduled bhi.","Opt-out settings, templates.")],nf:[B("Data loss nahi (reliability), thoda delay chalega (soft real-time).","No loss; soft real-time.")]},
+est:[B("(Hamari taraf se) maan lo ~10M push + 1M SMS + 5M email per day.","(Our assumption) ~10M push, 1M SMS, 5M email/day.")],
+hld:{m:`flowchart LR
+  SVC["Services 1..N"] --> NS["Notification Servers: auth, validate, rate limit"]
+  NS --> DB[("User/Device DB + cache")]
+  NS --> Q1["iOS queue"] --> W1["Workers"] --> APNS["APNs"]
+  NS --> Q2["SMS queue"] --> W2["Workers"] --> SMS["SMS provider"]
+  NS --> Q3["Email queue"] --> W3["Workers"] --> EM["Email provider"]
+  W1 --> LOG[("Notification log")]`,
+t:[B("Har channel ki alag queue: ek provider down ho to baaki affect na hon.","Separate queue per channel isolates provider failures.")]},
+deep:[B("<b>Retry</b>: worker fail hone par message wapas queue/log se retry (exponential backoff).","<b>Retry</b> with backoff from queue/log."),B("<b>Dedup</b>: event_id check karke duplicate na bhejo (exactly-once possible nahi, isliye at-least-once + dedup).","<b>Dedup</b> on event_id: at-least-once + dedup."),B("Templates, user settings (opt-in), rate limiting per user, tracking (open/click), monitoring queue lag.","Templates, settings, per-user rate limits, tracking, queue-lag monitoring.")],
+flow:null,
+tradeoffs:[B("Reliability (retry) se duplicates; dedup store ka cost.","Retries cause duplicates; dedup costs storage.")],
+failures:[B("Provider down → dusra provider/backoff; worker crash → queue redelivery; notification log se data loss nahi.","Provider failover, queue redelivery, persisted log.")],
+points:[B("Third-party providers, queue decoupling, retry+dedup, security (appKey/appSecret) bolo.","Mention providers, queues, retry+dedup, auth.")],
+naya:[B("Naya: <b>retry + dedup</b> (at-least-once semantics) aur <b>message queue se decoupling per channel</b>. Pichle designs mein external providers nahi the.","New: <b>retry + dedup</b> and per-channel queue decoupling with external providers.")],
+fintech:B("Transaction alerts / OTP SMS: Kafka topic per channel, idempotent consumer (event_id dedup), DLQ for poison messages – HSBC alerts mein exactly yahi pattern.","Transaction alerts/OTP: Kafka per channel, idempotent consumers, DLQ.")
+});
+
+DESIGNS.push({
+id:"design-a-news-feed-system",ch:12,title:"Design A News Feed System",free:true,
+table:{problem:"Friends ke posts ka personalized feed fast dikhana",naya:"Fanout on write (push) vs fanout on read (pull), hybrid for celebrities",storage:"Post DB, graph DB (friends), news feed cache (post IDs)",tradeoff:"Write amplification (push) vs slow reads (pull)"},
+summary:B("Do flows: feed publishing (post likho) aur feed building (friends ke posts reverse-chronological dikhao).","Two flows: publishing a post and building friends' feed."),
+req:{f:[B("Post publish karna aur friends ke posts feed mein dekhna (reverse chronological).","Publish posts and see friends' posts newest first."),B("Text + images/videos; max 5000 friends.","Text and media; up to 5000 friends.")],nf:[B("10 million DAU, fast feed load.","10M DAU, fast loading.")]},
+est:[B("10M DAU; har user max 5000 friends – fanout ka cost isi se aata hai.","10M DAU; up to 5000 friends drives fanout cost.")],
+hld:{m:`flowchart LR
+  U["User"] --> LB["LB"] --> WS["Web servers: auth + rate limit"]
+  WS --> PS["Post Service"] --> PDB[("Post DB + cache")]
+  WS --> FS["Fanout Service"] --> MQ["Message Queue"] --> FW["Fanout workers"] --> NFC[("News Feed Cache: userId to postIds")]
+  FS --> G[("Graph DB: friends")]
+  WS --> NS["Notification Service"]
+  U2["Reader"] --> NFS["News Feed Service"] --> NFC
+  NFS --> UC[("User cache")]
+  NFS --> PDB`,
+t:[B("APIs: POST /v1/me/feed (post), GET /v1/me/feed (feed).","APIs: POST and GET /v1/me/feed."),B("Feed cache mein sirf <postId, userId> store karo, poora post nahi – memory bachti hai.","Store only <postId,userId> in feed cache to save memory.")]},
+deep:[B("<b>Fanout on write (push)</b>: post likhte hi saare friends ke cache mein daal do. Read fast, real-time. Par celebrity (millions followers) = hotkey problem, inactive users par waste.","<b>Push</b>: fast reads, but celebrity hotkeys and wasted work for inactive users."),
+B("<b>Fanout on read (pull)</b>: feed kholne par hi fetch. Inactive users par waste nahi, celebrity problem nahi, par read slow.","<b>Pull</b>: no waste, but slow reads."),
+B("<b>Hybrid</b>: normal users ke liye push, celebrities ke posts read time par pull. Consistent hashing se hot keys spread.","<b>Hybrid</b>: push for most, pull for celebrities."),
+B("Fanout workers graph DB se friend IDs lete hain, user settings (muted) filter karte hain, MQ se async kaam.","Workers get friend IDs from graph DB, filter muted, work async via MQ."),
+B("<b>Cache layers</b>: news feed, content (hot posts), social graph, action (likes/replies), counters.","Five cache tiers: feed, content, social graph, action, counters.")],
+flow:{m:`sequenceDiagram
+  participant A as Author
+  participant W as WebServer
+  participant P as PostService
+  participant F as FanoutService
+  participant Q as MQ
+  participant K as FeedCache
+  A->>W: POST /v1/me/feed
+  W->>P: save post
+  W->>F: fanout(postId)
+  F->>Q: friendIds + postId
+  Q->>K: workers append postId to each friend's feed`,t:[B("Read: feed cache se postIds → user/post cache se hydrate → client.","Read: postIds from cache → hydrate from user/post caches.")]},
+tradeoffs:[B("Push vs pull; feed cache size limit (sirf latest N ids).","Push vs pull; cap feed cache size.")],
+failures:[B("MQ durable, workers retry; cache miss par DB se rebuild.","Durable MQ, retries, rebuild from DB.")],
+points:[B("Celebrity problem aur hybrid model zaroor bolo.","Discuss celebrity problem and hybrid."),B("DB scaling: replication, sharding, stateless web tier, monitoring.","Scaling: replication, sharding, stateless tiers.")],
+naya:[B("Naya: <b>fanout on write vs fanout on read</b> – ye pehla design hai jahan sawaal hai 'kaam write time par karein ya read time par?'. Aur cache sirf IDs store karta hai.","New: <b>fanout on write vs read</b> – do work at write or read time? Cache stores IDs only.")],
+fintech:B("Event-driven fanout = Kafka publish once, many consumer groups (fraud, ledger, notifications). Account activity feed / statement ke liye pre-computed (push) vs on-demand (pull) wahi trade-off.","Kafka: publish once, many consumer groups; activity feeds face the same push/pull trade-off.")
+});
+
+DESIGNS.push({
+id:"design-a-chat-system",ch:13,title:"Design A Chat System",free:true,
+table:{problem:"1-on-1 aur group chat real-time, online presence",naya:"WebSocket (stateful), presence via heartbeat, service discovery, per-user message sync",storage:"Key-value store (HBase/Cassandra) for messages; RDBMS for users",tradeoff:"Stateful connections (hard to scale) vs real-time; group size vs fanout"},
+summary:B("WhatsApp/Messenger jaisa: 1-on-1, chhote group (max 100), online indicator, multi-device, push notifications.","Like WhatsApp: 1-on-1, small groups, presence, multi-device, push."),
+req:{f:[B("1-on-1 chat low latency; group chat (max 100 members); online presence; multiple devices; push notification.","1-on-1, groups up to 100, presence, multi-device, push."),B("Text only, max 100,000 chars; chat history forever.","Text up to 100k chars; history kept forever.")],nf:[B("50 million DAU, low latency, reliability.","50M DAU, low latency.")]},
+est:[B("Chapter: Facebook Messenger + WhatsApp ~60 billion messages/day – isliye storage huge aur read:write ~1:1 for 1-on-1.","Messenger+WhatsApp handle ~60B messages/day; storage is huge.")],
+hld:{m:`flowchart LR
+  U1["User A"] <-->|"WebSocket"| CS1["Chat Server 1"]
+  U2["User B"] <-->|"WebSocket"| CS2["Chat Server 2"]
+  U1 -->|"HTTP"| API["API servers: login, signup, profile"]
+  API --> SD["Service Discovery: ZooKeeper"]
+  CS1 --> IDG["Message ID gen"] --> MQ["Per-user Message Sync Queue"]
+  MQ --> CS2
+  CS1 --> KV[("KV store: messages")]
+  CS1 --> PS["Presence servers"]
+  MQ --> PN["Push notification servers"]`,
+t:[B("<b>Stateless</b> services (login, profile) normal HTTP + LB. <b>Stateful</b> chat service – client ek chat server se persistent WebSocket rakhta hai.","Stateless HTTP services vs stateful chat servers with persistent WebSockets."),B("Service discovery (ZooKeeper) best chat server choose karta hai (location, capacity).","ZooKeeper picks the best chat server.")]},
+deep:[B("<b>Polling vs long polling vs WebSocket</b>: polling waste hai; long polling better par server ko pata nahi client disconnect hua; WebSocket bi-directional, persistent – best.","Polling wastes resources; long polling has issues; WebSocket is bidirectional and persistent."),
+B("<b>Storage</b>: chat history bahut bada, recent messages zyada padhe jaate hain, random search/mention bhi → key-value store (HBase - Facebook, Cassandra - Discord).","History is huge and recent-heavy → KV stores (HBase, Cassandra)."),
+B("<b>message_id</b>: unique + sortable chahiye. Global Snowflake ya <b>local sequence per channel</b> (sirf ek chat ke andar order chahiye).","message_id must be unique & sortable: Snowflake or per-channel local sequence."),
+B("<b>Multi-device sync</b>: har device apna cur_max_message_id rakhta hai; usse bade IDs ke messages new hain.","Each device tracks cur_max_message_id to fetch newer messages."),
+B("<b>Group chat</b>: har member ki apni inbox (message sync queue) – chhote groups ke liye simple; bade groups ke liye costly.","Group: copy to each member's inbox – fine for small groups."),
+B("<b>Presence</b>: login/logout par status; heartbeat har ~5 sec, x sec (jaise 30) tak na aaye to offline – network flicker se bachne ke liye. Status change friends ko pub/sub channels se.","Presence via heartbeats; status changes fan out over pub/sub.")],
+flow:{m:`sequenceDiagram
+  participant A as UserA
+  participant C1 as ChatServer1
+  participant ID as IDGen
+  participant Q as SyncQueue
+  participant KV as KVStore
+  participant C2 as ChatServer2
+  participant B as UserB
+  A->>C1: send message
+  C1->>ID: get message_id
+  C1->>Q: enqueue
+  Q->>KV: persist
+  alt B online
+    Q->>C2: deliver
+    C2->>B: push via WebSocket
+  else B offline
+    Q->>B: push notification
+  end`,t:[B("1-on-1 flow: A → chat server 1 → ID → queue → store → B online hai to chat server 2 se WebSocket, warna push notification.","A → server1 → ID → queue → store → B via WebSocket or push.")]},
+tradeoffs:[B("Stateful servers scale karna mushkil (connections drain); group fanout vs read.","Stateful servers are harder to scale; group fanout cost."),B("Presence fanout bade groups mein costly → on-demand fetch.","Presence fanout is costly for big groups.")],
+failures:[B("Chat server down → client service discovery se naye server par reconnect; message resend with retry + queue.","Reconnect via service discovery; retries and queues."),B("Heartbeat se false-offline se bachna.","Heartbeats avoid flapping status.")],
+points:[B("WebSocket kyun, stateful vs stateless split, KV store kyun, message_id ordering, presence heartbeat.","WebSocket, stateful/stateless split, KV choice, ordering, presence.")],
+naya:[B("Naya: <b>persistent WebSocket (stateful service)</b>, <b>presence via heartbeat</b>, <b>service discovery</b>, aur <b>per-user message sync queue + cur_max_message_id</b>. Pichle designs request-response the; yahan server khud client ko push karta hai.","New: stateful <b>WebSockets</b>, <b>presence</b>, <b>service discovery</b>, per-user sync queues – server pushes to clients.")],
+fintech:B("Relationship-manager chat, real-time payment status push to app (WebSocket/SSE), Kafka partition by conversationId se ordering – wahi ordering guarantee jo payment events mein accountId key se milti hai.","RM chat, real-time payment status push; Kafka key ordering per conversation/account.")
+});
+DESIGNS.push({
+id:"design-a-search-autocomplete-system",ch:14,title:"Design A Search Autocomplete System",free:false,
+table:{problem:"Type karte hi top-k suggestions <100ms mein",naya:"Trie with cached top-k per node; offline data pipeline",storage:"Trie cache + Trie DB (document/KV), analytics logs",tradeoff:"Freshness (weekly rebuild) vs speed"},
+summary:B("User 'din' type kare to 'dinner', 'dinosaur' jaise top 5 popular queries turant dikhao.","Show top-5 popular completions for a prefix as the user types."),
+req:{f:[B("Prefix ke liye top 5 suggestions, popularity (frequency) se sorted.","Top 5 suggestions by frequency.")],nf:[B("Fast (<100ms), relevant, scalable, highly available.","Fast, relevant, scalable, available.")]},
+est:[B("(Hamari taraf se) 10M DAU × 10 searches × ~20 chars → ~24k QPS, peak ~48k.","(Ours) ~24k QPS, peak ~48k.")],
+hld:{m:`flowchart LR
+  U["User types"] --> API["Query Service"] --> TC[("Trie Cache")]
+  TC --> TDB[("Trie DB")]
+  LOGS["Analytics logs"] --> AGG["Aggregators weekly"] --> WK["Workers build trie"] --> TDB`,
+t:[B("Do hisse: <b>query service</b> (fast read) aur <b>data gathering service</b> (offline trie build).","Query service + offline data gathering.")]},
+deep:[B("<b>Trie</b>: har node ek prefix; har node par us prefix ka <b>top-k cached</b> taaki traverse na karna pade. Prefix length limit (~50).","<b>Trie</b> nodes cache top-k results; limit prefix length."),B("Browser caching (Cache-Control) aur AJAX requests; sharding by first letter (uneven → shard map manager).","Browser cache, AJAX, shard by prefix with a shard map.")],
+flow:null,
+tradeoffs:[B("Real-time freshness vs weekly batch rebuild; memory vs latency.","Freshness vs batch; memory vs latency.")],
+failures:[B("Trie DB replicas; filter layer se offensive suggestions hatao.","Replicated trie DB; filter layer for bad suggestions.")],
+points:[B("Top-k per node caching aur offline pipeline – yahi core hai.","Per-node top-k and offline pipeline.")],
+naya:[B("Naya: <b>Trie</b> data structure aur <b>offline batch pipeline</b> jo online read path ko feed karti hai (read path aur build path alag).","New: <b>trie</b> + separate offline build path.")],
+fintech:B("Beneficiary/payee name search, merchant search, IFSC/branch autocomplete – trie ya Elasticsearch completion suggester.","Payee/merchant/branch autocomplete.")
+});
+
+DESIGNS.push({
+id:"design-youtube",ch:15,title:"Design YouTube",free:true,
+table:{problem:"Video upload, transcoding aur global streaming",naya:"Transcoding DAG, GOP split, pre-signed URL upload, CDN cost optimization",storage:"Blob storage (original + transcoded), metadata DB + cache, CDN",tradeoff:"CDN cost vs latency (popular videos only on CDN)"},
+summary:B("Video upload karo, alag resolutions/formats mein transcode karo, aur duniya bhar mein smoothly stream karo.","Upload, transcode into many formats, stream globally."),
+req:{f:[B("Videos fast upload, smooth streaming, quality change, mobile/web/TV clients.","Fast upload, smooth streaming, quality switching, many clients."),B("Max video size 1GB, encryption.","Max 1GB, encryption.")],nf:[B("5 million DAU, low infra cost, high availability, reliability.","5M DAU, low cost, HA.")]},
+est:[B("5M DAU, 5 videos/din dekhte hain, 10% users 1 video/din upload, avg 300MB.","5M DAU, 5 views/day, 10% upload 1 video, 300MB avg."),B("Storage/din = 5M × 10% × 300MB = 150 TB.","150 TB/day storage."),B("CDN (CloudFront ~$0.02/GB): 5M × 5 × 0.3GB × $0.02 = ~$150,000/din – cost bahut bada, isliye optimization zaroori.","CDN ≈ $150k/day → cost optimization matters.")],
+hld:{m:`flowchart LR
+  CL["Client"] -->|"stream"| CDN["CDN"]
+  CL -->|"metadata, upload URL"| API["API servers"]
+  API --> MDB[("Metadata DB + cache")]
+  CL -->|"upload via pre-signed URL"| OS[("Original blob storage")]
+  OS --> TS["Transcoding servers"] --> TSS[("Transcoded storage")] --> CDN
+  TS --> CQ["Completion queue"] --> CH["Completion handler"] --> MDB`,
+t:[B("Blob storage aur CDN khud mat banao – cloud services use karo (Netflix bhi AWS use karta hai).","Use cloud blob storage and CDN rather than building them."),B("Upload ke saath parallel mein metadata update (name, size, format).","Metadata update in parallel with upload.")]},
+deep:[B("<b>Transcoding</b>: raw video bahut bada; devices alag formats/bitrates support karte hain; network ke hisaab se adaptive bitrate. Container + codec (H.264, VP9, HEVC).","<b>Transcoding</b> for size, compatibility and adaptive bitrate; container + codecs."),
+B("<b>DAG model</b>: creators ki alag requirements (watermark, thumbnail, resolutions) → tasks ko directed acyclic graph mein define karo. Components: preprocessor (GOP split, DAG generate, cache), DAG scheduler, resource manager (task/worker/running queues), task workers, temp storage.","<b>DAG</b> of tasks: preprocessor, scheduler, resource manager, workers, temp storage."),
+B("<b>GOP (Group of Pictures)</b>: video ko chhote independently playable chunks mein split → parallel upload/processing, resumable.","<b>GOP</b> splitting enables parallel and resumable upload."),
+B("<b>Pre-signed URL</b>: client seedha blob storage par upload kare, sirf authorized.","<b>Pre-signed URLs</b> for direct secure upload."),
+B("<b>Parallelism</b>: steps ke beech message queues → loosely coupled.","Queues between stages decouple and parallelize."),
+B("<b>Safety</b>: DRM, AES encryption, visual watermarking.","DRM, AES encryption, watermarking."),
+B("<b>CDN cost</b>: sirf popular videos CDN se (long-tail apne video servers se), kam popular ke kam formats, region-specific, ISPs ke saath partnership.","Serve only popular videos from CDN; fewer encodings for long-tail; ISP partnerships.")],
+flow:{m:`sequenceDiagram
+  participant C as Client
+  participant A as APIServer
+  participant S as BlobStorage
+  participant T as Transcoder
+  participant Q as CompletionQueue
+  participant N as CDN
+  C->>A: request pre-signed URL
+  A-->>C: URL
+  C->>S: upload GOP chunks
+  C->>A: update metadata
+  S->>T: start DAG pipeline
+  T->>N: push encoded videos
+  T->>Q: done event
+  Q->>A: update status, notify creator`,t:[B("Streaming: client CDN ke nearest edge se adaptive protocol (MPEG-DASH, HLS) mein stream karta hai.","Streaming via nearest CDN edge using DASH/HLS.")]},
+tradeoffs:[B("CDN cost vs user latency; pre-encode sab formats vs on-demand.","CDN cost vs latency; pre-encode vs on-demand.")],
+failures:[B("Recoverable error (transcode fail) → retry; non-recoverable (bad format) → error return.","Retry recoverable errors; return non-recoverable ones."),B("API servers stateless; metadata DB replica promote; upload fail → retry chunks.","Stateless APIs, DB failover, chunk retries.")],
+points:[B("Cost estimation se CDN optimization tak story banao; DAG + GOP zaroor.","Tie cost estimate to CDN optimizations; explain DAG + GOP.")],
+naya:[B("Naya: <b>transcoding DAG</b> (workflow orchestration), <b>GOP split / resumable upload</b>, <b>pre-signed URL</b>, aur <b>CDN cost</b> ko design driver banana. Pehli baar heavy binary data aur long-running async processing.","New: <b>transcoding DAG</b>, <b>GOP</b>, <b>pre-signed URLs</b>, CDN cost as design driver – first heavy-binary async pipeline.")],
+fintech:B("Document/KYC upload: pre-signed URL se S3, async pipeline (virus scan → OCR → verification) as DAG via Kafka topics; statements PDF CDN se.","KYC uploads via pre-signed URLs and async scan/OCR/verify pipeline.")
+});
+
+DESIGNS.push({
+id:"design-google-drive",ch:16,title:"Design Google Drive",free:false,deepOverview:true,
+table:{problem:"Files upload/download, multi-device sync, revisions, sharing",naya:"Block servers (4MB chunks), delta sync, dedup by hash, long polling, strong consistency metadata",storage:"S3 (blocks) + relational metadata DB (ACID) + cold storage",tradeoff:"Client-side vs server-side block processing; strong consistency vs latency"},
+summary:B("Google Drive / Dropbox jaisa: file upload/download, saare devices par sync, purane versions (revisions), sharing, notifications. <b>Reliability sabse badi priority</b> – data loss bilkul nahi.","Like Drive/Dropbox: upload/download, sync, revisions, sharing, notifications. <b>Reliability is top priority</b>."),
+req:{f:[B("Upload/download files.","Upload/download."),B("Multiple devices par sync.","Sync across devices."),B("File revisions (purane versions dekhna).","File revisions."),B("Sharing (friends/family/colleagues ke saath).","Sharing."),B("File edit/delete/share hone par notification.","Notifications on change.")],
+nf:[B("Reliability – data loss unacceptable.","Reliability – no data loss."),B("Fast sync speed.","Fast sync."),B("Bandwidth kam use (mobile data).","Low bandwidth use."),B("Scalability, high availability.","Scalable and available.")]},
+est:[B("50M signed-up users, 10M DAU.","50M users, 10M DAU."),B("Har user ko 10GB free → 50M × 10GB = ~500 PB total.","10GB each → ~500 PB."),B("Har user ~2 uploads/din, avg file 500KB → 10M × 2 / 86400 ≈ <b>240 upload QPS</b>, peak ≈ <b>480</b>.","~2 uploads/user/day → ~240 QPS, peak ~480."),B("Read:write ~1:1 (sync mein dono barabar).","Read:write ~1:1.")],
+hld:{m:`flowchart LR
+  CL["Client: web / mobile / desktop"] --> LB["Load Balancer"] --> API["API servers: stateless"]
+  CL -->|"blocks"| BS["Block servers: split, hash, compress, encrypt"]
+  BS --> S3[("Cloud storage S3")]
+  S3 --> COLD[("Cold storage")]
+  API --> MC[("Metadata cache")]
+  API --> MDB[("Metadata DB: ACID")]
+  API --> NS["Notification service: long polling"]
+  NS --> CL
+  NS --> OBQ["Offline backup queue"]`,
+t:[B("Shuruaat ek server se (apache + MySQL + /drive folder), storage full hone par sharding, phir S3 (cross-region replication) par move.","Start with one server, then shard, then move files to S3 with cross-region replication."),B("APIs: <b>upload</b> (simple upload chhoti file ke liye; <b>resumable upload</b> badi file ke liye – network toota to wahin se continue), <b>download</b> (path), <b>get revisions</b> (path, limit).","APIs: <b>upload</b> (simple or <b>resumable</b>), <b>download</b>, <b>list revisions</b>."),B("Metadata (user, file, version, block list) DB mein; actual bytes S3 mein. Auth: HTTPS + OAuth.","Metadata in DB, bytes in S3; HTTPS + OAuth.")]},
+deep:[B("<b>Block servers</b>: file ko ~4MB blocks mein todte hain, har block ka hash nikalte hain, compress (gzip/bzip2 text ke liye, alag codecs images/video ke liye) aur encrypt karke S3 mein daalte hain. File = ordered list of block hashes.","<b>Block servers</b> split files into ~4MB blocks, hash, compress, encrypt, store in S3; a file is an ordered list of block hashes."),
+B("<b>Delta sync</b>: file edit hui to sirf badle hue blocks upload hote hain, poori file nahi → bandwidth bachti hai.","<b>Delta sync</b>: only changed blocks are uploaded."),
+B("<b>Dedup</b>: same hash wala block pehle se hai (same account level) to dobara store nahi.","<b>Dedup</b>: identical block hashes are stored once."),
+B("<b>Metadata DB – strong consistency (ACID)</b>: do devices ko same file ka alag view nahi dikhna chahiye. Relational DB natural fit. Tables: user, device (push_id), workspace, file, file_version (read-only rows = history), block.","<b>Metadata DB with strong consistency</b>: relational; tables user, device, workspace, file, file_version, block."),
+B("<b>Metadata cache</b>: fast reads, par write par cache invalidate karo taaki cache aur DB consistent rahein.","<b>Metadata cache</b> with invalidation on write."),
+B("<b>Notification service – long polling</b>: client server se connection khula rakhta hai; change hote hi response, client latest changes pull karta hai, phir naya long-poll. WebSocket ki zaroorat nahi kyunki communication mostly one-way (server→client) aur notifications kam frequent.","<b>Long polling</b> notifications: one-way and infrequent, so WebSocket isn't needed."),
+B("<b>Offline backup queue</b>: client offline hai to changes queue mein, online aane par sync.","<b>Offline backup queue</b> holds changes for offline clients."),
+B("<b>Storage space bachana</b>: dedup, smart revision policy (max versions limit, important versions zyada rakho), inactive data <b>cold storage</b> (S3 Glacier) mein.","Save space: dedup, revision limits, cold storage for inactive data.")],
+flow:{m:`sequenceDiagram
+  participant C1 as Client1
+  participant A as APIServer
+  participant M as MetadataDB
+  participant N as Notification
+  participant B as BlockServer
+  participant S as S3
+  participant C2 as Client2
+  C1->>A: add file metadata
+  A->>M: status = pending
+  A->>N: notify file is uploading
+  N-->>C2: change event
+  C1->>B: upload blocks
+  B->>S: store chunked, compressed, encrypted blocks
+  S-->>A: upload completion callback
+  A->>M: status = uploaded
+  A->>N: notify upload done
+  N-->>C2: pull latest metadata and download changed blocks`,t:[B("<b>Upload</b>: (1) metadata 'pending' (2) notification service doosre clients ko batata hai (3) blocks block server se S3 (4) S3 callback → status 'uploaded' (5) doosre clients notify hokar changes download karte hain.","<b>Upload</b>: pending metadata → notify → blocks to S3 → callback → uploaded → notify others."),B("<b>Download</b>: notification aaya → metadata se changed block list → block servers se sirf woh blocks → client file reconstruct.","<b>Download</b>: notified → fetch block list → download changed blocks → reconstruct.")]},
+tradeoffs:[B("<b>Block servers client side vs server side</b>: client par chunk/compress/encrypt = kam bandwidth, fast; par har platform (iOS, Android, web) par logic likhna padega, aur client par encryption logic security/hack risk. Isliye centralized block servers.","<b>Client-side vs server-side block processing</b>: client-side saves bandwidth but duplicates logic across platforms and is a security risk; hence central block servers."),
+B("Strong consistency (relational, slower) vs NoSQL scale – metadata ke liye consistency jeetti hai.","Consistency beats NoSQL scale for metadata."),
+B("Long polling vs WebSocket: one-way & infrequent → long polling.","Long polling chosen over WebSocket."),
+B("<b>Sync conflict</b>: jo version pehle process hua woh jeetega (<b>first write wins</b>); doosre user ko conflict dikhega aur <b>dono copies</b> (local + server) milengi, user merge ya choose kare.","<b>Conflicts</b>: first write wins; the other user sees both copies and resolves.")],
+failures:[B("LB fail → secondary LB (heartbeat). Block server fail → doosra server pending jobs uthaye.","LB failover; another block server picks up jobs."),B("S3 fail → <b>cross-region replication</b> se doosre region se.","S3 cross-region replication."),B("API servers <b>stateless</b> → LB traffic doosre server par.","Stateless API servers."),B("Metadata cache replicated; DB master down → slave promote (<b>failover</b>), slave down → doosra slave.","Cache replicas; DB failover."),B("Notification server fail → clients ko <b>reconnect</b> karna padta hai (long poll connections lost) – reconnection slow hota hai, gradual.","Notification server failure → clients reconnect (slow)."),B("Offline backup queue replicated – consumers resubscribe.","Replicated offline queue.")],
+points:[B("Reliability first → strong consistency metadata + S3 replication.","Reliability first."),B("Block-level: split, hash, compress, encrypt, delta sync, dedup – ye 6 words yaad rakho.","Remember: split, hash, compress, encrypt, delta, dedup."),B("Metadata vs file data separation – sabse important architecture insight.","Separate metadata from file data."),B("Long polling kyun, conflict handling, client vs server block servers trade-off bolo.","Explain long polling, conflicts, block server placement.")],
+naya:[B("Naya (YouTube se compare karo): YouTube mein file ek baar upload, phir read-only stream. Drive mein file <b>baar baar edit</b> hoti hai aur <b>multiple devices sync</b> → isliye <b>block-level storage, delta sync, dedup</b>, <b>revisions</b>, <b>sync conflicts</b>, aur <b>long-polling notification</b>. Chat mein WebSocket tha, yahan long polling – kyunki traffic one-way aur kam frequent hai. Metadata ke liye <b>strong consistency</b> (KV store chapter ki eventual consistency se ulta).","Versus YouTube (upload once, stream read-only), Drive files are edited repeatedly and synced → <b>blocks, delta sync, dedup, revisions, conflicts, long polling</b>; and <b>strong consistency</b> for metadata, unlike the eventually consistent KV store.")],
+fintech:B("Monolith migration mein bhi yahi soch: metadata (ACID, Oracle/Postgres) aur bulk documents (S3/object store) alag. Statement/KYC document versions, maker-checker workflow mein conflict (first write wins + reject), aur Kafka se 'file uploaded' event downstream systems ko.","Separate ACID metadata from bulk documents; document versions, maker-checker conflicts, Kafka 'file uploaded' events.")
+});
+DESIGNS.push({
+id:"proximity-service",ch:17,title:"Proximity Service",free:false,
+table:{problem:"Paas ke restaurants/businesses dhoondhna (Yelp)",naya:"Geospatial indexing: geohash, quadtree, S2",storage:"Business DB + geospatial index (geohash table) + Redis cache",tradeoff:"Geohash (simple, DB-friendly) vs quadtree (in-memory, adaptive)"},
+summary:B("User ki location + radius do, nearby businesses lautao.","Return businesses within a radius of the user."),
+req:{f:[B("Location + radius se nearby businesses; business owner add/update (real-time nahi chahiye).","Nearby search; owners add/update businesses (not real-time).")],nf:[B("Low latency, privacy, high read QPS.","Low latency, privacy, read-heavy.")]},
+est:[B("(Hamari taraf se) 100M DAU × 5 searches/din ≈ 5000 QPS.","(Ours) ~5000 search QPS.")],
+hld:{m:`flowchart LR
+  U["User"] --> LB["LB"] --> LBS["Location-based service: read-only"]
+  LB --> BS["Business service"]
+  LBS --> GI[("Geohash index replicas")]
+  BS --> DB[("Business DB primary")]
+  DB --> GI`,t:[B("Read path (search) aur write path (business update) alag services.","Separate search and business-update services.")]},
+deep:[B("<b>Geohash</b>: duniya ko recursively grid mein baanto, location ek string (jitni lambi, utni precise). Common prefix = paas paas. Edge cases: boundary par neighbours bhi query karo.","<b>Geohash</b>: prefix = proximity; also query neighbours for boundaries."),B("<b>Quadtree</b>: dense area ko aur divide karo jab tak node mein ≤100 businesses; in-memory tree.","<b>Quadtree</b>: split dense cells; in-memory."),B("<b>Google S2</b>: Hilbert curve, geofencing ke liye accha.","<b>S2</b> on a Hilbert curve; good for geofencing.")],flow:null,
+tradeoffs:[B("Geohash easy update/sharding; quadtree rebuild costly par density adaptive.","Geohash easy to update; quadtree adaptive but costly to rebuild.")],
+failures:[B("Read replicas, multi-region; index data chhota hai (GBs) to har server par copy.","Replicas; index is small enough to replicate everywhere.")],
+points:[B("2D search ko 1D (geohash) banana – yahi trick.","Turn 2D into 1D.")],
+naya:[B("Naya: <b>geospatial indexing</b> (geohash/quadtree/S2) – pehli baar location data.","New: <b>geospatial indexing</b>.")],
+fintech:B("ATM/branch locator, card fraud mein 'transaction location vs usual location' checks.","ATM/branch locator; location-based fraud checks.")
+});
+
+DESIGNS.push({
+id:"nearby-friends",ch:18,title:"Nearby Friends",free:false,
+table:{problem:"Friends ki live location real-time update",naya:"Redis Pub/Sub per user channel, WebSocket location fanout",storage:"Redis location cache (TTL) + location history DB (Cassandra)",tradeoff:"Pub/sub fanout cost vs freshness"},
+summary:B("Nearby friends (jaise 5 miles) aur unki location har ~30 sec update dikhana.","Show nearby friends with ~30s location updates."),
+req:{f:[B("Friends list with distance + last updated; har 30 sec refresh.","Friends with distance, 30s refresh.")],nf:[B("Low latency, thoda data loss chalega, eventual consistency.","Low latency; small loss acceptable.")]},
+est:[B("(Hamari taraf se) 10M concurrent users / 30s ≈ 334k location updates/sec.","(Ours) ~334k updates/s.")],
+hld:{m:`flowchart LR
+  U["User app"] <-->|"WebSocket"| WS["WebSocket servers"]
+  WS --> LC[("Redis location cache TTL")]
+  WS --> LH[("Location history DB")]
+  WS --> PS["Redis Pub/Sub: channel per user"]
+  PS --> WS`,t:[B("User location apne channel par publish; friends ke WebSocket handlers subscribe karke distance calculate karke push.","Publish to own channel; friends' handlers compute distance and push.")]},
+deep:[B("Redis pub/sub cluster ko consistent hashing se shard; service discovery (etcd/ZooKeeper) hash ring rakhta hai.","Shard pub/sub with consistent hashing via service discovery.")],flow:null,
+tradeoffs:[B("Har update ka fanout (avg 400 friends) costly; inactive friends filter.","Fanout cost per update.")],
+failures:[B("Location cache TTL se stale data apne aap hat jaata hai; WebSocket reconnect.","TTL expires stale data; reconnects.")],
+points:[B("Stateful WebSocket scaling aur pub/sub sharding.","Stateful WS scaling and pub/sub sharding.")],
+naya:[B("Naya: proximity service static data tha, yahan <b>moving data + real-time pub/sub fanout</b>.","New: moving data with real-time pub/sub.")],
+fintech:B("Real-time event fanout jaisa Kafka → WebSocket gateway (live payment tracking).","Kafka → WebSocket live tracking.")
+});
+
+DESIGNS.push({
+id:"google-maps",ch:19,title:"Google Maps",free:false,
+table:{problem:"Map tiles, routing, ETA, navigation at global scale",naya:"Map tiles via CDN, routing tiles + hierarchical graph, ETA with live traffic",storage:"Precomputed tiles in S3/CDN, routing tiles, location history DB",tradeoff:"Precompute tiles (storage) vs on-the-fly rendering"},
+summary:B("Map dikhana, A se B ka route, ETA, aur turn-by-turn navigation.","Render maps, compute routes and ETA, navigate."),
+req:{f:[B("Location update, navigation + ETA, map rendering.","Location updates, navigation/ETA, rendering.")],nf:[B("Accuracy, smooth rendering, kam data/battery.","Accuracy, smooth, low data/battery.")]},
+est:[B("(Hamari taraf se) zoom level 21 par ~4.4 trillion tiles; ~100 PB order storage, compression ke baad kam.","(Ours) trillions of tiles; ~PB scale.")],
+hld:{m:`flowchart LR
+  C["Client"] -->|"tiles"| CDN["CDN: precomputed map tiles"]
+  C -->|"batched GPS"| LS["Location service"] --> K["Kafka"] --> DB[("Location history")]
+  C --> NS["Navigation service"] --> RP["Route planner + shortest path + ETA"] --> RT[("Routing tiles")]`,t:[B("Tiles precompute karke CDN se; location updates batch mein bhejo.","Precomputed tiles via CDN; batched location updates.")]},
+deep:[B("Road network ko <b>routing tiles</b> mein todo, hierarchical (local roads, arterial, highways) – A*/Dijkstra chhote graph par.","Hierarchical routing tiles keep graphs small."),B("ETA = ML on live + historical traffic; adaptive reroute.","ML-based ETA; reroute.")],flow:null,
+tradeoffs:[B("Precompute vs dynamic; accuracy vs battery.","Precompute vs dynamic.")],
+failures:[B("CDN caching; Kafka buffer for location stream.","CDN + Kafka buffering.")],
+points:[B("Tiles + geohash, routing tiles hierarchy, Kafka location stream.","Tiles, routing hierarchy, Kafka stream.")],
+naya:[B("Naya: <b>map tiles</b> aur <b>graph routing</b> at scale (shortest path par hierarchy).","New: map tiles and hierarchical graph routing.")],
+fintech:B("Kafka par high-volume event ingestion (location jaisa) = card transaction stream.","High-volume ingestion like card streams.")
+});
+
+DESIGNS.push({
+id:"distributed-message-queue",ch:20,title:"Distributed Message Queue",free:false,
+table:{problem:"Kafka jaisa durable, scalable message queue",naya:"Append-only log (WAL segments), partitions, consumer groups, ISR replication, offsets",storage:"Disk segments (sequential I/O) + metadata in ZooKeeper/KRaft",tradeoff:"Throughput (batching, acks=1) vs durability (acks=all)"},
+summary:B("Producers messages bhejein, consumers padhein; data retention, ordering, replay, at-least/at-most/exactly-once.","Kafka-like queue with retention, ordering, replay and delivery semantics."),
+req:{f:[B("Produce/consume, repeated consume (replay), retention (jaise 2 weeks), partition ke andar ordering, delivery semantics configurable.","Produce/consume, replay, retention, per-partition ordering, configurable delivery.")],nf:[B("High throughput ya low latency (configurable), scalable, durable.","Throughput/latency trade-off, durable.")]},
+est:[B("(Hamari taraf se) sequential disk write ~100s MB/s per disk – isliye log-based design.","(Ours) sequential disk I/O is fast – log design.")],
+hld:{m:`flowchart LR
+  P["Producers: batching, partition by key"] --> B1["Broker 1: partition leader"]
+  B1 -->|"replicate"| B2["Broker 2: follower ISR"]
+  B1 -->|"replicate"| B3["Broker 3: follower ISR"]
+  B1 --> CG["Consumer group: pull, commit offset"]
+  ZK["ZooKeeper / KRaft: metadata, leader election"] --- B1`,t:[B("Topic → partitions → append-only segments on disk. Consumers <b>pull</b> karte hain aur offset commit karte hain.","Topics split into partitions of append-only segments; consumers pull and commit offsets.")]},
+deep:[B("<b>WAL + segments</b>: sequential write, OS page cache, zero copy → bahut fast.","Sequential writes + page cache = speed."),B("<b>Replication</b>: leader + followers; ISR (in-sync replicas); acks=0/1/all.","Leader/follower ISR; acks 0/1/all."),B("<b>Consumer group rebalancing</b>: coordinator heartbeat se partitions assign.","Coordinator-driven rebalancing."),B("Delivery: at-most-once (commit before process), at-least-once (process then commit), exactly-once (idempotent producer + transactions).","Delivery semantics via commit order and idempotence.")],flow:null,
+tradeoffs:[B("acks=all + min.insync.replicas = durability, latency badhti hai; batching = throughput vs latency.","acks=all for durability vs latency; batching trade-off.")],
+failures:[B("Leader down → ISR se naya leader; consumer crash → rebalance aur last committed offset se resume.","ISR leader election; resume from committed offset.")],
+points:[B("Pull vs push, offsets, ISR, ordering only within partition.","Pull, offsets, ISR, per-partition ordering.")],
+naya:[B("Naya: queue ko <b>commit log</b> ki tarah dekhna – replay, retention, partitions, ISR. Notification/news feed mein MQ black box tha, yahan uske andar dekhte hain.","New: queue as <b>commit log</b> – we open the black box used earlier.")],
+fintech:B("Vivek ka daily kaam: payment events Kafka par, key = accountId (ordering), acks=all, idempotent producer, transactional outbox for monolith migration.","Payment events on Kafka with account keys, acks=all, idempotence, outbox pattern.")
+});
+
+DESIGNS.push({
+id:"metrics-monitoring-and-alerting-system",ch:21,title:"Metrics Monitoring and Alerting System",free:false,
+table:{problem:"Infra/app metrics collect, store, query, alert",naya:"Time-series DB, pull vs push collection, downsampling",storage:"Time-series DB (InfluxDB/Prometheus), Kafka buffer",tradeoff:"Pull (simple, discovery) vs push (short-lived jobs, firewall)"},
+summary:B("Lakhon servers ke CPU, memory, latency jaise metrics collect karke dashboards aur alerts.","Collect metrics from many hosts, dashboards and alerts."),
+req:{f:[B("Metrics collect, query, visualize, alert (email, PagerDuty, webhook).","Collect, query, visualize, alert.")],nf:[B("Scalable, low query latency, 1 saal retention (downsampled).","Scalable, low latency, 1-year retention.")]},
+est:[B("(Hamari taraf se) 1000 server pools × 100 machines × 100 metrics ≈ 10M metrics.","(Ours) ~10M metrics.")],
+hld:{m:`flowchart LR
+  SRC["Servers / apps"] -->|"pull or push"| COL["Collectors"] --> K["Kafka"] --> CON["Consumers"] --> TSDB[("Time-series DB")]
+  TSDB --> Q["Query service + cache"] --> VIS["Dashboards"]
+  Q --> AL["Alert manager"] --> CH["Email / PagerDuty / webhook"]`,t:[B("Kafka buffer TSDB ko spikes aur downtime se bachata hai.","Kafka buffers spikes.")]},
+deep:[B("Time-series: write-heavy, recent data zyada padha jaata hai → TSDB, compression (delta encoding), <b>downsampling</b> (purana data low resolution), cold storage.","TSDB with compression and downsampling."),B("Pull (Prometheus, service discovery) vs push (agents, short-lived jobs).","Pull vs push collection.")],flow:null,
+tradeoffs:[B("Pull vs push; retention vs cost.","Pull vs push; retention vs cost.")],
+failures:[B("Kafka buffer, alert dedup, retry notifications.","Buffering, alert dedup, retries.")],
+points:[B("General-purpose DB nahi – TSDB kyun, ye explain karo.","Explain why a TSDB.")],
+naya:[B("Naya: <b>time-series data model</b> aur <b>downsampling</b>, pull vs push collection.","New: time-series model, downsampling.")],
+fintech:B("Payments SLA monitoring: Micrometer + Prometheus + Grafana, Kafka consumer lag alerts, TPS/latency dashboards.","Micrometer/Prometheus, consumer-lag alerts.")
+});
+
+DESIGNS.push({
+id:"ad-click-event-aggregation",ch:22,title:"Ad Click Event Aggregation",free:false,
+table:{problem:"Billions of click events ka near real-time aggregation (billing)",naya:"Stream processing, tumbling/sliding windows, watermark, exactly-once, Lambda/Kappa",storage:"Raw events DB + aggregated DB (Cassandra), Kafka",tradeoff:"Latency vs accuracy (late events, watermarks)"},
+summary:B("Ad clicks count karna per ad per minute, top-N ads – billing ke liye accuracy critical.","Aggregate ad clicks per minute; accuracy matters for billing."),
+req:{f:[B("Last M minutes mein ad clicks, top N ads, filtering.","Clicks in last M minutes, top-N, filters.")],nf:[B("Correctness (paise ka maamla), late/duplicate events handle, end-to-end latency few minutes.","Correctness, late/duplicate events, low latency.")]},
+est:[B("(Hamari taraf se) 1B clicks/din ≈ 10k QPS, peak 50k.","(Ours) ~10k QPS, peak 50k.")],
+hld:{m:`flowchart LR
+  LOG["Click logs"] --> K1["Kafka raw"] --> AGG["Aggregation service: MapReduce DAG"] --> K2["Kafka aggregated"] --> DB2[("Aggregated DB")]
+  K1 --> DB1[("Raw DB")]
+  DB2 --> Q["Query service"]
+  DB1 --> REC["Reconciliation batch"]`,t:[B("Raw + aggregated dono store – raw se recalculation/reconciliation.","Keep both raw and aggregated data.")]},
+deep:[B("<b>Event time vs processing time</b>; late events ke liye <b>watermark</b>.","Event vs processing time; watermarks."),B("<b>Tumbling/sliding windows</b>; <b>exactly-once</b> = offsets + results atomically (or dedup).","Windows; exactly-once via atomic offset+result."),B("Kappa architecture: same stream path se batch replay.","Kappa: replay stream for batch.")],flow:null,
+tradeoffs:[B("Watermark lamba = accurate par slow.","Longer watermark: accurate but slower.")],
+failures:[B("Aggregator crash → snapshot + Kafka offset se recover; daily reconciliation.","Snapshots, offset recovery, reconciliation.")],
+points:[B("Exactly-once aur reconciliation zaroor.","Exactly-once and reconciliation.")],
+naya:[B("Naya: <b>stream processing windows + watermark + exactly-once</b> – metrics se zyada accuracy kyunki billing.","New: stream windows, watermarks, exactly-once.")],
+fintech:B("Card transaction velocity checks (fraud), real-time limits, end-of-day reconciliation – Kafka Streams/Flink windows.","Fraud velocity checks, reconciliation with Kafka Streams/Flink.")
+});
+DESIGNS.push({
+id:"hotel-reservation-system",ch:23,title:"Hotel Reservation System",free:true,
+table:{problem:"Room booking bina double-booking aur overbooking ke",naya:"Idempotency key, pessimistic vs optimistic locking, DB constraints, Saga/2PC",storage:"Relational DB (ACID) – room_type_inventory; Redis inventory cache",tradeoff:"Optimistic locking (fast, low contention) vs pessimistic (safe, slow); microservice consistency"},
+summary:B("Hotel chain (5000 hotels, 1M rooms) ke liye room type book karna, 10% overbooking allowed, double booking nahi.","Book room types across 5000 hotels / 1M rooms; allow 10% overbooking, prevent double booking."),
+req:{f:[B("Hotel/room details dekhna, room reserve/cancel, admin add/update hotels/rooms.","View hotels/rooms, reserve/cancel, admin management."),B("Room <b>type</b> book hota hai (specific room nahi); 10% overbooking support; prices date ke hisaab se dynamic.","Reserve room types, 10% overbooking, dynamic pricing.")],nf:[B("High concurrency (popular hotel par bahut log ek saath).","High concurrency on popular hotels."),B("Moderate latency theek hai.","Moderate latency acceptable.")]},
+est:[B("1M rooms, 70% occupancy, avg stay 3 din → ~240,000 reservations/din → ~3 TPS (bahut kam).","~240k reservations/day → ~3 TPS."),B("QPS funnel (10% har step aage): detail page ~300 QPS → booking page ~30 → reserve ~3.","Funnel: ~300 → 30 → 3 QPS."),B("Inventory rows: 5000 hotels × 20 room types × 2 saal × 365 = ~73 million – ek DB kaafi (replicas for HA).","~73M inventory rows; single DB + replicas.")],
+hld:{m:`flowchart LR
+  U["User"] --> CDN["CDN"]
+  U --> GW["Public API Gateway: auth, rate limit"]
+  GW --> HS["Hotel service + cache"]
+  GW --> RS["Rate service: prices"]
+  GW --> RES["Reservation service"]
+  GW --> PAY["Payment service"]
+  ADM["Admin via internal APIs"] --> HM["Hotel mgmt service"]
+  RES --> DB[("Reservation + room_type_inventory DB")]`,
+t:[B("Microservices, par chapter practical suggest karta hai: reservation aur inventory <b>same relational DB</b> mein rakho taaki ACID transaction mil sake.","Microservices, but keep reservation + inventory in one relational DB for ACID."),B("Relational kyun: read-heavy, ACID (negative balance / double booking rokna), data structure clear.","Relational: read-heavy, ACID, clear schema."),B("Table room_type_inventory(hotel_id, room_type_id, date, total_inventory, total_reserved).","Key table: room_type_inventory.")]},
+deep:[B("<b>Double booking problem 1 – same user double click</b>: client side button disable (bypass ho sakta hai) + <b>idempotency key</b> (reservation_id, server pehle generate karta hai, primary key unique constraint se doosra insert fail).","<b>Same user clicks twice</b>: disable button + <b>idempotency key</b> (reservation_id as PK)."),
+B("<b>Problem 2 – do users ek last room</b> (race condition, isolation level ke bawajood):","<b>Two users, one last room</b> (race):"),
+B("• <b>Pessimistic locking</b> (SELECT ... FOR UPDATE): simple, heavy contention mein safe, par deadlock risk aur scale nahi – recommend nahi.","• <b>Pessimistic</b>: simple but deadlocks, poor scale."),
+B("• <b>Optimistic locking</b> (version column): update tab hi jab version same ho, warna retry. Low contention mein best – hotel reservation ke liye accha.","• <b>Optimistic</b> (version): best for low contention."),
+B("• <b>Database constraint</b>: CHECK (total_inventory - total_reserved >= 0) – simple, par DB-specific aur high contention mein failures.","• <b>DB constraint</b> CHECK – simple, DB-dependent."),
+B("<b>Scale (booking.com level)</b>: hotel_id se shard (e.g. 16 shards, 30k QPS → ~1875 per shard); <b>inventory cache in Redis</b> (TTL); cache aur DB inconsistent ho sakte hain par final validation DB karta hai – isliye chalega. CDC se DB → cache sync.","<b>Scale</b>: shard by hotel_id, Redis inventory cache synced via CDC; DB does final check."),
+B("<b>Microservice data consistency</b>: agar reservation aur payment alag DB mein → <b>2PC</b> (blocking, slow) ya <b>Saga</b> (local transactions + compensating transactions, eventual consistency).","Cross-service consistency: <b>2PC</b> (blocking) or <b>Saga</b> (compensations).")],
+flow:{m:`sequenceDiagram
+  participant U as User
+  participant R as ReservationSvc
+  participant D as DB
+  U->>R: GET booking page
+  R-->>U: reservation_id (idempotency key)
+  U->>R: POST reserve (reservation_id)
+  R->>D: BEGIN then read inventory + version
+  R->>D: UPDATE total_reserved where version = v
+  alt version matched
+    R->>D: INSERT reservation(reservation_id) then COMMIT
+    R-->>U: confirmed
+  else conflict or duplicate key
+    R-->>U: retry or already booked
+  end`,t:[B("Second click same reservation_id ke saath aaye to unique constraint violation → duplicate booking nahi.","A repeated reservation_id hits the unique constraint → no duplicate.")]},
+tradeoffs:[B("Optimistic vs pessimistic vs constraint – contention level par depend.","Choose locking by contention."),B("Single DB (simple ACID) vs database-per-service (pure microservices, Saga complexity).","Shared DB vs DB-per-service with Saga."),B("Cache = speed par stale data; DB final authority.","Cache speed vs staleness; DB is the authority.")],
+failures:[B("DB replicas multi-AZ; payment fail → Saga compensation (reservation cancel); retries safe due to idempotency.","Replicas; Saga compensation; idempotent retries.")],
+points:[B("Idempotency key + optimistic locking – ye do sabse important baatein.","Idempotency + optimistic locking."),B("Estimation se dikhao ki TPS kam hai, isliye relational + simple design OK.","Low TPS justifies a relational design."),B("Saga vs 2PC follow-up ke liye ready raho.","Be ready for Saga vs 2PC.")],
+naya:[B("Naya: pehla <b>transactional / money-related</b> design. Yahan <b>idempotency key</b>, <b>concurrency control (pessimistic/optimistic/constraint)</b>, aur <b>microservices mein distributed transactions (2PC vs Saga)</b>. Pichle designs mostly eventual consistency the; yahan correctness > availability.","New: first <b>transactional</b> design – <b>idempotency</b>, <b>locking strategies</b>, <b>2PC vs Saga</b>; correctness over availability.")],
+fintech:B("Seedha banking: payment API idempotency key (duplicate debit rokna), account balance par optimistic locking (@Version in JPA), monolith → microservices migration mein Saga + Kafka + transactional outbox. HSBC interview ke liye ye chapter must-read.","Directly banking: idempotent payments, JPA @Version, Saga + Kafka outbox during monolith migration.")
+});
+
+DESIGNS.push({
+id:"distributed-email-service",ch:24,title:"Distributed Email Service",free:false,
+table:{problem:"Gmail jaisa email send/receive/search at scale",naya:"SMTP/IMAP protocols, metadata vs attachments split, email search index",storage:"NoSQL (Bigtable/Cassandra) metadata by user, S3 attachments, search index",tradeoff:"Own search index vs Elasticsearch; consistency per mailbox"},
+summary:B("Billion users ke liye email bhejna, receive, folders, search, spam filter.","Send/receive, folders, search, spam at billion-user scale."),
+req:{f:[B("Send/receive, fetch all emails, filter by read/unread, search, anti-spam.","Send, receive, list, filter, search, anti-spam.")],nf:[B("Reliability (email loss nahi), availability, scalability.","Reliable, available, scalable.")]},
+est:[B("(Hamari taraf se) 1B users × 10 sends/din ≈ 100k send QPS; attachments PB-scale.","(Ours) ~100k send QPS; PB attachments.")],
+hld:{m:`flowchart LR
+  C["Webmail client"] --> WS["Web servers + WebSocket"]
+  WS --> OQ["Outgoing queue"] --> SMTPO["SMTP outgoing workers"] --> INET["Internet"]
+  INET --> SMTPI["SMTP servers"] --> IQ["Incoming queue"] --> MP["Mail processing: spam, virus"] --> ST[("Metadata DB + S3 attachments + search index")]`,t:[B("SMTP send ke liye, IMAP/POP fetch ke liye; webmail HTTP/WebSocket.","SMTP, IMAP/POP, HTTP for webmail.")]},
+deep:[B("Metadata partition by user_id; attachments S3; search ke liye per-user inverted index.","Partition by user; S3 attachments; per-user search index."),B("Deliverability: SPF, DKIM, DMARC, dedicated IPs warm-up.","SPF/DKIM/DMARC deliverability.")],flow:null,
+tradeoffs:[B("Elasticsearch vs custom LSM search; strong consistency per mailbox (single leader).","ES vs custom; per-mailbox consistency.")],
+failures:[B("Queues + retry; replicated storage.","Queues, retries, replication.")],
+points:[B("Protocols aur storage split.","Protocols and storage split.")],
+naya:[B("Naya: <b>internet protocols (SMTP/IMAP)</b> aur <b>per-user search index</b>.","New: email protocols, per-user search.")],
+fintech:B("Bank e-statements/alerts email: queue + retry + DKIM; audit trail.","Bank statement emails.")
+});
+
+DESIGNS.push({
+id:"s3-like-object-storage",ch:25,title:"S3-like Object Storage",free:false,
+table:{problem:"Durable object storage (buckets, objects, versioning)",naya:"Data store vs metadata store split, erasure coding, durability math",storage:"Data nodes (append to big files) + metadata DB",tradeoff:"Replication (fast, 3x space) vs erasure coding (1.5x space, slow)"},
+summary:B("Bucket banao, object put/get, versioning, multipart upload, 99.9999% durability.","Buckets, put/get, versioning, multipart, very high durability."),
+req:{f:[B("Bucket create, object upload/download, versioning, list objects.","Buckets, upload/download, versioning, listing.")],nf:[B("Durability 6 nines, availability 4 nines, cost efficient.","High durability and availability, cost-efficient.")]},
+est:[B("(Hamari taraf se) 100 PB, mostly large objects.","(Ours) ~100 PB.")],
+hld:{m:`flowchart LR
+  C["Client"] --> LB["LB"] --> API["API service: IAM auth"]
+  API --> MS[("Metadata store: bucket, object to UUID")]
+  API --> DS["Data store: placement svc + data nodes"]
+  DS --> DN1["Data node primary"] --> DN2["Data node replica"]`,t:[B("Object immutable; metadata (name → UUID) aur data alag.","Immutable objects; metadata and data separate.")]},
+deep:[B("Chhote objects ko bade file mein append (inode bachane ke liye); <b>erasure coding</b> (8+4) ya 3x replication; checksum for corruption.","Pack small objects; erasure coding vs replication; checksums."),B("Multipart upload, garbage collection, versioning.","Multipart, GC, versioning.")],flow:null,
+tradeoffs:[B("Replication vs erasure coding.","Replication vs erasure coding.")],
+failures:[B("Placement service heartbeat; failure domains (rack/AZ).","Heartbeats; failure domains.")],
+points:[B("Durability ka math (replicas across failure domains).","Durability math.")],
+naya:[B("Naya: Drive/YouTube ne S3 ko black box use kiya; yahan uske andar – <b>erasure coding, data/metadata split</b>.","New: inside S3 – erasure coding, data/metadata split.")],
+fintech:B("Statements/KYC archival with immutability (WORM) for regulatory retention.","Regulatory archival (WORM).")
+});
+
+DESIGNS.push({
+id:"real-time-gaming-leaderboard",ch:26,title:"Real-time Gaming Leaderboard",free:true,
+table:{problem:"Millions players ka live ranking, top 10 + apni rank",naya:"Redis sorted sets (skip list + hash), ZINCRBY / ZREVRANGE, leaderboard sharding",storage:"Redis sorted set + MySQL (users, history), monthly leaderboards",tradeoff:"Fixed partition (easy top-k) vs hash partition (scatter-gather)"},
+summary:B("Mobile game: match jeetne par 1 point; top 10 players aur khud ki rank real-time. Har mahine naya leaderboard.","Win = 1 point; show top 10 and your rank in real time; monthly reset."),
+req:{f:[B("Top 10 players dikhana; user ki specific rank; (bonus) user ke aage-peeche 4 players.","Top 10, own rank, neighbours.")],nf:[B("Real-time score update; scalable, available, reliable.","Real-time updates; scalable.")]},
+est:[B("5M DAU, 25M MAU → ~50 users/sec average.","5M DAU → ~50 users/s."),B("10 games/din → score update ~500 QPS, peak (5x) ~2,500.","Score updates ~500 QPS, peak 2500."),B("Top-10 fetch ~50 QPS.","Top-10 fetch ~50 QPS."),B("Storage: 25M × 26 bytes ≈ 650 MB → ek Redis kaafi.","~650 MB → one Redis node fits.")],
+hld:{m:`flowchart LR
+  P["Player"] --> GS["Game service"] -->|"validate win"| LS["Leaderboard service"]
+  LS --> R[("Redis sorted set: leaderboard_feb")]
+  LS --> DB[("MySQL: users, point history")]
+  P -->|"get top 10 / my rank"| LS`,t:[B("Score <b>game server</b> set kare, client nahi (man-in-the-middle se cheat). Game service ↔ leaderboard service, optional MQ agar doosre consumers bhi hain.","Server sets the score (not the client) to avoid cheating; MQ optional for other consumers.")]},
+deep:[B("<b>RDBMS kyun nahi</b>: millions rows par rank nikalna (ORDER BY + rank) har baar full scan – 10s of seconds; continuously changing data.","RDBMS ranking over millions of changing rows is too slow."),
+B("<b>Redis sorted set</b>: member unique, score se sorted. Andar <b>hash table</b> (user→score) + <b>skip list</b> (score→users), add/find O(log n).","<b>Sorted set</b> = hash table + skip list, O(log n)."),
+B("<b>Skip list</b>: sorted linked list ke upar multi-level indexes – binary search jaisa jump.","<b>Skip list</b>: multi-level indexes over a sorted list."),
+B("Commands: <b>ZINCRBY</b> leaderboard_feb_2021 1 'mary1934' (point add), <b>ZREVRANGE</b> 0 9 WITHSCORES (top 10), <b>ZREVRANK</b> (my rank).","<b>ZINCRBY</b>, <b>ZREVRANGE 0 9</b>, <b>ZREVRANK</b>."),
+B("User details MySQL mein + top-10 user details cache. Redis persistence + read replica; MySQL point history se rebuild possible.","User details in MySQL; Redis persistence/replica; rebuild from history."),
+B("<b>Cloud option</b>: API Gateway + Lambda + Redis (serverless, auto-scale).","Serverless: API Gateway + Lambda."),
+B("<b>500M DAU scale</b>: sharding – <b>fixed partition</b> (score ranges, e.g. 1-100, 101-200; top 10 sirf top shard se; user ka score badhe to shard move) vs <b>hash partition</b> (Redis Cluster 16384 slots; top-k ke liye har shard se top-k lo aur merge = <b>scatter-gather</b>, latency badhti hai). Alternative: DynamoDB with write sharding.","<b>Sharding</b>: fixed score-range partitions vs hash partitions with scatter-gather; DynamoDB alternative.")],
+flow:{m:`sequenceDiagram
+  participant P as Player
+  participant G as GameService
+  participant L as LeaderboardSvc
+  participant R as Redis
+  participant D as MySQL
+  P->>G: win match
+  G->>L: score +1 (server validated)
+  L->>R: ZINCRBY leaderboard_month 1 user
+  L->>D: insert point history
+  P->>L: get top 10
+  L->>R: ZREVRANGE 0 9 WITHSCORES
+  L->>D: fetch user details (cached)
+  L-->>P: top 10 list`,t:[B("Score update aur read dono O(log n) – real-time.","Both O(log n).")]},
+tradeoffs:[B("Fixed vs hash partition (top-k easy vs even distribution).","Fixed vs hash partitions."),B("Tie-break: same score par pehle pahunchne wala upar (timestamp ko score mein encode).","Ties: encode timestamp."),B("Redis (fast, memory) vs DB durability.","Redis speed vs DB durability.")],
+failures:[B("Redis down → replica promote; MySQL history se sorted set rebuild.","Promote replica; rebuild from MySQL.")],
+points:[B("Pehle SQL solution, phir kyun fail – phir sorted set. Commands bolna impress karta hai.","Start with SQL, show why it fails, then sorted sets with commands."),B("Partition trade-off aur ties.","Partitioning and ties.")],
+naya:[B("Naya: <b>Redis sorted set / skip list</b> se real-time ranking, aur sharding mein <b>scatter-gather</b> ka cost. Rate limiter mein Redis sirf counter tha; yahan Redis ek ranked data structure.","New: <b>sorted sets/skip lists</b> and <b>scatter-gather</b> cost; Redis as a ranked structure, not just a counter.")],
+fintech:B("Top merchants by volume, rewards/cashback leaderboards, real-time 'top risky accounts' scoring dashboards – Kafka stream → Redis ZINCRBY.","Top merchants/rewards leaderboards; Kafka → Redis ZINCRBY.")
+});
+
+DESIGNS.push({
+id:"payment-system",ch:27,title:"Payment System",free:false,
+table:{problem:"Pay-in/pay-out reliably, kabhi double charge nahi",naya:"PSP integration, double-entry ledger, reconciliation, idempotency, exactly-once via retry+idempotency",storage:"Relational DB (payment events, ledger, wallet), Kafka",tradeoff:"Sync vs async PSP calls; consistency vs latency"},
+summary:B("E-commerce checkout: buyer pay kare (pay-in), seller ko payout (pay-out). Paisa correct track ho, double charge na ho.","Pay-in from buyers and pay-out to sellers with correct accounting."),
+req:{f:[B("Pay-in (PSP jaise Stripe/Adyen ke through), pay-out, refunds.","Pay-in via PSP, pay-out, refunds.")],nf:[B("Reliability, fault tolerance, reconciliation; ~10 TPS (low volume, high correctness).","Reliable; ~10 TPS; correctness over speed.")]},
+est:[B("(Hamari taraf se) 1M transactions/din ≈ 10 TPS – throughput nahi, correctness challenge hai.","(Ours) ~10 TPS; correctness is the challenge.")],
+hld:{m:`flowchart LR
+  U["Checkout"] --> PS["Payment service: risk check"] --> PE["Payment executor"] --> PSP["PSP: Stripe / Adyen / card schemes"]
+  PS --> DB[("Payment events DB")]
+  PS --> W["Wallet service: seller balance"]
+  PS --> L["Ledger: double-entry"]
+  PSP -->|"webhook"| PS
+  REC["Reconciliation: settlement file vs ledger"] --> L`,t:[B("Hosted payment page (PSP) se card data hamare system mein nahi aata – PCI DSS scope kam.","Hosted payment pages keep card data out (PCI scope).")]},
+deep:[B("<b>Double-entry ledger</b>: har transaction mein debit + credit barabar (sum zero).","Double-entry: debits = credits."),B("<b>Idempotency key</b> (checkout_id) + exactly-once = at-least-once (retry with backoff) + at-most-once (idempotency).","Exactly-once = retries + idempotency."),B("<b>Reconciliation</b>: PSP ka settlement file vs internal ledger – mismatch par finance team/auto-fix.","Reconciliation against PSP settlement files."),B("Async with Kafka (retry queue, dead letter queue), handling PSP timeouts (status unknown → query PSP).","Kafka retry/DLQ; handle PSP timeouts.")],flow:null,
+tradeoffs:[B("Sync (simple) vs async (resilient); strong consistency ledger vs eventual between services.","Sync vs async; ledger consistency.")],
+failures:[B("PSP timeout → status poll; retry with same idempotency key; DLQ; reconciliation last safety net.","Status poll, idempotent retries, DLQ, reconciliation.")],
+points:[B("Idempotency, ledger, reconciliation, retry/DLQ, PCI – 5 cheezein.","Idempotency, ledger, reconciliation, retry/DLQ, PCI.")],
+naya:[B("Naya (hotel reservation se aage): <b>external PSP</b> ke saath distributed state, <b>double-entry ledger</b>, <b>reconciliation</b> as safety net.","New: PSP integration, double-entry ledger, reconciliation.")],
+fintech:B("HSBC core area: ISO 20022 messages, payment orchestration, Kafka retry topics + DLQ, Spring Boot idempotency filter, EOD reconciliation. Interview mein apne project examples se jodo.","Core HSBC area: ISO 20022, orchestration, Kafka retry/DLQ, reconciliation.")
+});
+
+DESIGNS.push({
+id:"digital-wallet",ch:28,title:"Digital Wallet",free:false,
+table:{problem:"Wallets ke beech balance transfer, high TPS, auditability",naya:"Event sourcing, CQRS, distributed transactions (2PC/TC-C/Saga), Raft for reliability",storage:"Event log (immutable) + state snapshots; Redis/DB sharded by account",tradeoff:"Correctness + auditability vs throughput"},
+summary:B("Do wallets ke beech paisa transfer ~1M TPS par, aur har change reproducible/audit-able.","Balance transfers at ~1M TPS with full auditability."),
+req:{f:[B("Balance transfer between wallets; history reproduce karna.","Transfers; reproducible history.")],nf:[B("1M TPS, 99.99% reliability, transactional guarantees, reproducibility.","1M TPS, reliable, transactional, reproducible.")]},
+est:[B("(Hamari taraf se) 1M TPS × 2 (debit+credit) ÷ ~1000 TPS per node ≈ 2000 nodes (in-memory/DB).","(Ours) ~2000 nodes at 1000 TPS each.")],
+hld:{m:`flowchart LR
+  C["Command: transfer A to B"] --> V["Validate"] --> EV["Event log: immutable, Raft replicated"]
+  EV --> SM["State machine: apply events"] --> ST[("Balance state")]
+  EV --> RQ["Read side: CQRS projections"]`,t:[B("Commands → validated → events (fact) → state. Events replay se koi bhi past state dobara bana sakte ho.","Commands → events → state; replay rebuilds any state.")]},
+deep:[B("Sharded balances par cross-shard transfer: <b>2PC</b>, <b>TC/C (Try-Confirm/Cancel)</b>, ya <b>Saga</b>.","Cross-shard: 2PC, TC/C, Saga."),B("<b>Event sourcing</b>: state = replay(events); <b>CQRS</b>: write model aur read model alag.","Event sourcing + CQRS."),B("Raft se event log replicate – reliability; snapshots se fast recovery.","Raft replication; snapshots.")],flow:null,
+tradeoffs:[B("Event sourcing complexity vs audit; sync 2PC vs async Saga.","Complexity vs audit; 2PC vs Saga.")],
+failures:[B("Leader fail → Raft election; replay from snapshot + log.","Raft election; snapshot replay.")],
+points:[B("Reproducibility = event sourcing – ye keyword zaroor.","Say event sourcing for reproducibility.")],
+naya:[B("Naya: <b>event sourcing + CQRS</b> aur <b>TC/C</b> – payment system se aage, ab state hi events se banti hai.","New: event sourcing, CQRS, TC/C.")],
+fintech:B("Kafka as event log (compacted topics), Axon/Spring-based event sourcing, core banking ledger audit – regulators ko full trail.","Kafka event log, event-sourced ledgers, audit trails.")
+});
+
+DESIGNS.push({
+id:"stock-exchange",ch:29,title:"Stock Exchange",free:false,
+table:{problem:"Orders match karna ultra-low latency + fairness",naya:"Order book, matching engine, sequencer, single-threaded event loop, mmap/ring buffer",storage:"In-memory order book + event log (mmap), market data",tradeoff:"Latency (single box, in-memory) vs scalability/HA"},
+summary:B("Buy/sell orders accept karna, price-time priority se match, market data publish – microseconds latency.","Accept and match orders by price-time priority with microsecond latency."),
+req:{f:[B("Place/cancel limit orders, matching, market data, risk checks.","Orders, matching, market data, risk checks.")],nf:[B("Very low latency (p99), fairness, determinism, high availability.","Low latency, fairness, determinism, HA.")]},
+est:[B("(Hamari taraf se) peak ~ hazaaron-lakhon orders/sec, millisecond se kam latency.","(Ours) high order rates, sub-ms latency.")],
+hld:{m:`flowchart LR
+  B["Broker"] --> GW["Client gateway"] --> OM["Order manager + risk check"] --> SEQ["Sequencer"] --> ME["Matching engine: order book"]
+  ME --> SEQ2["Sequencer out"] --> MDP["Market data publisher"]
+  ME --> RPT["Reporter"]`,t:[B("Critical path chhota: gateway → order manager → sequencer → matching engine. Baaki sab async.","Keep the critical path tiny; everything else async.")]},
+deep:[B("<b>Order book</b>: price levels ki doubly linked lists, O(1) add/cancel/match.","Order book with O(1) operations."),B("<b>Sequencer</b>: har order ko sequence ID – determinism, replay.","Sequencer for determinism."),B("Single server, single thread, CPU pinning, mmap event store, no network hops.","Single-thread, pinned CPU, mmap.")],flow:null,
+tradeoffs:[B("Latency ke liye sab ek machine par vs HA (hot-warm standby with Raft).","Single box vs HA standby.")],
+failures:[B("Primary fail → standby replays event log; deterministic matching se same state.","Standby replays deterministic log.")],
+points:[B("Determinism + sequencer + in-memory = core.","Determinism, sequencer, in-memory.")],
+naya:[B("Naya: <b>latency-first design</b> – distributed system ke ulta, sab kuch ek box par, event sourcing + determinism.","New: latency-first, single box, deterministic event sourcing.")],
+fintech:B("Treasury/FX trading platforms, LMAX disruptor (ring buffer) Java world mein famous.","FX/treasury; LMAX Disruptor.")
+});
+const ORDER_NOTE = "";
+function pair(x){ if(!x) return ""; return `<span class="pair hi">${x.h}</span><span class="pair en">${x.e}</span>`; }
+function list(arr){ if(!arr||!arr.length) return ""; return "<ul>"+arr.map(x=>`<li>${pair(x)}</li>`).join("")+"</ul>"; }
+function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+let DIAG=0;
+function diagram(code){ if(!code) return ""; const id="dg"+(DIAG++); return `<div class="diagram" data-id="${id}"><div class="fallback-label">Mermaid diagram (agar render na ho to code neeche hai / raw mermaid code shown if rendering is unavailable)</div><pre class="mermaid-src">${esc(code)}</pre></div>`; }
+
+function renderIntro(){
+ const free=DESIGNS.filter(d=>d.free).length, paid=DESIGNS.length-free;
+ return `<section class="intro" id="intro">
+ <h2>Namaste Vivek 👋 – System Design Interview, easy Hinglish mein</h2>
+ ${pair(B("Ye page ByteByteGo ke course <a href='https://bytebytego.com/courses/system-design-interview' target='_blank' rel='noopener'>System Design Interview</a> ke chapters par based hai. <b>Free chapters</b> (bina login public) ko padh kar apne shabdon mein samjhaya hai. <b>Paid 🔒</b> chapters ka content copy nahi kiya – sirf title + link, aur <i>hamari taraf se short overview (ByteByteGo ka content nahi)</i>.","Based on ByteByteGo's System Design Interview course. <b>Free chapters</b> are explained in our own words; <b>paid 🔒</b> chapters only have title + link and our own general-knowledge overview (not ByteByteGo content)."))}
+ <p class="src">Designs: ${DESIGNS.length} (Free ✅ ${free}, Paid 🔒 ${paid}). Top par toggle se Hinglish / English / Both choose karo. Har design ke neeche ✔ mark-as-read (browser mein save hota hai).</p>
+ <h3>Interview ka 4-step framework (free chapter 'A Framework For System Design Interviews' se, apne shabdon mein)</h3>
+ ${list([B("<b>Step 1 – Scope samjho (3-10 min)</b>: requirements, users, scale, features poochho. Seedha design mat shuru karo.","<b>Step 1 – Clarify scope</b>: requirements, scale, features; don't jump in."),B("<b>Step 2 – High-level design + buy-in (10-15 min)</b>: boxes diagram, APIs, back-of-envelope estimate; interviewer se agree karwao.","<b>Step 2 – High-level design</b>: boxes, APIs, estimates; get agreement."),B("<b>Step 3 – Deep dive (10-25 min)</b>: 1-2 critical components par detail, trade-offs bolo.","<b>Step 3 – Deep dive</b> into critical components with trade-offs."),B("<b>Step 4 – Wrap up (3-5 min)</b>: bottlenecks, failures, monitoring, next scale (10x) par kya badlega.","<b>Step 4 – Wrap up</b>: bottlenecks, failures, monitoring, 10x scale.")])}
+ <h3>Basics (free chapters)</h3>
+ ${list([B("<a href='"+SRC+"scale-from-zero-to-millions-of-users' target='_blank'>Scale From Zero To Millions Of Users</a> ✅ – LB, DB replication, cache, CDN, stateless web tier, multi-DC, message queue, sharding.","Scaling basics: LB, replication, cache, CDN, stateless tier, multi-DC, MQ, sharding."),B("<a href='"+SRC+"back-of-the-envelope-estimation' target='_blank'>Back-of-the-envelope Estimation</a> ✅ – power of 2, latency numbers, 1 din ≈ 10^5 sec, QPS/storage nikalna.","Estimation: powers of two, latency numbers, 1 day ≈ 10^5 s."),B("<a href='"+SRC+"a-framework-for-system-design-interviews' target='_blank'>A Framework For System Design Interviews</a> ✅ – upar wala 4-step.","The 4-step framework above.")])}
+ <h3>Comparison table – sab designs ek nazar mein</h3>
+ <div class="tablewrap"><table class="cmp"><thead><tr><th>#</th><th>Design</th><th>Status</th><th>Core problem</th><th>Naya concept</th><th>Main storage</th><th>Key trade-off</th></tr></thead><tbody>
+ ${DESIGNS.map(d=>`<tr><td>${d.ch}</td><td><a href="#${d.id}">${d.title}</a></td><td>${d.free?"Free ✅":"Paid 🔒"}</td><td>${d.table.problem}</td><td>${d.table.naya}</td><td>${d.table.storage}</td><td>${d.table.tradeoff}</td></tr>`).join("")}
+ </tbody></table></div>
+ <h3>Concept ki journey (kaun sa design kya naya laata hai)</h3>
+ ${pair(B("Rate limiter (Redis counter) → Consistent hashing (ring) → KV store (quorum, vector clocks, gossip) → Unique ID (Snowflake) → URL shortener (base62, ID reuse) → Crawler (frontier, politeness) → Notification (retry+dedup) → News feed (fanout write vs read) → Chat (WebSocket, presence) → Autocomplete (trie) → YouTube (transcoding DAG, CDN) → Google Drive (blocks, delta sync, long polling) → Geo designs (geohash, pub/sub) → Message queue (commit log) → Metrics/Ad click (time-series, stream windows) → Hotel (idempotency, locking, Saga) → S3 (erasure coding) → Leaderboard (sorted set) → Payment/Wallet/Exchange (ledger, event sourcing, determinism).","Journey: counters → ring → quorum → Snowflake → base62 → frontier → retry/dedup → fanout → WebSocket → trie → DAG/CDN → blocks/delta sync → geo → commit log → streams → idempotency/locking/Saga → erasure coding → sorted sets → ledgers/event sourcing."))}
+ </section>`;
+}
+
+function renderDesign(d){
+ const url=SRC+d.id;
+ const badge=d.free?`<span class="badge free">Free chapter ✅</span>`:`<span class="badge paid">Paid 🔒</span>`;
+ const notice=d.free
+  ? `<div class="note ok">${pair(B("Source: ByteByteGo ka <b>free</b> chapter – yahan sab apne shabdon mein samjhaya gaya hai (copy-paste nahi). Detail ke liye original padho.","Source: ByteByteGo <b>free</b> chapter, explained in our own words. Read the original for details."))}</div>`
+  : `<div class="note">${pair(B("🔒 Ye <b>paid chapter</b> hai – iska content humne nahi padha/copy kiya. Neeche sab <b>hamari taraf se short overview (ByteByteGo ka content nahi)</b> – general system-design knowledge se."+(d.deepOverview?" (Google Drive ke liye detail zyada hai kyunki ye pehle se discuss hua tha.)":"")+" Estimates jahan '(Hamari taraf se)' likha hai woh hamare assumptions hain.","🔒 <b>Paid chapter</b> – not read or copied. Everything below is <b>our own short overview (not ByteByteGo content)</b> from general knowledge; '(Ours)' marks our assumptions."))}</div>`;
+ const req=`<h4>Functional</h4>${list(d.req.f)}<h4>Non-functional</h4>${list(d.req.nf)}`;
+ return `<section class="design" id="${d.id}" data-id="${d.id}">
+ <div>${badge}<span class="badge">Chapter ${d.ch}</span></div>
+ <h2>${d.ch}. ${d.title}</h2>
+ <div class="src">Source: <a href="${url}" target="_blank" rel="noopener">${url}</a></div>
+ ${notice}
+ <p>${pair(d.summary)}</p>
+ <h3>1. Requirements</h3>${req}
+ ${d.est&&d.est.length?`<h3>2. Back-of-envelope estimates</h3>${list(d.est)}`:""}
+ <h3>3. Basic HLD (high-level design)</h3>${diagram(d.hld.m)}${list(d.hld.t)}
+ <h3>4. Deep dive – key components aur kyun</h3>${list(d.deep)}
+ ${d.flow?`<h3>5. Main flow</h3>${diagram(d.flow.m)}${list(d.flow.t)}`:""}
+ <h3>6. Trade-offs</h3>${list(d.tradeoffs)}
+ <h3>7. Failure handling</h3>${list(d.failures)}
+ <h3>8. Interview key points 🎯</h3>${list(d.points)}
+ <h3>9. Is design mein kya alag / kya naya hai ✨</h3><div class="naya">${list(d.naya)}</div>
+ <h3>10. Fintech / HSBC connection 🏦</h3><div class="fin">${pair(d.fintech)}</div>
+ <label class="readchk"><input type="checkbox" class="rd" data-id="${d.id}"> Padh liya ✔ (mark as read)</label>
+ </section>`;
+}
+
+function renderSidebar(){
+ const mk=d=>`<a href="#${d.id}" data-id="${d.id}"><span class="num">${d.ch}</span><span class="t">${d.free?"✅":"🔒"} ${d.title}</span></a>`;
+ return `<div id="progress"></div><a href="#intro" data-id="intro"><span class="num">★</span><span class="t">Intro + comparison table</span></a>
+ <div class="sec">Volume 1</div>${DESIGNS.filter(d=>d.ch<=16).map(mk).join("")}
+ <div class="sec">Volume 2</div>${DESIGNS.filter(d=>d.ch>16).map(mk).join("")}`;
+}
+
+const LS_KEY="sd-hinglish-read-v1";
+function getRead(){try{return JSON.parse(localStorage.getItem(LS_KEY)||"{}")}catch(e){return {}}}
+function setRead(o){try{localStorage.setItem(LS_KEY,JSON.stringify(o))}catch(e){}}
+function refreshRead(){
+ const r=getRead(); let n=0;
+ document.querySelectorAll(".rd").forEach(c=>{c.checked=!!r[c.dataset.id]; if(c.checked)n++;});
+ document.querySelectorAll("#sidebar a[data-id]").forEach(a=>a.classList.toggle("read",!!r[a.dataset.id]));
+ document.getElementById("progress").textContent=`Progress: ${n}/${DESIGNS.length} padh liye`;
+}
+function setMode(m){
+ document.body.classList.remove("mode-hi","mode-en","mode-both");
+ document.body.classList.add("mode-"+m);
+ document.querySelectorAll("#langGrp button").forEach(b=>b.classList.toggle("on",b.dataset.mode===m));
+ try{localStorage.setItem("sd-hinglish-mode",m)}catch(e){}
+}
+function doSearch(q){
+ q=q.trim().toLowerCase();
+ let shown=0;
+ document.querySelectorAll("section.design").forEach(s=>{
+  const hit=!q||s.textContent.toLowerCase().includes(q);
+  s.classList.toggle("hidden",!hit); if(hit)shown++;
+  const a=document.querySelector(`#sidebar a[data-id="${s.dataset.id}"]`); if(a)a.style.display=hit?"":"none";
+ });
+ document.getElementById("intro").classList.toggle("hidden",!!q && !document.getElementById("intro").textContent.toLowerCase().includes(q));
+ window.__lastSearchCount=shown;
+ return shown;
+}
+async function renderMermaid(){
+ if(!window.mermaid) return;
+ try{
+  const dark=!document.body.classList.contains("light");
+  mermaid.initialize({startOnLoad:false,theme:dark?"dark":"default",securityLevel:"strict"});
+  const els=[...document.querySelectorAll(".diagram")];
+  for(const el of els){
+   const pre=el.querySelector("pre.mermaid-src"); if(!pre) continue;
+   const code=pre.textContent;
+   try{
+    const {svg}=await mermaid.render("m"+el.dataset.id,code);
+    const holder=document.createElement("div"); holder.className="svgwrap"; holder.innerHTML=svg;
+    el.querySelector(".fallback-label").style.display="none";
+    pre.style.display="none";
+    const old=el.querySelector(".svgwrap"); if(old) old.remove();
+    el.appendChild(holder);
+   }catch(e){ console.warn("mermaid failed for",el.dataset.id,e); const bad=document.getElementById("dm"+el.dataset.id); if(bad) bad.remove(); }
+  }
+  window.__mermaidRendered=document.querySelectorAll(".svgwrap svg").length;
+ }catch(e){console.warn("mermaid init failed",e)}
+}
+function init(){
+ document.getElementById("main").innerHTML=renderIntro()+DESIGNS.map(renderDesign).join("");
+ document.getElementById("sidebar").innerHTML=renderSidebar();
+ document.querySelectorAll("#langGrp button").forEach(b=>b.onclick=()=>setMode(b.dataset.mode));
+ let m="hi"; try{m=localStorage.getItem("sd-hinglish-mode")||"hi"}catch(e){} setMode(m);
+ document.getElementById("search").addEventListener("input",e=>doSearch(e.target.value));
+ document.getElementById("main").addEventListener("change",e=>{ if(e.target.classList.contains("rd")){const r=getRead(); if(e.target.checked) r[e.target.dataset.id]=1; else delete r[e.target.dataset.id]; setRead(r); refreshRead();}});
+ document.getElementById("menuBtn").onclick=()=>document.body.classList.toggle("nav-open");
+ document.getElementById("sidebar").addEventListener("click",e=>{ if(e.target.closest("a")) document.body.classList.remove("nav-open");});
+ let th=null; try{th=localStorage.getItem("sd-hinglish-theme")}catch(e){}
+ if(th==="light" || (!th && window.matchMedia && matchMedia("(prefers-color-scheme: light)").matches)) document.body.classList.add("light");
+ document.getElementById("themeBtn").onclick=()=>{document.body.classList.toggle("light"); try{localStorage.setItem("sd-hinglish-theme",document.body.classList.contains("light")?"light":"dark")}catch(e){} location.reload();};
+ refreshRead();
+ window.__appReady=true;
+}
+DESIGNS.sort((a,b)=>a.ch-b.ch);
+init();
+</script>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js" onload="renderMermaid()" onerror="console.info('Mermaid CDN unavailable – showing diagram code instead')"></script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Run Spring Boot</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="sdh-libbar" style="position:relative;z-index:2147483000;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0;padding:8px 16px;background:#0f172a;color:#cbd5e1;font:600 13px/1.5 Inter,'Segoe UI',system-ui,-apple-system,sans-serif;border-bottom:2px solid #0d9488;box-sizing:border-box;width:100%;text-align:left;letter-spacing:0"><a href="../../index.html" style="color:#fff;text-decoration:none;font-weight:800">SystemDesign<span style="color:#8b8cff">.hinglish</span></a><span style="opacity:.45">/</span><a href="../../all-topics.html" style="color:#fff;text-decoration:none">🗂 All Topics</a><span style="opacity:.45">·</span><a href="../../bot-made/index.html" style="color:#fff;text-decoration:none">🤖 Bots ne banaya</a><a href="https://github.com/thoravenger/fde-self-study" target="_blank" rel="noopener" style="color:#a5b4fc;text-decoration:none;font-size:12px">💻 Code on GitHub ↗</a><span style="margin-left:auto;font-size:11px;padding:2px 9px;border-radius:999px;border:1px solid #14b8a6;color:#99f6e4">🤖 Bot-made</span></div>
+<main>
+  <nav>
+    <a href="index.html">Start</a>
+    <a href="docker.html">Docker database</a>
+    <a href="fintech.html">Fintech project</a>
+    <a href="python.html">Python</a>
+  </nav>
+  <h1>Java 21, Spring Boot, Spring AI</h1>
+  <p>The project is <code>java/northline</code>. It is Spring Boot 3.5, Java 21, JDBC, and Spring AI 1.1. The database must already be running.</p>
+  <pre>cd java/northline
+mvn spring-boot:run</pre>
+  <p>The app listens on port <code>8091</code>. Check it:</p>
+  <pre>curl http://127.0.0.1:8091/api/health</pre>
+  <p>You should see <code>"stack":"spring"</code>. If you see a database error, go back to the Docker page.</p>
+  <h2>Call it as Ada</h2>
+  <pre>curl -H "X-Customer-Email: ada@northline.test" http://127.0.0.1:8091/api/accounts</pre>
+  <h2>Grok is the default model</h2>
+  <p>Spring AI talks to Grok through the OpenAI-compatible endpoint at <code>https://api.x.ai</code>. The model is <code>grok-4.7</code>. The key belongs in the environment variable <code>XAI_API_KEY</code>, or in a <code>.env</code> file at the repo root. Git ignores that file. Do not commit the key.</p>
+  <pre>export XAI_API_KEY=your-key
+export NORTHLINE_AI_ENABLED=true
+mvn spring-boot:run</pre>
+  <p>On Windows use <code>set</code> instead of <code>export</code>. Offline answers still work when the flag is false.</p>
+  <p>To use OpenAI instead, unset <code>XAI_API_KEY</code> and set <code>NORTHLINE_AI_PROVIDER=openai</code>, <code>NORTHLINE_AI_BASE_URL=https://api.openai.com</code>, <code>NORTHLINE_AI_MODEL=gpt-4o-mini</code>, and <code>OPENAI_API_KEY</code>.</p>
+  <h2>What to read in the Java</h2>
+  <ul>
+    <li><code>BankService</code> is the ledger. The SQL is visible on purpose.</li>
+    <li><code>FinanceTools</code> is what Spring AI is allowed to call.</li>
+    <li><code>SafeSql</code> is the text-to-SQL guard. Only an advisor can run a report.</li>
+    <li><code>BankController</code> is the HTTP surface. It matches the Python app.</li>
+  </ul>
+</main>
+</body>
+</html>

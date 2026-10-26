@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Northline console</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="sdh-libbar" style="position:relative;z-index:2147483000;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0;padding:8px 16px;background:#0f172a;color:#cbd5e1;font:600 13px/1.5 Inter,'Segoe UI',system-ui,-apple-system,sans-serif;border-bottom:2px solid #0d9488;box-sizing:border-box;width:100%;text-align:left;letter-spacing:0"><a href="../../index.html" style="color:#fff;text-decoration:none;font-weight:800">SystemDesign<span style="color:#8b8cff">.hinglish</span></a><span style="opacity:.45">/</span><a href="../../all-topics.html" style="color:#fff;text-decoration:none">🗂 All Topics</a><span style="opacity:.45">·</span><a href="../../bot-made/index.html" style="color:#fff;text-decoration:none">🤖 Bots ne banaya</a><a href="https://github.com/thoravenger/fde-self-study" target="_blank" rel="noopener" style="color:#a5b4fc;text-decoration:none;font-size:12px">💻 Code on GitHub ↗</a><span style="margin-left:auto;font-size:11px;padding:2px 9px;border-radius:999px;border:1px solid #14b8a6;color:#99f6e4">🤖 Bot-made</span></div>
+<main>
+  <nav>
+    <a href="index.html">Start</a>
+    <a href="fintech.html">Fintech project</a>
+  </nav>
+  <h1>Try the API</h1>
+  <p>Start the Python app on port 8090 first. Serve this folder with <code>python -m http.server 5500</code> and open this page from that server.</p>
+  <p>
+    <label>API base <input id="base" value="http://127.0.0.1:8090"></label>
+  </p>
+  <p>
+    <label>Email <input id="email" value="ada@northline.test"></label>
+  </p>
+  <p><button id="load" type="button">Load accounts</button></p>
+  <p>
+    <label>Question <textarea id="question" rows="3">What is my balance and the overdraft policy?</textarea></label>
+  </p>
+  <p><button id="ask" type="button">Ask</button></p>
+  <div id="out" class="out">Waiting.</div>
+  <script>
+    const out = document.querySelector("#out");
+    function headers() {
+      return { "Content-Type": "application/json", "X-Customer-Email": document.querySelector("#email").value };
+    }
+    function base() { return document.querySelector("#base").value.replace(/\/$/, ""); }
+    document.querySelector("#load").onclick = async () => {
+      out.textContent = "Loading...";
+      try {
+        const response = await fetch(base() + "/api/accounts", { headers: headers() });
+        out.textContent = await response.text();
+      } catch (err) {
+        out.textContent = "Could not reach the API. Start uvicorn on port 8090.\n" + err;
+      }
+    };
+    document.querySelector("#ask").onclick = async () => {
+      out.textContent = "Asking...";
+      try {
+        const response = await fetch(base() + "/api/ask", {
+          method: "POST",
+          headers: headers(),
+          body: JSON.stringify({ question: document.querySelector("#question").value })
+        });
+        out.textContent = await response.text();
+      } catch (err) {
+        out.textContent = "Could not reach the API.\n" + err;
+      }
+    };
+  </script>
+</main>
+</body>
+</html>
