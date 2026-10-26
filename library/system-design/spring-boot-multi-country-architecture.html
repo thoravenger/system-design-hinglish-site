@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Spring Boot Multi-Country Architecture — India Region HLD &amp; LLD · Library · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../../assets/style.css">
+<script>try{if(localStorage.getItem('sd-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="../../index.html">SystemDesign<span>.hinglish</span></a><div class="toplinks"><a href="../../index.html#chapters">Chapters</a><a href="../../library/index.html">Library</a><a href="../../index.html#how">Kaise padhein</a><a href="../../links.html">URL Guide</a></div><button class="theme-toggle" aria-label="theme">◐</button></header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="../index.html"><span class="num">⌂</span> Library home</a></li></ul>
+<div class="group">System Design &amp; Architecture</div><ul>
+<li><a href="../system-design/system-design-mastery.html"><span class="num">📘</span> System Design Mastery</a></li>
+<li><a href="../system-design/smart-parking-system-hld-lld.html"><span class="num">📘</span> Smart Parking System</a></li>
+<li><a href="../system-design/98-system-design-concepts.html"><span class="num">📝</span> 98 System Design Concepts</a></li>
+<li><a href="../system-design/email-notification-scheduler-design.html"><span class="num">📄</span> Email Notification Scheduler</a></li>
+<li><a href="../system-design/schedule-reminder-2m-scale-architecture.html"><span class="num">📝</span> Scale-Ready Schedule Reminder System</a></li>
+<li><a class="active" href="../system-design/spring-boot-multi-country-architecture.html"><span class="num">📄</span> Spring Boot Multi-Country Architecture</a></li>
+</ul>
+<div class="group">Java Core &amp; DSA</div><ul>
+<li><a href="../java-dsa/java-core-mastery-guide.html"><span class="num">📘</span> Java Core Mastery Guide</a></li>
+<li><a href="../java-dsa/java-garbage-collection-guide.html"><span class="num">📘</span> Java Garbage Collection</a></li>
+<li><a href="../java-dsa/java-ds-leetcode-mastery.html"><span class="num">📘</span> Java Data Structures for LeetCode</a></li>
+<li><a href="../java-dsa/data-structures-java-interview-guide.html"><span class="num">📄</span> Data Structures Interview Guide</a></li>
+<li><a href="../java-dsa/lru-cache-java-visual-explainer.html"><span class="num">📘</span> LRU Cache</a></li>
+</ul>
+<div class="group">Spring Boot &amp; Microservices</div><ul>
+<li><a href="../spring-boot/spring-bean-lifecycle.html"><span class="num">📘</span> Spring Bean Lifecycle</a></li>
+<li><a href="../spring-boot/spring-transactional-guide.html"><span class="num">📘</span> @Transactional</a></li>
+<li><a href="../spring-boot/spring-circuit-breaker-resilience4j.html"><span class="num">📘</span> Circuit Breaker (Resilience4j)</a></li>
+<li><a href="../spring-boot/spring-security-jwt-logging-deploy.html"><span class="num">📘</span> Spring Security · JWT · AOP · Logging · Blue-Green</a></li>
+<li><a href="../spring-boot/saga-pattern-complete-guide.html"><span class="num">📄</span> Saga Pattern — Complete Guide</a></li>
+<li><a href="../spring-boot/saga-pattern-spring-boot-quick-reference.html"><span class="num">📄</span> Saga — Quick Reference</a></li>
+</ul>
+<div class="group">Kafka · Redis · Cassandra &amp; Data</div><ul>
+<li><a href="../data-messaging/kafka-redis-cassandra-mastery.html"><span class="num">📘</span> Kafka · Redis · Cassandra</a></li>
+<li><a href="../data-messaging/northguard-xinfra-linkedin-kafka-replacement.html"><span class="num">📘</span> Northguard &amp; Xinfra</a></li>
+</ul>
+<div class="group">GenAI &amp; AI</div><ul>
+<li><a href="../genai/java-genai-complete-guide.html"><span class="num">📄</span> Java + Generative AI</a></li>
+<li><a href="../genai/vector-database-mastery.html"><span class="num">📘</span> Vector Databases</a></li>
+</ul>
+<div class="group">Payments &amp; Interview Prep</div><ul>
+<li><a href="../interview-prep/paytm-backend-interview-guide.html"><span class="num">📄</span> Paytm Backend Interview Guide</a></li>
+<li><a href="../interview-prep/paytm-dsa-questions.html"><span class="num">📄</span> Paytm DSA Questions</a></li>
+<li><a href="../interview-prep/globalpay-system-design.html"><span class="num">📄</span> GlobalPay</a></li>
+</ul>
+</nav>
+<main class="content lib-doc">
+<div class="chapter-hero"><span class="chapter-num">System Design &amp; Architecture</span><h1>Spring Boot Multi-Country Architecture — India Region HLD &amp; LLD</h1><p class="lead">CloudFront CDN → API Gateway → Spring Boot cluster → country-wise routing DataSource (MySQL), Redis L2 cache, Kafka async writes, circuit breaker, HPA aur latency/throughput targets. / Multi-region data architecture, end to end.</p><div class="lib-meta"><span class="badge fmt-pdf">📄 PDF → Web</span><span class="badge time">⏱ ~15 min read</span><span class="badge pages">19 pages (original)</span></div><div class="tags"><span class="tag">Multi-DataSource</span><span class="tag">CDN</span><span class="tag">API Gateway</span><span class="tag">Kubernetes HPA</span></div><div class="lib-dl"><a class="btn small" href="../files/spring-boot-multi-country-architecture.pdf" download>⬇ Download PDF</a></div></div>
+<div class="callout tip"><strong>Study note</strong>Ye page original document se auto-convert kiya gaya hai (headings, tables, code preserve). Exact original layout / diagrams ke liye upar se file download karo.</div>
+<h2>India Region Design — Complete HLD &amp; LLD</h2>
+<p>API Gateway · CDN Strategy · Latency &amp; Throughput · Circuit Breaker · Redis Cache · Kafka · Kubernetes HPA ·</p>
+<p>Prometheus</p>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Latency Target</th><th>Throughput</th><th>CDN Hit Ratio</th><th>DB Strategy</th></tr></thead><tbody><tr><td>P99 API Response</td><td>Per Region</td><td>Cache Target</td><td>Routing DataSource</td></tr></tbody></table></div>
+<h2>1. HIGH LEVEL DESIGN (HLD)</h2>
+<h3>1.1 System Architecture — Full Stack Flow</h3>
+<p>All external traffic enters through CloudFront CDN → API Gateway → Load Balancer → Spring Boot Cluster → CountryRoutingDataSource → Country-Specific MySQL RDS. Redis sits as a shared L2 cache. Kafka decouples async writes.</p>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Layer</th><th>Component</th><th>Technology</th><th>Responsibility</th></tr></thead><tbody><tr><td>1 - Client</td><td>Browser / Mobile</td><td>React / Flutter</td><td>HTTP + X-Country-Code header</td></tr><tr><td>2 - CDN</td><td>Content Delivery Net.</td><td>AWS CloudFront</td><td>Edge cache, DDoS, geo-routing</td></tr><tr><td>3 - Gateway</td><td>API Gateway</td><td>Kong / AWS API GW</td><td>Auth, rate-limit, WAF, SSL</td></tr><tr><td>4 - LB</td><td>Load Balancer</td><td>Nginx / AWS ALB</td><td>Round-robin, health-check</td></tr><tr><td>5 - App</td><td>Spring Boot Cluster</td><td>Java 17 / Boot 3.2</td><td>Business logic + routing</td></tr><tr><td>6 - Cache</td><td>Redis Cluster</td><td>Redis 7.x</td><td>L2 cache, sessions</td></tr><tr><td>7 - Queue</td><td>Message Broker</td><td>Apache Kafka</td><td>Async writes, retry</td></tr><tr><td>8 - DB</td><td>Country Databases</td><td>MySQL 8 RDS</td><td>Persistent storage per region</td></tr></tbody></table></div>
+<h3>1.2 Architecture Diagram</h3>
+<pre><code>Clients (Browser / Mobile / API)
+| HTTPS
+v</code></pre>
+<ul><li></li></ul>
+<pre><code>CDN — CloudFront (Mumbai, Delhi, Chennai, Hyderabad edges)
+Cache-Control headers · Lambda@Edge   inject X-Country-Code</code></pre>
+<ul><li></li></ul>
+<pre><code>|
+                               v
+  API Gateway (Kong)
+  JWT Auth · Rate Limit · WAF · SSL Term · Request Logging</code></pre>
+<ul><li></li></ul>
+<pre><code>| /api/india/* | /api/us/*
+         v                        v
+  LB (India ALB)     LB (US ALB)</code></pre>
+<ul><li></li></ul>
+<pre><code>|
+                           v
+  Spring Boot Cluster (Kubernetes)
+  CountryFilter   CountryContextHolder   RoutingDataSource
+  Resilience4j Circuit Breaker + Retry + Bulkhead
+  Micrometer   Prometheus    Grafana Dashboards</code></pre>
+<ul><li></li></ul>
+<pre><code>| |
+                  v                         v
+  Redis Cluster (L2)     Kafka (Async write / events)
+
+| cache miss | consume
+                  v
+  CountryRoutingDataSource
+  &quot;india&quot;    MySQL RDS ap-south-1 (india_db)
+  &quot;us&quot;    MySQL RDS us-east-1 (us_db)
+  &quot;uk&quot;    MySQL RDS eu-west-2 (uk_db)
+  &quot;global&quot;    MySQL RDS us-east-1 (global_db) [default]</code></pre>
+<ul><li></li></ul>
+<h3>1.3 CDN Strategy — Required for India</h3>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Content Type</th><th>CDN?</th><th>TTL</th><th>Cache-Control Header</th></tr></thead><tbody><tr><td>JS / CSS / Images</td><td>YES</td><td>1 year</td><td>public, max-age=31536000, immutable</td></tr><tr><td>API: Master / Config</td><td>YES</td><td>1 hour</td><td>public, s-maxage=3600</td></tr><tr><td>API: Country enums</td><td>YES</td><td>24 hrs</td><td>public, s-maxage=86400</td></tr><tr><td>API: User profile</td><td>NO</td><td>0</td><td>private, no-store</td></tr><tr><td>API: Real-time price</td><td>NO</td><td>0</td><td>no-cache, no-store</td></tr><tr><td>API: POST / writes</td><td>BYPASS</td><td>0</td><td>CDN skips all POST/PUT/DELETE</td></tr></tbody></table></div>
+<h3>1.4 API Gateway — Kong Configuration</h3>
+<pre><code># Kong declarative config — India service
+services:
+- name: india-customer-service
+url: http://india-lb:8080
+connect_timeout: 3000
+read_timeout: 10000
+retries: 3
+routes:
+- name: india-api
+service: india-customer-service
+paths: [/api/v1]
+headers: { X-Country-Code: [india, IN] }
+plugins:
+- name: jwt # OAuth2 JWT validation
+config: { key_claim_name: kid }
+- name: rate-limiting-advanced # 1000 req/min per India client
+config:
+limit: [1000]
+window_size: [60]
+strategy: redis
+- name: request-transformer # Inject correlation ID
+config:
+add.headers: [X-Request-ID:$(uuid)]
+- name: cors
+config:
+origins: [&quot;https://india.example.com&quot;]
+methods: [GET, POST, PUT, DELETE]</code></pre>
+<h2>2. LOW LEVEL DESIGN — CORE CLASSES</h2>
+<h3>2.1 CountryEnum.java</h3>
+<pre><code>package com.india.architecture.context;
+import lombok.Getter;
+// Maps every country to: datasource key, ISO code, AWS region
+@Getter
+public enum CountryEnum {
+    INDIA (&quot;india&quot;, &quot;IN&quot;, &quot;ap-south-1&quot;),
+    US (&quot;us&quot;, &quot;US&quot;, &quot;us-east-1&quot;),
+    UK (&quot;uk&quot;, &quot;UK&quot;, &quot;eu-west-2&quot;),
+    GLOBAL(&quot;global&quot;, &quot;GL&quot;, &quot;us-east-1&quot;); // default fallback
+    private final String dsKey; // HikariCP datasource key
+    private final String isoCode; // ISO 3166-1 alpha-2
+    private final String awsRegion; // AWS deployment region
+    CountryEnum(String dsKey, String isoCode, String awsRegion) {
+        this.dsKey = dsKey;
+        this.isoCode = isoCode;
+        this.awsRegion = awsRegion;
+    }
+    // Accepts both &quot;india&quot; and &quot;IN&quot; — case insensitive
+    public static CountryEnum fromHeader(String value) {
+        if (value == null || value.isBlank()) return GLOBAL;
+        for (CountryEnum c : values()) {
+            if (c.dsKey.equalsIgnoreCase(value) ||
+            c.isoCode.equalsIgnoreCase(value)) {
+                return c;
+            }
+        }
+        return GLOBAL;
+    }
+}</code></pre>
+<h3>2.2 CountryContextHolder.java</h3>
+<pre><code>package com.india.architecture.context;
+// Thread-local country context — one slot per request thread
+// Lifecycle: CountryFilter.set()   Service reads   Filter.clear()
+public final class CountryContextHolder {
+    private static final ThreadLocal&lt;CountryEnum&gt; CONTEXT =
+    ThreadLocal.withInitial(() -&gt; CountryEnum.GLOBAL);
+    private CountryContextHolder() {} // prevent instantiation
+    public static void set(CountryEnum country) {
+        CONTEXT.set(country);
+    }
+    public static CountryEnum get() {
+        return CONTEXT.get();
+    }
+    // Returns &quot;india&quot; | &quot;us&quot; | &quot;uk&quot; | &quot;global&quot;
+    public static String dsKey() {
+        return CONTEXT.get().getDsKey();
+    }
+    // Returns &quot;IN&quot; | &quot;US&quot; | &quot;UK&quot; | &quot;GL&quot;
+    public static String isoCode() {
+        return CONTEXT.get().getIsoCode();
+    }
+    // CRITICAL: call in finally block — prevents ThreadLocal memory leak
+    public static void clear() {
+        CONTEXT.remove();
+    }
+}</code></pre>
+<h3>2.3 CountryRoutingDataSource.java</h3>
+<pre><code>package com.india.architecture.routing;
+import com.india.architecture.context.CountryContextHolder;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.jdbc.datasource.lookup.AbstractRoutingDataSource;
+import javax.sql.DataSource;
+// Spring calls determineCurrentLookupKey() before EVERY JDBC operation
+@Slf4j
+public class CountryRoutingDataSource extends AbstractRoutingDataSource {
+    @Override
+    protected Object determineCurrentLookupKey() {
+        String key = CountryContextHolder.dsKey();
+        log.debug(&quot;[DS-ROUTING] Routing JDBC   datasource key: &#x27;{}&#x27;&quot;, key);
+        return key; // matches keys in DataSourceConfig targets map
+    }
+    @Override
+    protected DataSource resolveSpecifiedDataSource(Object dataSource) {
+        if (dataSource == null) {
+            log.warn(&quot;[DS-ROUTING] Key not found, using GLOBAL fallback&quot;);
+            return getResolvedDefaultDataSource();
+        }
+        return super.resolveSpecifiedDataSource(dataSource);
+    }
+}</code></pre>
+<h3>2.4 DataSourceConfig.java</h3>
+<pre><code>package com.india.architecture.config;
+import com.india.architecture.context.CountryEnum;
+import com.india.architecture.routing.CountryRoutingDataSource;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.boot.context.properties.ConfigurationProperties;
+import org.springframework.boot.jdbc.DataSourceBuilder;
+import org.springframework.context.annotation.*;
+import javax.sql.DataSource;
+import java.util.*;
+@Configuration
+public class DataSourceConfig {
+    // Each bean reads from datasources.india.* in application.yml
+    @Bean(&quot;indiaDS&quot;)
+    @ConfigurationProperties(prefix = &quot;datasources.india&quot;)
+    public DataSource indiaDataSource() {
+        return DataSourceBuilder.create().build();
+    }
+    @Bean(&quot;usDS&quot;)
+    @ConfigurationProperties(prefix = &quot;datasources.us&quot;)
+    public DataSource usDataSource() {
+        return DataSourceBuilder.create().build();
+    }
+    @Bean(&quot;ukDS&quot;)
+    @ConfigurationProperties(prefix = &quot;datasources.uk&quot;)
+    public DataSource ukDataSource() {
+        return DataSourceBuilder.create().build();
+    }
+    @Bean(&quot;globalDS&quot;)
+    @ConfigurationProperties(prefix = &quot;datasources.global&quot;)
+    public DataSource globalDataSource() {
+        return DataSourceBuilder.create().build();
+    }
+    @Bean(&quot;routingDataSource&quot;)
+    @Primary
+    public DataSource routingDataSource(
+    @Qualifier(&quot;indiaDS&quot;) DataSource india,
+    @Qualifier(&quot;usDS&quot;) DataSource us,
+    @Qualifier(&quot;ukDS&quot;) DataSource uk,
+    @Qualifier(&quot;globalDS&quot;) DataSource global) {
+        Map&lt;Object, Object&gt; targets = new HashMap&lt;&gt;();
+        targets.put(CountryEnum.INDIA.getDsKey(), india); // &quot;india&quot;
+        targets.put(CountryEnum.US.getDsKey(), us); // &quot;us&quot;
+        targets.put(CountryEnum.UK.getDsKey(), uk); // &quot;uk&quot;
+        targets.put(CountryEnum.GLOBAL.getDsKey(), global); // &quot;global&quot;
+        CountryRoutingDataSource routing = new CountryRoutingDataSource();
+        routing.setTargetDataSources(targets);
+        routing.setDefaultTargetDataSource(global); // fallback
+        routing.afterPropertiesSet();
+        return routing;
+    }
+}</code></pre>
+<h2>3. LLD — FILTER, ENTITY &amp; SERVICE</h2>
+<h3>3.1 CountryFilter.java (Order = 1)</h3>
+<pre><code>package com.india.architecture.filter;
+import com.india.architecture.context.*;
+import jakarta.servlet.*;
+import jakarta.servlet.http.HttpServletRequest;
+import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
+import org.springframework.core.annotation.Order;
+import org.springframework.stereotype.Component;
+import java.io.IOException;
+import java.util.UUID;
+// Runs FIRST on every HTTP request — sets country context
+@Component
+@Order(1)
+@Slf4j
+public class CountryFilter implements Filter {
+    @Override
+    public void doFilter(ServletRequest req, ServletResponse res,
+    FilterChain chain) throws IOException, ServletException {
+        HttpServletRequest request = (HttpServletRequest) req;
+        // Priority: Header   Query Param   Default GLOBAL
+        String raw = request.getHeader(&quot;X-Country-Code&quot;);
+        if (raw == null || raw.isBlank()) {
+            raw = request.getParameter(&quot;country&quot;);
+        }
+        CountryEnum country = CountryEnum.fromHeader(raw);
+        // Correlation ID for distributed tracing
+        String requestId = request.getHeader(&quot;X-Request-ID&quot;);
+        if (requestId == null) requestId = UUID.randomUUID().toString();
+        CountryContextHolder.set(country);
+        MDC.put(&quot;country&quot;, country.getIsoCode());
+        MDC.put(&quot;requestId&quot;, requestId);
+        try {
+            chain.doFilter(req, res);
+        } finally {
+            CountryContextHolder.clear(); // MUST — prevents ThreadLocal leak
+            MDC.clear();
+        }
+    }
+}</code></pre>
+<h3>3.2 BaseEntity.java + Customer.java</h3>
+<pre><code>// BaseEntity.java — inherited by all country-scoped entities
+@MappedSuperclass
+@EntityListeners(AuditingEntityListener.class)
+@Getter @Setter
+public abstract class BaseEntity {
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+    @Column(name = &quot;country_code&quot;, nullable = false, length = 2)
+    private String countryCode; // &quot;IN&quot;, &quot;US&quot;, &quot;UK&quot;
+    @CreatedDate
+    @Column(name = &quot;created_at&quot;, updatable = false)
+    private LocalDateTime createdAt;
+    @LastModifiedDate
+    @Column(name = &quot;updated_at&quot;)
+    private LocalDateTime updatedAt;
+    @Version
+    private Long version; // Optimistic locking
+}
+// Customer.java — India-specific fields (GSTIN, PAN, state)
+@Entity
+@Table(name = &quot;customers&quot;, indexes = {
+    @Index(name = &quot;idx_country&quot;, columnList = &quot;country_code&quot;),
+    @Index(name = &quot;idx_country_state&quot;, columnList = &quot;country_code,state&quot;),
+    @Index(name = &quot;idx_gstin&quot;, columnList = &quot;gstin&quot;)
+})
+@Getter @Setter @Builder @NoArgsConstructor @AllArgsConstructor
+public class Customer extends BaseEntity {
+    @NotBlank
+    private String name;
+    @Email @NotBlank
+    private String email;
+    private String state; // Indian state: &quot;Maharashtra&quot;, &quot;Karnataka&quot; …
+    @Pattern(regexp = &quot;^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$&quot;)
+    private String gstin; // GST Identification Number (India only)
+    @Pattern(regexp = &quot;[A-Z]{5}[0-9]{4}[A-Z]{1}&quot;)
+    private String pan; // Permanent Account Number (India only)
+    @Enumerated(EnumType.STRING)
+    private CustomerStatus status = CustomerStatus.ACTIVE;
+    public enum CustomerStatus { ACTIVE, INACTIVE, SUSPENDED }
+}</code></pre>
+<h3>3.3 CountryDataService.java — Cache + Circuit Breaker</h3>
+<pre><code>@Service
+@RequiredArgsConstructor
+@Slf4j
+public class CountryDataService {
+    private final CustomerRepository customerRepository;
+    // READ: Cache-Aside (Redis L2) + Circuit Breaker
+    @Cacheable(value = &quot;customers&quot;,
+    key = &quot;T(com.india.architecture.context.CountryContextHolder)&quot;
+    + &quot;.isoCode() + &#x27;:&#x27; + #state&quot;)
+    @CircuitBreaker(name = &quot;indiaDB&quot;, fallbackMethod = &quot;fallbackByState&quot;)
+    @Retry(name = &quot;indiaDB&quot;)
+    public List&lt;Customer&gt; getCustomersByState(String state) {
+        String iso = CountryContextHolder.isoCode();
+        return customerRepository.findByCountryCodeAndState(iso, state);
+    }
+    // WRITE: Evict cache + auto-set country from context
+    @Transactional
+    @CacheEvict(value = &quot;customers&quot;, allEntries = true)
+    public Customer save(Customer customer) {
+        customer.setCountryCode(CountryContextHolder.isoCode());
+        return customerRepository.save(customer);
+    }
+    // PAGINATED: always paginate — never load all rows!
+    public Page&lt;Customer&gt; getPagedCustomers(Pageable pageable) {
+        return customerRepository.findActiveByCountryCode(
+        CountryContextHolder.isoCode(), pageable);
+    }
+    // CROSS-COUNTRY: switch context per loop iteration
+    public Map&lt;String, Long&gt; countByAllCountries() {
+        Map&lt;String, Long&gt; result = new LinkedHashMap&lt;&gt;();
+        for (CountryEnum c : CountryEnum.values()) {
+            if (c == CountryEnum.GLOBAL) continue;
+            CountryContextHolder.set(c);
+            try {
+                result.put(c.name(),
+                customerRepository.countByCountryCode(c.getIsoCode()));
+            } finally {
+                CountryContextHolder.clear(); // clear after each country
+            }
+        }
+        return result;
+    }
+    // Fallback when circuit is OPEN
+    public List&lt;Customer&gt; fallbackByState(String state, Exception ex) {
+        log.error(&quot;[FALLBACK] India DB unavailable state={}: {}&quot;, state, ex.getMessage());
+        return List.of(); // graceful empty response
+    }
+}</code></pre>
+<h2>4. LLD — STARTUP LOADER &amp; REST API</h2>
+<h3>4.1 IndiaDataLoader.java (ApplicationRunner)</h3>
+<pre><code>@Component
+@RequiredArgsConstructor
+@Slf4j
+public class IndiaDataLoader implements ApplicationRunner {
+    private final CustomerRepository customerRepository;
+    private final CacheManager cacheManager;
+    // Runs ONCE after Spring Boot startup
+    // Pre-warms Redis cache with India reference data
+    @Override
+    public void run(ApplicationArguments args) {
+        log.info(&quot;                                       &quot;);
+        log.info(&quot;  [STARTUP] Loading India data &quot;);
+        log.info(&quot;                                       &quot;);
+        CountryContextHolder.set(CountryEnum.INDIA);
+        try {
+            var customers = customerRepository.findByCountryCode(&quot;IN&quot;);
+            var cache = cacheManager.getCache(&quot;customers&quot;);
+            if (cache != null) {
+                cache.put(&quot;IN:all&quot;, customers);
+            }
+            log.info(&quot;[STARTUP] Pre-warmed: {} India customers&quot;, customers.size());
+        } catch (Exception ex) {
+            // Non-fatal — app still starts even if DB is temporarily down
+            log.warn(&quot;[STARTUP] Pre-warm failed (non-fatal): {}&quot;, ex.getMessage());
+        } finally {
+            CountryContextHolder.clear(); // Always clean up
+        }
+    }
+}</code></pre>
+<h3>4.2 CustomerController.java (REST API)</h3>
+<pre><code>@RestController
+@RequestMapping(&quot;/api/v1/customers&quot;)
+@RequiredArgsConstructor
+@Slf4j
+@Tag(name = &quot;Customers&quot;, description = &quot;Country-scoped customer API&quot;)
+public class CustomerController {
+    private final CountryDataService service;
+    // GET /api/v1/customers?page=0&amp;size=20
+    // Header: X-Country-Code: india   auto-handled by CountryFilter
+    @GetMapping
+    public ResponseEntity&lt;Page&lt;Customer&gt;&gt; list(
+    @RequestParam(defaultValue = &quot;0&quot;) int page,
+    @RequestParam(defaultValue = &quot;20&quot;) int size) {
+        Page&lt;Customer&gt; result = service.getPagedCustomers(
+        PageRequest.of(page, size, Sort.by(&quot;createdAt&quot;).descending()));
+        return ResponseEntity.ok(result);
+    }
+    // GET /api/v1/customers/by-state?state=Maharashtra
+    @GetMapping(&quot;/by-state&quot;)
+    public ResponseEntity&lt;List&lt;Customer&gt;&gt; byState(@RequestParam String state) {
+        return ResponseEntity.ok(service.getCustomersByState(state));
+    }
+    // POST /api/v1/customers
+    @PostMapping
+    public ResponseEntity&lt;Customer&gt; create(@Valid @RequestBody Customer customer) {
+        return ResponseEntity.status(201).body(service.save(customer));
+    }
+    // PUT /api/v1/customers/{id}
+    @PutMapping(&quot;/{id}&quot;)
+    public ResponseEntity&lt;Customer&gt; update(
+    @PathVariable Long id,
+    @Valid @RequestBody Customer patch) {
+        return ResponseEntity.ok(service.update(id, patch));
+    }
+    // DELETE /api/v1/customers/{id}
+    @DeleteMapping(&quot;/{id}&quot;)
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable Long id) {
+        service.delete(id);
+    }
+    // GET /api/v1/customers/stats — count per country
+    @GetMapping(&quot;/stats&quot;)
+    public ResponseEntity&lt;Map&lt;String, Long&gt;&gt; stats() {
+        return ResponseEntity.ok(service.countByAllCountries());
+    }
+}</code></pre>
+<h2>5. LATENCY &amp; THROUGHPUT MANAGEMENT</h2>
+<h3>5.1 Latency Sources &amp; Targets</h3>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Source</th><th>Typical Delay</th><th>Strategy</th><th>Target</th></tr></thead><tbody><tr><td>India↔US cross-region</td><td>150-300ms</td><td>India-local RDS ap-south-1</td><td>&lt;5ms</td></tr><tr><td>SSL Handshake</td><td>30-100ms</td><td>SSL termination at CDN</td><td>0ms</td></tr><tr><td>Connection pool wait</td><td>10-500ms</td><td>HikariCP min-idle=5</td><td>&lt;3ms</td></tr><tr><td>Cache miss (DB query)</td><td>50-500ms</td><td>Redis L2 + DB indexes</td><td>&lt;10ms</td></tr><tr><td>JPA N+1 query</td><td>100-2000ms</td><td>JOIN FETCH + @BatchSize</td><td>&lt;20ms</td></tr><tr><td>GC pause</td><td>10-200ms</td><td>G1GC MaxGCPauseMillis=100</td><td>&lt;20ms</td></tr></tbody></table></div>
+<h3>5.2 HikariCP + Redis Cache Config (application.yml)</h3>
+<pre><code>datasources:
+india:
+hikari:
+pool-name: IndiaPool
+maximum-pool-size: 20 # = (CPU cores * 2) + disk spindles
+minimum-idle: 5 # 5 warm connections always ready
+connection-timeout: 3000 # Fail fast: 3s max wait
+idle-timeout: 600000 # 10 min before close
+max-lifetime: 1800000 # 30 min recycle (before MySQL timeout)
+keepalive-time: 60000 # Ping every 60s vs firewall drop
+spring:
+data:
+redis:
+timeout: 2000ms
+lettuce:
+pool:
+max-active: 20
+min-idle: 5</code></pre>
+<h3>5.3 Redis Cache-Aside Pattern (CacheConfig.java)</h3>
+<pre><code>@Configuration
+@EnableCaching
+public class CacheConfig {
+    @Bean @Primary
+    public CacheManager redisCacheManager(RedisConnectionFactory factory) {
+        RedisCacheConfiguration base = RedisCacheConfiguration.defaultCacheConfig()
+        .entryTtl(Duration.ofMinutes(30))
+        .disableCachingNullValues();
+        Map&lt;String, RedisCacheConfiguration&gt; perCache = new HashMap&lt;&gt;();
+        perCache.put(&quot;customers&quot;, base.entryTtl(Duration.ofMinutes(60)));
+        perCache.put(&quot;products&quot;, base.entryTtl(Duration.ofMinutes(30)));
+        perCache.put(&quot;masterData&quot;, base.entryTtl(Duration.ofHours(24)));
+        return RedisCacheManager.builder(factory)
+        .cacheDefaults(base)
+        .withInitialCacheConfigurations(perCache)
+        .build();
+    }
+    // L1: JVM Caffeine cache — fastest, per-instance, 5-min TTL
+    @Bean(&quot;caffeineCacheManager&quot;)
+    public CacheManager caffeineCacheManager() {
+        CaffeineCacheManager mgr = new CaffeineCacheManager();
+        mgr.setCaffeineSpec(CaffeineSpec.parse(
+        &quot;maximumSize=10000,expireAfterWrite=5m&quot;));
+        return mgr;
+    }
+}</code></pre>
+<h3>5.4 Resilience4j Circuit Breaker + Retry</h3>
+<pre><code>resilience4j:
+circuitbreaker:
+instances:
+indiaDB:
+sliding-window-size: 20 # Evaluate last 20 calls
+failure-rate-threshold: 50 # Open if 50% fail
+wait-duration-in-open-state: 30s # Wait before half-open
+permitted-calls-in-half-open-state: 5
+retry:
+instances:
+indiaDB:
+max-attempts: 3
+wait-duration: 200ms
+exponential-backoff-multiplier: 2.0 # 200   400   800ms
+retry-exceptions:
+- java.sql.SQLException
+- org.springframework.dao.DataAccessException</code></pre>
+<h3>5.5 Throughput — Horizontal Scaling &amp; Rate Limiting</h3>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Load Level</th><th>Instances</th><th>DB Connections</th><th>Target RPS</th></tr></thead><tbody><tr><td>Baseline</td><td>2</td><td>2 × 20 = 40</td><td>500 RPS</td></tr><tr><td>Normal</td><td>5</td><td>5 × 20 = 100</td><td>2,500 RPS</td></tr><tr><td>Peak</td><td>20</td><td>20 × 20 = 400</td><td>10,000 RPS</td></tr><tr><td>Burst (HPA)</td><td>50</td><td>Capped at 500</td><td>25,000 RPS</td></tr></tbody></table></div>
+<pre><code>// RateLimitFilter.java — Token bucket per (clientId + country)
+private Bucket createBucket(String isoCode) {
+    int limit = switch (isoCode) {
+        case &quot;IN&quot; -&gt; 1000; // India: 1000 req/min
+        case &quot;US&quot; -&gt; 2000; // US: 2000 req/min
+        case &quot;UK&quot; -&gt; 1500; // UK: 1500 req/min
+        default -&gt; 500;
+    };
+    return Bucket.builder()
+    .addLimit(Bandwidth.classic(limit,
+    Refill.greedy(limit, Duration.ofMinutes(1))))
+    .build();
+}
+// Async Bulkhead — dedicated thread pool per country
+@Bean(&quot;indiaTaskExecutor&quot;)
+public Executor indiaTaskExecutor() {
+    ThreadPoolTaskExecutor exec = new ThreadPoolTaskExecutor();
+    exec.setCorePoolSize(10);
+    exec.setMaxPoolSize(50);
+    exec.setQueueCapacity(200);
+    exec.setThreadNamePrefix(&quot;india-async-&quot;);
+    exec.setRejectedExecutionHandler(new CallerRunsPolicy());
+    exec.initialize();
+    return exec;
+}</code></pre>
+<h2>6. MONITORING, SECURITY &amp; DEPLOYMENT</h2>
+<h3>6.1 Micrometer Custom Metrics (CountryMetrics.java)</h3>
+<pre><code>@Component
+public class CountryMetrics {
+    private final MeterRegistry registry;
+    public void recordApiRequest(String isoCode, String status) {
+        Counter.builder(&quot;india.api.requests&quot;)
+        .description(&quot;API requests per country&quot;)
+        .tag(&quot;country&quot;, isoCode)
+        .tag(&quot;status&quot;, status) // &quot;success&quot; | &quot;error&quot;
+        .register(registry)
+        .increment();
+    }
+    public void recordDbQuery(String isoCode, String type, long durationMs) {
+        Timer.builder(&quot;india.db.query.duration&quot;)
+        .tag(&quot;country&quot;, isoCode)
+        .tag(&quot;query_type&quot;, type) // &quot;read&quot; | &quot;write&quot;
+        .publishPercentiles(0.5, 0.95, 0.99)
+        .register(registry)
+        .record(Duration.ofMillis(durationMs));
+    }
+}
+// Grafana alerts:
+// india.api.requests P99 &gt; 500ms   PagerDuty
+// india.db.query.duration &gt; 1s   Slack alert
+// Circuit breaker OPEN   Immediate escalation</code></pre>
+<h3>6.2 Monitoring Stack</h3>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Tool</th><th>Purpose</th><th>Key Config</th></tr></thead><tbody><tr><td>Prometheus</td><td>Metrics scraping</td><td>Scrape /actuator/prometheus every 15s</td></tr><tr><td>Grafana</td><td>Dashboards + Alerts</td><td>India RPS, P99 latency, circuit state</td></tr><tr><td>Jaeger</td><td>Distributed tracing</td><td>Trace India request end-to-end</td></tr><tr><td>ELK Stack</td><td>Log aggregation</td><td>MDC: country, requestId in every log line</td></tr><tr><td>PagerDuty</td><td>Incident alerting</td><td>Alert if P99 &gt; 500ms or error &gt; 1%</td></tr></tbody></table></div>
+<h3>6.3 SecurityConfig.java</h3>
+<pre><code>@Configuration
+@EnableWebSecurity
+public class SecurityConfig {
+    @Bean
+    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+        http
+        .csrf(AbstractHttpConfigurer::disable)
+        .sessionManagement(sm -&gt;
+        sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+        .authorizeHttpRequests(auth -&gt; auth
+        // Public: health, swagger
+        .requestMatchers(&quot;/actuator/health&quot;, &quot;/swagger-ui/**&quot;,
+        &quot;/v3/api-docs/**&quot;).permitAll()
+        // India endpoints: require INDIA_ADMIN role
+        .requestMatchers(&quot;/api/v1/customers/**&quot;)
+        .hasAnyRole(&quot;USER&quot;,&quot;ADMIN&quot;,&quot;INDIA_ADMIN&quot;)
+        .requestMatchers(&quot;/api/v1/customers/stats&quot;)
+        .hasRole(&quot;ADMIN&quot;)
+        .anyRequest().authenticated()
+        )
+        // Stateless JWT via OAuth2 Resource Server
+        .oauth2ResourceServer(oauth2 -&gt; oauth2.jwt(jwt -&gt; {}));
+        return http.build();
+    }
+}</code></pre>
+<h3>6.4 Kubernetes HPA — Auto-scaling</h3>
+<pre><code># k8s HPA — scales Spring Boot pods based on CPU
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+name: india-service-hpa
+spec:
+scaleTargetRef:
+apiVersion: apps/v1
+kind: Deployment
+name: india-customer-service
+minReplicas: 2
+maxReplicas: 50
+metrics:
+- type: Resource
+resource:
+name: cpu
+target:
+type: Utilization
+averageUtilization: 60 # Scale at 60% CPU
+# JVM flags for container awareness
+JAVA_OPTS: &gt;
+-server
+-XX:+UseG1GC
+-XX:MaxGCPauseMillis=100
+-XX:+UseContainerSupport
+-XX:MaxRAMPercentage=75.0
+# Multi-region deployment
+# India: EKS ap-south-1 (Mumbai) 3 AZs
+# US: EKS us-east-1 (Virginia) 3 AZs
+# UK: EKS eu-west-2 (London) 3 AZs</code></pre>
+<h3>6.5 Quick Test — cURL Examples</h3>
+<pre><code># List India customers (paginated)
+curl -H &quot;X-Country-Code: india&quot; \
+http://localhost:8080/api/v1/customers?page=0&amp;size=20
+# Filter by state
+curl -H &quot;X-Country-Code: IN&quot; \
+&quot;http://localhost:8080/api/v1/customers/by-state?state=Maharashtra&quot;
+# Create India customer
+curl -X POST -H &quot;X-Country-Code: india&quot; \
+-H &quot;Content-Type: application/json&quot; \
+-d &#x27;{&quot;name&quot;:&quot;Raj Kumar&quot;,&quot;email&quot;:&quot;raj@example.in&quot;,&quot;state&quot;:&quot;Karnataka&quot;,&quot;gstin&quot;:&quot;29AAAAA0000A1Z5&quot;}&#x27; \
+http://localhost:8080/api/v1/customers
+# Stats for ALL countries
+curl http://localhost:8080/api/v1/customers/stats
+# Prometheus metrics
+curl http://localhost:8080/actuator/prometheus | grep india</code></pre>
+<h2>7. COMPLETE PROJECT STRUCTURE &amp; CONFIG SUMMARY</h2>
+<h3>7.1 Project File Structure</h3>
+<pre><code>src/main/java/com/india/architecture/
+     IndiaArchitectureApplication.java // @SpringBootApplication
+     context/
+       CountryEnum.java // Enum: INDIA, US, UK, GLOBAL
+       CountryContextHolder.java // ThreadLocal holder
+     routing/
+       CountryRoutingDataSource.java // AbstractRoutingDataSource
+     config/
+       DataSourceConfig.java // 4 HikariCP datasources
+       JpaConfig.java // EntityManagerFactory
+       CacheConfig.java // Redis L2 + Caffeine L1
+       AsyncConfig.java // Thread pools per country
+     filter/
+       CountryFilter.java // Order=1, sets context
+       RateLimitFilter.java // Order=2, Bucket4j
+     entity/
+       BaseEntity.java // id, countryCode, audit, version
+       Customer.java // GSTIN, PAN, state (India fields)
+     repository/
+       CustomerRepository.java // JPA + projections
+     service/
+       CountryDataService.java // Cache-Aside + Circuit Breaker
+     loader/
+       IndiaDataLoader.java // ApplicationRunner pre-warm
+     controller/
+       CustomerController.java // REST CRUD + stats
+     metrics/
+       CountryMetrics.java // Micrometer custom meters
+     security/
+       SecurityConfig.java // OAuth2 JWT stateless
+     exception/
+     GlobalExceptionHandler.java // RFC 7807 ProblemDetail</code></pre>
+<h3>7.2 Production Config Reference</h3>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Setting</th><th>Value</th><th>Reason</th></tr></thead><tbody><tr><td>Java Version</td><td>Java 17</td><td>LTS, records, sealed classes</td></tr><tr><td>Spring Boot</td><td>3.2.3</td><td>Latest stable, native support</td></tr><tr><td>JVM GC</td><td>G1GC, pause=100ms</td><td>Low-latency API responses</td></tr><tr><td>DB Pool per instance</td><td>max=20, min-idle=5</td><td>(CPU*2)+disks formula</td></tr><tr><td>Redis TTL customers</td><td>60 minutes</td><td>High hit ratio, acceptable staleness</td></tr><tr><td>Circuit breaker</td><td>50% failure / 20 calls</td><td>Opens fast, protects DB</td></tr><tr><td>Retry backoff</td><td>200→400→800ms, 3x</td><td>Exponential with jitter</td></tr><tr><td>Rate limit India</td><td>1000 req/min/client</td><td>Protect India DB</td></tr><tr><td>HPA CPU threshold</td><td>60%</td><td>Scale before saturation</td></tr><tr><td>CDN TTL API config</td><td>3600s</td><td>High cache hit, low staleness</td></tr><tr><td>Kafka partitions</td><td>12 per topic</td><td>= max consumer instances</td></tr></tbody></table></div>
+<p>This architecture document + Spring Boot project ZIP provides a production-ready template for multi-country data isolation in India. All classes are copy-paste ready for Java 17 + Spring Boot 3.2.3. Follow the README.md in the ZIP for quick start.</p>
+<div class="chapter-nav"><a class="prev" href="schedule-reminder-2m-scale-architecture.html">← Scale-Ready Schedule Reminder System</a><a class="next" href="../index.html">Back to Library →</a></div>
+</main>
+<aside class="toc"></aside>
+</div>
+<footer class="footer">SystemDesign.hinglish · Library · Personal study material</footer>
+<script src="../../assets/app.js"></script>
+</body>
+</html>

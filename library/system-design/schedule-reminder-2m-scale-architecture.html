@@ -17,6 +17,7 @@
 <li><a href="../system-design/98-system-design-concepts.html"><span class="num">📝</span> 98 System Design Concepts</a></li>
 <li><a href="../system-design/email-notification-scheduler-design.html"><span class="num">📄</span> Email Notification Scheduler</a></li>
 <li><a class="active" href="../system-design/schedule-reminder-2m-scale-architecture.html"><span class="num">📝</span> Scale-Ready Schedule Reminder System</a></li>
+<li><a href="../system-design/spring-boot-multi-country-architecture.html"><span class="num">📄</span> Spring Boot Multi-Country Architecture</a></li>
 </ul>
 <div class="group">Java Core &amp; DSA</div><ul>
 <li><a href="../java-dsa/java-core-mastery-guide.html"><span class="num">📘</span> Java Core Mastery Guide</a></li>
@@ -44,6 +45,7 @@
 <div class="group">Payments &amp; Interview Prep</div><ul>
 <li><a href="../interview-prep/paytm-backend-interview-guide.html"><span class="num">📄</span> Paytm Backend Interview Guide</a></li>
 <li><a href="../interview-prep/paytm-dsa-questions.html"><span class="num">📄</span> Paytm DSA Questions</a></li>
+<li><a href="../interview-prep/globalpay-system-design.html"><span class="num">📄</span> GlobalPay</a></li>
 </ul>
 </nav>
 <main class="content lib-doc">
@@ -409,7 +411,7 @@ public class ReminderConsumerService {
 <div class="table-wrap"><table class="cmp"><thead><tr><th>Aspect</th><th>Basic Design (50K limit)</th><th>Scale-Ready Design (2M+)</th></tr></thead><tbody><tr><td>Trigger</td><td>@Scheduled on one pod</td><td>@Scheduled + ShedLock (distributed)</td></tr><tr><td>Data Read</td><td>SELECT all 2M rows at once</td><td>Spring Batch partitioned chunks of 1000</td></tr><tr><td>Processing</td><td>@Async ThreadPool (20 threads)</td><td>Kafka + 20 pods x 5 threads = 100 workers</td></tr><tr><td>Idempotency</td><td>None — duplicates possible</td><td>Redis SETNX key per MTCN per day</td></tr><tr><td>Email Sending</td><td>1 API call per email</td><td>SendGrid batch: 1000 per call</td></tr><tr><td>Push Sending</td><td>1 FCM call per user</td><td>FCM multicast: 500 tokens per call</td></tr><tr><td>DB Load</td><td>All reads on primary</td><td>Spring Batch reads from replica only</td></tr><tr><td>DB Writes</td><td>1 UPDATE per reminder</td><td>JDBC batchUpdate: 1000 per call</td></tr><tr><td>Failure Recovery</td><td>Try/catch logs and loses job</td><td>DLQ + auto-retry with backoff</td></tr><tr><td>Scaling</td><td>Manual — redeploy more threads</td><td>KEDA auto-scales pods on Kafka lag</td></tr><tr><td>Observability</td><td>Logs only</td><td>Micrometer + Prometheus + Grafana alerts</td></tr><tr><td>Est. Processing Time</td><td>&gt; 6 hours for 2M records</td><td>&lt; 30 minutes for 2M records</td></tr></tbody></table></div>
 <h2>14. One-Liner Summary</h2>
 <p><i>&quot;To scale the reminder system to 2M+ daily records, I replaced the single-threaded @Async design with Spring Batch partitioned reads, Kafka as the message bus with 20 partitions, horizontally auto-scaled consumer pods via KEDA, Redis for idempotency guards, SendGrid and FCM batch APIs to reduce API calls by 500-1000x, JDBC batch updates for DB writes, and ShedLock to prevent duplicate runs across Kubernetes pods — achieving under 30-minute end-to-end processing for 2 million reminders.&quot;</i></p>
-<div class="chapter-nav"><a class="prev" href="email-notification-scheduler-design.html">← Email Notification Scheduler</a><a class="next" href="../index.html">Back to Library →</a></div>
+<div class="chapter-nav"><a class="prev" href="email-notification-scheduler-design.html">← Email Notification Scheduler</a><a class="next" href="spring-boot-multi-country-architecture.html">Spring Boot Multi-Country Architecture →</a></div>
 </main>
 <aside class="toc"></aside>
 </div>

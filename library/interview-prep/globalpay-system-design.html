@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>GlobalPay — International Money Transfer Platform (HLD + LLD) · Library · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../../assets/style.css">
+<script>try{if(localStorage.getItem('sd-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="../../index.html">SystemDesign<span>.hinglish</span></a><div class="toplinks"><a href="../../index.html#chapters">Chapters</a><a href="../../library/index.html">Library</a><a href="../../index.html#how">Kaise padhein</a><a href="../../links.html">URL Guide</a></div><button class="theme-toggle" aria-label="theme">◐</button></header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="../index.html"><span class="num">⌂</span> Library home</a></li></ul>
+<div class="group">System Design &amp; Architecture</div><ul>
+<li><a href="../system-design/system-design-mastery.html"><span class="num">📘</span> System Design Mastery</a></li>
+<li><a href="../system-design/smart-parking-system-hld-lld.html"><span class="num">📘</span> Smart Parking System</a></li>
+<li><a href="../system-design/98-system-design-concepts.html"><span class="num">📝</span> 98 System Design Concepts</a></li>
+<li><a href="../system-design/email-notification-scheduler-design.html"><span class="num">📄</span> Email Notification Scheduler</a></li>
+<li><a href="../system-design/schedule-reminder-2m-scale-architecture.html"><span class="num">📝</span> Scale-Ready Schedule Reminder System</a></li>
+<li><a href="../system-design/spring-boot-multi-country-architecture.html"><span class="num">📄</span> Spring Boot Multi-Country Architecture</a></li>
+</ul>
+<div class="group">Java Core &amp; DSA</div><ul>
+<li><a href="../java-dsa/java-core-mastery-guide.html"><span class="num">📘</span> Java Core Mastery Guide</a></li>
+<li><a href="../java-dsa/java-garbage-collection-guide.html"><span class="num">📘</span> Java Garbage Collection</a></li>
+<li><a href="../java-dsa/java-ds-leetcode-mastery.html"><span class="num">📘</span> Java Data Structures for LeetCode</a></li>
+<li><a href="../java-dsa/data-structures-java-interview-guide.html"><span class="num">📄</span> Data Structures Interview Guide</a></li>
+<li><a href="../java-dsa/lru-cache-java-visual-explainer.html"><span class="num">📘</span> LRU Cache</a></li>
+</ul>
+<div class="group">Spring Boot &amp; Microservices</div><ul>
+<li><a href="../spring-boot/spring-bean-lifecycle.html"><span class="num">📘</span> Spring Bean Lifecycle</a></li>
+<li><a href="../spring-boot/spring-transactional-guide.html"><span class="num">📘</span> @Transactional</a></li>
+<li><a href="../spring-boot/spring-circuit-breaker-resilience4j.html"><span class="num">📘</span> Circuit Breaker (Resilience4j)</a></li>
+<li><a href="../spring-boot/spring-security-jwt-logging-deploy.html"><span class="num">📘</span> Spring Security · JWT · AOP · Logging · Blue-Green</a></li>
+<li><a href="../spring-boot/saga-pattern-complete-guide.html"><span class="num">📄</span> Saga Pattern — Complete Guide</a></li>
+<li><a href="../spring-boot/saga-pattern-spring-boot-quick-reference.html"><span class="num">📄</span> Saga — Quick Reference</a></li>
+</ul>
+<div class="group">Kafka · Redis · Cassandra &amp; Data</div><ul>
+<li><a href="../data-messaging/kafka-redis-cassandra-mastery.html"><span class="num">📘</span> Kafka · Redis · Cassandra</a></li>
+<li><a href="../data-messaging/northguard-xinfra-linkedin-kafka-replacement.html"><span class="num">📘</span> Northguard &amp; Xinfra</a></li>
+</ul>
+<div class="group">GenAI &amp; AI</div><ul>
+<li><a href="../genai/java-genai-complete-guide.html"><span class="num">📄</span> Java + Generative AI</a></li>
+<li><a href="../genai/vector-database-mastery.html"><span class="num">📘</span> Vector Databases</a></li>
+</ul>
+<div class="group">Payments &amp; Interview Prep</div><ul>
+<li><a href="../interview-prep/paytm-backend-interview-guide.html"><span class="num">📄</span> Paytm Backend Interview Guide</a></li>
+<li><a href="../interview-prep/paytm-dsa-questions.html"><span class="num">📄</span> Paytm DSA Questions</a></li>
+<li><a class="active" href="../interview-prep/globalpay-system-design.html"><span class="num">📄</span> GlobalPay</a></li>
+</ul>
+</nav>
+<main class="content lib-doc">
+<div class="chapter-hero"><span class="chapter-num">Payments &amp; Interview Prep</span><h1>GlobalPay — International Money Transfer Platform (HLD + LLD)</h1><p class="lead">Cross-border P2P transfers: microservices HLD, priority lanes, coupon engine, card processing (3DS, fraud, chargebacks), FX, AML/KYC aur Spring Boot 3 LLD. / Payments system design case study.</p><div class="lib-meta"><span class="badge fmt-pdf">📄 PDF → Web</span><span class="badge time">⏱ ~10 min read</span><span class="badge pages">16 pages (original)</span></div><div class="tags"><span class="tag">Payments</span><span class="tag">Kafka</span><span class="tag">Cassandra</span><span class="tag">Spring Boot 3</span></div><div class="lib-dl"><a class="btn small" href="../files/globalpay-system-design.pdf" download>⬇ Download PDF</a></div></div>
+<div class="callout tip"><strong>Study note</strong>Ye page original document se auto-convert kiya gaya hai (headings, tables, code preserve). Exact original layout / diagrams ke liye upar se file download karo.</div>
+<h2>1. Problem Statement</h2>
+<p>GlobalPay is an international peer-to-peer (P2P) money transfer platform inspired by Western Union that enables users across multiple countries to send funds using credit/debit cards. The system must be intelligent, personalised, and high-performance.</p>
+<p>•Users in different countries perform cross-border transactions with varying currencies, exchange rates, and regulatory requirements. •Identify and surface <b>priority transactions</b> (high-value, time-sensitive, VIP users) and route them through faster processing lanes. •Coupon and discount engine must reward loyal and frequent users based on transaction history, destination, and user segment. •Credit card processing must handle international card networks (Visa, Mastercard, Amex) with 3DS, fraud detection, and chargeback management. •Latency target: <b>&lt; 2s UI response</b>, <b>&lt; 30s settlement initiation</b>. •Must be horizontally scalable, fault-tolerant, AML and KYC compliant.</p>
+<h2>2. High-Level Design (HLD)</h2>
+<h3>2.1 Architecture Overview</h3>
+<p>GlobalPay adopts a <b>Microservices Architecture</b> deployed on Kubernetes with an API Gateway as single entry point. Each domain is an independent service with its own database, communicating via REST (sync) and Apache Kafka (async event streaming).</p>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Layer</th><th>Component</th><th>Technology</th><th>Responsibility</th></tr></thead><tbody><tr><td>Client</td><td>Mobile / Web App</td><td>React Native / Next.js</td><td>User-facing frontend</td></tr><tr><td>Gateway</td><td>API Gateway</td><td>Spring Cloud Gateway</td><td>Auth, rate limiting, routing</td></tr><tr><td>Auth</td><td>Identity Service</td><td>Spring Security + OAuth2</td><td>Login, MFA, KYC status</td></tr><tr><td>Core</td><td>Transaction Service</td><td>Spring Boot 3</td><td>Initiate, validate, route TXN</td></tr><tr><td>Core</td><td>Payment Service</td><td>Spring Boot 3 + Stripe</td><td>Credit card charging</td></tr><tr><td>Core</td><td>FX Service</td><td>Spring Boot 3 + Redis</td><td>Real-time exchange rates</td></tr><tr><td>Core</td><td>Priority Engine</td><td>Spring Boot 3 + Redis</td><td>VIP/high-value TXN scoring</td></tr><tr><td>Core</td><td>Coupon Service</td><td>Spring Boot 3</td><td>Coupon generation &amp; redemption</td></tr><tr><td>Core</td><td>Notification Service</td><td>Spring Boot + Firebase</td><td>Push/SMS/Email alerts</td></tr><tr><td>Core</td><td>Compliance Service</td><td>Spring Boot 3</td><td>AML, sanctions screening</td></tr><tr><td>Data</td><td>User + TXN DB</td><td>PostgreSQL 16</td><td>Financial records, KYC, ledger</td></tr><tr><td>Data</td><td>Cache</td><td>Redis Cluster</td><td>Sessions, FX rates, priority scores</td></tr><tr><td><b>Layer</b></td><td><b>Component</b></td><td><b>Technology</b></td><td><b>Responsibility</b></td></tr><tr><td>Data</td><td>Event Stream</td><td>Apache Kafka</td><td>Async event processing</td></tr><tr><td>Data</td><td>Analytics DB</td><td>Apache Cassandra</td><td>TXN analytics, audit logs</td></tr><tr><td>Infra</td><td>Service Mesh</td><td>Istio</td><td>mTLS, circuit breaking, tracing</td></tr></tbody></table></div>
+<h3>2.2 Priority Transaction System</h3>
+<p>Priority scoring determines which transactions use the <b>fast lane</b> (target &lt;5s settlement) vs standard queue.</p>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Priority</th><th>Score</th><th>Criteria</th><th>Processing</th></tr></thead><tbody><tr><td>PLATINUM</td><td>90–100</td><td>VIP user OR amount &gt;$10,000 OR business accountDedicated thread pool, skip queue</td><td></td></tr><tr><td>GOLD</td><td>70–89</td><td>Premium user OR amount $1,000–$10,000</td><td>High-priority Kafka partition</td></tr><tr><td>SILVER</td><td>50–69</td><td>Regular user ≥3 TXN/month OR $200–$999</td><td>Standard queue, prioritised</td></tr><tr><td>STANDARD</td><td>0–49</td><td>New or infrequent user, low amount</td><td>Standard processing queue</td></tr></tbody></table></div>
+<h3>2.3 Coupon &amp; Reward Engine</h3>
+<p>•<b>Rule-based triggers:</b> First international transfer, milestone TXNs (5th, 10th, 25th), birthday month. •<b>Corridor offers:</b> Users on high-frequency corridors (US→India, UK→Philippines) get corridor-specific coupons. •<b>Dynamic fee discounts:</b> 0% fee when 30-day volume exceeds threshold; tier-based percentage discounts. •<b>Referral coupons:</b> Sender gets 50% fee discount when referred user completes first transaction. •<b>Expiry management:</b> 7–30 day TTL; 48h reminder notification before expiry.</p>
+<h2>3. Low-Level Design (LLD)</h2>
+<h3>3.1 Transaction Service - Saga Orchestrator</h3>
+<p>The TransactionService is the central orchestrator. It coordinates all downstream services using the <b>Saga pattern</b> with compensating transactions on failure.</p>
+<p class="lbl"><b>Java</b></p>
+<pre><code>// TransactionService.java  -  Saga Orchestrator (Part 1: Setup &amp; Steps 1-4)
+@Service
+@RequiredArgsConstructor
+@Slf4j
+public class TransactionService {
+
+    private final FxService            fxService;
+    private final PriorityEngine       priorityEngine;
+    private final CouponService        couponService;
+    private final ComplianceService    complianceService;
+    private final PaymentGateway       paymentGateway;
+    private final TransactionRepository txnRepo;
+    private final OutboxRepository     outboxRepo;
+    private final ObjectMapper         objectMapper;
+
+    @Transactional
+    public TransactionResponse initiateTransfer(
+            TransactionRequest req, String userId) {
+
+        // -- Step 1: Fetch FX rate (Redis-cached, TTL 30s) ----------------
+        FxRate rate = fxService.getRate(
+                req.getSourceCurrency(), req.getTargetCurrency());
+
+        // -- Step 2: Score priority ----------------------------------------
+        int priorityScore = priorityEngine.score(userId, req.getAmount());
+        PriorityLevel priority = PriorityLevel.fromScore(priorityScore);
+        log.info(&quot;TXN priority=[{}] score=[{}] user=[{}]&quot;,
+                 priority, priorityScore, userId);
+
+        // -- Step 3: Apply best applicable coupon -------------------------
+        CouponResult coupon = couponService.apply(userId, req);
+        BigDecimal fee = coupon.apply(calculateFee(req.getAmount()));
+
+        // -- Step 4: Compliance check -------------------------------------
+        if (priority.requiresSyncCompliance()) {
+            complianceService.screenSync(req, userId);   // PLATINUM / GOLD
+        }</code></pre>
+<h3>3.2 Priority Engine</h3>
+<p class="lbl"><b>Java</b></p>
+<pre><code>// PriorityEngine.java  -  Scores each transaction 0–100
+@Service
+@RequiredArgsConstructor
+public class PriorityEngine {
+
+    private static final String CACHE_PREFIX = &quot;txn:count:&quot;;
+
+    private final RedisTemplate&lt;String, Integer&gt; redis;
+    private final UserRepository                 userRepo;
+    private final TransactionRepository          txnRepo;
+
+    public int score(String userId, BigDecimal amount) {
+        User user  = userRepo.findById(userId).orElseThrow();
+        int  score = 0;
+
+        // -- Amount scoring (max 40 pts) -----------------------------------
+        if (amount.compareTo(BigDecimal.valueOf(10_000)) &gt;= 0) score += 40;
+        else if (amount.compareTo(BigDecimal.valueOf(1_000)) &gt;= 0) score += 25;
+        else if (amount.compareTo(BigDecimal.valueOf(200))   &gt;= 0) score += 10;
+
+        // -- User-tier scoring (max 30 pts) --------------------------------
+        score += switch (user.getTier()) {
+            case VIP      -&gt; 30;
+            case PREMIUM  -&gt; 20;
+            case STANDARD -&gt; 10;
+            default       -&gt; 0;
+        };
+
+        // -- Monthly TXN frequency (max 20 pts) - Redis-cached 1h ---------
+        Integer count = redis.opsForValue().get(CACHE_PREFIX + userId);
+        if (count == null) {
+            count = txnRepo.countByUserIdSince(userId,
+                    LocalDate.now().minusMonths(1));
+            redis.opsForValue().set(CACHE_PREFIX + userId, count,
+                    Duration.ofHours(1));
+        }
+        if (count &gt;= 10) score += 20;
+        else if (count &gt;= 3) score += 10;
+
+        // -- Business account bonus (max 10 pts) ---------------------------
+        if (user.getAccountType() == AccountType.BUSINESS) score += 10;
+
+        return Math.min(score, 100);
+    }
+}</code></pre>
+<h3>3.3 FX Service with Redis Caching &amp; Circuit Breaker</h3>
+<p class="lbl"><b>Java</b></p>
+<pre><code>// FxService.java  -  Exchange rate provider with resilience
+@Service
+@RequiredArgsConstructor
+public class FxService {
+
+    private final RedisTemplate&lt;String, FxRate&gt; redis;
+    private final ExternalFxClient              fxClient;
+
+    @CircuitBreaker(name = &quot;fxService&quot;, fallbackMethod = &quot;cachedRate&quot;)
+    @Retry(name = &quot;fxService&quot;)
+    public FxRate getRate(String from, String to) {
+        String key   = &quot;fx:&quot; + from + &quot;:&quot; + to;
+        FxRate cached = redis.opsForValue().get(key);
+        if (cached != null) return cached;
+
+        FxRate rate = fxClient.fetchRate(from, to);
+        redis.opsForValue().set(key, rate, Duration.ofSeconds(30));
+        return rate;
+    }
+
+    // Fallback: return last known cached rate on external API failure
+    public FxRate cachedRate(String from, String to, Exception ex) {
+        FxRate stale = redis.opsForValue().get(&quot;fx:&quot; + from + &quot;:&quot; + to);
+        if (stale != null) return stale;
+        throw new FxUnavailableException(&quot;FX rate unavailable for &quot; + from + &quot;/&quot; + to);
+    }
+
+    // Warm-up job: refresh top corridors every 30 seconds
+    @Scheduled(fixedDelay = 30_000)
+    public void refreshTopCorridors() {
+        List.of(&quot;USD:INR&quot;, &quot;USD:PHP&quot;, &quot;GBP:EUR&quot;, &quot;USD:MXN&quot;,
+                &quot;USD:NGN&quot;, &quot;GBP:USD&quot;, &quot;EUR:GBP&quot;, &quot;USD:CAD&quot;)
+            .forEach(corridor -&gt; {
+                String[] parts = corridor.split(&quot;:&quot;);
+                FxRate   rate  = fxClient.fetchRate(parts[0], parts[1]);
+                redis.opsForValue().set(&quot;fx:&quot; + corridor, rate,
+                                       Duration.ofSeconds(60));
+            });
+    }
+}</code></pre>
+<h3>3.4 Coupon Service - Strategy Pattern</h3>
+<p class="lbl"><b>Java</b></p>
+<pre><code>// CouponStrategy.java - Contract for all coupon evaluators
+public interface CouponStrategy {
+    Coupon evaluate(String userId, TransactionRequest req);
+}
+
+// CouponService.java - Picks the best applicable coupon
+@Service
+@RequiredArgsConstructor
+public class CouponService {
+
+    private final List&lt;CouponStrategy&gt; strategies;
+    private final CouponRepository     couponRepo;
+
+    public CouponResult apply(String userId, TransactionRequest req) {
+        List&lt;Coupon&gt; applicable = strategies.stream()
+            .map(strategy -&gt; strategy.evaluate(userId, req))
+            .filter(Objects::nonNull)
+            .filter(c -&gt; !couponRepo.isUsedByUser(c.getCode(), userId))
+            .sorted(Comparator.comparing(Coupon::getDiscountRate).reversed())
+            .toList();
+
+        if (applicable.isEmpty()) return CouponResult.none();
+
+        Coupon best = applicable.get(0);
+        couponRepo.markUsed(best.getCode(), userId);
+        return CouponResult.of(best);
+    }
+}</code></pre>
+<p class="lbl"><b>Java</b></p>
+<pre><code>// -- Strategy Implementations (auto-discovered by Spring) --------------------
+
+@Component
+public class FirstTransferCouponStrategy implements CouponStrategy {
+    public Coupon evaluate(String userId, TransactionRequest req) {
+        long count = txnRepo.countByUserId(userId);
+        return count == 0 ? Coupon.zeroFee(&quot;FIRST-TXN-FREE&quot;) : null;
+    }
+}
+
+@Component
+public class CorridorCouponStrategy implements CouponStrategy {
+    private static final Set&lt;String&gt; TOP_CORRIDORS =
+        Set.of(&quot;USD:INR&quot;, &quot;USD:PHP&quot;, &quot;GBP:NGN&quot;, &quot;EUR:USD&quot;);
+
+    public Coupon evaluate(String userId, TransactionRequest req) {
+        String corridor = req.getSourceCurrency() + &quot;:&quot; + req.getTargetCurrency();
+        return TOP_CORRIDORS.contains(corridor)
+            ? Coupon.percentDiscount(&quot;CORRIDOR-50&quot;, 50) : null;
+    }
+}
+
+@Component
+public class LoyaltyCouponStrategy implements CouponStrategy {
+    public Coupon evaluate(String userId, TransactionRequest req) {
+        long count = txnRepo.countByUserId(userId);
+        if (count == 9)  return Coupon.percentDiscount(&quot;LOYALTY-10TH&quot;, 25);
+        if (count == 24) return Coupon.percentDiscount(&quot;LOYALTY-25TH&quot;, 50);
+        if (count == 49) return Coupon.zeroFee(&quot;LOYALTY-50TH&quot;);
+        return null;
+    }
+}</code></pre>
+<h2>4. Database Design</h2>
+<h3>4.1 Polyglot Persistence Strategy</h3>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Database</th><th>Type</th><th>Use Case</th><th>Why?</th></tr></thead><tbody><tr><td>PostgreSQL 16</td><td>Relational (ACID)</td><td>Users, Transactions, Cards, Coupons,</td><td>Strong consistency; ACID;</td></tr><tr><td></td><td></td><td>Ledger</td><td>partitioning; native JSON</td></tr><tr><td>Redis Cluster</td><td>In-Memory K/V</td><td>FX cache, sessions, priority scores, rate</td><td>Sub-ms reads; TTL; atomic</td></tr><tr><td></td><td></td><td>limiting, idempotency</td><td>Lua scripts; Pub/Sub</td></tr><tr><td>Apache Cassandra</td><td>Wide-Column NoSQL</td><td>Analytics, audit logs, notification history,</td><td>Linear horizontal scale;</td></tr><tr><td></td><td></td><td>activity timeline</td><td>optimised for time-series writes</td></tr></tbody></table></div>
+<h3>4.2 PostgreSQL Schema</h3>
+<p class="lbl"><b>SQL</b></p>
+<pre><code>-- -- Users --------------------------------------------------------------------
+CREATE TABLE users (
+    id            UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    email         VARCHAR(255) UNIQUE NOT NULL,
+    full_name     VARCHAR(255) NOT NULL,
+    country_code  CHAR(2)     NOT NULL,
+    account_type  VARCHAR(20) NOT NULL DEFAULT &#x27;STANDARD&#x27;,
+    tier          VARCHAR(20) NOT NULL DEFAULT &#x27;STANDARD&#x27;,
+    kyc_status    VARCHAR(20) NOT NULL DEFAULT &#x27;PENDING&#x27;,
+    created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- -- Transactions (range-partitioned by month) ---------------------------------
+CREATE TABLE transactions (
+    id              UUID          PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id         UUID          NOT NULL REFERENCES users(id),
+    recipient_id    UUID          REFERENCES users(id),
+    amount          NUMERIC(18,2) NOT NULL,
+    source_currency CHAR(3)       NOT NULL,
+    target_currency CHAR(3)       NOT NULL,
+    fx_rate         NUMERIC(12,6) NOT NULL,
+    fee             NUMERIC(10,2) NOT NULL DEFAULT 0,
+    coupon_code     VARCHAR(50),
+    priority_level  VARCHAR(20)   NOT NULL DEFAULT &#x27;STANDARD&#x27;,
+    status          VARCHAR(30)   NOT NULL DEFAULT &#x27;PENDING&#x27;,
+    payment_ref     VARCHAR(255),
+    created_at      TIMESTAMPTZ   NOT NULL DEFAULT NOW()
+) PARTITION BY RANGE (created_at);
+
+CREATE TABLE transactions_2026_02 PARTITION OF transactions
+    FOR VALUES FROM (&#x27;2026-02-01&#x27;) TO (&#x27;2026-03-01&#x27;);
+
+CREATE INDEX idx_txn_user_created ON transactions(user_id, created_at DESC);
+CREATE INDEX idx_txn_status       ON transactions(status)
+    WHERE status IN (&#x27;PENDING&#x27;, &#x27;PROCESSING&#x27;);</code></pre>
+<p class="lbl"><b>SQL</b></p>
+<pre><code>-- -- Coupons -------------------------------------------------------------------
+CREATE TABLE coupons (
+    code          VARCHAR(50)   PRIMARY KEY,
+    type          VARCHAR(30)   NOT NULL,  -- ZERO_FEE | PERCENT_DISCOUNT | FLAT
+    discount_rate NUMERIC(5,2),
+    valid_from    DATE          NOT NULL,
+    valid_until   DATE          NOT NULL,
+    max_uses      INTEGER,
+    used_count    INTEGER       NOT NULL DEFAULT 0,
+    version       INTEGER       NOT NULL DEFAULT 0,  -- optimistic locking
+    corridor      VARCHAR(10),   -- &#x27;USD:INR&#x27; or NULL = all corridors
+    user_segment  VARCHAR(30)    -- NULL = all users
+);
+
+-- -- User coupon usage (prevents double-redemption) ----------------------------
+CREATE TABLE user_coupon_usage (
+    user_id        UUID        NOT NULL REFERENCES users(id),
+    coupon_code    VARCHAR(50) NOT NULL REFERENCES coupons(code),
+    used_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    PRIMARY KEY (user_id, coupon_code)
+);
+
+-- -- Outbox (guaranteed Kafka delivery) ---------------------------------------
+CREATE TABLE outbox_events (
+    id         UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    topic      VARCHAR(100) NOT NULL,
+    payload    TEXT         NOT NULL,
+    processed  BOOLEAN      NOT NULL DEFAULT FALSE,
+    created_at TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE INDEX idx_outbox_pending ON outbox_events(created_at)
+    WHERE processed = FALSE;</code></pre>
+<h3>4.3 Database Design Patterns</h3>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Pattern</th><th>Applied Where</th><th>Benefit</th></tr></thead><tbody><tr><td>Table Partitioning</td><td>transactions (by month)</td><td>Query perf, easy archival, partition pruning</td></tr><tr><td>Repository Pattern</td><td>All Spring Data JPA repos</td><td>Decouples business logic from persistence</td></tr><tr><td>Outbox Pattern</td><td>TXN events → Kafka via DB outbox</td><td>Guaranteed event delivery, no dual-write</td></tr><tr><td>CQRS</td><td>Write to PostgreSQL, read analytics</td><td>Independent read/write scaling</td></tr></tbody></table></div>
+<p>from Cassandra</p>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Optimistic Locking</th><th>coupon.version via @Version</th><th>Prevent race conditions on coupon redemption</th></tr></thead><tbody><tr><td>Read Replicas</td><td>PostgreSQL primary + 2 replicas</td><td>Route read queries away from primary</td></tr><tr><td>Idempotency Key</td><td>Redis SETNX with 24h TTL</td><td>Prevent duplicate charges on retries</td></tr><tr><td>Unit of Work</td><td>Spring @Transactional</td><td>Atomic multi-table ops, rollback on failure</td></tr></tbody></table></div>
+<h2>5. Design Patterns Summary</h2>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Pattern</th><th>Category</th><th>Where Used</th><th>Why</th></tr></thead><tbody><tr><td>Saga (Orchestration)</td><td>Distributed</td><td>TransactionService</td><td>No 2PC; compensating actions</td></tr><tr><td>Strategy</td><td>Behavioural</td><td>CouponService strategies</td><td>Open/Closed; pluggable coupons</td></tr><tr><td>Factory</td><td>Creational</td><td>PaymentGateway implementations</td><td>Decouple from concrete processors</td></tr><tr><td>Builder</td><td>Creational</td><td>Transaction, FxRate, CouponResult</td><td>Readable complex object creation</td></tr><tr><td>Observer / Event</td><td>Behavioural</td><td>Kafka events post-TXN</td><td>Decoupled notifications &amp; analytics</td></tr><tr><td>Circuit Breaker</td><td>Resilience</td><td>FX API + card network calls</td><td>Fail fast; fallback to cache</td></tr><tr><td>Decorator</td><td>Structural</td><td>Fee calculation pipeline</td><td>Stack transformations cleanly</td></tr><tr><td>Repository</td><td>Data Access</td><td>All JPA repositories</td><td>Testable persistence abstraction</td></tr><tr><td>Outbox</td><td>Data</td><td>Reliable Kafka publishing</td><td>Event delivery matches DB state</td></tr><tr><td>CQRS</td><td>Architectural</td><td>Read/write separation</td><td>Independent scaling of paths</td></tr><tr><td>Proxy / AOP</td><td>Structural</td><td>@Transactional, @Cacheable, logging</td><td>Cross-cutting concerns</td></tr></tbody></table></div>
+<h3>5.1 Outbox Pattern - Guaranteed Kafka Delivery</h3>
+<p class="lbl"><b>Java</b></p>
+<pre><code>// OutboxPoller.java  -  Transactional relay from DB to Kafka
+@Component
+@RequiredArgsConstructor
+@Slf4j
+public class OutboxPoller {
+
+    private final OutboxRepository                      outboxRepo;
+    private final KafkaTemplate&lt;String, String&gt;         kafka;
+
+    @Scheduled(fixedDelay = 1_000)   // poll every 1 second
+    @Transactional
+    public void relay() {
+        List&lt;OutboxEvent&gt; pending =
+            outboxRepo.findTop50ByProcessedFalseOrderByCreatedAtAsc();
+
+        pending.forEach(event -&gt; {
+            try {
+                kafka.send(event.getTopic(), event.getId().toString(),
+                           event.getPayload()).get();       // sync send
+                event.setProcessed(true);
+                log.debug(&quot;Relayed outbox event [{}] to topic [{}]&quot;,
+                          event.getId(), event.getTopic());
+            } catch (Exception ex) {
+                log.error(&quot;Failed to relay outbox event [{}]: {}&quot;,
+                          event.getId(), ex.getMessage());
+                // will retry on next poll
+            }
+        });
+
+        outboxRepo.saveAll(pending);
+    }
+}</code></pre>
+<h2>6. Latency Reduction Strategies</h2>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Strategy</th><th>Saving</th><th>Implementation</th></tr></thead><tbody><tr><td>Redis FX Rate Cache (TTL 30s)</td><td>~200ms</td><td>Avoid external API per request; scheduled warm-up</td></tr><tr><td>Priority-based thread pools</td><td>Variable</td><td>Spring @Async + dedicated pools per tier</td></tr><tr><td>Idempotency key pre-check</td><td>~500ms</td><td>Redis SETNX before any DB write</td></tr><tr><td>Async compliance (STANDARD)</td><td>~800ms off</td><td>Kafka consumer post-charge for standard tier</td></tr></tbody></table></div>
+<p>critical path</p>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>HikariCP connection pooling</th><th>~50ms</th><th>Pre-warmed connections; pool tuned to DB cores</th></tr></thead><tbody><tr><td>Read replicas</td><td>~30ms</td><td>@Transactional(readOnly=true) routed to replicas</td></tr><tr><td>Kafka priority partitions</td><td>~100ms queue</td><td>PLATINUM=partition 0, GOLD=1–2, STD=3–9</td></tr></tbody></table></div>
+<p>wait</p>
+<p>Keyset pagination · ~150ms · No COUNT(*) on large tables; cursor-based listing</p>
+<h3>6.1 HikariCP + Async Thread Pool Config</h3>
+<p class="lbl"><b>Java</b></p>
+<pre><code># application.yml - HikariCP &amp; Resilience4j config
+
+spring:
+  datasource:
+    hikari:
+      maximum-pool-size: 20
+      minimum-idle: 5
+      connection-timeout: 3000       # 3s max wait for connection
+      idle-timeout: 600000           # 10 min
+      max-lifetime: 1800000          # 30 min
+      keepalive-time: 60000          # ping DB every 60s
+
+resilience4j:
+  circuitbreaker:
+    instances:
+      fxService:
+        slidingWindowSize: 10
+        failureRateThreshold: 50
+        waitDurationInOpenState: 10s
+      paymentGateway:
+        slidingWindowSize: 20
+        failureRateThreshold: 30
+        waitDurationInOpenState: 30s</code></pre>
+<p class="lbl"><b>Java</b></p>
+<pre><code>// AsyncConfig.java - Priority-based thread pools
+@Configuration @EnableAsync
+public class AsyncConfig {
+
+    @Bean(&quot;platinumExecutor&quot;)
+    public Executor platinumExecutor() {
+        return buildPool(&quot;platinum-&quot;, 10, 20, 50);
+    }
+
+    @Bean(&quot;goldExecutor&quot;)
+    public Executor goldExecutor() {
+        return buildPool(&quot;gold-&quot;, 15, 40, 200);
+    }
+
+    @Bean(&quot;standardExecutor&quot;)
+    public Executor standardExecutor() {
+        return buildPool(&quot;standard-&quot;, 30, 80, 500);
+    }
+
+    private Executor buildPool(String prefix, int core, int max, int queue) {
+        ThreadPoolTaskExecutor e = new ThreadPoolTaskExecutor();
+        e.setCorePoolSize(core);
+        e.setMaxPoolSize(max);
+        e.setQueueCapacity(queue);
+        e.setThreadNamePrefix(prefix);
+        e.setWaitForTasksToCompleteOnShutdown(true);
+        e.initialize();
+        return e;
+    }
+}</code></pre>
+<h2>7. Non-Functional Requirements &amp; Security</h2>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Requirement</th><th>Target</th><th>Strategy</th></tr></thead><tbody><tr><td>API Response (P95)</td><td>&lt; 2 seconds</td><td>Redis caching, async compliance, SQL tuning</td></tr><tr><td>Settlement (PLATINUM)</td><td>&lt; 5 seconds</td><td>Dedicated threads, sync compliance, Kafka priority</td></tr><tr><td>Availability</td><td>99.95%</td><td>Multi-AZ K8s, health checks, circuit breakers</td></tr><tr><td>Throughput</td><td>&gt;5,000 TPS peak</td><td>HPA, Kafka partitioning, DB read replicas</td></tr><tr><td>Data Durability</td><td>99.9999%</td><td>PostgreSQL sync replication, PITR backups</td></tr><tr><td>PCI-DSS</td><td>Level 1</td><td>Stripe tokenisation; no card data in GlobalPay DB</td></tr><tr><td>GDPR</td><td>Full compliance</td><td>AES-256 PII encryption; data deletion API; audit log</td></tr></tbody></table></div>
+<p>•<b>JWT:</b> 15-minute access tokens; refresh tokens in Redis with sliding expiry. •<b>mTLS:</b> All service-to-service traffic encrypted via Istio; zero-trust internal network. •<b>3DS 2.0:</b> Enforced for all international transactions &gt; $100. •<b>Rate limiting:</b> 100 req/min per user; 10 TXN attempts/hour at API Gateway. •<b>PII encryption:</b> AES-256 column-level encryption with AWS KMS envelope keys. •<b>Audit log:</b> Append-only Cassandra table; every state change immutably recorded.</p>
+<h2>8. Key Architectural Decisions</h2>
+<div class="table-wrap"><table class="cmp"><thead><tr><th>Decision</th><th>Choice</th><th>Rationale</th></tr></thead><tbody><tr><td>Architecture</td><td>Microservices on Kubernetes</td><td>Independent scaling; resilience; team autonomy</td></tr><tr><td>Language</td><td>Java 17 + Spring Boot 3.3</td><td>Virtual threads; records; mature fintech ecosystem</td></tr><tr><td>Primary DB</td><td>PostgreSQL 16 + partitioning</td><td>ACID; excellent JSON; proven in fintech at scale</td></tr><tr><td>Cache</td><td>Redis Cluster</td><td>Sub-ms reads; TTL; distributed locking; pub/sub</td></tr><tr><td>Analytics DB</td><td>Apache Cassandra</td><td>Linear scale; time-series optimised; 99.99% HA</td></tr><tr><td>Messaging</td><td>Apache Kafka</td><td>Durable log; priority partitioning; exactly-once</td></tr><tr><td>Distributed TXN</td><td>Saga Orchestration</td><td>No 2PC; each step has compensating action</td></tr><tr><td>Payment</td><td>Stripe + Visa Direct</td><td>PCI-DSS handled externally; tokenisation</td></tr><tr><td>Resilience</td><td>Resilience4j</td><td>Native Spring Boot 3 support; fallback to cache</td></tr><tr><td>Security</td><td>OAuth2 + JWT + mTLS</td><td>Stateless auth; zero-trust via Istio</td></tr></tbody></table></div>
+<p>GlobalPay is designed to be <b>user-centric</b> (priority lanes), <b>rewarding</b> (intelligent coupons), <b>latency-optimised</b> (&lt;2s P95),</p>
+<p><b>financially safe</b> (Saga + Outbox + idempotency), and <b>compliance-ready</b> (AML + KYC from day one).</p>
+<div class="chapter-nav"><a class="prev" href="paytm-dsa-questions.html">← Paytm DSA Questions</a><a class="next" href="../index.html">Back to Library →</a></div>
+</main>
+<aside class="toc"></aside>
+</div>
+<footer class="footer">SystemDesign.hinglish · Library · Personal study material</footer>
+<script src="../../assets/app.js"></script>
+</body>
+</html>
