@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 03: A Framework for System Design Interviews · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{if(localStorage.getItem('sd-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><div class="toplinks"><a href="../index.html#chapters">Chapters</a><a href="../index.html#how">Kaise padhein</a><a href="../links.html">URL Guide</a></div><button class="theme-toggle" aria-label="theme">◐</button></header>
+<div class="layout">
+<nav class="sidebar">
+<div class="group">Foundations</div><ul>
+<li><a href="01-scaling.html"><span class="num">01</span> Scale from Zero to Millions of Users</a></li>
+<li><a href="02-back-of-envelope.html"><span class="num">02</span> Back-of-the-Envelope Estimation</a></li>
+<li><a class="active" href="03-framework.html"><span class="num">03</span> A Framework for System Design Interviews</a></li>
+<li><a href="04-rate-limiter.html"><span class="num">04</span> Design a Rate Limiter</a></li>
+<li><a href="05-consistent-hashing.html"><span class="num">05</span> Design Consistent Hashing</a></li>
+<li><a href="06-key-value-store.html"><span class="num">06</span> Design a Key-Value Store</a></li>
+<li><a href="07-unique-id-generator.html"><span class="num">07</span> Design a Unique ID Generator</a></li>
+</ul>
+<div class="group">Classic Designs</div><ul>
+<li><a href="08-url-shortener.html"><span class="num">08</span> Design a URL Shortener</a></li>
+<li><a href="09-web-crawler.html"><span class="num">09</span> Design a Web Crawler</a></li>
+<li><a href="10-notification-system.html"><span class="num">10</span> Design a Notification System</a></li>
+<li><a href="11-news-feed.html"><span class="num">11</span> Design a News Feed System</a></li>
+<li><a href="12-chat-system.html"><span class="num">12</span> Design a Chat System</a></li>
+<li><a href="13-search-autocomplete.html"><span class="num">13</span> Design a Search Autocomplete System</a></li>
+<li><a href="14-youtube.html"><span class="num">14</span> Design YouTube</a></li>
+</ul>
+<div class="group">Vol 2 · Part 1</div><ul>
+<li><a href="15-google-drive.html"><span class="num">15</span> Design Google Drive</a></li>
+<li><a href="16-proximity-service.html"><span class="num">16</span> Design a Proximity Service</a></li>
+<li><a href="17-nearby-friends.html"><span class="num">17</span> Design Nearby Friends</a></li>
+<li><a href="18-google-maps.html"><span class="num">18</span> Design Google Maps</a></li>
+<li><a href="19-message-queue.html"><span class="num">19</span> Design a Distributed Message Queue</a></li>
+<li><a href="20-metrics-monitoring.html"><span class="num">20</span> Metrics Monitoring and Alerting System</a></li>
+<li><a href="21-ad-click-aggregation.html"><span class="num">21</span> Ad Click Event Aggregation</a></li>
+<li><a href="22-hotel-reservation.html"><span class="num">22</span> Hotel Reservation System</a></li>
+</ul>
+<div class="group">Vol 2 · Part 2</div><ul>
+<li><a href="23-email-service.html"><span class="num">23</span> Distributed Email Service</a></li>
+<li><a href="24-s3-object-storage.html"><span class="num">24</span> S3-like Object Storage</a></li>
+<li><a href="25-gaming-leaderboard.html"><span class="num">25</span> Real-time Gaming Leaderboard</a></li>
+<li><a href="26-payment-system.html"><span class="num">26</span> Design a Payment System</a></li>
+<li><a href="27-digital-wallet.html"><span class="num">27</span> Design a Digital Wallet</a></li>
+<li><a href="28-stock-exchange.html"><span class="num">28</span> Design a Stock Exchange</a></li>
+</ul>
+<div class="group">Extras</div><ul>
+<li><a href="../index.html">🏠 Home / Kaise padhein</a></li><li><a href="../links.html">🔗 Notes ke URLs ka guide</a></li></ul>
+</nav>
+<main class="content">
+<div class="chapter-hero"><span class="chapter-num">Chapter 03</span><h1>A Framework for System Design Interviews</h1><p class="lead">45 minute ke interview ko drive karne ka 4-step framework — sahi sawal, blueprint pe buy-in, focused deep dive aur strong wrap-up.</p><div class="tags"><span class="tag">Interview</span><span class="tag">Framework</span><span class="tag">Communication</span><span class="tag">Time management</span></div></div>
+
+<h2 id="intro">Introduction</h2>
+<p>System design interview ek real-life problem-solving simulation hai: do log milke ek ambiguous problem pe kaam kar rahe hain. Interviewer sirf technical design nahi dekh raha — wo dekh raha hai <strong>collaboration, pressure mein kaam, ambiguity ko constructively resolve karna, aur sahi sawal poochna</strong>. Red flags: over-engineering, narrow-mindedness, stubbornness.</p>
+<p>Ye chapter ek <strong>4-step framework</strong> deta hai jo baaki har chapter (08 se 28 tak) follow karta hai.</p>
+<table class="cmp"><thead><tr><th>Step</th><th>Goal</th><th>Time (45 min)</th></tr></thead><tbody>
+<tr><td>1. Understand problem &amp; scope</td><td>Requirements, scale, constraints clear karna</td><td>3–10 min</td></tr>
+<tr><td>2. High-level design &amp; buy-in</td><td>Blueprint + interviewer ki agreement</td><td>10–15 min</td></tr>
+<tr><td>3. Design deep dive</td><td>Critical components mein depth</td><td>10–25 min</td></tr>
+<tr><td>4. Wrap-up</td><td>Bottlenecks, recap, follow-ups</td><td>3–5 min</td></tr>
+</tbody></table>
+
+<h2 id="step1">Step 1: Problem samjho aur design scope tay karo</h2>
+<p>Sabse badi galti: question sunte hi answer dena. Bina requirements samjhe jawab dena red flag hai. Pehle sawal poocho, assumptions clarify karo.</p>
+<h3>Kaun se sawal?</h3>
+<ul>
+<li>Exactly kaun se <strong>features</strong> build kar rahe hain? Sabse important kaun se?</li>
+<li><strong>Scale</strong> kya hai — kitne users? 3 mahine, 6 mahine, 1 saal mein kitna grow karega?</li>
+<li>Web, mobile, ya dono?</li>
+<li>Company ka <strong>existing tech stack</strong> kya hai? Kaun se services leverage kar sakte hain?</li>
+</ul>
+<p>Assumptions whiteboard/paper pe likh lo — baad mein reference ke kaam aayenge.</p>
+<h3>Example: "Design a news feed system"</h3>
+<ul>
+<li>Mobile app, web app, ya dono? → <em>Dono.</em></li>
+<li>Important features? → <em>Post publish karna aur friends ki news feed dekhna.</em></li>
+<li>Feed reverse chronological hai ya ranked? → <em>Simplicity ke liye reverse chronological.</em></li>
+<li>Ek user ke kitne friends? → <em>5000.</em></li>
+<li>Traffic volume? → <em>10 million DAU.</em></li>
+<li>Feed mein images/videos? → <em>Haan, media files bhi.</em></li>
+</ul>
+<div class="callout tip"><strong>Functional vs non-functional</strong>Sawalon ko do buckets mein socho: <em>functional</em> (kya karna hai — post, feed, like) aur <em>non-functional</em> (kaisa karna hai — latency, availability, consistency, scale). Step 1 ke end mein dono ki list board pe ho.</div>
+
+<h2 id="step2">Step 2: High-level design propose karo aur buy-in lo</h2>
+<ul>
+<li><strong>Initial blueprint</strong> banao aur feedback maango. Interviewer ko teammate treat karo — achhe candidates interviewer ke saath milke design karte hain.</li>
+<li><strong>Box diagrams</strong> draw karo: clients (mobile/web), APIs, web servers, data stores, cache, CDN, message queue, etc.</li>
+<li><strong>Back-of-the-envelope</strong> (Chapter 02) se check karo blueprint scale fit karta hai ya nahi. Pehle interviewer se poochh lo ki estimation chahiye ya nahi.</li>
+<li>Kuch concrete <strong>use cases walk-through</strong> karo — edge cases yahin nikalte hain.</li>
+<li>API endpoints aur DB schema? Problem pe depend karta hai — "Design Google search" mein bahut low-level hai; news feed jaise problem mein theek hai. Interviewer se poochh lo.</li>
+</ul>
+<h3>Example: News feed — do flows</h3>
+<ol>
+<li><strong>Feed publishing:</strong> user post karta hai → data cache/DB mein likha jaata hai → friends ki news feed mein populate hota hai.</li>
+<li><strong>Feed building (retrieval):</strong> friends ke posts ko reverse chronological order mein aggregate karke dikhana.</li>
+</ol>
+<p>(Chapter 11 mein inke diagrams detail mein milenge.)</p>
+
+<h2 id="step3">Step 3: Design deep dive</h2>
+<p>Is point tak tum aur interviewer ko ye mil jaana chahiye: agreed goals/scope, high-level blueprint, interviewer ka feedback, aur ek idea ki kis area pe focus karna hai.</p>
+<ul>
+<li><strong>Prioritize:</strong> components ko importance ke order mein rakho. Senior candidates ke saath interviewer aksar performance characteristics aur bottlenecks pe jaata hai.</li>
+<li><strong>Problem-specific depth:</strong>
+  <ul><li>URL shortener → hash function design (Chapter 08).</li>
+  <li>Chat system → latency kam karna aur online/offline status (Chapter 12).</li>
+  <li>News feed → feed publishing aur retrieval ka deep dive (Chapter 11).</li></ul></li>
+<li><strong>Time management:</strong> unnecessary details mein mat phanso. Jaise Facebook ke EdgeRank algorithm ko detail mein explain karna ideal nahi — wo scalability dikhata hi nahi.</li>
+</ul>
+
+<h2 id="step4">Step 4: Wrap-up</h2>
+<ul>
+<li><strong>Bottlenecks identify karo</strong> aur improvements discuss karo. "Mera design perfect hai" kabhi mat bolo — hamesha kuch improve ho sakta hai. Ye critical thinking dikhata hai.</li>
+<li><strong>Recap:</strong> design ka short summary — khaaskar agar beech mein kai solutions suggest kiye the.</li>
+<li><strong>Error cases:</strong> server failure, network loss.</li>
+<li><strong>Operations:</strong> metrics kaise monitor karoge, error logs, rollout kaise karoge.</li>
+<li><strong>Next scale curve:</strong> 1 million → 10 million users pe kya badlega?</li>
+<li>Aur refinements jo time hota to karte.</li>
+</ul>
+
+<h2 id="dos-donts">Dos and Don'ts</h2>
+<table class="cmp"><thead><tr><th>✅ Dos</th><th>❌ Don'ts</th></tr></thead><tbody>
+<tr><td>Hamesha clarification maango; apni assumption ko sahi mat maano.</td><td>Typical interview questions ke liye taiyar na jaana.</td></tr>
+<tr><td>Problem ki requirements samjho.</td><td>Requirements clarify kiye bina solution mein jump karna.</td></tr>
+<tr><td>Yaad rakho — koi "right" ya "best" answer nahi hota; startup aur million-user company ke answers alag honge.</td><td>Shuru mein hi ek component ki detail mein ghus jaana. Pehle high-level, phir drill down.</td></tr>
+<tr><td>Interviewer ko batate raho tum kya soch rahe ho. Communicate.</td><td>Stuck ho to chup baithna — hint maango.</td></tr>
+<tr><td>Multiple approaches suggest karo (trade-offs ke saath).</td><td>Over-engineering — "Kafka + Flink + 7 microservices" jab ek queue kaafi hai.</td></tr>
+<tr><td>Blueprint pe agreement ke baad sabse critical components pe detail.</td><td>Interview ko tab khatam samajhna jab interviewer bole — feedback jaldi aur baar-baar maango.</td></tr>
+<tr><td>Interviewer ke saath ideas bounce karo — achha interviewer teammate ki tarah kaam karta hai.</td><td>Silence. Design ek conversation hai.</td></tr>
+</tbody></table>
+
+<div class="callout interview"><strong>Interview mein kaise bolein — 45 minute script</strong>
+<ol>
+<li><b>0–5 min:</b> "Kuch clarifying questions — features, scale, platforms, consistency needs." Board pe functional + non-functional list.</li>
+<li><b>5–8 min:</b> Quick estimate: read/write QPS, storage. "Iska matlab read-heavy hai, cache important."</li>
+<li><b>8–20 min:</b> APIs (3–4), high-level boxes, ek happy-path flow numbered arrows ke saath. "Kya ye direction theek hai?" — buy-in.</li>
+<li><b>20–40 min:</b> 2–3 deep dives jo interviewer chahe: data model + sharding, hot path optimization, failure handling.</li>
+<li><b>40–45 min:</b> Bottlenecks, monitoring, 10x scale pe kya badlega, recap.</li>
+</ol></div>
+<div class="callout realworld"><strong>Real world</strong>Ye framework real design reviews jaisa hi hai: pehle PRD/requirements, phir high-level design doc review, phir detailed design, phir rollout + observability plan. Lead/FDE roles mein exactly yahi structure customer/stakeholder conversations mein bhi kaam aata hai.</div>
+
+<h2 id="followups">Common follow-up questions</h2>
+<details><summary>Agar interviewer bole "tum decide karo scale"?</summary><p>Ek reasonable number lo aur bolo kyun: "Assume 10M DAU, read-heavy 10:1 — mid-size consumer app." Phir aage badho; flexibility dikhao.</p></details>
+<details><summary>Agar deep dive mein galti pakdi gayi?</summary><p>Defend mat karo — acknowledge karo, trade-off samjho, fix propose karo. Ye "stubbornness" red flag se bachata hai.</p></details>
+<details><summary>Kitna detail API/schema mein?</summary><p>Interviewer se poochho. Product-type problems (feed, chat) mein 3–5 APIs aur main tables kaafi hain; infra problems (KV store, queue) mein data path zyada important hai.</p></details>
+
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul>
+<li>4 steps: <strong>Scope → High-level + buy-in → Deep dive → Wrap-up</strong>.</li>
+<li>Time split (45 min): 3–10 / 10–15 / 10–25 / 3–5 minutes.</li>
+<li>Pehle sawal, phir solution. Assumptions board pe likho.</li>
+<li>Interviewer teammate hai — baar-baar feedback lo.</li>
+<li>Depth wahan do jahan problem ka "hard part" hai; over-engineering se bacho.</li>
+<li>Wrap-up mein bottlenecks, failures, monitoring aur next-10x scale discuss karo.</li>
+</ul></div>
+
+<div class="chapter-nav"><a class="prev" href="02-back-of-envelope.html">← Prev: 02. Back-of-the-Envelope Estimation</a><a class="next" href="04-rate-limiter.html">Next: 04. Design a Rate Limiter →</a></div>
+</main>
+<aside class="toc"></aside>
+</div>
+<script src="../assets/app.js"></script>
+</body>
+</html>

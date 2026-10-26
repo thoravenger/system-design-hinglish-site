@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 23: Distributed Email Service · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+ <header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><button class="theme-toggle" aria-label="theme">◐</button></header>
+ <div class="layout">
+  <nav class="sidebar">
+   <div class="nav-group"><p class="nav-group-title">Foundations</p>
+    <a href="01-scaling.html"><span class="num">01</span> Scaling 0 to Millions</a>
+    <a href="02-back-of-envelope.html"><span class="num">02</span> Back-of-the-Envelope Estimation</a>
+    <a href="03-framework.html"><span class="num">03</span> System Design Interview Framework</a>
+    <a href="04-rate-limiter.html"><span class="num">04</span> Rate Limiter</a>
+    <a href="05-consistent-hashing.html"><span class="num">05</span> Consistent Hashing</a>
+    <a href="06-key-value-store.html"><span class="num">06</span> Key-Value Store</a>
+    <a href="07-unique-id-generator.html"><span class="num">07</span> Unique ID Generator</a>
+   </div>
+   <div class="nav-group"><p class="nav-group-title">Classic Designs</p>
+    <a href="08-url-shortener.html"><span class="num">08</span> URL Shortener</a>
+    <a href="09-web-crawler.html"><span class="num">09</span> Web Crawler</a>
+    <a href="10-notification-system.html"><span class="num">10</span> Notification System</a>
+    <a href="11-news-feed.html"><span class="num">11</span> News Feed System</a>
+    <a href="12-chat-system.html"><span class="num">12</span> Chat System</a>
+    <a href="13-search-autocomplete.html"><span class="num">13</span> Search Autocomplete</a>
+    <a href="14-youtube.html"><span class="num">14</span> YouTube</a>
+   </div>
+   <div class="nav-group"><p class="nav-group-title">Vol 2 · Part 1</p>
+    <a href="15-google-drive.html"><span class="num">15</span> Google Drive</a>
+    <a href="16-proximity-service.html"><span class="num">16</span> Proximity Service</a>
+    <a href="17-nearby-friends.html"><span class="num">17</span> Nearby Friends</a>
+    <a href="18-google-maps.html"><span class="num">18</span> Google Maps</a>
+    <a href="19-message-queue.html"><span class="num">19</span> Distributed Message Queue</a>
+    <a href="20-metrics-monitoring.html"><span class="num">20</span> Metrics Monitoring & Alerting</a>
+    <a href="21-ad-click-aggregation.html"><span class="num">21</span> Ad Click Event Aggregation</a>
+    <a href="22-hotel-reservation.html"><span class="num">22</span> Hotel Reservation System</a>
+   </div>
+   <div class="nav-group"><p class="nav-group-title">Vol 2 · Part 2</p>
+    <a href="23-email-service.html" class="active" aria-current="page"><span class="num">23</span> Distributed Email Service</a>
+    <a href="24-s3-object-storage.html"><span class="num">24</span> S3-like Object Storage</a>
+    <a href="25-gaming-leaderboard.html"><span class="num">25</span> Real-time Gaming Leaderboard</a>
+    <a href="26-payment-system.html"><span class="num">26</span> Payment System</a>
+    <a href="27-digital-wallet.html"><span class="num">27</span> Digital Wallet</a>
+    <a href="28-stock-exchange.html"><span class="num">28</span> Stock Exchange</a>
+   </div>
+  </nav>
+  <main class="content">
+   <div class="chapter-hero"><span class="chapter-num">Chapter 23</span><h1>Distributed Email Service</h1><p class="lead">Gmail jaisa email service 1 billion users ke liye — SMTP/IMAP/MX basics, sending aur receiving pipelines, Cassandra-style metadata modelling, deliverability (SPF/DKIM, IP warm-up), per-user search aur multi-DC availability.</p><div class="tags"><span class="tag">SMTP</span><span class="tag">Cassandra</span><span class="tag">Object Store</span><span class="tag">Elasticsearch</span><span class="tag">LSM Tree</span><span class="tag">WebSocket</span></div></div>
+<h2 id="intro">Introduction</h2>
+<p>Notes ke hisaab se 2020 mein Gmail ke 1.8B aur Outlook ke 400M active users the. Email "simple" lagta hai, lekin is scale pe yeh storage (petabytes), reliability (ek bhi mail lose nahi), aur deliverability (spam folder se bachna) ka problem hai.</p>
+
+<h2 id="step1">Step 1: Requirements aur scope</h2>
+<ul>
+ <li>1B users.</li>
+ <li>Features: send/receive, fetch, filter, search, anti-spam (auth abhi skip).</li>
+ <li>Clients traditionally SMTP/POP/IMAP use karte hain, lekin is problem mein <strong>HTTP</strong>.</li>
+ <li>Attachments: haan.</li>
+</ul>
+<h3>Non-functional</h3>
+<ul>
+ <li><strong>Reliability</strong> — data loss nahi.</li>
+ <li><strong>Availability</strong> — replication, partial failures tolerate.</li>
+ <li><strong>Scalability</strong> — users badhte rahenge.</li>
+ <li><strong>Flexibility/extensibility</strong> — isi wajah se HTTP chuna, SMTP nahi.</li>
+</ul>
+<h3>Back-of-the-envelope</h3>
+<table class="cmp">
+<tr><th>Item</th><th>Math</th><th>Result</th></tr>
+<tr><td>Send QPS</td><td>1B × 10 mails/day / 10^5 s</td><td><strong>100k emails/sec</strong></td></tr>
+<tr><td>Metadata storage</td><td>1B × 40 received/day × 365 × 50 KB</td><td><strong>730 PB/year</strong></td></tr>
+<tr><td>Attachments</td><td>1B × 40 × 365 × 20% × 500 KB</td><td><strong>1,460 PB/year</strong></td></tr>
+</table>
+<div class="callout tip">💡 Petabytes per year = attachments ko DB mein rakhna sawaal hi nahi. Object store (S3) + dedup. Aur metadata ko bhi hot/cold tier mein baantna padega — log mostly recent mails padhte hain.</div>
+
+<h2 id="email101">Step 2a: Email knowledge 101</h2>
+<table class="cmp">
+<tr><th>Protocol</th><th>Kaam</th></tr>
+<tr><td>SMTP</td><td>Server-to-server mail bhejna (standard)</td></tr>
+<tr><td>POP</td><td>Client mail download karta hai; download ke baad server se delete</td></tr>
+<tr><td>IMAP</td><td>Download bhi, lekin mail server pe rehta hai (multi-device sync)</td></tr>
+<tr><td>HTTPS</td><td>Email protocol nahi, lekin web-based clients ke liye</td></tr>
+</table>
+<p>DNS ke <strong>MX records</strong> batate hain ki kisi domain ka mail kaunsa server accept karta hai:</p>
+<figure class="diagram"><img src="../img/23/dns-lookup.png" alt="dns lookup" loading="lazy"><figcaption>Terminal: <code>nslookup</code>, <code>set q=mx</code>, <code>gmail.com</code>. Answer mein 5 mail exchangers: priority 5 → gmail-smtp-in.l.google.com, 10 → alt1, 20 → alt2, 30 → alt3, 40 → alt4. Beech wala circled number = <strong>priority</strong> — kam number = pehle try. Pehla fail ho to sender next priority wale ko try karta hai.</figcaption></figure>
+<p>Attachments base64-encoded jaate hain (size ~33% badh jaata hai), aur zyada tar services ~25 MB limit rakhti hain (configurable).</p>
+<h3>Traditional mail servers</h3>
+<figure class="diagram"><img src="../img/23/traditional-mail-server.png" alt="traditional mail server" loading="lazy"><figcaption>Alice (outlook.com) ① Send — Outlook client se SMTP pe outlook.com ke SMTP Server ko. ② Outlook SMTP server DNS MX lookup karke gmail.com ke SMTP Server ko SMTP pe bhejta hai. ③ Gmail SMTP server Storage mein store. ④ Bob Gmail client se IMAP/POP Server ke through Get/Fetch karta hai.</figcaption></figure>
+<figure class="diagram"><img src="../img/23/local-dir-storage.png" alt="local dir storage" loading="lazy"><figcaption>Maildir layout: home → user1 → Maildir → cur / new / tmp (aur user2 ka same). Har email ek alag file. Chhote scale pe simple, lekin lakhon users pe disk I/O bottleneck aur single disk/server = SPOF.</figcaption></figure>
+
+<h2 id="hld">Step 2b: Distributed mail server — API aur high-level design</h2>
+<p>Native clients ke liye IMAP/POP aur server-to-server SMTP support rehta hai, lekin webmail ke liye REST:</p>
+<pre><code>POST /v1/messages                         // To, Cc, Bcc ko bhejo
+GET  /v1/folders                          // user ke saare folders
+  -&gt; [{ id, name /* RFC6154: All, Archive, Drafts, Flagged, Junk, Sent, Trash */, user_id }]
+GET  /v1/folders/{folder_id}/messages     // paginated
+GET  /v1/messages/{message_id}
+  -&gt; { user_id, from:{name,email}, to:[{name,email}], subject, body, is_read }</code></pre>
+<figure class="diagram"><img src="../img/23/high-level-architecture.png" alt="high level architecture" loading="lazy"><figcaption>Webmail (browsers) → do raaste: https se <strong>Web Servers</strong>, WebSocket se <strong>Real-time Servers</strong>. Dono neeche Storage Layer use karte hain: Metadata DB, Attachment store, Distributed cache, Search store.</figcaption></figure>
+<ul>
+ <li><strong>Web servers</strong>: login, signup, profile, mail APIs.</li>
+ <li><strong>Real-time servers</strong>: naye mail push — WebSocket, purane browsers ke liye long-polling fallback. Stateful, isliye scale karna tricky.</li>
+ <li><strong>Metadata DB</strong>: subject, body, from, to…</li>
+ <li><strong>Attachment store</strong>: S3 jaisa object store.</li>
+ <li><strong>Distributed cache</strong>: recent emails Redis mein.</li>
+ <li><strong>Search store</strong>: full-text search ke liye document store.</li>
+</ul>
+<h3>Sending flow</h3>
+<figure class="diagram"><img src="../img/23/email-sending-flow.png" alt="email sending flow" loading="lazy"><figcaption>① Webmail HTTPS → Load balancer. ② LB rate-limit karke Web servers ko. ③ Web servers metadata/attachment Storage Layer mein. 4a: validation pass → Outgoing queue; 4b: fail → Error queue. ⑤ SMTP Outgoing workers queue se pull karte hain, dashed box mein Check spam, Check virus, Retry. ⑥ Sent folder storage update. ⑦ Internet ke through recipient server.</figcaption></figure>
+<ul>
+ <li>LB excessive sends rate-limit karta hai (spammer control).</li>
+ <li>Web server basic validation (size); same-domain recipient ho to outbound skip — lekin spam check pehle.</li>
+ <li>Attachment object store mein, queue mein sirf reference.</li>
+ <li>Outgoing queue size monitor karo: badh rahi hai to ya recipient server down (exponential backoff retry), ya consumers kam (scale).</li>
+</ul>
+<div class="callout realworld">🌍 Yeh exactly ek payments outbound pipeline jaisa hai: API validate → queue → workers → external network (SWIFT/partner bank), with retry + DLQ (error queue). Spring Boot mein: <code>@KafkaListener</code> workers, Resilience4j retry with exponential backoff, aur per-destination circuit breaker taaki ek down recipient domain baaki sab ko slow na kare.</div>
+<h3>Receiving flow</h3>
+<figure class="diagram"><img src="../img/23/email-receiving-flkow.png" alt="email receiving flkow" loading="lazy"><figcaption>① Incoming mail → Load balancer → ② SMTP servers (Email Acceptance policy — invalid mails yahin drop). ③ Bada attachment seedha storage/object store. ④ Incoming email queue → ⑤ Mail processing (Check spam, Check virus). ⑥ Storage Layer (metadata DB, search store, object store, cache). ⑦ Real-time Servers → ⑧ WebSocket se online user ko push. Offline user baad mein ⑨ HTTPS Web servers se ⑩ storage se fetch karta hai.</figcaption></figure>
+
+<h2 id="metadata">Step 3a: Metadata database</h2>
+<p>Email metadata ki characteristics:</p>
+<ul>
+ <li>Headers chhote aur frequently accessed; body chhota-bada, usually ek baar padha jaata hai.</li>
+ <li>Almost saare operations <strong>ek user tak isolated</strong> (fetch, mark read, search).</li>
+ <li>Recency matters — log recent mails padhte hain.</li>
+ <li>Data loss unacceptable.</li>
+</ul>
+<table class="cmp">
+<tr><th>Option</th><th>Verdict</th></tr>
+<tr><td>Relational</td><td>Headers/body index ho sakte hain, lekin chhote rows ke liye optimised; MB-size body awkward</td></tr>
+<tr><td>Object store</td><td>Backup ke liye achha, lekin search / mark-as-read efficient nahi</td></tr>
+<tr><td>NoSQL</td><td>Gmail Bigtable use karta hai (open source nahi)</td></tr>
+</table>
+<p>Interview mein naya DB design nahi karna, lekin ideal properties bolo: single column single-digit MB, strong consistency, low disk I/O, HA + fault tolerant, easy incremental backups.</p>
+<p><strong>Partition key = <code>user_id</code></strong> — ek user ka data ek shard pe. (Trade-off: ek email multiple users ke beech share nahi; recipient ko apni copy milti hai.)</p>
+<figure class="diagram"><img src="../img/23/legend.png" alt="legend" loading="lazy"><figcaption>Table legend: <strong>K</strong> = Partition Key (data kis node pe), <strong>C↑</strong> = Clustering key ascending, <strong>C↓</strong> = Clustering key descending (partition ke andar sort order).</figcaption></figure>
+<figure class="diagram"><img src="../img/23/folders-table.png" alt="folders table" loading="lazy"><figcaption>folders_by_user: user_id (UUID, K), folder_id (UUID), folder_name (TEXT). Ek query = ek partition = user ke saare folders.</figcaption></figure>
+<figure class="diagram"><img src="../img/23/emails-table.png" alt="emails table" loading="lazy"><figcaption>emails_by_folder: partition key (user_id, folder_id) dono K; email_id TIMEUUID C↓ — naya mail pehle. Columns: from, subject, preview, is_read. "Inbox kholo, latest 50" = ek partition ka top slice.</figcaption></figure>
+<p><code>email_id</code> TIMEUUID hai — time-based sorting free mein.</p>
+<figure class="diagram"><img src="../img/23/attachments.png" alt="attachments" loading="lazy"><figcaption>Do tables: emails_by_user (user_id K, email_id TIMEUUID C↓, from, to LIST&lt;TEXT&gt;, subject, body, attachments LIST&lt;filename|size&gt;) aur attachments (email_id C, filename K, url) — attachment file object store mein, yahan sirf URL.</figcaption></figure>
+<p>Read/unread filter Cassandra mein mushkil — non-key column pe filter allowed nahi. Fetch-all-then-filter bade users ke liye nahi chalega. Fix: <strong>denormalise</strong>:</p>
+<figure class="diagram"><img src="../img/23/read-unread-emails.png" alt="read unread emails" loading="lazy"><figcaption>Do identical-schema tables: read_emails aur unread_emails (user_id K, folder_id K, email_id C↓, from, subject, preview). Mail read hua = unread_emails se delete + read_emails mein insert. Query-first modelling: har query ke liye ek table.</figcaption></figure>
+<div class="callout warn">⚠️ <strong>Denormalisation ka hidden cost:</strong> "mark as read" ab do-table write hai (delete + insert). Cassandra mein logged BATCH se atomicity milti hai (same partition key ho to sasta). Crash beech mein hua to mail dono jagah ya kahin nahi — isliye idempotent retry aur periodic repair job. Aur Cassandra mein bahut deletes = tombstones → read latency spike; compaction strategy (e.g. TimeWindowCompaction for time-series-like data) dhyan se chuno.</div>
+<p>Conversation threads ke liye headers:</p>
+<pre><code>{
+  "headers": {
+    "Message-Id": "&lt;7BA04B2A-430C-4D12-8B57-862103C34501@gmail.com&gt;",
+    "In-Reply-To": "&lt;CAEWTXuPfN=LzECjDJtgY9Vu03kgFvJnJUSHTt6TW@gmail.com&gt;",
+    "References": ["&lt;7BA04B2A-430C-4D12-8B57-862103C34501@gmail.com&gt;"]
+  }
+}</code></pre>
+<p><strong>Consistency &gt; availability</strong>: failover/partition ke dauraan affected users ke sync/update briefly unavailable — lekin mailbox kabhi inconsistent nahi.</p>
+
+<h2 id="deliverability">Step 3b: Email deliverability</h2>
+<p>Mail server bana lena easy, inbox tak pahunchna mushkil. Naya server = seedha spam folder. Upay:</p>
+<ul>
+ <li><strong>Dedicated IPs</strong> — shared IP pe trust nahi.</li>
+ <li><strong>Classify emails</strong> — marketing aur transactional (OTP, receipts) alag IPs/servers se.</li>
+ <li><strong>IP warm-up</strong> — dheere-dheere volume badhao; 2-6 hafte lagte hain.</li>
+ <li><strong>Ban spammers jaldi</strong> — reputation bachao.</li>
+ <li><strong>Feedback loops</strong> ISPs ke saath — complaint rate track.</li>
+ <li><strong>Authentication</strong> — SPF, DKIM (aur DMARC).</li>
+</ul>
+<div class="callout realworld">🌍 Payments mein transactional mails (payment receipt, OTP, transfer confirmation) <em>kabhi</em> marketing ke saath same IP/subdomain se mat bhejo — campaign spam complaints se OTP spam mein jaayega aur conversion girega. Isliye SES/SendGrid mein alag "configuration sets"/subdomains (e.g. <code>notify.bank.com</code> vs <code>offers.bank.com</code>). Gmail/Yahoo ne 2024 se bulk senders ke liye SPF+DKIM+DMARC aur one-click unsubscribe mandatory kiya hai.</div>
+
+<h2 id="search">Step 3c: Search</h2>
+<p>Email search ki khaasiyat: user-local, aur <strong>writes &gt; reads</strong> — har send/receive/delete pe reindex, lekin search tab kabhi-kabhi.</p>
+<table class="cmp">
+<tr><th></th><th>Scope</th><th>Sorting</th><th>Accuracy</th></tr>
+<tr><td>Google search</td><td>Poora internet</td><td>Relevance</td><td>Indexing mein time lagta hai, instant nahi</td></tr>
+<tr><td>Email search</td><td>User ka mailbox</td><td>Time/date jaise attributes</td><td>Indexing turant + accurate</td></tr>
+</table>
+<figure class="diagram"><img src="../img/23/elasticsearch.png" alt="elasticsearch" loading="lazy"><figcaption>Send/Receive/Delete email → <strong>Async</strong> Kafka mein → Kafka Consumers → RESTful API → Elasticsearch Cluster (reindex). Search request alag raaste se <strong>Sync</strong> seedha RESTful API → Elasticsearch. Writes decoupled, reads direct.</figcaption></figure>
+<p>ES mein <code>user_id</code> se routing — ek user ka index data ek shard pe, query sirf ek shard hit kare.</p>
+<p>Custom search engine banana ho to core challenge write-heavy workload — <strong>LSM tree</strong>:</p>
+<figure class="diagram"><img src="../img/23/lsm-tree.png" alt="lsm tree" loading="lazy"><figcaption>Neeche red Level 0 (Memory) mein bahut chhote chunks (memtable). Threshold pe flush → Level 1 (disk) chhote files → merge hoke Level 2, 3, 4 mein kam lekin bade files. Time upar ki taraf — data purana hote-hote bade, sorted, compacted files mein jaata hai. Writes hamesha sequential.</figcaption></figure>
+<p>LSM Cassandra, Bigtable, RocksDB mein use hota hai.</p>
+<table class="cmp">
+<tr><th></th><th>Elasticsearch</th><th>Custom engine</th></tr>
+<tr><td>Scale</td><td>Kuch had tak</td><td>Email use-case ke liye fine-tune, aage scale</td></tr>
+<tr><td>Ops</td><td>Metadata store ke saath alag system</td><td>Datastore khud hi search kar sakta hai</td></tr>
+<tr><td>Effort</td><td>Off-the-shelf</td><td>Bahut engineering</td></tr>
+</table>
+
+<h2 id="scale">Step 3d: Scalability aur availability</h2>
+<p>Users ke operations ek doosre se collide nahi karte → components independently scale.</p>
+<figure class="diagram"><img src="../img/23/multi-dc-example.png" alt="multi dc example" loading="lazy"><figcaption>Upar: US user US Data Center ke Servers → Databases use karta hai; US aur Europe DCs ke databases ke beech Replication. Neeche: US DC fail (red X) — same user ab Europe Data Center pe route hota hai jahan replicated data hai. Leader-follower failover.</figcaption></figure>
+<div class="callout warn">⚠️ Failover pe agar replication async thi to last few seconds ke mails missing ho sakte hain — "consistency over availability" decision ke saath yeh clash karta hai. Options: sync replication within region (multi-AZ quorum), cross-region async + receiving side pe SMTP retry (sender server khud retry karta hai jab tak 250 OK na mile — SMTP ka built-in at-least-once).</div>
+
+<h2 id="wrapup">Step 4: Wrap up</h2>
+<ul>
+ <li><strong>Fault tolerance</strong> — node failures kaise handle.</li>
+ <li><strong>Compliance</strong> — PII, GDPR (right to erasure — denormalised copies + search index + backups sab se delete!).</li>
+ <li><strong>Security</strong> — encryption, phishing protection, safe browsing.</li>
+ <li><strong>Optimisations</strong> — same attachment baar-baar bheja jaaye to dedupe (content hash).</li>
+</ul>
+
+<div class="callout interview">🎤 <strong>Interview mein kaise bolein:</strong>
+<ol>
+<li>Numbers: 100k sends/sec, ~730 PB metadata + ~1,460 PB attachments/year → object store must.</li>
+<li>Email 101 (SMTP/IMAP/MX) 2 minute mein — dikhata hai domain samajhte ho.</li>
+<li>Architecture: web servers + real-time (WebSocket) + storage layer (metadata, attachments, cache, search).</li>
+<li>Send aur receive flows queues ke saath; outgoing queue monitoring + backoff.</li>
+<li>Deep dive: partition by user_id, query-driven tables, read/unread denormalisation, consistency choice.</li>
+<li>Deliverability + search (Kafka async indexing) + multi-DC.</li>
+</ol></div>
+
+<h2 id="faq">Follow-up questions</h2>
+<dl>
+<dt>Q: Ek mail 1 lakh recipients ko (mailing list)?</dt><dd>Fan-out workers, per-domain batching (ek SMTP transaction mein same domain ke multiple RCPT TO), rate limits per destination.</dd>
+<dt>Q: Duplicate incoming mail (sender ne retry kiya)?</dt><dd><code>Message-Id</code> + recipient se dedupe key — idempotent store.</dd>
+<dt>Q: Attachment dedup kaise?</dt><dd>Content hash (SHA-256) se object key; reference counting; per-user encryption ho to dedup sirf same tenant ke andar.</dd>
+<dt>Q: Real-time servers scale kaise?</dt><dd>Sticky connections + registry (user → server) in Redis; naya mail aaye to registry se sahi server ko pub/sub.</dd>
+</dl>
+
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul>
+<li>HTTP APIs webmail ke liye; SMTP server-to-server; MX records routing batate hain.</li>
+<li>Petabyte scale → attachments object store mein; metadata NoSQL partitioned by user_id.</li>
+<li>Query-first modelling: emails_by_folder, read/unread tables (denormalisation ki cost samjho).</li>
+<li>Send/receive dono queue-based pipelines with spam/virus checks aur retries.</li>
+<li>Deliverability ek domain-knowledge problem hai: dedicated IPs, warm-up, SPF/DKIM, feedback loops.</li>
+<li>Search: writes &gt; reads, async indexing via Kafka; LSM trees write-heavy indexing ke liye.</li>
+<li>Consistency &gt; availability for mailbox; multi-DC leader-follower failover.</li>
+</ul></div>
+   <div class="chapter-nav"><a class="prev" href="22-hotel-reservation.html">← Prev: Hotel Reservation System</a><a class="next" href="24-s3-object-storage.html">Next: S3-like Object Storage →</a></div>
+  </main>
+  <aside class="toc">
+   <p class="toc-title">On this page</p>
+    <a href="#intro">Introduction</a>
+    <a href="#step1">Step 1: Requirements aur scope</a>
+    <a href="#email101">Step 2a: Email knowledge 101</a>
+    <a href="#hld">Step 2b: Distributed mail server — API aur high-level design</a>
+    <a href="#metadata">Step 3a: Metadata database</a>
+    <a href="#deliverability">Step 3b: Email deliverability</a>
+    <a href="#search">Step 3c: Search</a>
+    <a href="#scale">Step 3d: Scalability aur availability</a>
+    <a href="#wrapup">Step 4: Wrap up</a>
+    <a href="#faq">Follow-up questions</a>
+    <a href="#takeaways">Key Takeaways</a>
+  </aside>
+ </div>
+ <script src="../assets/app.js"></script>
+</body>
+</html>

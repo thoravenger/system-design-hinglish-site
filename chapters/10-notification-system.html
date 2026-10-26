@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 10: Design a Notification System · SystemDesign.hinglish</title>
+<meta name="description" content="Push, SMS aur Email — teen channels, 16 million notifications/day. Dekhte hain ek reliable, decoupled notification system kaise banta hai: queues, workers, retries, dedup aur opt-out ke saath.">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+ <header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><button class="theme-toggle" aria-label="theme">◐</button></header>
+ <div class="layout">
+<nav class="sidebar">
+  <div class="nav-group"><div class="nav-group-title">Foundations</div><ul>
+    <li><a href="01-scaling.html"><span class="n">01</span> Scaling from Zero to Millions</a></li>
+    <li><a href="02-back-of-envelope.html"><span class="n">02</span> Back-of-the-Envelope Estimation</a></li>
+    <li><a href="03-framework.html"><span class="n">03</span> System Design Interview Framework</a></li>
+    <li><a href="04-rate-limiter.html"><span class="n">04</span> Design a Rate Limiter</a></li>
+    <li><a href="05-consistent-hashing.html"><span class="n">05</span> Consistent Hashing</a></li>
+    <li><a href="06-key-value-store.html"><span class="n">06</span> Design a Key-Value Store</a></li>
+    <li><a href="07-unique-id-generator.html"><span class="n">07</span> Unique ID Generator</a></li>
+  </ul></div>
+  <div class="nav-group"><div class="nav-group-title">Classic Designs</div><ul>
+    <li><a href="08-url-shortener.html"><span class="n">08</span> Design a URL Shortener</a></li>
+    <li><a href="09-web-crawler.html"><span class="n">09</span> Design a Web Crawler</a></li>
+    <li><a class="active" aria-current="page" href="10-notification-system.html"><span class="n">10</span> Design a Notification System</a></li>
+    <li><a href="11-news-feed.html"><span class="n">11</span> Design a News Feed System</a></li>
+    <li><a href="12-chat-system.html"><span class="n">12</span> Design a Chat System</a></li>
+    <li><a href="13-search-autocomplete.html"><span class="n">13</span> Design Search Autocomplete</a></li>
+    <li><a href="14-youtube.html"><span class="n">14</span> Design YouTube</a></li>
+  </ul></div>
+  <div class="nav-group"><div class="nav-group-title">Vol 2 · Part 1</div><ul>
+    <li><a href="15-google-drive.html"><span class="n">15</span> Design Google Drive</a></li>
+    <li><a href="16-proximity-service.html"><span class="n">16</span> Design a Proximity Service</a></li>
+    <li><a href="17-nearby-friends.html"><span class="n">17</span> Design Nearby Friends</a></li>
+    <li><a href="18-google-maps.html"><span class="n">18</span> Design Google Maps</a></li>
+    <li><a href="19-message-queue.html"><span class="n">19</span> Distributed Message Queue</a></li>
+    <li><a href="20-metrics-monitoring.html"><span class="n">20</span> Metrics Monitoring &amp; Alerting</a></li>
+    <li><a href="21-ad-click-aggregation.html"><span class="n">21</span> Ad Click Event Aggregation</a></li>
+    <li><a href="22-hotel-reservation.html"><span class="n">22</span> Hotel Reservation System</a></li>
+  </ul></div>
+  <div class="nav-group"><div class="nav-group-title">Vol 2 · Part 2</div><ul>
+    <li><a href="23-email-service.html"><span class="n">23</span> Distributed Email Service</a></li>
+    <li><a href="24-s3-object-storage.html"><span class="n">24</span> S3-like Object Storage</a></li>
+    <li><a href="25-gaming-leaderboard.html"><span class="n">25</span> Real-time Gaming Leaderboard</a></li>
+    <li><a href="26-payment-system.html"><span class="n">26</span> Payment System</a></li>
+    <li><a href="27-digital-wallet.html"><span class="n">27</span> Digital Wallet</a></li>
+    <li><a href="28-stock-exchange.html"><span class="n">28</span> Stock Exchange</a></li>
+  </ul></div>
+  <div class="nav-group"><ul><li><a href="../index.html">🏠 Home</a></li><li><a href="../links.html">🔗 Links guide</a></li></ul></div>
+</nav>
+  <main class="content">
+   <div class="chapter-hero"><span class="chapter-num">Chapter 10</span><h1>Design a Notification System</h1><p class="lead">Push, SMS aur Email — teen channels, 16 million notifications/day. Dekhte hain ek reliable, decoupled notification system kaise banta hai: queues, workers, retries, dedup aur opt-out ke saath.</p><div class="tags"><span class="tag">Message Queue</span><span class="tag">APNs / FCM</span><span class="tag">Retry & Idempotency</span><span class="tag">Soft real-time</span></div></div>
+<h2 id="intro">Introduction: Notification system kyun important hai</h2>
+<p>Har modern app ko users ko kuch na kuch batana padta hai — "aapka order ship ho gaya", "OTP 4321 hai", "billing reminder", "flash sale shuru". Ye sab <b>notification system</b> ka kaam hai. Teen main channels hain:</p>
+<ul>
+<li><b>Push notification</b> — mobile (iOS/Android) ya desktop pe.</li>
+<li><b>SMS</b> — phone number pe text.</li>
+<li><b>Email</b> — inbox mein.</li>
+</ul>
+<p>Interesting baat ye hai ki actual "delivery" hum khud nahi karte — Apple, Google, Twilio, SendGrid jaise third parties karte hain. Hamara kaam hai unke saamne ek <b>reliable, scalable, decoupled pipeline</b> banana jo millions of events ko bina loss ke, bina duplicate ke, sahi user tak sahi channel pe bheje.</p>
+
+<h2 id="step1">Step 1: Problem samjho aur scope fix karo</h2>
+<p>Interview mein seedha diagram mat banao — pehle clarifying questions poochho. Notes ke hisaab se requirements ye hain:</p>
+<table class="cmp">
+<tr><th>Question</th><th>Answer (scope)</th></tr>
+<tr><td>Kaun se notification types?</td><td>Push, SMS, Email</td></tr>
+<tr><td>Real-time chahiye?</td><td><b>Soft real-time</b> — jaldi pahunche, but high load pe thoda delay acceptable</td></tr>
+<tr><td>Platforms?</td><td>iOS, Android, Desktop</td></tr>
+<tr><td>Trigger kaun karega?</td><td>Client apps bhi, aur server-side scheduled jobs bhi</td></tr>
+<tr><td>Opt-out?</td><td>Haan — user specific channel disable kar sakta hai</td></tr>
+<tr><td>Scale?</td><td>Push 10M/day, SMS 1M/day, Email 5M/day</td></tr>
+</table>
+<h3>Back-of-the-envelope: ye numbers kitne bade hain?</h3>
+<p>1 din ≈ 86,400 sec ≈ ~10<sup>5</sup> sec. To:</p>
+<ul>
+<li>Push: 10M / 10<sup>5</sup> ≈ <b>~100–115 per sec</b> average</li>
+<li>SMS: 1M / 10<sup>5</sup> ≈ <b>~10–12 per sec</b></li>
+<li>Email: 5M / 10<sup>5</sup> ≈ <b>~50–60 per sec</b></li>
+</ul>
+<p>Average chhota lagta hai, lekin notifications <b>bursty</b> hoti hain — ek marketing campaign ya "sale live" event ek saath lakhon users ko target karta hai. Isliye design ka asli challenge average QPS nahi, balki <b>spikes ko absorb karna</b> aur third-party rate limits ke andar rehna hai. Yahi wajah hai ki aage queue aayegi.</p>
+<div class="callout tip">💡 <b>Pro tip:</b> Interview mein bolo: "Average QPS low hai, but peak kai guna ho sakta hai (campaigns). Main design ko buffer-first banaunga taaki burst downstream ko na maare." — ye ek line interviewer ko dikhati hai ki aap numbers ka matlab samajhte ho.</div>
+
+<h2 id="step2">Step 2: High-level design</h2>
+<h3>Different notification types kaise kaam karte hain</h3>
+<table class="cmp">
+<tr><th>Channel</th><th>Provider</th><th>Hamein kya chahiye</th></tr>
+<tr><td>iOS push</td><td>APNs (Apple Push Notification service)</td><td>Device token + payload (JSON)</td></tr>
+<tr><td>Android push</td><td>FCM (Firebase Cloud Messaging)</td><td>Device/registration token + payload</td></tr>
+<tr><td>SMS</td><td>Twilio, Nexmo (Vonage) jaise providers</td><td>Phone number + text</td></tr>
+<tr><td>Email</td><td>SendGrid, Mailchimp jaise commercial services</td><td>Email address + subject/body (HTML)</td></tr>
+</table>
+<p>Apna SMTP server chalana possible hai, lekin deliverability (spam folder se bachna, IP reputation) bahut mushkil kaam hai — isliye commercial email service use karte hain.</p>
+
+<h3>Contact info gathering</h3>
+<p>Notification bhejne ke liye pehle address chahiye: device token, phone number, email. Ye sab app install ya signup ke time collect hota hai.</p>
+<figure class="diagram"><img src="../img/10/contact-info-gathering.png" alt="Contact info gathering flow" loading="lazy"><figcaption>Left se right padho: <b>User</b> (laptop/phone) app install ya sign up karta hai → request <b>Load balancer</b> pe aati hai → <b>API servers</b> us request ko handle karte hain → aur "store contact info" arrow ke saath data <b>DB</b> mein save hota hai. Yani contact info ek normal write path se hi aata hai, koi special system nahi.</figcaption></figure>
+<ul>
+<li><b>User table</b>: user_id, email, phone_number, country_code…</li>
+<li><b>Device table</b>: id, user_id, device_token, platform, last_logged_in_at. Ek user ke <b>multiple devices</b> ho sakte hain (phone + tablet) — isliye alag table, 1-to-many relation.</li>
+</ul>
+<div class="callout warn">⚠️ <b>Failure mode:</b> Device tokens stale ho jaate hain (app uninstall, token rotate). APNs/FCM aise token pe error return karte hain — worker ko wo token DB mein invalid mark/delete karna chahiye, warna har baar wasted call aur retry loop.</div>
+
+<h3>Notification sending flow (pehla version)</h3>
+<figure class="diagram"><img src="../img/10/high-level-design.png" alt="Initial high-level design" loading="lazy"><figcaption>Left mein <b>Service 1…N</b> (billing, shipping, marketing — koi bhi trigger) hain jo sab ek central <b>Notification System</b> ko call karte hain. Wo system right side ke dotted box <b>Third Party Services</b> (APNs, FCM, SMS Service, Email Service) ko request bhejta hai, aur har provider apne end device tak deliver karta hai: APNs→iOS, FCM→Android, SMS→phone, Email→inbox. Dhyaan do — beech mein sirf <b>ek</b> box hai; yahi aage problem banega.</figcaption></figure>
+<ul>
+<li><b>Service 1…N</b>: microservice, cron job ya distributed system — jo bhi "notification bhejo" event generate kare.</li>
+<li><b>Notification System</b>: APIs deta hai, basic validation karta hai (email/phone format), DB/cache se data laake message render karta hai, aur third party ko bhejta hai.</li>
+<li><b>Third-party services</b>: asli delivery. Extensibility important hai — kal ko kisi market mein FCM available na ho (jaise China), to alag provider plug karna pade.</li>
+</ul>
+<h3>Is design ki problems</h3>
+<ul>
+<li><b>Single Point of Failure</b>: ek hi notification server — wo down, sab down.</li>
+<li><b>Scale karna mushkil</b>: DB, cache, processing sab ek jagah — independently scale nahi ho sakte.</li>
+<li><b>Performance bottleneck</b>: HTML email render karna, third-party ka slow response wait karna — ye sab synchronous hai, to ek slow provider poore system ko slow kar deta hai.</li>
+</ul>
+
+<h3>Improved design</h3>
+<figure class="diagram"><img src="../img/10/improved-design.png" alt="Improved design with queues and workers" loading="lazy"><figcaption>Numbered arrows follow karo: <b>(1)</b> Services notification servers ko API call karte hain → <b>(2)</b> servers cache/DB se user info, device token, settings fetch karte hain → <b>(3)</b> event ko uske type ke hisaab se alag queue mein daalte hain (iOS PN, Android PN, SMS queue, Email queue) → <b>(4)</b> har queue ke apne <b>Workers</b> events pull karte hain → <b>(5)</b> worker third-party service (APNs/FCM/SMS/Email) ko call karta hai → <b>(6)</b> provider user ke device tak deliver karta hai. Upar "retry on error" loop dikhata hai ki fail hone par worker event ko wapas queue mein daal deta hai.</figcaption></figure>
+<p>Teen bade changes:</p>
+<ol>
+<li><b>DB aur cache ko notification server se bahar nikalo</b> — ab ye shared, independently scalable components hain.</li>
+<li><b>Multiple notification servers + horizontal scaling</b> — servers stateless rakho, load balancer ke peeche jitne chahiye utne.</li>
+<li><b>Message queues se decouple karo</b> — har channel ki apni queue. Queue ek <b>buffer</b> ka kaam karti hai: burst aaya to queue lambi ho jaayegi, system crash nahi hoga.</li>
+</ol>
+<p><b>Per-channel queue kyun?</b> Isolation ke liye. Agar SMS provider down hai, to SMS queue bharti rahegi lekin iOS/Email bilkul normal chalenge. Ek shared queue mein ek slow channel sabko block kar deta (head-of-line blocking).</p>
+<div class="callout realworld">🌍 <b>Real world:</b> Java/Spring stack mein ye pattern bahut common hai — Kafka topics per channel (<code>notif.push.ios</code>, <code>notif.sms</code>…), Spring Boot <code>@KafkaListener</code> consumers as workers, aur consumer group scale karke throughput badhao. Kafka mein ek topic ke partitions ki sankhya hi consumer parallelism ki upper limit hoti hai — isliye partition count soch-samajh ke rakho.</div>
+
+<h2 id="step3">Step 3: Design deep dive</h2>
+<h3>Reliability: data loss kaise rokein</h3>
+<figure class="diagram"><img src="../img/10/data-loss.png" alt="Notification log for preventing data loss" loading="lazy"><figcaption><b>iOS PN</b> queue se events <b>Workers</b> tak aate hain. Worker do kaam karta hai: right mein <b>APNs</b> ko notification bhejta hai, aur neeche <b>Notification log</b> DB mein record persist karta hai. Ye log hi guarantee deta hai ki crash ke baad bhi pata ho kya bheja, kya pending hai, kya retry karna hai.</figcaption></figure>
+<p>Notifications delay ho sakti hain ya reorder ho sakti hain — chalega. Lekin <b>lost nahi honi chahiye</b>. Isliye:</p>
+<ul>
+<li>Notification data ko <b>notification log DB</b> mein persist karo (status: pending / sent / failed).</li>
+<li><b>Retry mechanism</b>: third-party fail kare to exponential backoff ke saath retry. Bar-bar fail ho to alert + dead-letter queue (DLQ).</li>
+<li>Queue consumer ko message tabhi <b>ack/commit</b> karna chahiye jab send successful ho ya log mein safely record ho jaaye — warna worker crash = message gaya.</li>
+</ul>
+<h3>Kya notification exactly once milegi?</h3>
+<p>Short answer: <b>nahi</b>. Distributed system mein "at-least-once" practical hai, exactly-once delivery third-party tak guarantee nahi kar sakte. Isliye duplicates ko kam karne ke liye <b>dedup</b>:</p>
+<ul>
+<li>Har event ka ek unique <b>event_id</b> ho (producer side pe generate).</li>
+<li>Event aaye to check karo: ye event_id pehle dekha hai? Haan → discard. Nahi → bhejo aur event_id record karo.</li>
+<li>Practical implementation: Redis mein <code>SET event_id 1 NX EX 86400</code> (TTL ke saath) — atomic "pehli baar hai kya?" check.</li>
+</ul>
+<div class="callout warn">⚠️ <b>Edge case:</b> Worker ne APNs ko bhej diya, phir log/ack likhne se pehle crash ho gaya. Restart pe wahi event fir aayega aur dedup record bhi shayad nahi likha gaya — user ko duplicate milega. Isliye dedup "kam" karta hai, zero nahi. Interview mein ye honestly bolna strong signal hai.</div>
+
+<h3>Additional components</h3>
+<ul>
+<li><b>Notification template</b>: Bahut si notifications ka format same hota hai — "Hi {name}, aapka order {order_id} ship ho gaya". Template se format consistent rehta hai, error kam, aur har baar scratch se banana nahi padta.</li>
+<li><b>Notification settings</b>: Users ko fine-grained control chahiye. Table: <code>user_id, channel, opt_in (boolean)</code>. Bhejne se <b>pehle</b> ye check zaroor hona chahiye.</li>
+<li><b>Rate limiting</b>: User ko spam mat karo — bahut zyada notifications = user poori app ki notifications band kar dega. Per-user per-channel cap lagao.</li>
+<li><b>Retry mechanism</b>: Third-party fail → event wapas retry queue mein; lagataar fail → developers ko alert.</li>
+<li><b>Security</b>: Push APIs ke liye <b>appKey / appSecret</b> — sirf authenticated/verified clients hi notification bhej sakein.</li>
+<li><b>Monitor queued notifications</b>: Queue mein pending events ki ginti sabse important metric hai. Number badhta ja raha hai = workers kam hain → auto-scale.</li>
+</ul>
+<h3>Events tracking</h3>
+<figure class="diagram"><img src="../img/10/events-tracking.png" alt="Notification event lifecycle" loading="lazy"><figcaption>Ye ek state machine hai — bubbles states hain, arrows transitions. Flow: <b>start → pending → sent → deliver</b>, aur deliver ke baad user ya to <b>click</b> karta hai ya <b>unsubscribe</b>. <b>pending</b> ya <b>sent</b> stage se kuch bhi galat ho to red <b>error</b> state. Analytics service in transitions ko track karke open rate, click rate, engagement nikalti hai.</figcaption></figure>
+<p>Business ke liye ye metrics (open rate, click rate, engagement) bahut kaam ke hain — isliye notification system ko analytics service ke saath integrate karte hain.</p>
+
+<h3>Updated design (sab components milake)</h3>
+<figure class="diagram"><img src="../img/10/updated-design.png" alt="Updated full design" loading="lazy"><figcaption>Left se shuru: <b>Service N</b> → <b>Notification servers</b> (jisme ab <b>Authentication</b> aur <b>Rate limit</b> layers hain) → neeche <b>Cache</b> aur <b>DB</b> (device, setting, user info) se data → event <b>iOS PN</b> queue mein → <b>Workers</b> pull karte hain, <b>Notification template</b> se message banate hain, <b>Notification log</b> mein likhte hain → <b>APNs</b> → <b>iOS</b> device. Upar <b>Analytics service</b> ko teen jagah se events milte hain: server se "send pending", worker se "sent", aur device se "click tracking". "retry on error" loop worker se wapas queue tak hai.</figcaption></figure>
+<ol>
+<li>Trigger service notification server ki API call karta hai.</li>
+<li>Server authenticate + rate-limit karta hai, cache/DB se metadata laata hai (settings check yahin).</li>
+<li>Event uski channel queue mein jaata hai.</li>
+<li>Worker event uthata hai, template render karta hai, log likhta hai.</li>
+<li>Third-party service user tak deliver karti hai; fail hua to retry.</li>
+</ol>
+
+<h2 id="tradeoffs">Trade-offs aur failure modes (thoda deeper)</h2>
+<table class="cmp">
+<tr><th>Decision</th><th>Kyun</th><th>Cost / risk</th></tr>
+<tr><td>Async via queue</td><td>Burst absorb, provider failure isolate</td><td>Latency thodi badhti hai; queue khud ek infra component jise operate karna hai</td></tr>
+<tr><td>At-least-once + dedup</td><td>Data loss se bachao</td><td>Rare duplicates possible</td></tr>
+<tr><td>Per-channel queue</td><td>Isolation, independent scaling</td><td>Zyada topics/queues manage karne padte hain</td></tr>
+<tr><td>Third-party delivery</td><td>Deliverability, compliance unka sar-dard</td><td>Vendor rate limits + cost (SMS mehenga hota hai); fallback provider rakhna padta hai</td></tr>
+</table>
+<ul>
+<li><b>Priority</b>: OTP aur marketing email ek hi queue mein mat daalo — OTP ko alag high-priority queue chahiye warna campaign ke peeche OTP 10 minute late.</li>
+<li><b>Provider outage</b>: circuit breaker lagao; continuous failure pe retry storm mat karo, backoff + secondary provider.</li>
+<li><b>Timezones / quiet hours</b>: scheduled notifications user ke local time ke hisaab se.</li>
+</ul>
+
+<h2 id="interview">Interview mein kaise bolein</h2>
+<div class="callout interview">🎤 <b>45-min plan:</b>
+<ol>
+<li><b>(5 min)</b> Scope: channels, soft real-time, scale (10M/1M/5M per day), opt-out. Quick QPS math aur "bursty traffic" point.</li>
+<li><b>(10 min)</b> Simple design (services → notification system → APNs/FCM/SMS/Email), phir khud uski kamiyan batao: SPOF, coupling, sync bottleneck.</li>
+<li><b>(10 min)</b> Improved design: stateless servers, shared cache/DB, per-channel queues + workers.</li>
+<li><b>(15 min)</b> Deep dive: notification log + retry, at-least-once + dedup via event_id, settings/opt-out check, rate limiting, templates, monitoring queue depth, analytics events.</li>
+<li><b>(5 min)</b> Wrap-up: priority queues, provider failover, DLQ, metrics.</li>
+</ol>
+Key line: <i>"Exactly-once delivery possible nahi hai; main at-least-once + idempotent dedup karunga aur loss ko zero rakhunga."</i></div>
+<div class="callout realworld">🌍 <b>Real world:</b> Spring Boot mein retry ke liye Spring Retry / Spring Kafka ka <code>DefaultErrorHandler</code> with backoff aur dead-letter topic ek standard combo hai. Redis <code>SET NX EX</code> dedup ke liye widely use hota hai.</div>
+
+<h2 id="followups">Common follow-up questions</h2>
+<p><b>Q: Worker crash ho jaye beech mein to?</b><br>A: Queue offset/ack commit nahi hua hoga, to message dobara deliver hoga (at-least-once). Notification log + dedup se duplicate kam karte hain.</p>
+<p><b>Q: OTP jaisi urgent notification marketing burst mein fas na jaaye?</b><br>A: Priority-based alag queues aur dedicated workers. High-priority queue ka SLA alag monitor karo.</p>
+<p><b>Q: User ne opt-out kiya hai, check kahan hota hai?</b><br>A: Notification server pe enqueue se pehle (settings cache se), taaki wasted queue/worker work na ho.</p>
+<p><b>Q: Third-party (jaise SMS provider) down hai?</b><br>A: Retry with exponential backoff, circuit breaker, DLQ, aur ideally secondary provider pe failover. Queue buffer ki wajah se baaki channels unaffected.</p>
+<p><b>Q: Workers kitne chahiye, kaise decide karoge?</b><br>A: Queue depth/lag metric pe autoscale — lag badh raha hai to workers badhao.</p>
+<p><b>Q: Scheduled notifications (kal subah 9 baje) kaise?</b><br>A: Trigger side pe scheduler/cron job jo sahi time pe event produce kare; notification pipeline wahi rehti hai.</p>
+
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul>
+<li>Delivery third parties (APNs, FCM, Twilio, SendGrid) karte hain; hamara kaam reliable pipeline hai.</li>
+<li>Contact info signup/install pe collect hota hai; device table 1-to-many hai aur stale tokens clean karne padte hain.</li>
+<li>Single server design → SPOF + coupling; fix: stateless horizontally scaled servers + shared cache/DB + per-channel queues + workers.</li>
+<li>Queue = buffer + isolation. Queue depth sabse important scaling signal hai.</li>
+<li>Reliability: notification log + retry; delivery at-least-once hai, event_id dedup se duplicates kam karo.</li>
+<li>Templates, opt-out settings, rate limiting, appKey/appSecret auth aur analytics tracking — production-grade system ke must-haves.</li>
+</ul></div>
+   <div class="chapter-nav"><a class="prev" href="09-web-crawler.html">← Prev: Design a Web Crawler</a><a class="next" href="11-news-feed.html">Next: Design a News Feed System →</a></div>
+  </main>
+  <aside class="toc"><div class="toc-title">On this page</div><ul>
+    <li><a href="#intro">Introduction: Notification system kyun important hai</a></li>
+    <li><a href="#step1">Step 1: Problem samjho aur scope fix karo</a></li>
+    <li><a href="#step2">Step 2: High-level design</a></li>
+    <li><a href="#step3">Step 3: Design deep dive</a></li>
+    <li><a href="#tradeoffs">Trade-offs aur failure modes (thoda deeper)</a></li>
+    <li><a href="#interview">Interview mein kaise bolein</a></li>
+    <li><a href="#followups">Common follow-up questions</a></li>
+    <li><a href="#takeaways">Key Takeaways</a></li>
+  </ul></aside>
+ </div>
+ <script src="../assets/app.js"></script>
+</body>
+</html>

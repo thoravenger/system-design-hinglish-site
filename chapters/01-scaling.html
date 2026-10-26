@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 01: Scale from Zero to Millions of Users · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{if(localStorage.getItem('sd-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><div class="toplinks"><a href="../index.html#chapters">Chapters</a><a href="../index.html#how">Kaise padhein</a><a href="../links.html">URL Guide</a></div><button class="theme-toggle" aria-label="theme">◐</button></header>
+<div class="layout">
+<nav class="sidebar">
+<div class="group">Foundations</div><ul>
+<li><a class="active" href="01-scaling.html"><span class="num">01</span> Scale from Zero to Millions of Users</a></li>
+<li><a href="02-back-of-envelope.html"><span class="num">02</span> Back-of-the-Envelope Estimation</a></li>
+<li><a href="03-framework.html"><span class="num">03</span> A Framework for System Design Interviews</a></li>
+<li><a href="04-rate-limiter.html"><span class="num">04</span> Design a Rate Limiter</a></li>
+<li><a href="05-consistent-hashing.html"><span class="num">05</span> Design Consistent Hashing</a></li>
+<li><a href="06-key-value-store.html"><span class="num">06</span> Design a Key-Value Store</a></li>
+<li><a href="07-unique-id-generator.html"><span class="num">07</span> Design a Unique ID Generator</a></li>
+</ul>
+<div class="group">Classic Designs</div><ul>
+<li><a href="08-url-shortener.html"><span class="num">08</span> Design a URL Shortener</a></li>
+<li><a href="09-web-crawler.html"><span class="num">09</span> Design a Web Crawler</a></li>
+<li><a href="10-notification-system.html"><span class="num">10</span> Design a Notification System</a></li>
+<li><a href="11-news-feed.html"><span class="num">11</span> Design a News Feed System</a></li>
+<li><a href="12-chat-system.html"><span class="num">12</span> Design a Chat System</a></li>
+<li><a href="13-search-autocomplete.html"><span class="num">13</span> Design a Search Autocomplete System</a></li>
+<li><a href="14-youtube.html"><span class="num">14</span> Design YouTube</a></li>
+</ul>
+<div class="group">Vol 2 · Part 1</div><ul>
+<li><a href="15-google-drive.html"><span class="num">15</span> Design Google Drive</a></li>
+<li><a href="16-proximity-service.html"><span class="num">16</span> Design a Proximity Service</a></li>
+<li><a href="17-nearby-friends.html"><span class="num">17</span> Design Nearby Friends</a></li>
+<li><a href="18-google-maps.html"><span class="num">18</span> Design Google Maps</a></li>
+<li><a href="19-message-queue.html"><span class="num">19</span> Design a Distributed Message Queue</a></li>
+<li><a href="20-metrics-monitoring.html"><span class="num">20</span> Metrics Monitoring and Alerting System</a></li>
+<li><a href="21-ad-click-aggregation.html"><span class="num">21</span> Ad Click Event Aggregation</a></li>
+<li><a href="22-hotel-reservation.html"><span class="num">22</span> Hotel Reservation System</a></li>
+</ul>
+<div class="group">Vol 2 · Part 2</div><ul>
+<li><a href="23-email-service.html"><span class="num">23</span> Distributed Email Service</a></li>
+<li><a href="24-s3-object-storage.html"><span class="num">24</span> S3-like Object Storage</a></li>
+<li><a href="25-gaming-leaderboard.html"><span class="num">25</span> Real-time Gaming Leaderboard</a></li>
+<li><a href="26-payment-system.html"><span class="num">26</span> Design a Payment System</a></li>
+<li><a href="27-digital-wallet.html"><span class="num">27</span> Design a Digital Wallet</a></li>
+<li><a href="28-stock-exchange.html"><span class="num">28</span> Design a Stock Exchange</a></li>
+</ul>
+<div class="group">Extras</div><ul>
+<li><a href="../index.html">🏠 Home / Kaise padhein</a></li><li><a href="../links.html">🔗 Notes ke URLs ka guide</a></li></ul>
+</nav>
+<main class="content">
+<div class="chapter-hero"><span class="chapter-num">Chapter 01</span><h1>Scale from Zero to Millions of Users</h1><p class="lead">Ek single server se shuru karke step-by-step millions users tak kaise pahunchein — har component kis bottleneck ko hatata hai, kyun aur kis trade-off ke saath.</p><div class="tags"><span class="tag">Load Balancer</span><span class="tag">Replication</span><span class="tag">Cache</span><span class="tag">CDN</span><span class="tag">Stateless</span><span class="tag">Multi-DC</span><span class="tag">Sharding</span></div></div>
+
+<h2 id="intro">Introduction: Zero se Millions tak</h2>
+<p>Koi bhi bada system pehle din se "millions of users" ke liye design nahi hota. Instagram, Swiggy, Zerodha — sab ek chhoti setup se start hue aur <strong>iteratively</strong> scale hue. Is chapter ka goal ek mental model dena hai: <em>har naya component ek specific bottleneck hatane ke liye aata hai</em>. Interview mein bhi yahi dikhana hai — "Main X add kar raha hoon kyunki Y bottleneck hai", na ki buzzword bingo.</p>
+<div class="callout tip"><strong>Pro tip</strong>Is chapter ko ek "evolution story" ki tarah yaad rakho: Single server → DB alag → LB + multiple web servers → DB replication → Cache → CDN → Stateless tier → Multi-DC → Message queue → Logging/metrics → Sharding. Baaki saare chapters inhi building blocks ko reuse karte hain.</div>
+
+<h2 id="single-server">1. Single Server Setup</h2>
+<p>Shuruat mein sab kuch — web app, database, cache — ek hi machine pe chalta hai. Ye bilkul theek hai jab tak traffic kam hai; simple deployment, kam cost.</p>
+<figure class="diagram"><img src="../img/01/single-server.png" alt="Single server setup" loading="lazy"><figcaption><b>Kaise padhein:</b> Upar User box (web browser + mobile app). Right side pe DNS — user <code>api.mysite.com</code> poochta hai, DNS IP address return karta hai. Phir dono clients (<code>www.mysite.com</code> aur <code>api.mysite.com</code>) seedha ek hi <b>Web server</b> ko hit karte hain. Yahan koi redundancy nahi hai — ye box gaya to poori site gayi.</figcaption></figure>
+<h3>Request flow</h3>
+<ol>
+<li>User domain (e.g. <code>api.mysite.com</code>) se access karta hai. DNS (usually third-party, jaise Route 53 / Cloudflare) domain ko IP address mein resolve karta hai.</li>
+<li>IP address browser/mobile app ko wapas milta hai.</li>
+<li>Client us IP pe HTTP request bhejta hai; server HTML (web) ya JSON (mobile/API) return karta hai.</li>
+</ol>
+<h3>Traffic sources</h3>
+<ul>
+<li><strong>Web application:</strong> server-side language (Java/Spring, Python) business logic ke liye, client-side (JS/HTML) presentation ke liye.</li>
+<li><strong>Mobile application:</strong> HTTP + JSON se baat karta hai — JSON lightweight hai aur har platform parse kar leta hai.</li>
+</ul>
+<pre><code>GET /users/12 HTTP/1.1
+Host: api.mysite.com
+
+{ "id": 12, "firstName": "John", "lastName": "Smith", "age": 25 }</code></pre>
+
+<h2 id="db-separation">2. Database ko alag karo</h2>
+<p>Users badhe to pehla split: <strong>web/mobile traffic tier</strong> aur <strong>data tier</strong> alag servers pe. Ab dono ko independently scale kar sakte ho — web tier CPU-bound hota hai, DB tier I/O + memory bound. Ek machine pe dono resources ke liye ladte hain.</p>
+<figure class="diagram"><img src="../img/01/database.png" alt="Web server aur database alag" loading="lazy"><figcaption><b>Kaise padhein:</b> Same User → DNS flow, lekin ab Web server aur Database do alag dotted boxes hain. Web server DB ko <i>read/write/update</i> bhejta hai, DB <i>return data</i> karta hai. Is step ka matlab hai: tiers decouple ho gaye.</figcaption></figure>
+<h3>SQL ya NoSQL?</h3>
+<table class="cmp"><thead><tr><th>Aspect</th><th>Relational (SQL)</th><th>Non-relational (NoSQL)</th></tr></thead><tbody>
+<tr><td>Examples</td><td>MySQL, PostgreSQL, Oracle</td><td>Key-value (Redis, DynamoDB), Column (Cassandra, HBase), Document (MongoDB), Graph (Neo4j)</td></tr>
+<tr><td>Data model</td><td>Tables + rows, fixed schema, JOINs</td><td>Flexible schema, usually no JOINs</td></tr>
+<tr><td>Strength</td><td>ACID transactions, 40+ saal ka maturity</td><td>Super-low latency, massive data, easy horizontal scale</td></tr>
+<tr><td>Kab chunein</td><td>Default choice; relational data, transactions (payments, orders)</td><td>Unstructured data, sirf serialize/deserialize (JSON/XML/YAML), bahut bada data, very low latency</td></tr>
+</tbody></table>
+<div class="callout interview"><strong>Interview mein kaise bolein</strong>"Default main relational DB lunga kyunki ye proven hai aur transactions deta hai. Agar access pattern pure key-based hai, data TB/PB mein hai, ya latency single-digit ms chahiye — tab NoSQL justify karunga." Ye line dikhati hai ki tum fashion se nahi, requirement se choose kar rahe ho.</div>
+
+<h2 id="vertical-horizontal">3. Vertical vs Horizontal Scaling</h2>
+<figure class="diagram"><img src="../img/01/horizontal-scaling.png" alt="Vertical vs horizontal scaling" loading="lazy"><figcaption><b>Kaise padhein:</b> Left side <b>Vertical Scaling</b> — ek hi server bada hota ja raha hai (upar ka arrow = zyada CPU, RAM, DISK). Right side <b>Horizontal Scaling</b> — same size ke bahut saare servers add ho rahe hain (right arrow = more servers). Beech ka 'VS' trade-off dikhata hai.</figcaption></figure>
+<table class="cmp"><thead><tr><th></th><th>Vertical (scale up)</th><th>Horizontal (scale out)</th></tr></thead><tbody>
+<tr><td>Kya karte ho</td><td>Same server mein zyada CPU/RAM</td><td>Pool mein aur servers add</td></tr>
+<tr><td>Simplicity</td><td>Bahut simple, code change nahi</td><td>LB, stateless design, distributed problems</td></tr>
+<tr><td>Limit</td><td>Hardware ki hard limit hai — unlimited CPU/RAM nahi laga sakte</td><td>Practically bahut door tak scale</td></tr>
+<tr><td>Failover</td><td>Koi redundancy nahi — server down = site down</td><td>Ek server gaya to baaki handle karte hain</td></tr>
+</tbody></table>
+<p>Low traffic pe vertical scaling great option hai. Lekin large-scale apps ke liye horizontal hi rasta hai — aur uske liye chahiye <strong>load balancer</strong>.</p>
+
+<h2 id="load-balancer">4. Load Balancer</h2>
+<figure class="diagram"><img src="../img/01/load-balancer.png" alt="Load balancer setup" loading="lazy"><figcaption><b>Kaise padhein:</b> DNS table mein <code>mywebsite.com → 88.88.88.1</code> — ye <b>LB ka public IP</b> hai, servers ka nahi. User LB ko hit karta hai; LB private IPs (<code>10.0.0.1</code>, <code>10.0.0.2</code>) se Server1/Server2 tak request forward karta hai. Servers ab internet se directly reachable nahi — better security.</figcaption></figure>
+<p>Load balancer incoming traffic ko web servers ke set mein evenly distribute karta hai. Servers ke beech communication private IPs pe hota hai.</p>
+<ul>
+<li><strong>Redundancy / failover:</strong> Server 1 offline hua to saara traffic Server 2 pe. Health checks se LB unhealthy server ko rotation se hata deta hai.</li>
+<li><strong>Scalability:</strong> Traffic badha? Pool mein aur servers add karo, LB automatically unhe traffic dene lagega.</li>
+</ul>
+<p>Common algorithms: round robin, least connections, IP hash / consistent hashing (Chapter 05). L4 LB (TCP level, fast) vs L7 LB (HTTP aware — path/header based routing).</p>
+<div class="callout realworld"><strong>Real world</strong>AWS mein ALB (L7) aur NLB (L4), on-prem pe Nginx/HAProxy, aur Kubernetes mein Service + Ingress controller yahi role nibhate hain. Spring Boot app ke liye <code>/actuator/health</code> endpoint aksar LB health check ke liye use hota hai.</div>
+
+<h2 id="db-replication">5. Database Replication</h2>
+<p>Web tier to ab redundant hai, lekin DB abhi bhi single point of failure (SPOF) hai. Solution: <strong>master–slave (leader–follower) replication</strong>.</p>
+<figure class="diagram"><img src="../img/01/database-replication.png" alt="Master-slave database replication" loading="lazy"><figcaption><b>Kaise padhein:</b> Upar se neeche flow — User → DNS → Load balancer → Web tier (Server 1, Server 2). Neeche Data tier: dono servers ke <b>Write</b> arrows sirf <b>Master DB</b> pe jaate hain, aur <b>Read</b> arrows <b>Slave DB</b> pe. Master aur Slave ke beech <b>Replicate</b> arrow — master ka data slave pe copy hota rehta hai.</figcaption></figure>
+<ul>
+<li><strong>Master:</strong> sirf writes (INSERT/UPDATE/DELETE).</li>
+<li><strong>Slaves:</strong> master se copy lete hain, sirf reads serve karte hain. Kyunki most apps mein read:write ratio bahut high hota hai (10:1 ya 100:1), slaves ki count masters se zyada hoti hai.</li>
+</ul>
+<h3>Fayde</h3>
+<ol><li><strong>Better performance:</strong> reads parallel mein multiple nodes pe.</li><li><strong>Reliability:</strong> ek server natural disaster mein gaya to bhi data doosri jagah safe.</li><li><strong>High availability:</strong> ek DB offline ho to bhi site chalti rahe.</li></ol>
+<h3>Failure handling</h3>
+<ul>
+<li>Sirf ek slave hai aur wo down → reads temporarily master pe; naya slave replace kar do.</li>
+<li>Multiple slaves → reads baaki healthy slaves pe redirect.</li>
+<li>Master down → ek slave ko <strong>promote</strong> karke naya master bana do. Problem: wo slave up-to-date nahi bhi ho sakta (async replication lag), to missing data ko <em>data recovery scripts</em> se fill karna padta hai. Multi-master ya circular replication help kar sakte hain, par wo complex hain.</li>
+</ul>
+<div class="callout warn"><strong>Failure mode: replication lag</strong>Async replication mein user ne profile update kiya (master pe), turant refresh kiya (slave se read) — purana data dikha. Isko <em>read-your-writes</em> problem kehte hain. Fix: user ke apne recent writes ke baad kuch seconds tak master se read karo, ya sticky reads.</div>
+
+<h2 id="cache">6. Cache Tier</h2>
+<p>Cache ek temporary, in-memory data store hai — DB se kaafi fast. Expensive queries ya frequently read data ko cache karke DB ka load kam karte ho.</p>
+<figure class="diagram"><img src="../img/01/cache.png" alt="Read-through cache" loading="lazy"><figcaption><b>Kaise padhein:</b> Web server pehle Cache se poochta hai. <b>1.</b> Data cache mein hai → seedha return (cache hit). <b>2.1</b> Nahi hai → Database se laao aur cache mein save karo, <b>2.2</b> phir web server ko return. Isse <i>read-through / cache-aside</i> strategy kehte hain.</figcaption></figure>
+<pre><code>// Memcached-style API (notes ka example)
+SECONDS = 1
+cache.set('myKey', 'hi there', 3600 * SECONDS)
+cache.get('myKey')</code></pre>
+<h3>Cache use karte waqt dhyan rakho</h3>
+<ol>
+<li><strong>Kab use karein:</strong> data frequently read, rarely modified. Cache volatile hai — restart pe data gaya — isliye important data persistent store mein bhi hona chahiye.</li>
+<li><strong>Expiration (TTL):</strong> bina expiry ke data hamesha memory mein. TTL bahut chhota → DB pe baar-baar load; bahut lamba → stale data.</li>
+<li><strong>Consistency:</strong> DB aur cache ka write ek transaction mein nahi hota, isliye inconsistency possible. Multi-region mein ye aur mushkil hai.</li>
+<li><strong>Failures mitigate karo:</strong> single cache server = SPOF. Multiple cache servers, alag DCs mein. Memory thodi over-provision karo.</li>
+<li><strong>Eviction:</strong> cache full → kuch nikalna padega. LRU sabse popular; LFU aur FIFO bhi options.</li>
+</ol>
+<div class="callout realworld"><strong>Real world</strong>Redis aur Memcached sabse common cache servers hain. Spring mein <code>@Cacheable</code> + Redis cache manager se cache-aside pattern bahut easily lag jata hai. Redis <code>maxmemory-policy allkeys-lru</code> jaisa config eviction control karta hai.</div>
+
+<h2 id="cdn">7. Content Delivery Network (CDN)</h2>
+<p>CDN geographically distributed servers ka network hai jo static content (images, CSS, JS, videos) user ke paas se serve karta hai. User jitna CDN server ke paas, utna fast load.</p>
+<figure class="diagram"><img src="../img/01/cdn.png" alt="CDN workflow" loading="lazy"><figcaption><b>Kaise padhein (numbers follow karo):</b> <b>1.</b> User A <code>image.png</code> CDN se maangta hai. <b>2.</b> CDN ke paas nahi hai → origin Server se laata hai. <b>3.</b> Server image return karta hai aur CDN usse store kar leta hai (optional TTL header ke saath). <b>4.</b> User A ko image milti hai. <b>5–6.</b> User B same image maangta hai → ab CDN cache se turant serve (origin tak jaana hi nahi pada).</figcaption></figure>
+<h3>CDN considerations</h3>
+<ul>
+<li><strong>Cost:</strong> third-party CDN data transfer ka charge karte hain. Rarely used assets CDN pe rakhne ka faayda nahi.</li>
+<li><strong>Cache expiry:</strong> time-sensitive content ke liye na zyada lamba (stale) na zyada chhota (origin pe repeat load).</li>
+<li><strong>CDN fallback:</strong> CDN outage ho to clients ko detect karke origin se resource lena aana chahiye.</li>
+<li><strong>Invalidation:</strong> vendor ka invalidation API use karo, ya better — <strong>object versioning</strong> (<code>image.png?v=2</code>) taaki naya URL = naya object.</li>
+</ul>
+<figure class="diagram"><img src="../img/01/data-center.png" alt="Design after adding CDN, cache and multi DC" loading="lazy"><figcaption><b>Kaise padhein:</b> Ye ab tak ka 'combined' picture hai jo multi-DC section mein bhi use hota hai. User static assets ke liye <b>CDN</b> (right) jaata hai, dynamic requests <b>Load balancer</b> pe. LB requests ko <b>geo-routed</b> karke DC1 (US-East) ya DC2 (US-West) bhejta hai. Har DC ke andar Web servers, Databases, Caches. Purple arrows ek shared <b>NoSQL</b> store tak jaate hain (session/state ke liye).</figcaption></figure>
+
+<h2 id="stateless">8. Stateless Web Tier</h2>
+<p>Web tier ko horizontally scale karne ke liye <strong>state</strong> (jaise user session data) web servers se bahar nikalna padta hai.</p>
+<figure class="diagram"><img src="../img/01/statefull.png" alt="Stateful architecture" loading="lazy"><figcaption><b>Kaise padhein:</b> Har user (A, B, C) apne-apne server pe <b>chipka</b> hua hai, kyunki Server 1 ke paas hi 'Session data for User A' aur profile image hai. Agar User A ki request Server 2 pe chali gayi to authentication fail. Isko solve karne ke liye <i>sticky sessions</i> lagte hain jo LB pe overhead hain aur server add/remove/failure ko mushkil banate hain.</figcaption></figure>
+<figure class="diagram"><img src="../img/01/stateless.png" alt="Stateless architecture" loading="lazy"><figcaption><b>Kaise padhein:</b> Ab A, B, C ki HTTP requests <b>kisi bhi</b> Web server pe ja sakti hain. Servers state <b>Shared Storage</b> (NoSQL / Redis / RDBMS) se <i>fetch state</i> karte hain. Web servers ab disposable hain — auto-scaling easy.</figcaption></figure>
+<p>Stateless tier ke fayde: simpler, robust, aur <strong>auto-scaling</strong> possible (traffic ke hisaab se servers add/remove). Session store ke liye NoSQL ya Redis common hai kyunki ye easily scale hote hain.</p>
+<div class="callout realworld"><strong>Real world</strong>Spring ecosystem mein <code>spring-session-data-redis</code> HTTP session ko Redis mein rakhta hai — har instance stateless ban jata hai. JWT tokens ek aur approach hai jahan state client ke token mein hi hoti hai.</div>
+
+<h2 id="multi-dc">9. Multiple Data Centers</h2>
+<p>International users aur availability ke liye multiple DCs. Normal operation mein user <strong>geoDNS</strong> se nearest DC pe route hota hai (geoDNS user ki location ke hisaab se domain ko alag IP pe resolve karta hai). Notes ke example mein traffic US-East aur US-West mein split hota hai (book mein x% / (100-x)%).</p>
+<p>Agar ek DC mein badi outage ho, to saara traffic healthy DC pe shift.</p>
+<h3>Technical challenges</h3>
+<ul>
+<li><strong>Traffic redirection:</strong> geoDNS jaise tools chahiye jo traffic sahi DC pe bhejein.</li>
+<li><strong>Data synchronization:</strong> alag regions ke alag DB/cache ho sakte hain. Failover ke baad user ka data doosre DC mein nahi mila to problem. Common strategy: data ko multiple DCs mein replicate karo (Netflix ka async multi-DC replication famous example hai).</li>
+<li><strong>Test & deployment:</strong> app ko alag-alag locations pe test karo; automated deployment tools se saare DCs consistent rakho.</li>
+</ul>
+<div class="callout warn"><strong>Trade-off</strong>Cross-region replication async hota hai (Chapter 02: inter-region round trip ~150ms). Sync karoge to har write slow. Async karoge to failover pe thoda data loss/inconsistency possible. Interview mein ye trade-off khud bolo.</div>
+
+<h2 id="message-queue">10. Message Queue</h2>
+<p>Components ko independently scale karne ke liye unhe <strong>decouple</strong> karna padta hai. Message queue ek durable component hai (memory mein stored, durability ke saath) jo asynchronous communication support karta hai — ek buffer jo async requests distribute karta hai.</p>
+<figure class="diagram"><img src="../img/01/message-queue.png" alt="Message queue producer consumer" loading="lazy"><figcaption><b>Kaise padhein:</b> Left: <b>Producer</b> (Web servers) message <b>publish</b> karte hain 'queue for photo processing' mein. Right: <b>Consumer</b> (Photo processing workers) queue se <b>consume</b> karke kaam karte hain. Dono ek doosre ko jaante bhi nahi.</figcaption></figure>
+<ul>
+<li>Producer tab bhi message daal sakta hai jab consumer available nahi; consumer tab bhi padh sakta hai jab producer down hai.</li>
+<li>Example: photo customization (crop, sharpen, blur) time-consuming hai. Web server job queue mein daal deta hai, workers async process karte hain. Queue badi ho rahi hai → aur workers add karo; queue khaali → workers kam karo. Dono side independently scale.</li>
+</ul>
+<div class="callout realworld"><strong>Real world</strong>Kafka, RabbitMQ, AWS SQS isi pattern ke popular implementations hain. Spring Boot mein <code>@KafkaListener</code> consumer aur <code>KafkaTemplate</code> producer — consumer group mein instances badhao to partitions ke across parallelism badhti hai (Chapter 19 mein deep dive).</div>
+
+<h2 id="observability">11. Logging, Metrics aur Automation</h2>
+<p>Chhoti site pe ye optional lagte hain, lekin bade business ke liye zaroori.</p>
+<ul>
+<li><strong>Logging:</strong> error logs monitor karo — per server ya central service mein aggregate karke (search/view easy).</li>
+<li><strong>Metrics:</strong> host level (CPU, memory, disk I/O), aggregated level (DB tier / cache tier performance), key business metrics (DAU, retention, revenue).</li>
+<li><strong>Automation:</strong> CI (har commit verify), automated build/test/deploy — developer productivity badhti hai.</li>
+</ul>
+<figure class="diagram"><img src="../img/01/logging.png" alt="Design with message queue and tools" loading="lazy"><figcaption><b>Kaise padhein:</b> Ye updated design hai. DC1 ke andar Web servers ab <b>① Message Queue</b> mein kaam daalte hain jise <b>Workers</b> process karte hain (loosely coupled + failure resilient). Neeche <b>② Tools</b> box — Logging, Metrics, Monitoring, Automation — poore DC ko observe karta hai. Baaki: DNS, CDN, Load balancer, Databases, Caches, NoSQL pehle jaise.</figcaption></figure>
+
+<h2 id="db-scaling">12. Database Scaling: Sharding</h2>
+<h3>Vertical scaling (DB ke liye)</h3>
+<p>Bada machine lo (cloud pe TBs of RAM wale instances milte hain). Book mein example: Stack Overflow 2013 mein 10M+ monthly unique visitors sirf 1 master DB se handle karta tha. Lekin drawbacks: hardware limit, SPOF ka risk, aur cost bahut high.</p>
+<h3>Horizontal scaling = Sharding</h3>
+<p>Bade DB ko chhote, manageable parts — <strong>shards</strong> — mein todo. Har shard ka <em>schema same</em>, data unique. Example: <code>user_id % 4</code> se decide hota hai user kis shard mein jaayega.</p>
+<pre><code>shard = user_id % 4   // user 0 → shard 0, user 1 → shard 1, ... user 5 → shard 1</code></pre>
+<p><strong>Sharding key (partition key)</strong> sabse critical decision hai: aisi key jo data ko <em>evenly</em> distribute kare aur jisse queries ek hi shard pe route ho jayein.</p>
+<h3>Challenges</h3>
+<ol>
+<li><strong>Resharding:</strong> ek shard full ho gaya (fast growth) ya uneven distribution se kuch shards jaldi "exhaust" ho gaye → sharding function badalna aur data move karna padta hai. <strong>Consistent hashing</strong> (Chapter 05) isko kaafi aasaan banata hai.</li>
+<li><strong>Celebrity / hotspot problem:</strong> Justin Bieber, Katy Perry, Lady Gaga sab ek hi shard pe aa gaye to wo shard read load se pigal jaayega. Fix: har celebrity ko apna shard, ya shard ko aur partition karna.</li>
+<li><strong>Joins & de-normalization:</strong> shards ke across JOIN mushkil. Common workaround: de-normalize karo taaki query ek hi table pe ho jaaye.</li>
+</ol>
+<div class="callout realworld"><strong>Real world</strong>MySQL ke liye Vitess (YouTube se nikla), PostgreSQL ke liye Citus, aur MongoDB ka built-in sharding — sab yahi sharding-key concept use karte hain. Cassandra/DynamoDB mein partition key hi sharding key hai.</div>
+
+<h2 id="final">Millions ke beyond: summary architecture</h2>
+<p>Final architecture mein: web tier stateless, har tier redundant, cache + CDN, multi-DC, message queue se decoupled workers, central logging/metrics, aur sharded data tier. Iske aage aap monolith ko microservices mein todna, aur har service ko apne data store ke saath scale karna discuss kar sakte ho.</p>
+
+<div class="callout interview"><strong>Interview mein kaise bolein (45 min)</strong>
+<ol>
+<li>Single server se start karo, 30 second mein flow bolo (DNS → IP → HTTP).</li>
+<li>Har step pe <em>bottleneck</em> naam do, phir component: "DB aur web ek hi box pe → split", "SPOF web tier → LB", "DB SPOF + read load → replication", "read latency → cache", "static asset latency → CDN", "sticky sessions → stateless", "regional outage → multi-DC", "slow tasks coupling → queue", "write volume → sharding".</li>
+<li>Har component ke failure mode pe 1 line: cache down, master down, CDN down, DC down.</li>
+<li>End mein numbers ka hint (Chapter 02) — "reads 10x writes hain, isliye 3 read replicas".</li>
+</ol></div>
+
+<h2 id="followups">Common follow-up questions</h2>
+<details><summary>Load balancer khud SPOF nahi hai?</summary><p>Hai, isliye LBs bhi pair mein (active-passive with floating IP, ya managed cloud LB jo internally redundant hai). DNS level pe bhi multiple LB IPs de sakte ho.</p></details>
+<details><summary>Cache aur DB ko consistent kaise rakhoge?</summary><p>Common pattern: DB update karo, phir cache entry <em>delete</em> karo (update nahi) — next read fresh value laayega. TTL safety net hai. Strong consistency chahiye to cache bypass ya write-through, latency ki keemat pe.</p></details>
+<details><summary>Sharding key choose karne ka rule?</summary><p>High cardinality, evenly distributed, aur main query pattern mein present. <code>user_id</code> achha; <code>country</code> bura (India shard overload). Time-based key writes ko ek hi "latest" shard pe daal deti hai — hotspot.</p></details>
+<details><summary>Master failover ke time data loss kaise kam karein?</summary><p>Semi-sync replication (kam se kam ek replica ack kare tab commit), automated failover tooling, aur promotion se pehle most up-to-date replica choose karna.</p></details>
+<details><summary>Stateless tier mein session kahan?</summary><p>Shared store (Redis/NoSQL) ya client-side signed token (JWT). Redis TTL se session expiry bhi free mein mil jaati hai.</p></details>
+
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul>
+<li>Web tier ko <strong>stateless</strong> rakho — state shared store mein.</li>
+<li>Har tier pe <strong>redundancy</strong> banao — SPOF dhoondo aur hatao.</li>
+<li>Jitna ho sake <strong>cache</strong> karo; static assets <strong>CDN</strong> pe.</li>
+<li>Data tier ko <strong>sharding</strong> se scale karo; sharding key soch-samajh ke.</li>
+<li>Tiers ko alag-alag services mein todo, <strong>message queue</strong> se decouple karo.</li>
+<li>System ko <strong>monitor</strong> karo aur automation tools use karo.</li>
+<li>Multi-DC se availability aur latency dono improve — lekin data sync ka cost samjho.</li>
+</ul></div>
+
+<div class="chapter-nav"><a class="prev" href="../index.html">← Home</a><a class="next" href="02-back-of-envelope.html">Next: 02. Back-of-the-Envelope Estimation →</a></div>
+</main>
+<aside class="toc"></aside>
+</div>
+<script src="../assets/app.js"></script>
+</body>
+</html>

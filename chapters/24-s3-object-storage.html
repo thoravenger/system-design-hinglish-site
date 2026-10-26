@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 24: S3-like Object Storage · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+ <header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><button class="theme-toggle" aria-label="theme">◐</button></header>
+ <div class="layout">
+  <nav class="sidebar">
+   <div class="nav-group"><p class="nav-group-title">Foundations</p>
+    <a href="01-scaling.html"><span class="num">01</span> Scaling 0 to Millions</a>
+    <a href="02-back-of-envelope.html"><span class="num">02</span> Back-of-the-Envelope Estimation</a>
+    <a href="03-framework.html"><span class="num">03</span> System Design Interview Framework</a>
+    <a href="04-rate-limiter.html"><span class="num">04</span> Rate Limiter</a>
+    <a href="05-consistent-hashing.html"><span class="num">05</span> Consistent Hashing</a>
+    <a href="06-key-value-store.html"><span class="num">06</span> Key-Value Store</a>
+    <a href="07-unique-id-generator.html"><span class="num">07</span> Unique ID Generator</a>
+   </div>
+   <div class="nav-group"><p class="nav-group-title">Classic Designs</p>
+    <a href="08-url-shortener.html"><span class="num">08</span> URL Shortener</a>
+    <a href="09-web-crawler.html"><span class="num">09</span> Web Crawler</a>
+    <a href="10-notification-system.html"><span class="num">10</span> Notification System</a>
+    <a href="11-news-feed.html"><span class="num">11</span> News Feed System</a>
+    <a href="12-chat-system.html"><span class="num">12</span> Chat System</a>
+    <a href="13-search-autocomplete.html"><span class="num">13</span> Search Autocomplete</a>
+    <a href="14-youtube.html"><span class="num">14</span> YouTube</a>
+   </div>
+   <div class="nav-group"><p class="nav-group-title">Vol 2 · Part 1</p>
+    <a href="15-google-drive.html"><span class="num">15</span> Google Drive</a>
+    <a href="16-proximity-service.html"><span class="num">16</span> Proximity Service</a>
+    <a href="17-nearby-friends.html"><span class="num">17</span> Nearby Friends</a>
+    <a href="18-google-maps.html"><span class="num">18</span> Google Maps</a>
+    <a href="19-message-queue.html"><span class="num">19</span> Distributed Message Queue</a>
+    <a href="20-metrics-monitoring.html"><span class="num">20</span> Metrics Monitoring & Alerting</a>
+    <a href="21-ad-click-aggregation.html"><span class="num">21</span> Ad Click Event Aggregation</a>
+    <a href="22-hotel-reservation.html"><span class="num">22</span> Hotel Reservation System</a>
+   </div>
+   <div class="nav-group"><p class="nav-group-title">Vol 2 · Part 2</p>
+    <a href="23-email-service.html"><span class="num">23</span> Distributed Email Service</a>
+    <a href="24-s3-object-storage.html" class="active" aria-current="page"><span class="num">24</span> S3-like Object Storage</a>
+    <a href="25-gaming-leaderboard.html"><span class="num">25</span> Real-time Gaming Leaderboard</a>
+    <a href="26-payment-system.html"><span class="num">26</span> Payment System</a>
+    <a href="27-digital-wallet.html"><span class="num">27</span> Digital Wallet</a>
+    <a href="28-stock-exchange.html"><span class="num">28</span> Stock Exchange</a>
+   </div>
+  </nav>
+  <main class="content">
+   <div class="chapter-hero"><span class="chapter-num">Chapter 24</span><h1>S3-like Object Storage</h1><p class="lead">Amazon S3 jaisa object store — metadata aur data ko alag karna, placement service, WAL-style data files, replication vs erasure coding (6 nines vs 11 nines durability), checksums, versioning, multipart upload aur garbage collection.</p><div class="tags"><span class="tag">Object Storage</span><span class="tag">Erasure Coding</span><span class="tag">Durability</span><span class="tag">Raft</span><span class="tag">Multipart Upload</span><span class="tag">Sharding</span></div></div>
+<h2 id="intro">Introduction: block vs file vs object</h2>
+<ul>
+ <li><strong>Block storage</strong> (1960s se): HDD/SSD — server se directly attached ya network (iSCSI/FC) se. Raw blocks; server unpe file system banata hai ya DB seedha use karta hai.</li>
+ <li><strong>File storage</strong>: block ke upar abstraction — folders aur files (NFS, SMB).</li>
+ <li><strong>Object storage</strong>: performance kurbaan karke <strong>durability, vast scale, low cost</strong>. Flat namespace (koi real directory nahi), RESTful API. Archival, backup, aur aaj data lakes.</li>
+</ul>
+<figure class="diagram"><img src="../img/24/storage-comparison.png" alt="storage comparison" loading="lazy"><figcaption>Teen pictures: Block Storage = ek cylinder mein grid of "block" (raw fixed-size chunks), File Storage = folder tree (hierarchy), Object Storage = graph of Objects jinke saath ID, Payload aur Metadata jude hain — koi hierarchy nahi, har object self-describing.</figcaption></figure>
+<table class="cmp">
+<tr><th></th><th>Block</th><th>File</th><th>Object</th></tr>
+<tr><td>Mutable content</td><td>Y</td><td>Y</td><td>N (versioning hai)</td></tr>
+<tr><td>Cost</td><td>High</td><td>Medium-high</td><td>Low</td></tr>
+<tr><td>Performance</td><td>Medium-high, very high</td><td>Medium-high</td><td>Low-medium</td></tr>
+<tr><td>Consistency</td><td>Strong</td><td>Strong</td><td>Strong (S3 Dec 2020 se strong read-after-write)</td></tr>
+<tr><td>Access</td><td>SAS/iSCSI/FC</td><td>CIFS/SMB, NFS</td><td>RESTful API</td></tr>
+<tr><td>Scalability</td><td>Medium</td><td>High</td><td>Vast</td></tr>
+<tr><td>Good for</td><td>VMs, databases</td><td>General file access</td><td>Binary/unstructured data</td></tr>
+</table>
+<p>Terms: <strong>Bucket</strong> (globally unique naam wala container), <strong>Object</strong> (data + metadata), <strong>Versioning</strong>, <strong>URI</strong>, <strong>SLA</strong>. S3 Standard-IA SLA: 99.999999999% (11 nines) durability across AZs, poora AZ destroy ho jaaye to bhi data safe, 99.9% availability design.</p>
+
+<h2 id="step1">Step 1: Requirements aur scope</h2>
+<ul>
+ <li>Features: bucket create, object upload/download, versioning, list objects.</li>
+ <li>Bade aur chhote dono objects efficiently.</li>
+ <li><strong>100 PB/year</strong>.</li>
+ <li><strong>6 nines durability</strong> (99.9999%), <strong>4 nines availability</strong> (99.99%).</li>
+ <li>Storage efficiency — cost kam, reliability high.</li>
+</ul>
+<h3>Back-of-the-envelope</h3>
+<p>Bottleneck: disk capacity ya IOPS. Ek SATA 7200rpm HDD ≈ 100-150 random seeks/sec.</p>
+<ul>
+ <li>Mix: 20% small (&lt;1 MB, median 0.5 MB), 60% medium (1-64 MB, median 32 MB), 20% large (&gt;64 MB, median 200 MB).</li>
+ <li>100 PB = 10^11 MB, 40% utilisation → 4×10^10 MB / (0.2×0.5 + 0.6×32 + 0.2×200 = 59.3 MB) ≈ <strong>0.68 billion objects</strong>.</li>
+ <li>Metadata 1 KB/object → <strong>~0.68 TB</strong> metadata. Data petabytes mein, metadata terabyte mein — dono ko alag scale karna obvious hai.</li>
+</ul>
+
+<h2 id="step2">Step 2: High-level design</h2>
+<p>Object storage ki properties:</p>
+<ul>
+ <li><strong>Immutability</strong> — delete/replace ho sakta hai, in-place update nahi.</li>
+ <li><strong>Key-value</strong> — URI = key, HTTP se value.</li>
+ <li><strong>Write once, read many</strong> — LinkedIn research ke hisaab se ~95% operations reads.</li>
+ <li>Small + large objects dono.</li>
+</ul>
+<figure class="diagram"><img src="../img/24/object-store-vs-unix.png" alt="object store vs unix" loading="lazy"><figcaption>Left Unix File System: inode mein File Name, Owner UID, Mode… aur "File block pointers" jo Local Disk Access se hard disk ke alag-alag blocks pe point karte hain. Right Object Store: MetaStore mein "Object name → Object ID" mapping, aur Network Request se DataStore mein ID se Object milta hai. Same idea: pehle metadata, phir data — bas local disk ki jagah network.</figcaption></figure>
+<figure class="diagram"><img src="../img/24/bucket-and-object.png" alt="bucket and object" loading="lazy"><figcaption>Bucket ka metadata: ID, Bucket Name, Policy, Life Cycle. Object ke do hisse: Data (binary bits) aur Metadata (ID, Object Name, Version ID, Expiration, Access Control, Bucket). Metadata aur data alag stores mein jaate hain taaki alag scale ho.</figcaption></figure>
+<figure class="diagram"><img src="../img/24/high-level-design.png" alt="high level design" loading="lazy"><figcaption>User → Load balancer → API Service. API Service teen jagah baat karta hai: left Identity &amp; Access Management (auth), neeche Metadata Store (Metadata Service + Metadata DB), right Data Store (teen Storage Nodes: Primary aur do Secondary, har ek mein Data Store Service + disk; primary se secondaries ko replication arrows).</figcaption></figure>
+<ul>
+ <li><strong>LB</strong>, <strong>API service</strong> (stateless orchestrator), <strong>IAM</strong> (authn/authz), <strong>Data store</strong> (object ID/UUID based), <strong>Metadata store</strong>.</li>
+</ul>
+<h3>Upload</h3>
+<figure class="diagram"><img src="../img/24/uploading-object.png" alt="uploading object" loading="lazy"><figcaption>① HTTP PUT create bucket <code>/bucket-to-share</code> → ② IAM check → ③ Metadata mein bucket entry. ④ HTTP PUT object <code>script.txt</code> → ⑤ IAM write permission check → ⑥ payload Data Store ko (primary, phir secondaries), UUID wapas → ⑦ Metadata mein object entry (object_id, bucket_id, name…).</figcaption></figure>
+<pre><code>PUT /bucket-to-share/script.txt HTTP/1.1
+Host: foo.s3example.org
+Date: Sun, 12 Sept 2021 17:51:00 GMT
+Authorization: authorization string
+Content-Type: text/plain
+Content-Length: 4567
+x-amz-meta-author: Alex
+
+[4567 bytes of object data]</code></pre>
+<div class="callout warn">⚠️ <strong>Order matters:</strong> pehle data store mein likha, phir metadata. Agar step 6 ke baad aur step 7 se pehle crash — data store mein ek <em>orphan</em> object (koi metadata point nahi karta). Yeh harmless garbage hai (GC saaf karega). Ulta order hota (metadata pehle) to metadata ek non-existent object pe point karta — 404/corrupt read. Payments analogy: pehle immutable fact likho, phir index/pointer.</div>
+<h3>Download</h3>
+<pre><code>GET /bucket-to-share/script.txt HTTP/1.1
+Host: foo.s3example.org
+Date: Sun, 12 Sept 2021 18:30:01 GMT
+Authorization: authorization string</code></pre>
+<figure class="diagram"><img src="../img/24/download-object.png" alt="download object" loading="lazy"><figcaption>① HTTP GET <code>/bucket-to-share/script.txt</code> → LB → API Service. ② IAM read permission. ③ Metadata DB se object ka UUID. ④ Data Store se UUID se object (Primary/Secondary Storage Nodes). ⑤ Download client ko. "Folders" asal mein bucket + object name ka prefix hain (<code>abc/def.txt</code>).</figcaption></figure>
+
+<h2 id="datastore">Step 3a: Data store deep dive</h2>
+<figure class="diagram"><img src="../img/24/data-store-interactions.png" alt="data store interactions" loading="lazy"><figcaption>Do simple contracts: Upload — API Service "Request: Upload, Payload: file_content" bhejta hai, DataStore "ObjectID = 30a3e98e-…" lautata hai. Download — "Request: Download, ObjectID" bhejo, "data = file_content" milta hai. Data store ko naam/bucket ka pata hi nahi — sirf UUID.</figcaption></figure>
+<figure class="diagram"><img src="../img/24/data-store-main-components.png" alt="data store main components" loading="lazy"><figcaption>Data Routing Service ↔ Placement Service. Placement Service teen Data Nodes (Primary, Secondary, Secondary) se Heartbeat leta hai. Data traffic routing service aur primary ke beech; primary se do secondaries ko Data replication.</figcaption></figure>
+<ul>
+ <li><strong>Data routing service</strong> (stateless, REST/gRPC): placement service se best node poochta hai, read/write data nodes pe.</li>
+ <li><strong>Placement service</strong>: <em>virtual cluster map</em> rakhta hai (physical topology), heartbeats se dead nodes hata-ta hai. Critical hai → 5 ya 7 node cluster, Paxos/Raft se sync. 7 nodes = 3 failures tolerate (majority 4).</li>
+ <li><strong>Data nodes</strong>: actual data; daemon heartbeat bhejta hai — kitni disks, har disk pe kitna data.</li>
+</ul>
+<figure class="diagram"><img src="../img/24/virtual-cluster-map.png" alt="virtual cluster map" loading="lazy"><figcaption>Tree: Root "Default" → Datacenter level (DC-1, DC-2) → Host level (Host-1…4) → Partition level (Partition-1…12). Placement service is tree se ensure karta hai ki ek object ke replicas alag hosts/DCs pe jaayein — Ceph ka CRUSH map isi idea pe hai.</figcaption></figure>
+<h3>Data persistence flow</h3>
+<figure class="diagram"><img src="../img/24/data-persistence-flow.png" alt="data persistence flow" loading="lazy"><figcaption>① API Service "Write data" → Data Routing Service. ② Routing service Placement Service se primary chunta hai. ③ Data primary node ko. ④ Primary do Secondaries ko replicate karta hai (dono arrows). ⑤ Sab replicate hone ke baad ObjId API Service ko. Heartbeats teeno nodes se placement service tak.</figcaption></figure>
+<ul>
+ <li>UUID → replication group consistent hashing se deterministic.</li>
+ <li>Primary saari replication ke baad respond karta hai → strong consistency, higher latency.</li>
+</ul>
+<figure class="diagram"><img src="../img/24/consistency-vs-latency.png" alt="consistency vs latency" loading="lazy"><figcaption>Teen options, blue line = API service ka wait time. First: primary + dono secondaries ka ack ka wait — best consistency, highest latency (lambi blue line). Second: primary + ek secondary — medium/medium. Third: sirf primary likhte hi response — worst consistency, lowest latency (chhoti blue line). Same trade-off jaise Kafka acks=all / quorum / 1.</figcaption></figure>
+<h3>Data organisation — chhote files ki problem</h3>
+<p>Har object alag file: 4 KB block size pe chhote files block waste karte hain, aur bahut saare inodes OS ko pasand nahi (limit bhi hai). Fix: chhote objects ko bade file mein <strong>append</strong> (WAL jaisa); file few GB hone pe read-only aur naya file.</p>
+<figure class="diagram"><img src="../img/24/wal-optimization.png" alt="wal optimization" loading="lazy"><figcaption>Local File System mein do Read-only Files (bhar chuki) aur ek Read-write File jismein object 1, 2, 3 already hain. API Service se aaya naya "object 4" (pink) read-write file ke end pe append hota hai; neeche "Empty spaces".</figcaption></figure>
+<p>Downside: ek file pe writes serialize — multiple cores wait karte hain. Fix: har core ka apna read-write file.</p>
+<h3>Object lookup</h3>
+<p>Object kis file mein, kis offset pe? Table: <code>object_id, filename, file_offset, object_size</code>. Low write + high read → relational; aur har data node ko sirf apna data chahiye → <strong>SQLite</strong> local, har data node pe (central DB cluster = extra network hop + scaling headache).</p>
+<figure class="diagram"><img src="../img/24/updated-data-persistence-flow.png" alt="updated data persistence flow" loading="lazy"><figcaption>① API Service → Data Node Service. ② Object 4 <code>/data/c</code> read-write file mein append. ③ Object Mapping Database (local) mein row: obj_id, file_name=/data/c, offset=0x232B3, obj_size=512 — dashed arrows dikhate hain ki file_name, start_offset, object_size kis cheez ko point karte hain. ④ Response.</figcaption></figure>
+
+<h2 id="durability">Step 3b: Durability — replication vs erasure coding</h2>
+<p>6 nines ke liye har failure case socho. Hardware failure ke liye replicas, lekin <strong>failure domains</strong> (rack, DC, power, network) ke across — ek event ek domain ke saare nodes maar sakta hai.</p>
+<figure class="diagram"><img src="../img/24/failure-domain-isolation.png" alt="failure domain isolation" loading="lazy"><figcaption>Teen AZs (har ek "Independent power and networking"), har AZ mein 2 racks, har rack mein 2 nodes. AZ1, AZ2, AZ3 ke beech "Replicate" arrows — copies alag AZs mein taaki poora AZ jaane pe bhi data bache.</figcaption></figure>
+<p>HDD annual failure rate ~0.81% maan ke, 3 copies ≈ 6 nines durability.</p>
+<h3>Erasure coding</h3>
+<figure class="diagram"><img src="../img/24/erasure-coding.png" alt="erasure coding" loading="lazy"><figcaption>Chaar columns: ① data ko equal chunks d1-d4 mein todo. ② Parities p1, p2 calculate (pink). ③ Node crash se d3, d4 lost (red X). ④ Bache hue d1, d2, p1, p2 se d3, d4 reconstruct. 4+2: koi bhi 2 chunks jaayein, data wapas.</figcaption></figure>
+<figure class="diagram"><img src="../img/24/erasure-coding-across-failure-domains.png" alt="erasure coding across failure domains" loading="lazy"><figcaption>12 Failure Domain boxes; ek object ke 8 data chunks (diamonds) aur 4 parity chunks (blue circles) alag-alag failure domains mein bikhre. Read ke time "Math Calculation" se in chunks ko jodke original data (upar ki row) banta hai. Ek domain gaya to max ek chunk gaya.</figcaption></figure>
+<figure class="diagram"><img src="../img/24/erasure-coding-vs-replication.png" alt="erasure coding vs replication" loading="lazy"><figcaption>Upar: 3-copy replication — 1 GB data teen nodes pe 1 GB-1 GB-1 GB (3 GB total, 200% overhead). Neeche: erasure coding 4+2 — 0.25 GB × 6 nodes = 1.5 GB total (50% overhead). Same data, aadha storage.</figcaption></figure>
+<table class="cmp">
+<tr><th></th><th>Replication (3 copies)</th><th>Erasure coding (8+4)</th></tr>
+<tr><td>Durability</td><td>~6 nines</td><td>~11 nines</td></tr>
+<tr><td>Storage overhead</td><td>200%</td><td>50%</td></tr>
+<tr><td>Compute</td><td>None</td><td>Parity calculate karna</td></tr>
+<tr><td>Read/write perf</td><td>Fast — ek node se read</td><td>Slower — multiple nodes se chunks, reconstruct</td></tr>
+<tr><td>Complexity</td><td>Simple</td><td>Bahut harder</td></tr>
+</table>
+<p>11 nines claim ka source: <a href="https://github.com/Backblaze/erasure-coding-durability" target="_blank" rel="noopener">Backblaze erasure-coding-durability (GitHub)</a> — <em>Backblaze ka open-source calculator/script jo shards count, parity count, drive annual failure rate aur rebuild time leke statistically durability "nines" nikaalta hai. Kaise padhein: README ke inputs badal ke dekho ki parity +1 karne se nines kitne badhte hain. Detail: <a href="../links.html#ch24">links guide</a>.</em></p>
+<div class="callout realworld">🌍 Real systems: Backblaze apne Vaults mein 17 data + 3 parity Reed-Solomon use karta hai; HDFS 3.x mein erasure coding policies (e.g. RS-6-3) hain; Ceph mein replicated aur EC pools dono. Common pattern: <strong>hot data replicated</strong> (low latency), <strong>cold data erasure-coded</strong> (cheap + durable). Payments archives (7-10 saal ki regulatory retention — transaction records, statements) exactly EC/Glacier-tier ke candidates hain.</div>
+<h3>Correctness — checksums</h3>
+<p>Poori disk fail ho to pata chal jaata hai; <strong>silent corruption</strong> (bit rot) nahi. Fix: checksums (hash of contents).</p>
+<figure class="diagram"><img src="../img/24/checksums-for-correctness.png" alt="checksums for correctness" loading="lazy"><figcaption>Do Read-only Files — har ek ke end mein ek file-level Checksum (pink). Read-write File mein har object (1-5) ke saath apna Checksum. Read pe object checksum verify; mismatch → doosri replica se padho aur corrupted copy repair.</figcaption></figure>
+<p>8+4 EC mein har chunk alag fetch karke uska checksum verify hota hai.</p>
+
+<h2 id="metadata">Step 3c: Metadata data model aur sharding</h2>
+<figure class="diagram"><img src="../img/24/metadata-data-model.png" alt="metadata data model" loading="lazy"><figcaption>Do tables: <strong>bucket</strong> (bucket_name, bucket_id, owner_id, enable_versioning) aur <strong>object</strong> (bucket_name, object_name, object_version, object_id). object_id data store ka UUID hai.</figcaption></figure>
+<p>Queries: naam se object ID, naam se insert/delete, prefix se list.</p>
+<ul>
+ <li>Bucket table chhota (per-user bucket limit) → ek DB, read replicas.</li>
+ <li>Object table bada → shard. <code>bucket_id</code> se shard = hotspot (ek bucket mein billions objects). <code>object_id</code> se shard = even load lekin name-based queries slow. <strong>Choice: <code>hash(bucket_name, object_name)</code></strong> — zyada tar queries isi pe.</li>
+</ul>
+<h3>Listing objects</h3>
+<pre><code>SELECT * FROM object WHERE bucket_id = "123" AND object_name LIKE 'abc/%'</code></pre>
+<p>Sharded DB mein yeh har shard pe chalana padega aur memory mein merge — pagination nightmare (har shard ka alag offset). Do raaste: (1) listing performance sacrifice karo (object stores listing ke liye optimised nahi hote), (2) <strong>denormalised listing table</strong> sharded by bucket_id — listing ek shard pe.</p>
+<div class="callout tip">💡 S3 ka ListObjectsV2 offset nahi, <strong>continuation token</strong> deta hai (last key ke baad se). Sharded ya distributed lists mein hamesha cursor/keyset pagination use karo — <code>WHERE object_name &gt; :lastKey ORDER BY object_name LIMIT 1000</code>. Spring Data mein bhi offset pagination bade tables pe slow hoti hai, keyset better.</div>
+
+<h2 id="versioning">Step 3d: Object versioning</h2>
+<p><code>object_version</code> column (TIMEUUID) — har naya version naya <code>object_id</code>.</p>
+<figure class="diagram"><img src="../img/24/object-versioning.png" alt="object versioning" loading="lazy"><figcaption>Metadata Store mein script.txt ke teen versions: 1ag1 → object_id 0x91b4, bn31 → 0x12Ha, fas3 → 0xM13n. "Current version" pointer fas3 pe, "Previous current version" bn31. Har version Data Store mein alag object pe point karta hai — purana data overwrite nahi hota.</figcaption></figure>
+<figure class="diagram"><img src="../img/24/deleting-versioned-object.png" alt="deleting versioned object" loading="lazy"><figcaption>Delete ke baad: naya version kk1h jo ek pink <strong>Delete Marker</strong> hai — current version ab yahi. GET pe 404 milega, lekin purane versions (fas3, bn31, 1ag1) aur unka data abhi bhi hai — restore possible.</figcaption></figure>
+<div class="callout realworld">🌍 Yeh event sourcing / append-only ledger jaisa hi hai: "delete" bhi ek naya fact hai (tombstone), history intact. Compliance ke liye S3 Object Lock (WORM) — regulators (e.g. SEC 17a-4 type rules) ke liye records ko retention period tak immutable rakhna.</div>
+
+<h2 id="multipart">Step 3e: Multipart upload</h2>
+<figure class="diagram"><img src="../img/24/multipart-upload.png" alt="multipart upload" loading="lazy"><figcaption>Teen phases. Initiation: ① multipart upload initiation → ② uploadID. Multipart Upload: ③ Part 1 + uploadID → ④ ETag 1; same Part 2…Part 8, har ek ka ETag. Completion: ⑤ uploadID + (Part n → ETag n) list → ⑥ Success. Parts parallel aur independently retry ho sakte hain.</figcaption></figure>
+<ul>
+ <li>ETag = part ka MD5 checksum.</li>
+ <li>Complete pe data store parts reassemble karta hai (few minutes lag sakte hain).</li>
+ <li>Purane parts GC saaf karega.</li>
+</ul>
+<div class="callout warn">⚠️ Abandoned multipart uploads (client beech mein mar gaya) storage khaate rehte hain aur listing mein dikhte bhi nahi — S3 mein lifecycle rule "AbortIncompleteMultipartUpload after N days" lagao. Yeh classic hidden-cost bug hai.</div>
+
+<h2 id="gc">Step 3f: Garbage collection aur compaction</h2>
+<p>Garbage kahan se: lazy deletion (sirf marked), orphan data (half upload), corrupted data (checksum fail). Replication mein primary + replicas dono se delete; 8+4 EC mein 12 nodes se.</p>
+<figure class="diagram"><img src="../img/24/compaction.png" alt="compaction" loading="lazy"><figcaption>Before: /data/b mein Object 2 aur Object 5 deleted (X), Object 3 zinda (pink). ① GC zinda objects (Object 3) ko naye file /data/d mein copy karta hai. ② object_mapping table update: object 3 ka file_name /data/b → /data/d, offset 0x232B3 → 0x10013 — ek DB transaction mein. Phir /data/b delete. Chhote files avoid karne ke liye threshold-based compaction.</figcaption></figure>
+
+<h2 id="wrapup">Step 4: Wrap up</h2>
+<ul>
+ <li>Object vs block vs file storage</li>
+ <li>Upload, download, listing, versioning</li>
+ <li>Data store (routing, placement, data nodes) vs metadata store</li>
+ <li>Replication vs erasure coding, checksums</li>
+ <li>Multipart upload, sharding, GC</li>
+</ul>
+
+<div class="callout interview">🎤 <strong>Interview mein kaise bolein:</strong>
+<ol>
+<li>Pehle storage types ka 30-sec comparison — "object = immutable, flat, REST, cheap, durable".</li>
+<li>Estimation: 0.68B objects, ~0.68 TB metadata → "metadata aur data alag".</li>
+<li>Upload/download flows (IAM → metadata → data).</li>
+<li>Deep dive data store: placement service (Raft), primary-secondary replication, small-file packing + SQLite lookup.</li>
+<li>Durability math: failure domains, 3 replicas vs 8+4 EC (overhead 200% vs 50%).</li>
+<li>Metadata sharding by hash(bucket, object) + listing problem + versioning (delete marker) + multipart + GC.</li>
+</ol></div>
+
+<h2 id="faq">Follow-up questions</h2>
+<dl>
+<dt>Q: Strong read-after-write consistency kaise?</dt><dd>Metadata write synchronously commit hone ke baad hi PUT success; metadata store strongly consistent (consensus-backed). Data write all-replica ack ke saath.</dd>
+<dt>Q: Ek object bahut popular (hot)?</dt><dd>CDN / read cache in front, aur read ko kisi bhi replica se allow karo.</dd>
+<dt>Q: Disk fail hua to repair?</dt><dd>Placement service heartbeat miss detect kare → us disk ke objects ke liye naye replicas/EC chunks doosre domains pe rebuild; rebuild speed durability ka direct factor hai.</dd>
+<dt>Q: Bucket delete karna jismein billions objects?</dt><dd>Async: bucket ko "deleting" mark, background GC batch mein objects hataye.</dd>
+</dl>
+
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul>
+<li>Object store = immutable, flat KV over HTTP; metadata aur data alag aur independently scale.</li>
+<li>Placement service (Raft cluster) + virtual cluster map = failure-domain-aware placement.</li>
+<li>Chhote objects bade append-only files mein + local SQLite mapping (object → file, offset, size).</li>
+<li>Replication: simple, fast, 200% overhead (~6 nines). Erasure coding 8+4: 50% overhead (~11 nines), slower/complex.</li>
+<li>Checksums se silent corruption pakdo.</li>
+<li>Metadata shard by hash(bucket, object); listing ke liye denormalised table / cursor pagination.</li>
+<li>Versioning = append-only versions + delete marker; multipart for big files; GC via compaction.</li>
+</ul></div>
+   <div class="chapter-nav"><a class="prev" href="23-email-service.html">← Prev: Distributed Email Service</a><a class="next" href="25-gaming-leaderboard.html">Next: Real-time Gaming Leaderboard →</a></div>
+  </main>
+  <aside class="toc">
+   <p class="toc-title">On this page</p>
+    <a href="#intro">Introduction: block vs file vs object</a>
+    <a href="#step1">Step 1: Requirements aur scope</a>
+    <a href="#step2">Step 2: High-level design</a>
+    <a href="#datastore">Step 3a: Data store deep dive</a>
+    <a href="#durability">Step 3b: Durability — replication vs erasure coding</a>
+    <a href="#metadata">Step 3c: Metadata data model aur sharding</a>
+    <a href="#versioning">Step 3d: Object versioning</a>
+    <a href="#multipart">Step 3e: Multipart upload</a>
+    <a href="#gc">Step 3f: Garbage collection aur compaction</a>
+    <a href="#wrapup">Step 4: Wrap up</a>
+    <a href="#faq">Follow-up questions</a>
+    <a href="#takeaways">Key Takeaways</a>
+  </aside>
+ </div>
+ <script src="../assets/app.js"></script>
+</body>
+</html>

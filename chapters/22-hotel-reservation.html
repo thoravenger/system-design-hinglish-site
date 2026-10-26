@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 22: Hotel Reservation System · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+ <header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><button class="theme-toggle" aria-label="theme">◐</button></header>
+ <div class="layout">
+  <nav class="sidebar">
+   <div class="nav-group"><p class="nav-group-title">Foundations</p>
+    <a href="01-scaling.html"><span class="num">01</span> Scaling 0 to Millions</a>
+    <a href="02-back-of-envelope.html"><span class="num">02</span> Back-of-the-Envelope Estimation</a>
+    <a href="03-framework.html"><span class="num">03</span> System Design Interview Framework</a>
+    <a href="04-rate-limiter.html"><span class="num">04</span> Rate Limiter</a>
+    <a href="05-consistent-hashing.html"><span class="num">05</span> Consistent Hashing</a>
+    <a href="06-key-value-store.html"><span class="num">06</span> Key-Value Store</a>
+    <a href="07-unique-id-generator.html"><span class="num">07</span> Unique ID Generator</a>
+   </div>
+   <div class="nav-group"><p class="nav-group-title">Classic Designs</p>
+    <a href="08-url-shortener.html"><span class="num">08</span> URL Shortener</a>
+    <a href="09-web-crawler.html"><span class="num">09</span> Web Crawler</a>
+    <a href="10-notification-system.html"><span class="num">10</span> Notification System</a>
+    <a href="11-news-feed.html"><span class="num">11</span> News Feed System</a>
+    <a href="12-chat-system.html"><span class="num">12</span> Chat System</a>
+    <a href="13-search-autocomplete.html"><span class="num">13</span> Search Autocomplete</a>
+    <a href="14-youtube.html"><span class="num">14</span> YouTube</a>
+   </div>
+   <div class="nav-group"><p class="nav-group-title">Vol 2 · Part 1</p>
+    <a href="15-google-drive.html"><span class="num">15</span> Google Drive</a>
+    <a href="16-proximity-service.html"><span class="num">16</span> Proximity Service</a>
+    <a href="17-nearby-friends.html"><span class="num">17</span> Nearby Friends</a>
+    <a href="18-google-maps.html"><span class="num">18</span> Google Maps</a>
+    <a href="19-message-queue.html"><span class="num">19</span> Distributed Message Queue</a>
+    <a href="20-metrics-monitoring.html"><span class="num">20</span> Metrics Monitoring & Alerting</a>
+    <a href="21-ad-click-aggregation.html"><span class="num">21</span> Ad Click Event Aggregation</a>
+    <a href="22-hotel-reservation.html" class="active" aria-current="page"><span class="num">22</span> Hotel Reservation System</a>
+   </div>
+   <div class="nav-group"><p class="nav-group-title">Vol 2 · Part 2</p>
+    <a href="23-email-service.html"><span class="num">23</span> Distributed Email Service</a>
+    <a href="24-s3-object-storage.html"><span class="num">24</span> S3-like Object Storage</a>
+    <a href="25-gaming-leaderboard.html"><span class="num">25</span> Real-time Gaming Leaderboard</a>
+    <a href="26-payment-system.html"><span class="num">26</span> Payment System</a>
+    <a href="27-digital-wallet.html"><span class="num">27</span> Digital Wallet</a>
+    <a href="28-stock-exchange.html"><span class="num">28</span> Stock Exchange</a>
+   </div>
+  </nav>
+  <main class="content">
+   <div class="chapter-hero"><span class="chapter-num">Chapter 22</span><h1>Hotel Reservation System</h1><p class="lead">Marriott jaisa hotel booking system — room-type inventory, 10% overbooking, double-booking se bachav (idempotency key, pessimistic/optimistic locking, DB constraints), sharding, cache aur microservices mein consistency (2PC vs Saga). Airbnb, flight aur movie-ticket booking pe bhi same patterns lagte hain.</p><div class="tags"><span class="tag">Concurrency</span><span class="tag">Idempotency</span><span class="tag">Optimistic Locking</span><span class="tag">Sharding</span><span class="tag">Saga</span><span class="tag">MySQL</span></div></div>
+<h2 id="intro">Introduction</h2>
+<p>Hotel reservation ek "inventory + money" problem hai: limited cheez (rooms × dates) ko concurrent users ke beech bechna, bina double-sell kiye (overbooking policy ke andar), aur payment ke saath consistent rakhna. Payments engineer ke liye yeh familiar zameen hai — idempotency, locking, sagas.</p>
+
+<h2 id="step1">Step 1: Requirements aur scope</h2>
+<ul>
+ <li>Scale: 5,000 hotels, 1M rooms (ek hotel chain).</li>
+ <li>Payment: reservation ke time <strong>full payment</strong>.</li>
+ <li>Channel: sirf website/app (phone booking nahi).</li>
+ <li>Cancellation: haan.</li>
+ <li><strong>Overbooking 10%</strong> allowed — hotels cancellations anticipate karke zyada bechte hain.</li>
+ <li>Room price <strong>daily</strong> badalta hai.</li>
+ <li>Focus: hotel page, room detail page, reserve room, admin panel, overbooking.</li>
+</ul>
+<h3>Non-functional</h3>
+<ul>
+ <li><strong>High concurrency</strong> — peak season mein ek hi hotel pe bahut log.</li>
+ <li><strong>Moderate latency</strong> — reservation pe few seconds acceptable.</li>
+</ul>
+<h3>Back-of-the-envelope</h3>
+<ul>
+ <li>70% occupancy, avg stay 3 din → 1M × 0.7 / 3 ≈ <strong>~240k reservations/day</strong></li>
+ <li>240k / 10^5 sec ≈ <strong>~3 TPS</strong> — reservation TPS bahut low hai!</li>
+</ul>
+<figure class="diagram"><img src="../img/22/qps-estimation.png" alt="qps estimation" loading="lazy"><figcaption>Funnel (ulta triangle): sabse upar "View hotel/room detail" QPS=300, beech mein "Order booking page" QPS=30, neeche "Reserve rooms" QPS=3. Har step pe 10% conversion. Matlab read traffic write se 100× zyada — read path ko cache karo, write path ko correct banao.</figcaption></figure>
+<div class="callout tip">💡 3 TPS sunke "easy hai" mat socho. Asli challenge throughput nahi, <strong>contention</strong> hai — New Year's Eve pe ek hotel ke last 2 rooms ke liye 500 log ek saath click karenge. Design correctness ke liye hai, scale ke liye nahi.</div>
+
+<h2 id="step2">Step 2: API, data model, high-level design</h2>
+<h3>APIs</h3>
+<table class="cmp">
+<tr><th>Group</th><th>Endpoints</th></tr>
+<tr><td>Hotel</td><td><code>GET /v1/hotels/{id}</code>; <code>POST /v1/hotels</code>, <code>PUT/DELETE /v1/hotels/{id}</code> (ops only)</td></tr>
+<tr><td>Room</td><td><code>GET /v1/hotels/{id}/rooms/{id}</code>; <code>POST /v1/hotels/{id}/rooms</code>, <code>PUT/DELETE .../rooms/{id}</code> (ops only)</td></tr>
+<tr><td>Reservation</td><td><code>GET /v1/reservations</code> (my history), <code>GET /v1/reservations/{id}</code>, <code>POST /v1/reservations</code>, <code>DELETE /v1/reservations/{id}</code> (cancel)</td></tr>
+</table>
+<pre><code>POST /v1/reservations
+{
+  "startDate":"2021-04-28",
+  "endDate":"2021-04-30",
+  "hotelID":"245",
+  "roomID":"U12354673389",
+  "reservationID":"13422445"   // idempotency key!
+}</code></pre>
+<p><code>reservationID</code> = <strong>idempotency key</strong> — double booking rokne ke liye (concurrency section mein detail).</p>
+<h3>Data model — kyun relational?</h3>
+<ul>
+ <li>Read-heavy, write-light → RDBMS ka sweet spot (NoSQL write-optimised, yahan zaroorat nahi).</li>
+ <li><strong>ACID</strong> chahiye — negative inventory, double charge jaise problems rokne ke liye.</li>
+ <li>Data structure clear aur relational hai.</li>
+</ul>
+<figure class="diagram"><img src="../img/22/schema-design.png" alt="schema design" loading="lazy"><figcaption>Pehla schema, service-wise dashed boxes: <strong>Hotel Service</strong> (hotel: hotel_id PK, name, address, location; room: room_id PK, room_type_id, floor, number, hotel_id, name, is_available), <strong>Rate Service</strong> (room_type_rate: hotel_id + date PK, rate — daily price), <strong>Guest Service</strong> (guest), <strong>Reservation Service</strong> (reservation: reservation_id PK, hotel_id, room_id, start/end date, status, guest_id).</figcaption></figure>
+<figure class="diagram"><img src="../img/22/status-state-machine.png" alt="status state machine" loading="lazy"><figcaption>Reservation status state machine: Pending se teen raaste — Canceled, Paid, Rejected. Paid se aage Refunded. Terminal states ke baad koi transition nahi. Code mein enum + allowed-transition map rakho, kabhi direct "status = X" mat likho.</figcaption></figure>
+<p>Problem: yeh model Airbnb (specific listing) ke liye theek hai, lekin hotel mein user <strong>room type</strong> book karta hai (Deluxe King), specific room number check-in pe assign hota hai. Fix neeche "Improved data model" mein.</p>
+<h3>High-level architecture</h3>
+<figure class="diagram"><img src="../img/22/high-level-design.png" alt="high level design" loading="lazy"><figcaption>Upar External zone: User (mobile) → CDN (static assets). Internal zone: Public API Gateway → Hotel Service (Hotel Cache + Hotel DB), Rate Service (Rate DB), Reservation Service (Reservation DB), Payment Service (Payment DB). Right side "Private" vertical line ke paar: Admin → Internal API → Hotel Management Service. Har service ka apna DB.</figcaption></figure>
+<ul>
+ <li><strong>CDN</strong>: JS bundles, images, videos.</li>
+ <li><strong>Public API Gateway</strong>: rate limiting, auth (managed).</li>
+ <li><strong>Internal APIs</strong>: sirf authorised staff, VPN ke peeche.</li>
+ <li><strong>Hotel service</strong>: static-ish data → aggressively cache.</li>
+ <li><strong>Rate service</strong>: future dates ke prices; price hotel kitna bhara hai us pe depend karta hai.</li>
+ <li><strong>Reservation service</strong>: booking + inventory tracking.</li>
+ <li><strong>Payment service</strong>: payment + success pe reservation status update.</li>
+ <li><strong>Hotel management service</strong>: admin functions.</li>
+ <li>Inter-service: gRPC jaisa RPC.</li>
+</ul>
+
+<h2 id="data-model">Step 3a: Improved data model</h2>
+<pre><code>POST /v1/reservations
+{
+  "startDate":"2021-04-28",
+  "endDate":"2021-04-30",
+  "hotelID":"245",
+  "roomTypeID":"12354673389",
+  "roomCount":"3",
+  "reservationID":"13422445"
+}</code></pre>
+<figure class="diagram"><img src="../img/22/updated-schema.png" alt="updated schema" loading="lazy"><figcaption>Updated schema: Reservation Service ke andar ab naya table <strong>room_type_inventory</strong> (hotel_id, room_type_id, date — composite key; total_inventory, total_reserved). reservation table mein room_id ki jagah room_type_id. Hotel, Rate, Guest services same.</figcaption></figure>
+<p><code>room_type_inventory</code> — ek row per (hotel, room type, <strong>date</strong>):</p>
+<table class="cmp">
+<tr><th>hotel_id</th><th>room_type_id</th><th>date</th><th>total_inventory</th><th>total_reserved</th></tr>
+<tr><td>211</td><td>1001</td><td>2021-06-01</td><td>100</td><td>80</td></tr>
+<tr><td>211</td><td>1001</td><td>2021-06-02</td><td>100</td><td>82</td></tr>
+<tr><td>211</td><td>1001</td><td>2021-06-03</td><td>100</td><td>86</td></tr>
+<tr><td>211</td><td>1001</td><td>…</td><td>…</td><td></td></tr>
+<tr><td>211</td><td>1001</td><td>2023-05-31</td><td>100</td><td>0</td></tr>
+<tr><td>211</td><td>1002</td><td>2021-06-01</td><td>200</td><td>16</td></tr>
+<tr><td>2210</td><td>101</td><td>2021-06-01</td><td>30</td><td>23</td></tr>
+<tr><td>2210</td><td>101</td><td>2021-06-02</td><td>30</td><td>25</td></tr>
+</table>
+<p><code>total_inventory</code> = total rooms minus maintenance ke liye hataye gaye. Rows daily CRON se pre-populate (2 saal aage tak).</p>
+<pre><code>SELECT date, total_inventory, total_reserved
+FROM room_type_inventory
+WHERE room_type_id = ${roomTypeId} AND hotel_id = ${hotelId}
+  AND date BETWEEN ${startDate} AND ${endDate};
+
+-- har din ke liye (overbooking 10%):
+if (total_reserved + ${numberOfRoomsToReserve}) &lt;= 110% * total_inventory</code></pre>
+<p><strong>Storage</strong>: 5000 hotels × 20 room types × 2 years × 365 = <strong>73M rows</strong> — ek DB server ke liye kaafi chhota. HA ke liye cross-zone read replicas.</p>
+<div class="callout interview">🎤 <strong>Follow-up: "data ek DB mein fit na ho to?"</strong> (1) Sirf current + future reservations hot DB mein, history cold storage mein. (2) <code>hash(hotel_id) % N</code> se shard — kyunki har query mein hotel_id hai.</div>
+
+<h2 id="concurrency">Step 3b: Concurrency — double booking</h2>
+<p>Do alag problems: (1) same user ne "Book" do baar click kiya, (2) do alag users same last room ek saath book kar rahe hain.</p>
+<h3>Problem 1: same user, double click</h3>
+<figure class="diagram"><img src="../img/22/double-booking-single-user.png" alt="double booking single user" loading="lazy"><figcaption>User ke first aur second click dono same INSERT bhejte hain (121, 2, 3, 2021-06-01, 2021-06-04, pending_pay, guest1). Bina guard ke neeche dashed box mein do rows ban gayi — row 1 aur row 2 identical. Ek booking ke do records = do charges ka risk.</figcaption></figure>
+<ul>
+ <li><strong>Client-side</strong>: button disable — lekin JS off ho ya network retry ho to bekaar. Sirf UX help hai, guarantee nahi.</li>
+ <li><strong>Idempotent API</strong>: idempotency key se.</li>
+</ul>
+<figure class="diagram"><img src="../img/22/idempotency.png" alt="idempotency" loading="lazy"><figcaption>Sequence: (1) User "Generate reservation order" → (2) Reservation Service reservation page ke saath ek globally unique <code>reservation_id</code> deta hai. (3a) Submit with reservation_id → success. (3b) Dobara submit same reservation_id → red X "Unique constraint is violated (reservation_id)". Key server ne <em>pehle</em> issue ki, isliye retry same key bhejta hai.</figcaption></figure>
+<figure class="diagram"><img src="../img/22/unique-constraint-violation.png" alt="unique constraint violation" loading="lazy"><figcaption>Do INSERTs, dono ka pehla value 121 (red box = reservation_id). Pehla ✓ insert ho gaya, doosra ✗ — "Unique constraint violation". Neeche result mein sirf row 1. DB khud final guard hai.</figcaption></figure>
+<div class="callout realworld">🌍 <strong>Payments-grade idempotency (Stripe style):</strong> Stripe <code>Idempotency-Key</code> header leta hai aur pehli request ka <em>response</em> store karta hai — retry pe same response replay hota hai (sirf error nahi). Production pattern: <code>idempotency_keys(key PK, request_hash, status, response_body, created_at)</code>. (a) Same key + different body → 422 (client bug). (b) Pehli request abhi in-flight → 409/retry-later. (c) Complete → stored response return. Sirf unique-constraint error user ko "booking failed" dikha dega jabki booking ho chuki hai — isliye "detect duplicate, return original result" karo.</div>
+<h3>Problem 2: multiple users, last room</h3>
+<figure class="diagram"><img src="../img/22/double-booking-multiple-users.png" alt="double booking multiple users" loading="lazy"><figcaption>Time upar se neeche. Dono users start pe dekhte hain total_inventory=100, total_reserved=99. (2) User 2 check: 1 room left. (3) User 1 check: 1 room left. (4) User 1 total_reserved += 1, (5) User 2 bhi += 1. (6) User 1 commit ✓, (7) User 2 commit ✓ — dono "success", lekin ek room do logon ko. Isolation level serializable nahi hai, isliye check-then-act race.</figcaption></figure>
+<p>Reserve karne ka SQL:</p>
+<pre><code>-- step 1: check inventory
+SELECT date, total_inventory, total_reserved
+FROM room_type_inventory
+WHERE room_type_id = ${roomTypeId} AND hotel_id = ${hotelId}
+  AND date BETWEEN ${startDate} AND ${endDate};
+
+-- har row ke liye:
+if ((total_reserved + ${numberOfRoomsToReserve}) &gt; 110% * total_inventory) { Rollback }
+
+-- step 2: reserve
+UPDATE room_type_inventory
+SET total_reserved = total_reserved + ${numberOfRoomsToReserve}
+WHERE room_type_id = ${roomTypeId}
+  AND date BETWEEN ${startDate} AND ${endDate};   -- (production mein hotel_id bhi WHERE mein daalo)
+Commit</code></pre>
+<p>Teen solutions:</p>
+<h3>Option 1: Pessimistic locking</h3>
+<figure class="diagram"><img src="../img/22/pessimistic-locking.png" alt="pessimistic locking" loading="lazy"><figcaption>Transaction 1: BEGIN → <code>SELECT … FOR UPDATE</code> (rows lock) → UPDATE → COMMIT. Transaction 2 bhi SELECT … FOR UPDATE karta hai lekin beech ke arrow pe "Transaction 2 waits for Transaction 1 to finish". T1 commit ke baad T2 dekhta hai total reserved = 100, room nahi → ROLLBACK. Updates serialize ho gaye.</figcaption></figure>
+<ul>
+ <li>✅ Simple, heavy contention mein safe.</li>
+ <li>❌ Deadlocks (multiple rows/dates lock — lock order consistent rakho, e.g. date ASC), long transactions sabko block karte hain, scalable nahi. Author recommend nahi karte.</li>
+</ul>
+<h3>Option 2: Optimistic locking</h3>
+<figure class="diagram"><img src="../img/22/optimistic-locking.png" alt="optimistic locking" loading="lazy"><figcaption>Left (No conflict ✓): User 1 v1 padhta hai, v2 likhta hai; User 2 baad mein v2 padhke v3 likhta hai — sequential, sab theek. Right (Conflict ✗): User 1 aur User 2 dono v1 padhte hain; User 1 v2 likh deta hai; User 2 bhi v2 likhne ki koshish karta hai — version already v2 hai, conflict → User 2 ka update reject, retry karna padega.</figcaption></figure>
+<ul>
+ <li><code>version</code> column; read version, update pe <code>WHERE version = :read</code> aur version+1. Timestamps ki jagah version numbers — clocks unreliable.</li>
+ <li>✅ No DB locks, low contention mein fast. ❌ High contention pe retries/rollbacks ka storm.</li>
+ <li>Hotel system ke liye achha fit — QPS high nahi.</li>
+</ul>
+<h3>Option 3: Database constraint</h3>
+<pre><code>CONSTRAINT `check_room_count` CHECK((`total_inventory - total_reserved` &gt;= 0))</code></pre>
+<figure class="diagram"><img src="../img/22/database-constraint.png" alt="database constraint" loading="lazy"><figcaption>Same race: dono users 99/100 dekhte hain. User 1 reserve + commit ✓. User 2 ka "total_reserved += 1" pe red X — "total_inventory - total_reserved &gt;= 0 constraint is violated". DB khud last line of defence ban gaya.</figcaption></figure>
+<ul>
+ <li>✅ Easy, low contention mein badhiya. ❌ High contention mein optimistic jaisa hi; constraints app code jaise version-control karna mushkil; har DB support nahi karta (MySQL 8.0.16 se CHECK enforce hota hai).</li>
+</ul>
+<div class="callout warn">⚠️ <strong>Notes ka gap pakdo (senior signal):</strong> Upar ka CHECK constraint <code>total_inventory - total_reserved &gt;= 0</code> 10% overbooking ko allow hi nahi karta! Overbooking chahiye to constraint <code>total_reserved &lt;= total_inventory * 1.1</code> type ho. Aur sabse clean trick — <strong>conditional atomic UPDATE</strong>:
+<pre><code>UPDATE room_type_inventory
+SET total_reserved = total_reserved + :n
+WHERE hotel_id = :h AND room_type_id = :t
+  AND date &gt;= :start AND date &lt; :end
+  AND total_reserved + :n &lt;= FLOOR(total_inventory * 1.1);
+-- affected rows == number of nights ? commit : rollback</code></pre>
+Ek statement mein check + act, row-level lock sirf statement ke dauraan. Yeh Western Union type "available balance debit" ka bhi standard pattern hai: <code>UPDATE account SET balance = balance - :amt WHERE id = :id AND balance &gt;= :amt</code>.</div>
+<div class="callout realworld">🌍 <strong>Spring Boot/JPA mein:</strong> Optimistic = entity pe <code>@Version</code> field; conflict pe <code>ObjectOptimisticLockingFailureException</code> → Spring Retry <code>@Retryable</code> se 2-3 baar retry. Pessimistic = <code>@Lock(LockModeType.PESSIMISTIC_WRITE)</code> repository method pe (SELECT … FOR UPDATE generate karta hai) + lock timeout hint. Conditional UPDATE = <code>@Modifying @Query</code> jo affected-row count return kare.</div>
+
+<h2 id="scalability">Step 3c: Scalability</h2>
+<p>Agar system booking.com jaisa ho jaaye — QPS 1000× ho sakta hai. Services stateless → replicas add. Bottleneck = <strong>DB</strong>.</p>
+<figure class="diagram"><img src="../img/22/database-sharding.png" alt="database sharding" loading="lazy"><figcaption>Reservation Service → diamond "hotel_id % 16" → 16 shards (Shard 0 se 15) fan-out. Har query mein hotel_id hai, to har request exactly ek shard pe jaati hai — cross-shard transaction nahi.</figcaption></figure>
+<p>Example: 30,000 QPS / 16 shards = <strong>1,875 QPS per shard</strong> — ek MySQL cluster comfortably handle karta hai.</p>
+<figure class="diagram"><img src="../img/22/inventory-cache.png" alt="inventory cache" loading="lazy"><figcaption>Reservation Service: "Query inventory" Redis <strong>Inventory Cache</strong> se, "Update inventory" seedha Inventory DB (Shard 15) mein. DB se cache tak "Async update cache" arrow — CDC se. Reads cache se, writes DB pe (truth).</figcaption></figure>
+<pre><code>key:   hotelID_roomTypeID_{date}
+value: available rooms for that hotel, room type, date   (TTL: past dates expire)</code></pre>
+<ul>
+ <li>Sync: <strong>CDC</strong> (Debezium) DB changes padhke Redis update karta hai.</li>
+ <li>Cache aur DB thodi der inconsistent ho sakte hain — <em>theek hai</em>, kyunki final check DB pe hota hai. Worst case: user ko "available" dikha, book pe "sold out" mila — jo hesitation se waise bhi hota hai.</li>
+ <li>✅ DB load kam, fast. ❌ Consistency + UX impact sochna padta hai.</li>
+</ul>
+<div class="callout tip">💡 Golden rule: <strong>cache sirf display ke liye, decision DB pe.</strong> Payments mein bhi — "available balance" cache UI pe dikha sakte ho, lekin debit hamesha ledger DB ke atomic check se.</div>
+
+<h2 id="consistency">Step 3d: Microservices mein data consistency</h2>
+<p>Pragmatic choice: reservation aur inventory APIs <strong>same service + same DB</strong> mein — taaki ACID transaction mil sake. Interviewer challenge karega: "Yeh pure microservices nahi hai."</p>
+<figure class="diagram"><img src="../img/22/microservices-vs-monolith.png" alt="microservices vs monolith" loading="lazy"><figcaption>Left "Monolithic Architecture": Reservation, Inventory, Payment services teeno ek shared Hotel DB pe. Right "Microservice Architecture": har service ka apna DB (Reservation DB, Inventory DB, Payment DB). Right wale mein ek business operation = multiple DBs.</figcaption></figure>
+<figure class="diagram"><img src="../img/22/atomicity-monolith.png" alt="atomicity monolith" loading="lazy"><figcaption>Monolith: User → Database pe "Manage room inventory" aur "Reserve room" — dono ek <strong>Single Transaction</strong> bracket ke andar. Ek fail to dono rollback.</figcaption></figure>
+<figure class="diagram"><img src="../img/22/microservice-non-atomic-operation.png" alt="microservice non atomic operation" loading="lazy"><figcaption>Microservices: "Manage room inventory" Inventory Service mein apni single transaction, "Reserve room" Reservation Service mein alag single transaction. Do alag brackets — pehla commit ho gaya aur doosra fail hua to inconsistent state (inventory kam, reservation nahi).</figcaption></figure>
+<table class="cmp">
+<tr><th></th><th>2PC (Two-phase commit)</th><th>Saga</th></tr>
+<tr><td>Consistency</td><td>Atomic (strong)</td><td>Eventual</td></tr>
+<tr><td>How</td><td>Coordinator prepare → commit across nodes</td><td>Local transactions ki chain + failure pe compensating transactions</td></tr>
+<tr><td>Problem</td><td>Ek slow/down node sabko block; coordinator SPOF</td><td>Intermediate states visible; compensation logic complex</td></tr>
+</table>
+<div class="callout realworld">🌍 <strong>Saga in practice:</strong> Reserve inventory (HOLD, TTL 15 min) → charge payment → confirm reservation. Payment fail → compensating "release hold". Orchestration (Temporal, Camunda, ya ek orchestrator service with state table) vs choreography (Kafka events). Har step idempotent hona chahiye kyunki retries honge, aur compensation bhi idempotent. Payments mein "hold/authorize → capture" yahi saga hai — card auth = inventory hold, capture = confirm, void = compensation.</div>
+<p>Notes ka point: cross-service consistency complexity bahut badhata hai — pehle socho ki cost worth hai ya dependent operations ko ek DB mein rakhna better hai.</p>
+
+<h2 id="wrapup">Step 4: Wrap up</h2>
+<ul>
+ <li>Requirements + estimation (3 TPS, lekin contention high)</li>
+ <li>API, data model, architecture</li>
+ <li>Schema evolve kiya: room → room_type_inventory per date</li>
+ <li>Race conditions: idempotency key, pessimistic/optimistic locking, DB constraints</li>
+ <li>Scaling: sharding by hotel_id, Redis cache via CDC</li>
+ <li>Microservice consistency: 2PC vs Saga vs pragmatic shared DB</li>
+</ul>
+
+<div class="callout interview">🎤 <strong>Interview mein kaise bolein:</strong>
+<ol>
+<li>Estimation se point banao: "TPS 3 hai, to problem scale nahi, <em>correctness under contention</em> hai."</li>
+<li>Room vs room-type booking ka farak khud bolo → <code>room_type_inventory</code> per date.</li>
+<li>Do race conditions alag-alag naam se: double-click (idempotency) vs last-room race (locking).</li>
+<li>Teen locking options ka table + choice: "low contention → optimistic/conditional update; flash-sale hotel → pessimistic ya queue."</li>
+<li>Scale: shard by hotel_id + cache for reads + DB as source of truth.</li>
+<li>Microservices: Saga with holds; mention ki reservation+inventory ek DB mein rakhna pragmatic hai.</li>
+</ol></div>
+
+<h2 id="faq">Follow-up questions</h2>
+<dl>
+<dt>Q: User room hold karke payment page pe baitha hai — inventory kab tak block?</dt><dd>Hold with expiry (e.g. 10-15 min) — <code>status=HELD, expires_at</code>; scheduler/delayed message expire pe release kare (Ch19 delayed messages).</dd>
+<dt>Q: Ek hotel mein flash sale (bahut high contention)?</dt><dd>Optimistic retries storm karenge. Options: per-hotel queue (serialize requests), Redis atomic DECR as gate + DB confirm, ya pessimistic lock with short txn.</dd>
+<dt>Q: Multi-night booking mein ek night available nahi?</dt><dd>Poora transaction rollback — saari nights ek transaction mein; conditional update ka affected-rows == nights check.</dd>
+<dt>Q: Payment success hua lekin reservation confirm call fail?</dt><dd>Payment service event emit kare (outbox), reservation service idempotently confirm kare; agar hold expire ho chuka to auto-refund compensation + alert.</dd>
+</dl>
+
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul>
+<li>Low TPS ≠ easy: asli problem concurrency aur correctness hai.</li>
+<li>Hotel = room <em>type</em> per date inventory table; 73M rows, ek DB kaafi.</li>
+<li>Double-click → idempotency key (server-issued) + unique constraint + stored response.</li>
+<li>Last-room race → pessimistic (FOR UPDATE), optimistic (version), DB constraint, ya best: conditional atomic UPDATE.</li>
+<li>Shard by hotel_id; cache reads via CDC, decisions DB pe.</li>
+<li>Cross-service: 2PC (blocking) vs Saga (eventual + compensation); kabhi kabhi shared DB pragmatic hai.</li>
+</ul></div>
+   <div class="chapter-nav"><a class="prev" href="21-ad-click-aggregation.html">← Prev: Ad Click Event Aggregation</a><a class="next" href="23-email-service.html">Next: Distributed Email Service →</a></div>
+  </main>
+  <aside class="toc">
+   <p class="toc-title">On this page</p>
+    <a href="#intro">Introduction</a>
+    <a href="#step1">Step 1: Requirements aur scope</a>
+    <a href="#step2">Step 2: API, data model, high-level design</a>
+    <a href="#data-model">Step 3a: Improved data model</a>
+    <a href="#concurrency">Step 3b: Concurrency — double booking</a>
+    <a href="#scalability">Step 3c: Scalability</a>
+    <a href="#consistency">Step 3d: Microservices mein data consistency</a>
+    <a href="#wrapup">Step 4: Wrap up</a>
+    <a href="#faq">Follow-up questions</a>
+    <a href="#takeaways">Key Takeaways</a>
+  </aside>
+ </div>
+ <script src="../assets/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 16: Design a Proximity Service · SystemDesign.hinglish</title>
+<meta name="description" content="&quot;Mere 500m ke andar kaunse restaurants hain?&quot; — Yelp / Google Maps jaisa proximity service. 2D search kyun slow hai, aur Geohash, Quadtree, Google S2 kaise 2D ko 1D mein badal ke ise fast banate hain.">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+ <header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><button class="theme-toggle" aria-label="theme">◐</button></header>
+ <div class="layout">
+<nav class="sidebar">
+  <div class="nav-group"><div class="nav-group-title">Foundations</div><ul>
+    <li><a href="01-scaling.html"><span class="n">01</span> Scaling from Zero to Millions</a></li>
+    <li><a href="02-back-of-envelope.html"><span class="n">02</span> Back-of-the-Envelope Estimation</a></li>
+    <li><a href="03-framework.html"><span class="n">03</span> System Design Interview Framework</a></li>
+    <li><a href="04-rate-limiter.html"><span class="n">04</span> Design a Rate Limiter</a></li>
+    <li><a href="05-consistent-hashing.html"><span class="n">05</span> Consistent Hashing</a></li>
+    <li><a href="06-key-value-store.html"><span class="n">06</span> Design a Key-Value Store</a></li>
+    <li><a href="07-unique-id-generator.html"><span class="n">07</span> Unique ID Generator</a></li>
+  </ul></div>
+  <div class="nav-group"><div class="nav-group-title">Classic Designs</div><ul>
+    <li><a href="08-url-shortener.html"><span class="n">08</span> Design a URL Shortener</a></li>
+    <li><a href="09-web-crawler.html"><span class="n">09</span> Design a Web Crawler</a></li>
+    <li><a href="10-notification-system.html"><span class="n">10</span> Design a Notification System</a></li>
+    <li><a href="11-news-feed.html"><span class="n">11</span> Design a News Feed System</a></li>
+    <li><a href="12-chat-system.html"><span class="n">12</span> Design a Chat System</a></li>
+    <li><a href="13-search-autocomplete.html"><span class="n">13</span> Design Search Autocomplete</a></li>
+    <li><a href="14-youtube.html"><span class="n">14</span> Design YouTube</a></li>
+  </ul></div>
+  <div class="nav-group"><div class="nav-group-title">Vol 2 · Part 1</div><ul>
+    <li><a href="15-google-drive.html"><span class="n">15</span> Design Google Drive</a></li>
+    <li><a class="active" aria-current="page" href="16-proximity-service.html"><span class="n">16</span> Design a Proximity Service</a></li>
+    <li><a href="17-nearby-friends.html"><span class="n">17</span> Design Nearby Friends</a></li>
+    <li><a href="18-google-maps.html"><span class="n">18</span> Design Google Maps</a></li>
+    <li><a href="19-message-queue.html"><span class="n">19</span> Distributed Message Queue</a></li>
+    <li><a href="20-metrics-monitoring.html"><span class="n">20</span> Metrics Monitoring &amp; Alerting</a></li>
+    <li><a href="21-ad-click-aggregation.html"><span class="n">21</span> Ad Click Event Aggregation</a></li>
+    <li><a href="22-hotel-reservation.html"><span class="n">22</span> Hotel Reservation System</a></li>
+  </ul></div>
+  <div class="nav-group"><div class="nav-group-title">Vol 2 · Part 2</div><ul>
+    <li><a href="23-email-service.html"><span class="n">23</span> Distributed Email Service</a></li>
+    <li><a href="24-s3-object-storage.html"><span class="n">24</span> S3-like Object Storage</a></li>
+    <li><a href="25-gaming-leaderboard.html"><span class="n">25</span> Real-time Gaming Leaderboard</a></li>
+    <li><a href="26-payment-system.html"><span class="n">26</span> Payment System</a></li>
+    <li><a href="27-digital-wallet.html"><span class="n">27</span> Digital Wallet</a></li>
+    <li><a href="28-stock-exchange.html"><span class="n">28</span> Stock Exchange</a></li>
+  </ul></div>
+  <div class="nav-group"><ul><li><a href="../index.html">🏠 Home</a></li><li><a href="../links.html">🔗 Links guide</a></li></ul></div>
+</nav>
+  <main class="content">
+   <div class="chapter-hero"><span class="chapter-num">Chapter 16</span><h1>Design a Proximity Service</h1><p class="lead">"Mere 500m ke andar kaunse restaurants hain?" — Yelp / Google Maps jaisa proximity service. 2D search kyun slow hai, aur Geohash, Quadtree, Google S2 kaise 2D ko 1D mein badal ke ise fast banate hain.</p><div class="tags"><span class="tag">Geohash</span><span class="tag">Quadtree</span><span class="tag">Google S2</span><span class="tag">Read replicas</span><span class="tag">Redis cache</span><span class="tag">Geospatial index</span></div></div>
+<h2 id="intro">Introduction</h2>
+<p><b>Proximity service</b> nazdeek ki jagah dhoondhta hai — restaurants, hotels, theaters, museums, petrol pumps. Yelp pe "nearby restaurants" ya Google Maps pe "k-nearest gas stations" — sab isi ke upar chalte hain. Ye service location-based apps ka ek core building block hai, aur Chapter 17 (Nearby Friends) aur Chapter 18 (Google Maps) mein bhi iske concepts (khaas kar geohash) wapas aayenge.</p>
+
+<h2 id="step1">Step 1: Problem aur scope</h2>
+<h3>Functional requirements</h3>
+<ol>
+<li>User ki location (latitude, longitude) aur radius se <b>businesses search</b>.</li>
+<li><b>Business owners</b> business add/update/delete kar sakein — ye <b>real-time reflect hona zaroori nahi</b> (agle din tak chalega).</li>
+<li>Customers business ki <b>detailed info</b> dekh sakein.</li>
+</ol>
+<h3>Non-functional requirements</h3>
+<ul>
+<li><b>Low latency</b>: nearby search fast ho.</li>
+<li><b>Data privacy</b>: location sensitive data hai — <b>GDPR</b> (EU) aur <b>CCPA</b> (California) jaise laws comply karne hain.</li>
+<li><b>High availability + scalability</b>: dense areas mein peak hours ke spikes handle.</li>
+</ul>
+<h3>Back-of-the-envelope</h3>
+<ul>
+<li><b>100M DAU</b>, <b>200M businesses</b>.</li>
+<li>Har user roz 5 searches.</li>
+<li>Search QPS = 100M × 5 / 10<sup>5</sup> (≈86,400) ≈ <b>~5,000 QPS</b>.</li>
+</ul>
+<div class="callout tip">💡 <b>Pro tip:</b> Notice karo — 5,000 QPS reads, lekin writes (business updates) bahut kam aur non-real-time. Ye "read-heavy, write-rare" profile hi aage read replicas, caching aur in-memory index ke decisions justify karta hai.</div>
+
+<h2 id="step2">Step 2: High-level design</h2>
+<h3>API design</h3>
+<pre><code>GET /v1/search/nearby
+  latitude   (decimal) - user ki latitude
+  longitude  (decimal) - user ki longitude
+  radius     (int, optional) - default 5000 meter
+
+Response:
+{
+  "total": 10,
+  "businesses": [{business object}]
+}</code></pre>
+<p>Search result mein sirf zaroori fields (naam, distance, rating thumbnail) — poori detail tab jab user click kare (business detail API se). Pagination bhi chahiye, lekin simplicity ke liye skip.</p>
+<table class="cmp">
+<tr><th>API</th><th>Detail</th></tr>
+<tr><td><code>GET /v1/businesses/{id}</code></td><td>Business ki detailed info</td></tr>
+<tr><td><code>POST /v1/businesses</code></td><td>Naya business add</td></tr>
+<tr><td><code>PUT /v1/businesses/{id}</code></td><td>Business update</td></tr>
+<tr><td><code>DELETE /v1/businesses/{id}</code></td><td>Business delete</td></tr>
+</table>
+<h3>Data model</h3>
+<p>Read volume high hai — do features bahut common hain: (1) nearby search, (2) business detail. Write volume low. Read-heavy workload ke liye <b>MySQL jaisa relational DB</b> theek fit hai. Do key tables: <b>business table</b> (detailed info, primary key business_id) aur <b>geospatial index table</b> (spatial operations ke liye — aage detail).</p>
+
+<h3>High-level architecture</h3>
+<figure class="diagram"><img src="../img/16/high-level-design.png" alt="High-level design" loading="lazy"><figcaption>Upar user → <b>Load balancer</b>. LB URL path ke hisaab se route karta hai: <code>/search/nearby</code> → <b>LBS</b> (Location-Based Service), <code>/businesses/{:id}</code> → <b>Business Service</b>. Neeche <b>Database Cluster</b>: Business Service <b>Write</b> karta hai pink <b>Primary</b> DB pe; Primary teen <b>Replica</b> DBs ko "Replicate" karta hai; LBS teeno replicas se <b>Read</b> karta hai.</figcaption></figure>
+<ul>
+<li><b>Load balancer</b>: URL path pe route.</li>
+<li><b>LBS</b>: system ka core — radius + location se nearby businesses. <b>Read-heavy, no writes</b>, high QPS (khaas kar peak hours, dense areas), aur <b>stateless</b> — easily horizontal scale.</li>
+<li><b>Business service</b>: (a) owners create/update/delete — mostly writes, QPS kam; (b) customers detail dekhte hain — peak pe high QPS.</li>
+<li><b>Database cluster</b>: primary-replica. Primary pe writes, replicas pe reads. Replication lag ki wajah se LBS thoda purana data padh sakta hai — <b>chalega</b>, kyunki business info real-time update hona zaroori hi nahi.</li>
+</ul>
+<div class="callout realworld">🌍 <b>Real world:</b> Redis ke paas built-in geo commands hain (<code>GEOADD</code>, <code>GEOSEARCH</code>) jo andar se geohash-style 52-bit encoding use karte hain. PostgreSQL ka PostGIS extension aur Elasticsearch ka <code>geo_point</code> bhi production mein common choices hain. Interview mein in "off-the-shelf" options ka naam lena achha hai — lekin interviewer aksar chahta hai ki aap andar ka algorithm samjhao, jo neeche hai.</div>
+
+<h2 id="algorithms">Step 3: Nearby businesses fetch karne ke algorithms</h2>
+<h3>Option 1: Two-dimensional search (naive)</h3>
+<figure class="diagram"><img src="../img/16/2d-search.png" alt="Naive 2D radius search" loading="lazy"><figcaption>Map pe beech mein <b>"me"</b> (user) hai aur uske chaaron taraf dashed <b>circle</b> = search radius. Circle ke andar restaurant (fork-spoon) aur cafe (cup) icons — yahi results chahiye. Sawaal ye hai ki database se ye "circle ke andar wale" efficiently kaise nikaalein.</figcaption></figure>
+<pre><code>SELECT business_id, latitude, longitude
+FROM business
+WHERE (latitude BETWEEN {:my_lat} - radius AND {:my_lat} + radius)
+  AND (longitude BETWEEN {:my_long} - radius AND {:my_long} + radius);</code></pre>
+<p>Problem: poori table scan — 200M rows pe bahut slow. Latitude aur longitude pe alag-alag index bana do to bhi:</p>
+<figure class="diagram"><img src="../img/16/dataset-intersection.png" alt="Intersection of two 1D datasets" loading="lazy"><figcaption>World map pe ek horizontal blue strip = <b>dataset 1</b> (latitude range ke saare businesses — poori duniya ki chaurai mein) aur ek vertical green strip = <b>dataset 2</b> (longitude range ke saare businesses — pole se pole). Humein sirf dono ka chhota intersection chahiye, lekin har index alag-alag bahut bada set lautata hai, phir intersect karna padta hai — isliye slow.</figcaption></figure>
+<p>Root cause: <b>database index sirf ek dimension mein search fast karta hai</b>. Solution: 2D data ko <b>1D mein map</b> karo — <b>geospatial indexing</b>.</p>
+<figure class="diagram"><img src="../img/16/geospatial-index-types.png" alt="Types of geospatial indexes" loading="lazy"><figcaption>Tree diagram: <b>Index</b> do families mein: <b>Hash</b> (Even Grid, Geohash, Cartesian Tiers) aur <b>Tree</b> (Quadtree, Google S2, RTree). Pink boxes (Even Grid, Geohash, Quadtree, Google S2) wo hain jo is chapter mein detail mein cover hote hain aur interviews mein sabse common hain.</figcaption></figure>
+<p>Sab approaches ka high-level idea same hai: <b>map ko chhote areas mein divide karo aur fast search ke liye index banao</b>.</p>
+
+<h3>Option 2: Evenly divided grid</h3>
+<figure class="diagram"><img src="../img/16/even-grid.png" alt="Evenly divided grid" loading="lazy"><figcaption>World map (WGS84, degrees mein) pe dashed lines fixed-size grids banati hain — latitude -75 se 75 aur longitude -150 se 150 tak equal-sized cells. Har business kisi ek grid mein aata hai. Dikkat dekho: kuch cells mein sirf ocean (zero businesses) hai, aur kuch mein poora dense city.</figcaption></figure>
+<ul>
+<li>Simple: duniya ko fixed-size grids mein baanto.</li>
+<li><b>Problem</b>: businesses ka distribution uneven hai — New York downtown ke ek grid mein hazaron, aur desert/ocean grids khaali.</li>
+<li>Ideally dense areas mein grids chhote aur sparse mein bade hone chahiye.</li>
+<li>Ek aur challenge: kisi grid ke neighbouring grids dhoondhna bhi easy nahi.</li>
+</ul>
+
+<h3>Option 3: Geohash</h3>
+<p>Geohash even grid se better hai. Ye 2D latitude/longitude ko ek 1D <b>string of letters and digits</b> mein encode karta hai — har extra bit pe world ko recursively chhote grids mein todke.</p>
+<figure class="diagram"><img src="../img/16/geohash.png" alt="Geohash first level split" loading="lazy"><figcaption>World ko prime meridian aur equator se <b>chaar quadrants</b> mein toda gaya hai, har ek ko 2-bit code mila: <b>01</b> (top-left), <b>11</b> (top-right), <b>00</b> (bottom-left), <b>10</b> (bottom-right). Corners pe coordinates (-180,90), (180,90), (-180,-90), (180,-90). Har code mein ek bit longitude ka aur ek latitude ka hai.</figcaption></figure>
+<ul>
+<li>Latitude range [-90, 0] → 0, [0, 90] → 1.</li>
+<li>Longitude range [-180, 0] → 0, [0, 180] → 1.</li>
+</ul>
+<figure class="diagram"><img src="../img/16/geohash-1.png" alt="Geohash second level split" loading="lazy"><figcaption>Har quadrant ko phir se 4 mein toda — ab har cell ka code 4 bits ka (jaise <b>01 01</b>, <b>01 11</b>, <b>11 00</b>, <b>10 10</b>). Bold box top-left quadrant (01) highlight karta hai: uske andar ke chaaron cells <b>01</b> se hi shuru hote hain. Yahi hierarchical property hai — parent ka code child ka prefix hai.</figcaption></figure>
+<p>Ye subdivision repeat karte raho jab tak grid size desired precision tak na pahunch jaaye. Bits ko <b>base32</b> mein represent karte hain. Example (Google HQ): <code>1001 10110 01001 10000 11011 11010</code> (base32 binary) → <code>9q9hvu</code> (base32, length 6).</p>
+<p>Geohash ke <b>12 precision levels</b> hain. Precision table (movable-type page se verify kiya): length 4 ≈ 39.1km × 19.5km, length 5 ≈ 4.89km × 4.89km, length 6 ≈ 1.22km × 0.61km, length 7 ≈ 153m × 153m (cell width equator se door jaate hue kam hoti hai). Proximity search ke liye generally length 4–6 kaafi hai — 6 se lambi = grid bahut chhota, 4 se chhoti = grid bahut bada.</p>
+<figure class="diagram"><img src="../img/16/geohash-radius-mapping.png" alt="Radius to geohash length mapping" loading="lazy"><figcaption>Do columns: <b>Radius (Kilometers)</b> aur <b>Geohash length</b>. 0.5 km (0.31 mile) → 6; 1 km (0.62 mile) → 5; 2 km (1.24 mile) → 5; 5 km (3.1 mile) → 4; 20 km (12.42 mile) → 4. Rule: user ke radius ko poora cover karne wali <b>minimum geohash length</b> choose karo.</figcaption></figure>
+<p>Key property: <b>do geohashes ka shared prefix jitna lamba, wo utne kareeb</b>. Isliye search = prefix match, jo normal DB index (B-tree) pe fast hai: <code>SELECT business_id FROM geohash_index WHERE geohash LIKE '9q8zn%'</code>.</p>
+<h3>Boundary issues</h3>
+<figure class="diagram"><img src="../img/16/boundary-issue.png" alt="Geohash boundary and neighbors" loading="lazy"><figcaption>San Francisco ka map, green grid cells pe 6-char geohashes: <b>9q8zn6, 9q8znd, 9q8znf</b> (upar row), <b>9q8zn3, 9q8zn9, 9q8znc</b> (beech), <b>9q8zn2, 9q8zn8, 9q8znb</b> (neeche). Sab ka common prefix <b>9q8zn</b> hai — wo ek bada parent cell hai. Beech wala cell (9q8zn9) aur uske 8 neighbours milake ek 3×3 block banate hain; isi block mein search karne se edge ke paas wale businesses miss nahi hote.</figcaption></figure>
+<p>Geohash ki do edge cases:</p>
+<ol>
+<li><b>Bahut paas, lekin koi shared prefix nahi</b>: do jagah equator ya prime meridian ke opposite sides pe. Jaise France mein La Roche-Chalais (geohash <code>u000</code>) Pomerol (<code>ezzz</code>) se sirf ~30 km door hai, lekin prefix bilkul alag. Isliye simple prefix <code>LIKE</code> query in businesses ko miss karegi.</li>
+<li><b>Lamba shared prefix, lekin alag geohashes</b>: user apne cell ke edge pe hai aur nazdeek ka business bagal ke cell mein.</li>
+</ol>
+<p><b>Solution</b>: sirf current grid nahi, uske <b>8 neighbours</b> bhi fetch karo. Neighbours constant time mein calculate ho jaate hain.</p>
+<h3>Agar enough businesses nahi mile?</h3>
+<p>Option 1: sirf radius ke andar wale lautao (simple, lekin user ko kam results). Option 2: <b>search radius badhao</b> — geohash ka last character hatao (bada grid), phir bhi kam hain to ek aur character hatao, jab tak enough results na aa jaayein.</p>
+
+<h3>Option 4: Quadtree</h3>
+<p><b>Quadtree</b> 2D space ko recursively chaar quadrants mein todta hai jab tak grids ka content kisi criteria pe na pahunche — jaise "kisi grid mein 100 se zyada businesses nahi". Har internal node ke exactly 4 children. Important: quadtree <b>in-memory data structure</b> hai, database solution nahi — har LBS server pe chalta hai aur <b>server startup pe build</b> hota hai.</p>
+<figure class="diagram"><img src="../img/16/quadtree.png" alt="Quadtree subdivision" loading="lazy"><figcaption>Teen stages left se right: (1) poori duniya ek box mein — <b>200m</b> (200 million businesses). (2) chaar quadrants: <b>NW (40m), NE (30m), SW (70m), SE (60m)</b>. (3) NE quadrant (abhi bhi 100 se bahut zyada) phir se 4 mein — <b>10m, 11m, 4m, 5m</b>. Ye tab tak chalta hai jab tak har leaf mein ≤100 businesses na hon.</figcaption></figure>
+<figure class="diagram"><img src="../img/16/building-quadtree.png" alt="Building the quadtree" loading="lazy"><figcaption>Tree form: root <b>200m</b> ke 4 children <b>nw 40m, ne 30m, sw 70m, se 60m</b>; 30m ke children <b>12m, 4m, 5m, 9m</b>; 4m ke neeche dashed lines = "Represent many layers" (beech ke kai levels); phir ek node <b>340</b> ke children leaf squares <b>50, 90, 60</b> aur ek internal node <b>140</b> (100 se zyada hai isliye aur split) jiske leaves <b>60, 80</b>. Legend: circle = <b>internal node</b>, square = <b>leaf node</b> (≤100 businesses).</figcaption></figure>
+<h3>Quadtree kitni memory lega?</h3>
+<ul>
+<li>Leaf node mein max 100 business IDs. 200M / 100 ≈ <b>~2M leaf nodes</b>; internal nodes ≈ leaves ka ~1/3.</li>
+<li>Har leaf ~100 IDs × 8 bytes ≈ ~800 bytes + coordinates → total kuch <b>GB</b> (notes: "typically in GBs") — <b>ek server ki memory mein fit</b>.</li>
+<li>Isliye quadtree ko multiple servers pe shard karne ki zaroorat nahi; read load ke liye bas zyada servers/replicas lagao.</li>
+</ul>
+<h3>Build time aur search</h3>
+<ul>
+<li>Build complexity <b>O(n log n)</b> — 200M businesses ke liye <b>kuch minutes</b>.</li>
+<li>Search: root se traverse karke us leaf tak jahan search origin hai; us leaf mein 100 businesses hain to return, warna neighbours add karte raho jab tak enough na mil jaaye.</li>
+<li><b>k-nearest</b> queries ke liye natural fit (e.g. "sabse nazdeek 5 gas stations, chahe kitni bhi door hon").</li>
+</ul>
+<figure class="diagram"><img src="../img/16/realworld-quadtree.png" alt="Real-world quadtree around Denver" loading="lazy"><figcaption>Denver area ke map pe green quadtree grid: downtown <b>Denver</b> ke aaspaas cells bahut chhote (dense businesses), aur bahar <b>Watkins, Strasburg, Byers</b> jaise sparse areas mein cells bade. Yahi quadtree ka fayda hai — grid size density ke hisaab se automatically adjust hota hai.</figcaption></figure>
+<h3>Operational considerations</h3>
+<ul>
+<li>Startup pe build mein kuch minutes — <b>us dauran server traffic serve nahi kar sakta</b>. Isliye naya release <b>incrementally</b> servers ke subset pe roll out karo (blue/green deploy bhi option hai, lekin saare naye servers ek saath DB se 200M businesses load karein to DB pe load spike).</li>
+<li>Business add/update: sabse aasaan — quadtree ko incrementally rebuild karo (raat ko nightly job), lekin isse bahut saari <b>cache invalidation</b> hoti hai.</li>
+<li>On-the-fly update bhi possible hai, lekin complex — multiple threads ek saath tree access karte hain to <b>locking mechanism</b> chahiye.</li>
+</ul>
+<div class="callout warn">⚠️ <b>Failure mode:</b> Saare LBS servers ek saath restart (bad deploy) → sab quadtree rebuild kar rahe hain → kuch minutes tak koi capacity nahi. Rolling restart + readiness probe (tree ready hone ke baad hi LB traffic bheje) zaroori. Kubernetes/Spring Boot mein ye readiness health indicator se hota hai.</div>
+
+<h3>Option 5: Google S2</h3>
+<p><b>Google S2 geometry library</b> bhi popular hai. Ye sphere ko <b>Hilbert curve</b> (space-filling curve) ke basis pe 1D index mein map karti hai. Hilbert curve ki important property: <b>curve pe kareeb do points 1D space mein bhi kareeb hote hain</b>. 1D space mein search 2D se kahin zyada efficient hai. S2 complex library hai — interview mein iski internals explain karna expected nahi.</p>
+<figure class="diagram"><img src="../img/16/hilbert-curve.png" alt="Hilbert curve mapping 2D to 1D" loading="lazy"><figcaption>Upar grey grid ke andar zig-zag Hilbert curve poore 2D square ko ek continuous line se cover karti hai. Purple points jo 2D mein ek-dusre ke paas hain (upar beech mein do clusters), neeche ki number line (0 se 1) pe bhi paas-paas (≈0.5 ke aaspaas) map hote hain. Orange point bottom-left corner ke paas hai to line pe bhi 0 ke paas. Yahi "2D locality → 1D locality" ka idea hai.</figcaption></figure>
+<h3>S2 ke fayde</h3>
+<ul>
+<li><b>Geofencing</b> ke liye great: arbitrary areas ko varying levels ke cells se cover kar sakta hai. Geofence = real-world geographic area ke around virtual perimeter. Isse apps "user is area mein enter/exit hua" detect kar sakti hain.</li>
+<li><b>Region Cover algorithm</b>: fixed precision level ke bajaye min level, max level aur max cells specify kar sakte ho — result zyada granular, kyunki cell sizes flexible hain.</li>
+</ul>
+<figure class="diagram"><img src="../img/16/geofence.png" alt="Geofence example" loading="lazy"><figcaption>San Francisco ke map (Judah, Kirkham, Lawton Streets) pe ek irregular cyan polygon <b>"Geofence"</b> — ye koi circle ya rectangle nahi, arbitrary shape hai. S2 is shape ko alag-alag size ke cells ke collection se approximately cover kar sakta hai, phir "point andar hai ya nahi" fast check hota hai.</figcaption></figure>
+
+<h3>Geohash vs Quadtree vs S2</h3>
+<table class="cmp">
+<tr><th></th><th>Geohash</th><th>Quadtree</th><th>Google S2</th></tr>
+<tr><td>Implement karna</td><td>Easy; tree build/rebuild nahi</td><td>Thoda harder</td><td>Hard (library use karo)</td></tr>
+<tr><td>Query type</td><td>Fixed radius</td><td><b>k-nearest</b> natural</td><td>Region cover, geofencing</td></tr>
+<tr><td>Density adapt?</td><td>❌ Fixed grid size per precision</td><td>✅ Dynamic grid size</td><td>✅ Flexible levels</td></tr>
+<tr><td>Index update</td><td>Easy — ek row add/remove</td><td>Complex — rebalancing/locks, ya rebuild</td><td>Moderate</td></tr>
+<tr><td>Real world</td><td>Bing Maps, Redis, MongoDB, Lyft</td><td>Yext</td><td>Google Maps, Tinder</td></tr>
+</table>
+<p>(Real-world users ki list book ke reference se hai.)</p>
+
+<h3>🔗 Notes ke reference URLs — kya hai inme</h3>
+<ul>
+<li><a href="https://www.movable-type.co.uk/scripts/geohash.html" target="_blank" rel="noopener">Geohash Algorithm — movable-type.co.uk</a> — <i>interactive geohash encoder/decoder: lat/long + precision daalo to geohash milta hai (aur ulta), 8 neighbours bhi dikhata hai; length 1–12 ke cell sizes ki table aur La Roche-Chalais (u000) vs Pomerol (ezzz) wala boundary example yahin se hai.</i></li>
+<li><a href="https://en.wikipedia.org/wiki/Quadtree" target="_blank" rel="noopener">Quadtree — Wikipedia</a> — <i>quadtree ki definition (har internal node ke 4 children), types (region, point, PR quadtree), aur insert/queryRange ka pseudocode; "bucket capacity full hone pe split" wahi idea hai jo humare 100-businesses-per-leaf mein hai.</i></li>
+<li><a href="https://s2geometry.io/" target="_blank" rel="noopener">Google S2 Geometry — s2geometry.io</a> — <i>Google ki open-source (Apache 2.0) S2 library ka official site: data ko flat map ki jagah 3D sphere pe represent karti hai, S2 cell hierarchy, region covering aur nearby-object queries ke developer guides.</i></li>
+</ul>
+<div class="callout tip">🔗 In links ko kaise padhein aur kya dhyaan se dekhein — detailed guide: <a href="../links.html#ch16">Links guide → Chapter 16</a>.</div>
+
+<h2 id="scaling">Step 4: Database scaling aur caching</h2>
+<h3>Business table scale</h3>
+<p>Data ek server mein fit na ho — <b>business_id se shard</b> karo. Load evenly distribute hota hai aur operationally simple hai.</p>
+<h3>Geospatial index table</h3>
+<p>Do options:</p>
+<ul>
+<li><b>Option 1</b>: har geohash key ke liye ek JSON array of business IDs — <code>geohash → [id1, id2, …]</code>. Update karna mushkil (array mein search karke hatana, locking).</li>
+<li><b>Option 2 (recommended)</b>: har business ke liye <b>alag row</b> — compound key <code>(geohash, business_id)</code>. Add/remove simple, koi locking nahi.</li>
+</ul>
+<table class="cmp">
+<tr><th>Geohash</th><th>Business ID</th></tr>
+<tr><td>9q9hvu</td><td>343</td></tr>
+<tr><td>9q9hvu</td><td>347</td></tr>
+<tr><td>9q9hvu</td><td>112</td></tr>
+</table>
+<p>Geospatial index table ko shard karna chahiye? <b>Zaroorat nahi</b> — ye poora ek server mein fit ho jaata hai (har row bas geohash + id), aur sharding ka koi technical reason nahi; sharding application logic complicate karta hai. Read load ke liye <b>read replicas</b> better.</p>
+
+<h3>Caching strategy</h3>
+<p>Cache add karne se pehle poochho: "kya sach mein chahiye?" Workload read-heavy hai aur dataset relatively chhota (memory mein fit), to haan, cache se latency aur DB load dono kam honge.</p>
+<p>Sabse obvious cache key — user ka <b>location coordinate</b> — achha nahi kyunki:</p>
+<ul>
+<li>Phone se aaye GPS coordinates <b>exact nahi hote</b> — har request thoda alag.</li>
+<li>User move karta hai to coordinates badalte hain, lekin results zyada tar same.</li>
+</ul>
+<p>Better key = <b>geohash</b> (ya quadtree node): chhota location change same geohash mein map ho jaata hai.</p>
+<table class="cmp">
+<tr><th>Cache key</th><th>Cache value</th></tr>
+<tr><td><code>geohash</code></td><td>Us grid ke business IDs ki list</td></tr>
+<tr><td><code>business_id</code></td><td>Business object (name, address, reviews…)</td></tr>
+</table>
+<p>Har precision (4, 5, 6) ke liye alag cache keys rakh sakte ho, taaki alag radius ki queries serve ho sakein. Memory rough: 200M businesses × 3 precisions × ~8 bytes per ID ≈ kuch GB — modern Redis server mein fit, lekin availability aur cross-continent latency ke liye Redis cluster globally deploy karo.</p>
+
+<h2 id="final">Step 5: Region, availability zones aur final design</h2>
+<ul>
+<li>LBS ko <b>multiple regions aur availability zones</b> mein deploy karo — users physically paas ke server se, traffic evenly spread, aur privacy laws (kuch countries data locally rakhne ko kehti hain) ke liye region-wise data.</li>
+<li>Business updates <b>daily batch</b> (nightly job) mein process — real-time ki requirement nahi.</li>
+<li>Extra filters (e.g. "sirf abhi khule restaurants", "sirf restaurants") — geohash/quadtree se business IDs nikalne ke baad chhoti list pe filter apply karna cheap hai.</li>
+</ul>
+<figure class="diagram"><img src="../img/16/final-design.png" alt="Final design" loading="lazy"><figcaption>Numbered: <b>①</b> user → <b>Load balancer</b>; <b>②</b> <code>/search/nearby</code> → <b>LBS</b>; <b>③④</b> LBS geohash length calculate karta hai aur neighbours nikalta hai; <b>⑤⑥ Read</b> — LBS <b>Redis Cluster</b> ke <b>Geohash</b> cache se business IDs aur <b>Business Info</b> cache se details padhta hai. Right side: <code>/businesses/{:id}</code> → <b>Business Service</b> jo Redis se <b>Read</b> aur <b>Database Cluster</b> ke pink <b>Primary</b> pe <b>Write</b> karta hai; Primary <b>Replicas</b> ko replicate karta hai, aur DB cluster Redis ko <b>Sync</b> karta hai.</figcaption></figure>
+<h3>Nearby search ke steps (end-to-end)</h3>
+<ol>
+<li>User 500m ke andar restaurants dhoondhta hai — client <b>latitude 37.776720, longitude -122.416730, radius 500m</b> load balancer ko bhejta hai.</li>
+<li>LB request <b>LBS</b> ko forward karta hai.</li>
+<li>LBS radius ke hisaab se geohash length nikalta hai — table se <b>500m → length 6</b>.</li>
+<li>LBS current geohash + <b>8 neighbours</b> calculate karta hai: <code>[my_geohash, neighbor1_geohash, …, neighbor8_geohash]</code>.</li>
+<li>Har geohash ke liye <b>Geohash Redis</b> se business IDs — <b>parallel calls</b> se latency kam.</li>
+<li>Business IDs se <b>Business Info Redis</b> se full details, user se <b>distance calculate</b>, rank karke client ko.</li>
+</ol>
+<h3>Business owner ka view/update flow</h3>
+<p>Business info API: pehle cache (business_id key) check, miss pe DB se laake cache. Owner update karta hai → primary DB; nightly job cache/index refresh karta hai — next day effect.</p>
+
+<h2 id="interview">Interview mein kaise bolein</h2>
+<div class="callout interview">🎤 <b>45-min plan:</b>
+<ol>
+<li><b>(5 min)</b> Scope: search by lat/long + radius, business CRUD (non real-time), detail view; latency, privacy (GDPR/CCPA), HA. Math: 100M DAU × 5 → ~5,000 QPS; 200M businesses.</li>
+<li><b>(7 min)</b> APIs + data model + HLD: LB → LBS (stateless, read-only) / Business service; primary-replica DB, lag acceptable.</li>
+<li><b>(18 min)</b> Algorithms: naive 2D SQL aur kyun slow (1D index) → even grid → geohash (bits, base32, precision table, boundary + 8 neighbours) → quadtree (100 per leaf, memory, build time, rolling deploy) → S2 (Hilbert, geofencing). Comparison table.</li>
+<li><b>(10 min)</b> Scaling: business table shard by id, geo index = (geohash, business_id) rows + read replicas, cache key = geohash not lat/long, Redis cluster, multi-region.</li>
+<li><b>(5 min)</b> Final flow walk-through: 500m → length 6 → 9 cells → parallel Redis → rank by distance.</li>
+</ol>
+Key line: <i>"Database index 1D hota hai, problem 2D hai — isliye main geohash se 2D ko 1D string prefix mein convert karunga, aur boundary issue ke liye 8 neighbours bhi query karunga."</i></div>
+
+<h2 id="followups">Common follow-up questions</h2>
+<p><b>Q: Geohash ya quadtree — kaunsa choose karoge?</b><br>A: Fixed-radius search + easy updates → geohash (Redis ke saath simple). k-nearest aur density-adaptive grids chahiye → quadtree. Dono valid; trade-off clearly bolo.</p>
+<p><b>Q: Radius 500m hai lekin us area mein sirf 2 restaurants hain?</b><br>A: Geohash ka last char hata ke grid bada karo (radius expand) jab tak enough results na milein — ya user ko kam results dikhao.</p>
+<p><b>Q: Do jagah 100m door hain lekin geohash prefix alag kyun?</b><br>A: Boundary issue (equator/meridian ya cell edge). Isliye 8 neighbours query karte hain.</p>
+<p><b>Q: Quadtree server restart pe minutes leta hai — production mein kaise?</b><br>A: Rolling deploy, readiness check, aur ho sake to tree ko snapshot se load karna; saare servers ek saath kabhi restart nahi.</p>
+<p><b>Q: Business owner ne naya restaurant add kiya — kab dikhega?</b><br>A: Requirement ke hisaab se next day — nightly batch geo index aur cache update karta hai.</p>
+<p><b>Q: Cache key lat/long kyun nahi?</b><br>A: GPS imprecise hai aur user move karta hai — hit rate almost zero hoga. Geohash nearby coordinates ko ek key mein group karta hai.</p>
+
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul>
+<li>~5,000 search QPS, 200M businesses, read-heavy + writes non-real-time → read replicas, caching, stateless LBS.</li>
+<li>Naive 2D SQL slow hai kyunki DB index ek dimension mein hi help karta hai; geospatial index 2D → 1D map karta hai.</li>
+<li>Geohash: recursive quadrant split, base32 string, shared prefix = proximity; radius → precision (500m → 6, 1–2km → 5, 5–20km → 4); boundary issue ke liye 8 neighbours.</li>
+<li>Quadtree: in-memory, ≤100 businesses per leaf, kuch GB mein fit, O(n log n) build (minutes) → rolling deploys; k-nearest ke liye best.</li>
+<li>Google S2: Hilbert curve, geofencing aur flexible region cover.</li>
+<li>Geo index rows = (geohash, business_id); shard business table by id, geo index ko replicas se scale.</li>
+<li>Cache key = geohash (not raw lat/long); Redis mein geohash→IDs aur business_id→object; multi-region deploy.</li>
+</ul></div>
+   <div class="chapter-nav"><a class="prev" href="15-google-drive.html">← Prev: Design Google Drive</a><a class="next" href="17-nearby-friends.html">Next: Design Nearby Friends →</a></div>
+  </main>
+  <aside class="toc"><div class="toc-title">On this page</div><ul>
+    <li><a href="#intro">Introduction</a></li>
+    <li><a href="#step1">Step 1: Problem aur scope</a></li>
+    <li><a href="#step2">Step 2: High-level design</a></li>
+    <li><a href="#algorithms">Step 3: Nearby businesses fetch karne ke algorithms</a></li>
+    <li><a href="#scaling">Step 4: Database scaling aur caching</a></li>
+    <li><a href="#final">Step 5: Region, availability zones aur final design</a></li>
+    <li><a href="#interview">Interview mein kaise bolein</a></li>
+    <li><a href="#followups">Common follow-up questions</a></li>
+    <li><a href="#takeaways">Key Takeaways</a></li>
+  </ul></aside>
+ </div>
+ <script src="../assets/app.js"></script>
+</body>
+</html>

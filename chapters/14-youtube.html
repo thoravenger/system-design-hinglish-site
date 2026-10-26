@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 14: Design YouTube · SystemDesign.hinglish</title>
+<meta name="description" content="Upload karo, transcode karo, CDN se stream karo — aur bill $150k/day se kam rakho. YouTube design mein blob storage, DAG-based transcoding pipeline, pre-signed URLs aur CDN cost optimization ka pura kissa.">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+ <header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><button class="theme-toggle" aria-label="theme">◐</button></header>
+ <div class="layout">
+<nav class="sidebar">
+  <div class="nav-group"><div class="nav-group-title">Foundations</div><ul>
+    <li><a href="01-scaling.html"><span class="n">01</span> Scaling from Zero to Millions</a></li>
+    <li><a href="02-back-of-envelope.html"><span class="n">02</span> Back-of-the-Envelope Estimation</a></li>
+    <li><a href="03-framework.html"><span class="n">03</span> System Design Interview Framework</a></li>
+    <li><a href="04-rate-limiter.html"><span class="n">04</span> Design a Rate Limiter</a></li>
+    <li><a href="05-consistent-hashing.html"><span class="n">05</span> Consistent Hashing</a></li>
+    <li><a href="06-key-value-store.html"><span class="n">06</span> Design a Key-Value Store</a></li>
+    <li><a href="07-unique-id-generator.html"><span class="n">07</span> Unique ID Generator</a></li>
+  </ul></div>
+  <div class="nav-group"><div class="nav-group-title">Classic Designs</div><ul>
+    <li><a href="08-url-shortener.html"><span class="n">08</span> Design a URL Shortener</a></li>
+    <li><a href="09-web-crawler.html"><span class="n">09</span> Design a Web Crawler</a></li>
+    <li><a href="10-notification-system.html"><span class="n">10</span> Design a Notification System</a></li>
+    <li><a href="11-news-feed.html"><span class="n">11</span> Design a News Feed System</a></li>
+    <li><a href="12-chat-system.html"><span class="n">12</span> Design a Chat System</a></li>
+    <li><a href="13-search-autocomplete.html"><span class="n">13</span> Design Search Autocomplete</a></li>
+    <li><a class="active" aria-current="page" href="14-youtube.html"><span class="n">14</span> Design YouTube</a></li>
+  </ul></div>
+  <div class="nav-group"><div class="nav-group-title">Vol 2 · Part 1</div><ul>
+    <li><a href="15-google-drive.html"><span class="n">15</span> Design Google Drive</a></li>
+    <li><a href="16-proximity-service.html"><span class="n">16</span> Design a Proximity Service</a></li>
+    <li><a href="17-nearby-friends.html"><span class="n">17</span> Design Nearby Friends</a></li>
+    <li><a href="18-google-maps.html"><span class="n">18</span> Design Google Maps</a></li>
+    <li><a href="19-message-queue.html"><span class="n">19</span> Distributed Message Queue</a></li>
+    <li><a href="20-metrics-monitoring.html"><span class="n">20</span> Metrics Monitoring &amp; Alerting</a></li>
+    <li><a href="21-ad-click-aggregation.html"><span class="n">21</span> Ad Click Event Aggregation</a></li>
+    <li><a href="22-hotel-reservation.html"><span class="n">22</span> Hotel Reservation System</a></li>
+  </ul></div>
+  <div class="nav-group"><div class="nav-group-title">Vol 2 · Part 2</div><ul>
+    <li><a href="23-email-service.html"><span class="n">23</span> Distributed Email Service</a></li>
+    <li><a href="24-s3-object-storage.html"><span class="n">24</span> S3-like Object Storage</a></li>
+    <li><a href="25-gaming-leaderboard.html"><span class="n">25</span> Real-time Gaming Leaderboard</a></li>
+    <li><a href="26-payment-system.html"><span class="n">26</span> Payment System</a></li>
+    <li><a href="27-digital-wallet.html"><span class="n">27</span> Digital Wallet</a></li>
+    <li><a href="28-stock-exchange.html"><span class="n">28</span> Stock Exchange</a></li>
+  </ul></div>
+  <div class="nav-group"><ul><li><a href="../index.html">🏠 Home</a></li><li><a href="../links.html">🔗 Links guide</a></li></ul></div>
+</nav>
+  <main class="content">
+   <div class="chapter-hero"><span class="chapter-num">Chapter 14</span><h1>Design YouTube</h1><p class="lead">Upload karo, transcode karo, CDN se stream karo — aur bill $150k/day se kam rakho. YouTube design mein blob storage, DAG-based transcoding pipeline, pre-signed URLs aur CDN cost optimization ka pura kissa.</p><div class="tags"><span class="tag">CDN</span><span class="tag">Blob storage</span><span class="tag">Transcoding DAG</span><span class="tag">Pre-signed URL</span><span class="tag">Adaptive streaming</span></div></div>
+<h2 id="intro">Introduction</h2>
+<p>YouTube dikhne mein simple hai — upload karo, dekho. Lekin andar ek huge pipeline hai. Notes mein diye 2020 ke stats scale ka idea dete hain:</p>
+<ul>
+<li><b>2 billion</b> monthly active users</li>
+<li><b>5 billion</b> videos roz dekhe jaate hain</li>
+<li>Mobile internet traffic ka <b>37%</b> YouTube se</li>
+<li><b>80 languages</b> mein available</li>
+<li>2019 mein <b>$15.1 billion</b> ad revenue</li>
+</ul>
+<p>Hum ek chhota version design karenge jiski core features: fast uploads, smooth streaming, video quality change, <b>low infrastructure cost</b>, high availability aur reliability.</p>
+
+<h2 id="step1">Step 1: Problem aur scope</h2>
+<table class="cmp">
+<tr><th>Item</th><th>Assumption</th></tr>
+<tr><td>Features</td><td>Upload video, watch video</td></tr>
+<tr><td>Clients</td><td>Mobile apps, web browsers, smart TV</td></tr>
+<tr><td>DAU</td><td>5 million</td></tr>
+<tr><td>Avg video size</td><td>300 MB; max upload 1 GB</td></tr>
+<tr><td>Extra</td><td>Multiple resolutions, encryption, international users</td></tr>
+</table>
+<h3>Estimation</h3>
+<ul>
+<li>Maan lo 10% users roz ek video upload karte hain: 5M × 10% × 300 MB = <b>150 TB/day</b> naya storage (notes ka number).</li>
+<li>CDN cost (Amazon CloudFront, ~$0.02/GB, US): har user roz 5 videos dekhe → 5M × 5 × 0.3 GB × $0.02 = <b>$150,000/day</b>.</li>
+</ul>
+<div class="callout tip">💡 <b>Pro tip:</b> Ye $150k/day wala number hi poore design ki direction set karta hai — "CDN se sab kuch serve karna bahut mehenga hai". Interview mein ise early bolo aur wrap-up mein cost optimizations se wapas jodo; ye senior-level thinking dikhata hai.</div>
+
+<h2 id="step2">Step 2: High-level design</h2>
+<p>Hum CDN aur blob storage khud nahi banayenge — cloud services leverage karenge (Netflix AWS use karta hai, Facebook Akamai CDN use karta tha — book ke examples). Interview mein "right technology choose karna" har cheez khud banane se zyada important hai.</p>
+<figure class="diagram"><img src="../img/14/high-level-design.png" alt="High-level split: CDN vs API servers" loading="lazy"><figcaption>Upar <b>Client</b> (laptop, phone, TV). Do arrows: left <b>"streaming video"</b> → <b>CDN</b>, right <b>"everything else"</b> → <b>API servers</b>. Matlab heavy video bytes kabhi API servers se nahi guzarte; feed, recommendations, upload URL, metadata, signup — sab API servers handle karte hain.</figcaption></figure>
+
+<h3>Video uploading flow</h3>
+<figure class="diagram"><img src="../img/14/video-uploading-flow.png" alt="Video uploading flow" loading="lazy"><figcaption>Numbers follow karo: <b>1</b> User video <b>Original storage</b> (blob) mein upload karta hai → <b>2</b> <b>Transcoding servers</b> original video fetch karke transcode karte hain → transcoding complete hone pe do kaam parallel: <b>3a</b> transcoded videos <b>Transcoded storage</b> mein → <b>3a.1</b> wahan se <b>CDN</b> pe distribute; <b>3b</b> "transcoding complete" event <b>Completion queue</b> mein → <b>3b.1</b> <b>Completion handler</b> workers event uthate hain → <b>3b.1.a</b> <b>Metadata DB</b> aur <b>3b.1.b</b> <b>Metadata Cache</b> update karte hain → <b>4</b> API servers user ko batate hain ki video ready hai (streaming ke liye). Bagal mein User → Load balancer → API servers → Metadata Cache/DB wala path metadata ke liye hai.</figcaption></figure>
+<p>Components:</p>
+<ul>
+<li><b>User</b>: phone, laptop, TV.</li>
+<li><b>Load balancer + API servers</b>: streaming ke alawa sab requests.</li>
+<li><b>Metadata DB</b>: title, description, size, URL… sharded + replicated (performance + availability).</li>
+<li><b>Metadata cache</b>: fast metadata reads.</li>
+<li><b>Original storage</b>: blob storage for raw uploads. (Blob = Binary Large Object.)</li>
+<li><b>Transcoding servers</b>: video ko multiple formats/resolutions mein convert.</li>
+<li><b>Transcoded storage</b>: transcoded files ka blob storage.</li>
+<li><b>CDN</b>: videos cache + stream.</li>
+<li><b>Completion queue + handler</b>: transcoding complete events → metadata update.</li>
+</ul>
+<h3>Metadata update (parallel)</h3>
+<figure class="diagram"><img src="../img/14/metadata-upload.png" alt="Metadata update flow" loading="lazy"><figcaption>Jab file upload ho rahi hoti hai, saath hi client <b>"Update metadata"</b> request bhejta hai → <b>Load balancer</b> → <b>API servers</b> → API servers <b>Metadata Cache</b> aur <b>Metadata DB</b> dono update karte hain. Request mein file name, size, format jaisa metadata hota hai.</figcaption></figure>
+<p>Upload aur metadata update <b>parallel</b> chalte hain — user ko 1 GB file khatam hone ka wait nahi karna padta title likhne ke liye.</p>
+
+<h3>Video streaming flow</h3>
+<figure class="diagram"><img src="../img/14/video-streaming-flow.png" alt="Video streaming from CDN" loading="lazy"><figcaption>Bahut simple: <b>Client</b> → "streaming video" → <b>CDN</b>. Video sabse nazdeek wale edge server se aati hai, isliye latency kam.</figcaption></figure>
+<p><b>Streaming</b> matlab poori file download kiye bina playback continuous chalta hai. Popular streaming protocols: <b>MPEG-DASH</b>, <b>Apple HLS</b>, <b>Adobe HDS</b> (aur Microsoft Smooth Streaming). Alag protocols alag encodings aur players support karte hain — isliye ek hi video ko multiple formats mein rakhna padta hai.</p>
+<div class="callout realworld">🌍 <b>Real world:</b> HLS aur DASH dono video ko chhote segments (kuch seconds ke) mein todte hain aur ek manifest/playlist file deti hai ki har quality level ke segments kahan hain. Player network speed dekh ke har segment pe quality switch karta hai — isi ko <b>adaptive bitrate streaming</b> kehte hain, aur isi wajah se transcoding mein multiple bitrates banane padte hain.</div>
+
+<h2 id="step3">Step 3: Design deep dive</h2>
+<h3>Video transcoding kyun zaroori hai?</h3>
+<ol>
+<li><b>Storage</b>: raw video bahut space leta hai — 60 fps pe 1 ghante ki HD video kuch sau GB ki ho sakti hai.</li>
+<li><b>Compatibility</b>: devices/browsers sirf certain formats support karte hain.</li>
+<li><b>Network-adaptive quality</b>: fast network pe high-res, slow pe low-res — smooth playback ke liye multiple bitrates.</li>
+<li>Mobile networks badalte rehte hain — automatic/manual quality switch.</li>
+</ol>
+<p>Encoding format ke do parts:</p>
+<ul>
+<li><b>Container</b>: basket jisme video, audio, metadata rehte hain — .mp4, .mov, .avi (extension se pata chalta hai).</li>
+<li><b>Codec</b>: compression/decompression algorithm — H.264, VP9, HEVC.</li>
+</ul>
+<h3>DAG model</h3>
+<p>Transcoding computationally expensive aur time-consuming hai. Aur har creator ki needs alag: koi watermark chahta hai, koi apna thumbnail, koi high-def upload karta hai. Isliye abstraction chahiye jo client programmers ko tasks define karne de aur parallelism maximum ho — <b>Directed Acyclic Graph (DAG)</b>. (Facebook ki streaming video engine bhi DAG programming model use karti hai — book ka reference.)</p>
+<figure class="diagram"><img src="../img/14/dag-video-transcoding.png" alt="DAG for video transcoding" loading="lazy"><figcaption>Left mein <b>Original video</b> teen branches mein split hota hai: <b>Video</b>, <b>Audio</b>, <b>Metadata</b>. Video branch dashed <b>Tasks</b> box mein jaati hai — <b>Inspection</b> (quality check, malformed to nahi), <b>Video transcoding</b>, <b>Thumbnail</b>, …, <b>Watermark</b>. Audio branch → <b>Audio encoding</b>. Aakhir mein video transcoding aur audio encoding ke outputs <b>Assemble</b> mein milte hain. Arrows dependency batate hain — jo tasks ek dusre pe depend nahi karte wo parallel chal sakte hain.</figcaption></figure>
+<ul>
+<li><b>Inspection</b>: video achhi quality ka hai, malformed nahi.</li>
+<li><b>Video encodings</b>: alag resolutions, codecs, bitrates.</li>
+<li><b>Thumbnail</b>: user upload kare ya system auto-generate kare.</li>
+<li><b>Watermark</b>: video ke upar identifying image overlay.</li>
+</ul>
+
+<h3>Video transcoding architecture</h3>
+<figure class="diagram"><img src="../img/14/video-transcoding-architecture.png" alt="Transcoding architecture" loading="lazy"><figcaption>Neeche ki row left se right pipeline hai: <b>Preprocessor → DAG scheduler → Resource manager → Task workers → Encoded video</b>. Upar <b>Temporary storage</b> mein Preprocessor aur Task workers dono data likhte hain — retries aur intermediate results ke liye.</figcaption></figure>
+<h3>1. Preprocessor</h3>
+<ul>
+<li><b>Video splitting</b>: video stream ko <b>GOP (Group of Pictures)</b> alignment ke chhote chunks mein todna. GOP frames ka ek group hai jo ek specific order mein hai; har chunk independently playable unit hai, kuch seconds ka.</li>
+<li>Kuch purane mobile devices/browsers video splitting support nahi karte — unke liye preprocessor GOP split karta hai.</li>
+<li><b>DAG generation</b>: client programmers ki likhi configuration files se DAG banata hai.</li>
+<li><b>Cache data</b>: GOPs aur metadata ko temporary storage mein rakhta hai — encoding fail hui to retry yahin se.</li>
+</ul>
+<figure class="diagram"><img src="../img/14/dag-config.png" alt="Sample DAG configuration" loading="lazy"><figcaption>Do config blocks: pehla task <b>name 'download-input'</b>, type <b>'Download'</b>, input <code>url config.url</code>, output <code>context.inputVideo = it.file</code>, aur <b>next 'transcode'</b> — yani iske baad transcode task. Dusra task <b>'transcode'</b>, type 'Transcode', input <code>context.inputVideo</code> + <code>config.transConfig</code>, output <code>context.file = it.outputVideo</code>. "next" fields hi DAG ki edges banate hain, aur <code>context</code> ek task ka output agle ka input banata hai.</figcaption></figure>
+
+<h3>2. DAG scheduler</h3>
+<figure class="diagram"><img src="../img/14/dag-scheduler.png" alt="DAG scheduler stages" loading="lazy"><figcaption>DAG scheduler box mein dotted lines stages alag karti hain. <b>Original video</b> se <b>Stage 1</b>: <b>Video</b>, <b>Audio</b>, <b>Metadata</b> (split). <b>Stage 2</b>: Video → <b>Video encoding</b> aur <b>Thumbnail</b>; Audio → <b>Audio encoding</b>. Ek stage ke saare tasks parallel chal sakte hain; agla stage pichhle stage ke complete hone pe.</figcaption></figure>
+<p>DAG ko stages of tasks mein todta hai aur unhe resource manager ki task queue mein daalta hai.</p>
+
+<h3>3. Resource manager</h3>
+<figure class="diagram"><img src="../img/14/resource-manager.png" alt="Resource manager internals" loading="lazy"><figcaption>Left box <b>Resource manager</b> mein teen queues aur ek <b>Task scheduler</b>. Scheduler: <b>Task queue</b> se "get the highest priority task", <b>Worker queue</b> se "get the optimal worker", aur <b>Running queue</b> mein "put task/worker info". Phir "run task" arrow right side ke <b>Task workers</b> (Watermark, Encoder, Thumbnail, Merger, …) ko job deta hai.</figcaption></figure>
+<ul>
+<li><b>Task queue</b>: priority queue of tasks.</li>
+<li><b>Worker queue</b>: priority queue of worker utilization info.</li>
+<li><b>Running queue</b>: abhi chal rahe tasks aur unke workers.</li>
+<li><b>Task scheduler</b>: optimal task + worker choose karke run karwata hai. Job khatam → running queue se hatao.</li>
+</ul>
+<h3>4. Task workers</h3>
+<figure class="diagram"><img src="../img/14/task-worker.png" alt="Task workers" loading="lazy"><figcaption>Dashed box mein alag-alag specialized worker pools: <b>Watermark</b>, <b>Encoder</b>, <b>Thumbnail</b>, <b>Merger</b>, aur "…" (aur bhi types). Har pool apne type ke task chalata hai, aur pools ko independently scale kar sakte hain.</figcaption></figure>
+<h3>5. Temporary storage &amp; 6. Encoded video</h3>
+<p>Temporary storage ka choice data type, size, access frequency, lifespan pe depend karta hai — metadata (chhota, frequently accessed) memory mein; video/audio blob storage mein. Processing complete hone pe temporary data free. Final output = <b>encoded video</b>, e.g. <code>funny_720p.mp4</code>.</p>
+<div class="callout warn">⚠️ <b>Failure mode:</b> Ek GOP ka encoding worker crash hua → poora video dobara encode nahi karna; temporary storage se wahi GOP retry. Isliye chunking sirf speed nahi, <b>fault isolation</b> bhi deta hai.</div>
+
+<h2 id="optimizations">System optimizations</h2>
+<h3>Speed: parallel uploads</h3>
+<figure class="diagram"><img src="../img/14/video-split.png" alt="Split video by GOP" loading="lazy"><figcaption><b>Original video</b> ko "Split by GOP alignment" karke chhote chunks <b>GOP 1, GOP 2, …, GOP N</b> mein toda jaata hai — ab ye chunks parallel upload ho sakte hain aur fail hone pe sirf wahi chunk resume.</figcaption></figure>
+<p>Client side pe hi GOP split karke parallel upload — fast + <b>resumable</b> (1 GB file 90% pe fail ho to sab dobara nahi).</p>
+<h3>Speed: upload centers close to users</h3>
+<p>Multiple upload centers globally (CDN ko upload centers ki tarah use karna) — US wale US center pe, Asia wale Asia center pe.</p>
+<h3>Speed: parallelism everywhere via message queues</h3>
+<figure class="diagram"><img src="../img/14/message-queue1.png" alt="Coupled modules decoupled with queues (part 1)" loading="lazy"><figcaption>Left se: <b>Original storage</b> → <b>Message queue</b> → <b>Download module</b> → <b>Message queue</b> → <b>Encoding module</b> → <b>Message queue</b> → (aage). Har module ke beech queue hai, to download module ko encoding khatam hone ka wait nahi karna — wo queue mein events daal ke agla video utha leta hai.</figcaption></figure>
+<figure class="diagram"><img src="../img/14/message-queue2.png" alt="Decoupled pipeline (part 2)" loading="lazy"><figcaption>Continuation: <b>Upload module</b> → <b>Message queue</b> → <b>Encoded storage</b> → "upload encoded videos" → <b>CDN</b>. Pehle output ke liye pichhle step ka wait tha (tightly coupled); queue ke baad modules independently aur parallel chalte hain.</figcaption></figure>
+<div class="callout realworld">🌍 <b>Real world:</b> Java shop mein ye stages Kafka topics se jode ja sakte hain (<code>video.uploaded</code> → <code>video.downloaded</code> → <code>video.encoded</code>) aur har module ek alag Spring Boot consumer group. AWS pe S3 event notifications → SQS → workers ek common pattern hai.</div>
+
+<h3>Safety: pre-signed upload URL</h3>
+<figure class="diagram"><img src="../img/14/pres-signed-urls.png" alt="Pre-signed URL upload" loading="lazy"><figcaption><b>1. POST /upload</b> — User API servers se upload permission maangta hai → <b>2. &lt;pre-signed URL&gt;</b> — API server ek signed, time-limited URL deta hai → <b>3. upload video</b> — user seedha <b>Original storage</b> pe us URL se upload karta hai. Video bytes API servers se guzarte hi nahi.</figcaption></figure>
+<p>Pre-signed URL (Amazon S3 term; Azure mein "Shared Access Signature") sirf authorized users ko sahi location pe upload karne deta hai, limited time ke liye. Bonus: API servers bandwidth bachti hai.</p>
+<h3>Safety: video protection</h3>
+<ul>
+<li><b>DRM</b>: Apple FairPlay, Google Widevine, Microsoft PlayReady.</li>
+<li><b>AES encryption</b>: encrypted video, playback pe sirf authorized users decrypt.</li>
+<li><b>Visual watermarking</b>: logo/name overlay.</li>
+</ul>
+<h3>Cost-saving optimizations</h3>
+<p>YouTube streams <b>long-tail distribution</b> follow karti hain — kuch videos bahut popular, zyada tar ko kam views. Is insight se:</p>
+<ol>
+<li>Sirf <b>popular videos CDN</b> se; baaki high-capacity storage video servers se.</li>
+<li>Kam popular content ke liye kam encoded versions; short videos <b>on-demand encode</b>.</li>
+<li>Kuch videos sirf certain regions mein popular — dusre regions ke CDN pe mat daalo.</li>
+<li>Apna CDN banao aur <b>ISPs ke saath partner</b> karo (Comcast, AT&amp;T, Verizon jaise) — bandwidth cost kam, users ke kareeb.</li>
+</ol>
+<div class="callout realworld">🌍 <b>Real world:</b> Netflix ka Open Connect ek well-known example hai — Netflix apne cache appliances ISPs ke network ke andar lagata hai taaki video traffic ISP ke andar hi serve ho.</div>
+
+<h3>Error handling</h3>
+<table class="cmp">
+<tr><th>Error</th><th>Handling</th></tr>
+<tr><td>Upload error</td><td>Retry (chunk-level)</td></tr>
+<tr><td>Split video error</td><td>Purane clients GOP split nahi kar sakte → poora video server pe bhejo, server-side split</td></tr>
+<tr><td>Transcoding error</td><td>Retry</td></tr>
+<tr><td>Preprocessor error</td><td>DAG regenerate</td></tr>
+<tr><td>DAG scheduler error</td><td>Task reschedule</td></tr>
+<tr><td>Resource manager queue down</td><td>Replica use karo</td></tr>
+<tr><td>Task worker down</td><td>Naye worker pe retry</td></tr>
+<tr><td>API server down</td><td>Stateless hai — dusre server pe redirect</td></tr>
+<tr><td>Metadata cache down</td><td>Data replicated hai, dusre node se lo; nayi node lagao</td></tr>
+<tr><td>Metadata DB master down</td><td>Slave ko promote; slave down → dusra slave + replacement</td></tr>
+<tr><td>Malformed video format</td><td><b>Non-recoverable</b> — task roko, client ko error code</td></tr>
+</table>
+
+<h2 id="wrapup">Step 4: Wrap-up</h2>
+<ul>
+<li><b>API tier scale</b>: stateless, horizontal.</li>
+<li><b>DB scale</b>: replication + sharding.</li>
+<li><b>Live streaming</b>: zyada strict latency, kam parallelism (real-time), alag error handling.</li>
+<li><b>Video takedown</b>: copyright, illegal content — upload ke time ya user flag pe.</li>
+</ul>
+
+<h2 id="interview">Interview mein kaise bolein</h2>
+<div class="callout interview">🎤 <b>45-min plan:</b>
+<ol>
+<li><b>(5 min)</b> Scope: upload + watch, 5M DAU, 300 MB avg, 150 TB/day, $150k/day CDN cost.</li>
+<li><b>(10 min)</b> High level: CDN for streaming, API servers for everything else; upload flow (original storage → transcoding → transcoded storage → CDN + completion queue → metadata); streaming protocols.</li>
+<li><b>(15 min)</b> Transcoding deep dive: kyun, container vs codec, DAG, preprocessor (GOP), DAG scheduler stages, resource manager queues, task workers, temp storage.</li>
+<li><b>(10 min)</b> Optimizations: parallel/resumable upload, regional upload centers, message queues, pre-signed URLs, DRM/AES/watermark, cost (long-tail).</li>
+<li><b>(5 min)</b> Error handling table + live streaming difference.</li>
+</ol>
+Key line: <i>"Video bytes kabhi API servers se nahi guzarte — upload pre-signed URL se seedha blob storage, playback CDN se. API tier sirf control plane hai."</i></div>
+
+<h2 id="followups">Common follow-up questions</h2>
+<p><b>Q: User 1 GB upload kar raha hai, network beech mein gaya?</b><br>A: GOP/chunk-based resumable upload — sirf fail hue chunks retry.</p>
+<p><b>Q: Transcoding mein kitna time lagega, user ko kab dikhega?</b><br>A: Async — completion queue event pe metadata update aur user notify. Low resolution pehle ready karke publish, high-res baad mein — common pattern.</p>
+<p><b>Q: CDN cost kaise kam karoge?</b><br>A: Long-tail: popular → CDN, unpopular → origin video servers, regional distribution, on-demand encoding, ISP partnerships/own CDN.</p>
+<p><b>Q: View count kaise maintain karein?</b><br>A: Har view pe DB write nahi — events stream (Kafka) mein, aggregate karke periodic update (Chapter 21 ad-click aggregation jaisa).</p>
+<p><b>Q: Same video do baar upload hua?</b><br>A: Content hash/fingerprint se dedup ya copyright detection — upload pipeline mein inspection stage.</p>
+<p><b>Q: Live streaming mein kya alag?</b><br>A: Latency strict, chunks chhote, transcoding real-time, error recovery ke liye time kam.</p>
+
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul>
+<li>Estimation: 150 TB/day storage, ~$150k/day CDN — cost design ko drive karta hai.</li>
+<li>Streaming = CDN; baaki sab = API servers. Upload = pre-signed URL se blob storage.</li>
+<li>Upload flow: original storage → transcoding → (transcoded storage → CDN) ∥ (completion queue → metadata DB/cache).</li>
+<li>Transcoding = DAG (inspection, encoding, thumbnail, watermark, assemble); architecture = preprocessor → DAG scheduler → resource manager → task workers, temp storage for retries.</li>
+<li>GOP chunking = parallel + resumable + fault-isolated.</li>
+<li>Message queues se modules decouple; DRM/AES/watermark se protection.</li>
+<li>Long-tail insight se cost bachao: popular videos CDN, baaki origin; regional + ISP partnerships.</li>
+</ul></div>
+   <div class="chapter-nav"><a class="prev" href="13-search-autocomplete.html">← Prev: Design Search Autocomplete</a><a class="next" href="15-google-drive.html">Next: Design Google Drive →</a></div>
+  </main>
+  <aside class="toc"><div class="toc-title">On this page</div><ul>
+    <li><a href="#intro">Introduction</a></li>
+    <li><a href="#step1">Step 1: Problem aur scope</a></li>
+    <li><a href="#step2">Step 2: High-level design</a></li>
+    <li><a href="#step3">Step 3: Design deep dive</a></li>
+    <li><a href="#optimizations">System optimizations</a></li>
+    <li><a href="#wrapup">Step 4: Wrap-up</a></li>
+    <li><a href="#interview">Interview mein kaise bolein</a></li>
+    <li><a href="#followups">Common follow-up questions</a></li>
+    <li><a href="#takeaways">Key Takeaways</a></li>
+  </ul></aside>
+ </div>
+ <script src="../assets/app.js"></script>
+</body>
+</html>

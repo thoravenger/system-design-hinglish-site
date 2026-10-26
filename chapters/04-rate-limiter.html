@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 04: Design a Rate Limiter · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{if(localStorage.getItem('sd-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><div class="toplinks"><a href="../index.html#chapters">Chapters</a><a href="../index.html#how">Kaise padhein</a><a href="../links.html">URL Guide</a></div><button class="theme-toggle" aria-label="theme">◐</button></header>
+<div class="layout">
+<nav class="sidebar">
+<div class="group">Foundations</div><ul>
+<li><a href="01-scaling.html"><span class="num">01</span> Scale from Zero to Millions of Users</a></li>
+<li><a href="02-back-of-envelope.html"><span class="num">02</span> Back-of-the-Envelope Estimation</a></li>
+<li><a href="03-framework.html"><span class="num">03</span> A Framework for System Design Interviews</a></li>
+<li><a class="active" href="04-rate-limiter.html"><span class="num">04</span> Design a Rate Limiter</a></li>
+<li><a href="05-consistent-hashing.html"><span class="num">05</span> Design Consistent Hashing</a></li>
+<li><a href="06-key-value-store.html"><span class="num">06</span> Design a Key-Value Store</a></li>
+<li><a href="07-unique-id-generator.html"><span class="num">07</span> Design a Unique ID Generator</a></li>
+</ul>
+<div class="group">Classic Designs</div><ul>
+<li><a href="08-url-shortener.html"><span class="num">08</span> Design a URL Shortener</a></li>
+<li><a href="09-web-crawler.html"><span class="num">09</span> Design a Web Crawler</a></li>
+<li><a href="10-notification-system.html"><span class="num">10</span> Design a Notification System</a></li>
+<li><a href="11-news-feed.html"><span class="num">11</span> Design a News Feed System</a></li>
+<li><a href="12-chat-system.html"><span class="num">12</span> Design a Chat System</a></li>
+<li><a href="13-search-autocomplete.html"><span class="num">13</span> Design a Search Autocomplete System</a></li>
+<li><a href="14-youtube.html"><span class="num">14</span> Design YouTube</a></li>
+</ul>
+<div class="group">Vol 2 · Part 1</div><ul>
+<li><a href="15-google-drive.html"><span class="num">15</span> Design Google Drive</a></li>
+<li><a href="16-proximity-service.html"><span class="num">16</span> Design a Proximity Service</a></li>
+<li><a href="17-nearby-friends.html"><span class="num">17</span> Design Nearby Friends</a></li>
+<li><a href="18-google-maps.html"><span class="num">18</span> Design Google Maps</a></li>
+<li><a href="19-message-queue.html"><span class="num">19</span> Design a Distributed Message Queue</a></li>
+<li><a href="20-metrics-monitoring.html"><span class="num">20</span> Metrics Monitoring and Alerting System</a></li>
+<li><a href="21-ad-click-aggregation.html"><span class="num">21</span> Ad Click Event Aggregation</a></li>
+<li><a href="22-hotel-reservation.html"><span class="num">22</span> Hotel Reservation System</a></li>
+</ul>
+<div class="group">Vol 2 · Part 2</div><ul>
+<li><a href="23-email-service.html"><span class="num">23</span> Distributed Email Service</a></li>
+<li><a href="24-s3-object-storage.html"><span class="num">24</span> S3-like Object Storage</a></li>
+<li><a href="25-gaming-leaderboard.html"><span class="num">25</span> Real-time Gaming Leaderboard</a></li>
+<li><a href="26-payment-system.html"><span class="num">26</span> Design a Payment System</a></li>
+<li><a href="27-digital-wallet.html"><span class="num">27</span> Design a Digital Wallet</a></li>
+<li><a href="28-stock-exchange.html"><span class="num">28</span> Design a Stock Exchange</a></li>
+</ul>
+<div class="group">Extras</div><ul>
+<li><a href="../index.html">🏠 Home / Kaise padhein</a></li><li><a href="../links.html">🔗 Notes ke URLs ka guide</a></li></ul>
+</nav>
+<main class="content">
+<div class="chapter-hero"><span class="chapter-num">Chapter 04</span><h1>Design a Rate Limiter</h1><p class="lead">Kitni requests allow karni hain, kahan check karna hai, aur distributed duniya mein counters ko sahi kaise rakhna hai — 5 algorithms aur Redis-based architecture.</p><div class="tags"><span class="tag">Token Bucket</span><span class="tag">Sliding Window</span><span class="tag">Redis</span><span class="tag">API Gateway</span><span class="tag">HTTP 429</span></div></div>
+
+<h2 id="intro">Introduction</h2>
+<p>Network system mein <strong>rate limiter</strong> client ya service dwara bheje gaye traffic ki rate control karta hai. HTTP world mein: ek specified period mein kitni client requests allow hongi. Threshold cross → baaki calls block. Examples: ek user 2 posts/second se zyada nahi; ek IP se din mein max 10 accounts; same device se weekly 5 reward claims.</p>
+<h3>Fayde</h3>
+<ul>
+<li><strong>DoS se bachav:</strong> intentional ya unintentional excess calls resource starvation create karte hain. Bade tech companies ke public APIs lagbhag sab rate limited hote hain.</li>
+<li><strong>Cost reduction:</strong> extra requests limit karo → kam servers; paid third-party APIs (credit check, payment) per-call charge karte hain — wahan to aur zaroori.</li>
+<li><strong>Overload prevention:</strong> bots ya user misbehaviour ka excess traffic filter karo.</li>
+</ul>
+
+<h2 id="step1">Step 1: Problem samjho aur scope tay karo</h2>
+<p>Notes ke hisaab se candidate–interviewer conversation se ye requirements nikli:</p>
+<ul>
+<li><strong>Server-side</strong> API rate limiter (client-side nahi).</li>
+<li>Flexible — <strong>different throttle rules</strong> (IP, user ID, ya kisi bhi property pe).</li>
+<li><strong>Large scale, distributed</strong> environment — multiple servers/processes ke beech shared.</li>
+<li>Separate service ho ya application code mein — design decision hamara.</li>
+<li>Throttled users ko <strong>inform</strong> karna hai.</li>
+</ul>
+<h3>Non-functional requirements</h3>
+<table class="cmp"><thead><tr><th>Requirement</th><th>Kyun important</th></tr></thead><tbody>
+<tr><td>Accurate throttling</td><td>Galat block = angry users; galat allow = protection fail</td></tr>
+<tr><td>Low latency</td><td>Har request ke path mein hai — HTTP response time slow nahi hona chahiye</td></tr>
+<tr><td>Low memory</td><td>Millions users × counters</td></tr>
+<tr><td>Distributed</td><td>Multiple API servers ek hi limit share karein</td></tr>
+<tr><td>Exception handling</td><td>Clear 429 + headers</td></tr>
+<tr><td>High fault tolerance</td><td>Rate limiter (e.g. cache server) down ho to poora system down nahi hona chahiye</td></tr>
+</tbody></table>
+
+<h2 id="step2">Step 2: High-level design — rate limiter kahan rakhein?</h2>
+<figure class="diagram"><img src="../img/04/rate_limiter_architecture.png" alt="Rate limiter between client and API servers" loading="lazy"><figcaption><b>Kaise padhein:</b> Client (laptop/phone) se teen requests nikalti hain. Beech mein vertical bar = <b>Rate limiter</b> (middleware). Do requests API Servers tak pass ho jaati hain, teesri pe red ✗ — wo block ho jaati hai aur red dashed arrow client ko <b>429: Too many requests</b> return karta hai.</figcaption></figure>
+<ol>
+<li><strong>Client-side:</strong> unreliable — client requests easily forge ho sakti hain, aur client implementation pe hamara control nahi.</li>
+<li><strong>Server-side:</strong> API server ke andar code — full control.</li>
+<li><strong>Middleware / API gateway:</strong> API servers ke aage ek layer jo throttle kare. Microservices mein ye aksar API gateway mein hota hai — gateway fully-managed service hai jo rate limiting, SSL termination, authentication, IP whitelisting, static content serving support karta hai.</li>
+</ol>
+<p>HTTP <strong>429 Too Many Requests</strong> status code indicate karta hai ki user ne bahut requests bhej di.</p>
+<h3>Placement guidelines</h3>
+<ul>
+<li>Current tech stack evaluate karo (language, cache service) — server-side efficient implement ho sakta hai?</li>
+<li>Business needs ke hisaab se algorithm choose karo. Server-side mein full control; third-party gateway mein choices limited.</li>
+<li>Already microservices + API gateway (auth, IP whitelist ke liye) hai → rate limiter bhi wahin daalo.</li>
+<li>Apna rate limiter banana time leta hai. Engineering resources kam hain → commercial API gateway better option.</li>
+</ul>
+<div class="callout realworld"><strong>Real world</strong>Spring Cloud Gateway ka <code>RequestRateLimiter</code> filter Redis-backed token bucket use karta hai (<code>replenishRate</code>, <code>burstCapacity</code>). Java app ke andar Resilience4j <code>RateLimiter</code> ya Bucket4j token-bucket library common hain. Nginx mein <code>limit_req</code> module leaky-bucket style kaam karta hai.</div>
+
+<h2 id="algorithms">Step 3: Rate limiting algorithms</h2>
+<p>Paanch popular algorithms — har ek ke alag pros/cons. Interview mein in sab ki ek line + ek trade-off aana chahiye.</p>
+
+<h3 id="token-bucket">1. Token Bucket</h3>
+<figure class="diagram"><img src="../img/04/token-bucket.png" alt="Token bucket algorithm" loading="lazy"><figcaption><b>Kaise padhein:</b> Upar se <b>refiller</b> fixed rate pe tokens (coins) bucket mein daalta hai. Left se requests aati hain → diamond '<b>enough tokens?</b>'. Haan → ek token lo aur request forward karo (right, har request ke saath coin). Nahi → request drop (neeche grey boxes). Bucket full ho to extra tokens overflow ho jaate hain.</figcaption></figure>
+<ul>
+<li>Bucket ki pre-defined capacity hai. Refiller periodic rate pe tokens daalta hai; full bucket mein extra tokens gir jaate hain.</li>
+<li>Har request ek token consume karti hai. Token nahi → drop.</li>
+<li>Do parameters: <strong>bucket size</strong> (max tokens) aur <strong>refill rate</strong> (tokens/second).</li>
+<li>Kitne buckets? Rules pe depend: per user per API endpoint alag bucket (1 post/sec, 150 friends/day, 5 likes/sec → har user ke 3 buckets); IP-based ke liye per IP; global 10,000 req/sec ke liye ek shared bucket.</li>
+</ul>
+<p><strong>Pros:</strong> implement karna easy, memory efficient, short <strong>bursts allow</strong> karta hai (jab tak tokens bache hain). <strong>Cons:</strong> do parameters tune karna tricky.</p>
+<pre><code>// Pseudo-code (lazy refill — timer ki zaroorat nahi)
+long tokens; long lastRefillNanos;
+synchronized boolean tryAcquire() {
+  long now = System.nanoTime();
+  long add = (now - lastRefillNanos) * refillPerSec / 1_000_000_000L;
+  if (add &gt; 0) { tokens = Math.min(capacity, tokens + add); lastRefillNanos = now; }
+  if (tokens &gt; 0) { tokens--; return true; }
+  return false;
+}</code></pre>
+<div class="callout realworld"><strong>Real world</strong>Amazon aur Stripe dono apne API rate limiting ke liye token bucket use karte hain (Alex Xu ki book mein bhi ye reference hai). AWS API Gateway throttling bhi "rate + burst" ke terms mein configure hoti hai — yahi token bucket ke do parameters hain.</div>
+
+<h3 id="leaking-bucket">2. Leaking Bucket</h3>
+<figure class="diagram"><img src="../img/04/leaking-bucket.png" alt="Leaking bucket algorithm" loading="lazy"><figcaption><b>Kaise padhein:</b> Requests aati hain → '<b>bucket full?</b>' check. Nahi → request <b>queue</b> (FIFO) mein add. Haan → drop (neeche grey). Queue se requests <b>processed at fixed rate</b> nikalti hain aur right side 'requests go through'. Matlab output rate hamesha smooth, chahe input bursty ho.</figcaption></figure>
+<ul>
+<li>Token bucket jaisa, lekin requests <strong>fixed rate</strong> pe process hoti hain. Usually FIFO queue se implement.</li>
+<li>Parameters: <strong>bucket (queue) size</strong> aur <strong>outflow rate</strong>.</li>
+<li><strong>Pros:</strong> limited queue size → memory efficient; stable outflow — jab downstream ko steady rate chahiye.</li>
+<li><strong>Cons:</strong> burst aane pe queue purani requests se bhar jaati hai; agar wo time pe process na hon to <em>recent</em> requests rate limited ho jaati hain. Tuning bhi tricky.</li>
+</ul>
+<p>Example implementation (notes se): <a href="https://github.com/uber-go/ratelimit" target="_blank" rel="noopener">github.com/uber-go/ratelimit</a> — Uber ka Go library, leaky-bucket style limiter jo calls ko evenly space karta hai. Isko kaise padhna hai, <a href="../links.html#ch04">URL guide</a> mein detail hai.</p>
+<div class="callout realworld"><strong>Real world</strong>Shopify ke API rate limits leaky bucket model pe documented hain (bucket size + leak rate). Nginx <code>limit_req</code> bhi isi model pe hai.</div>
+
+<h3 id="fixed-window">3. Fixed Window Counter</h3>
+<figure class="diagram"><img src="../img/04/fixed-window-counter.png" alt="Fixed window counter" loading="lazy"><figcaption><b>Kaise padhein:</b> X-axis = time, har column ek 1-second window (1:00:00, 1:00:01...). Limit = <b>3 requests/second</b>. Green = successful, grey = rate limited. 1:00:01 pe 6 requests aayi → pehli 3 green, baaki 3 grey drop. Har naye second pe counter reset.</figcaption></figure>
+<ul>
+<li>Timeline ko fixed-size windows mein baanto, har window ka counter.</li>
+<li>Har request counter +1. Threshold pahuncha → naye window tak requests drop.</li>
+</ul>
+<p><strong>Major problem:</strong> window edges pe burst.</p>
+<figure class="diagram"><img src="../img/04/fixed-window-issue.png" alt="Fixed window edge problem" loading="lazy"><figcaption><b>Kaise padhein:</b> Limit = 5 requests/minute (windows 2:00:00–2:01:00 aur 2:01:00–2:02:00). 2:00:30–2:01:00 ke beech 5 requests aayi (pichli window mein allowed) aur 2:01:00–2:01:30 ke beech 5 aur (nayi window mein allowed). Dashed box dikhata hai ki <b>ek rolling minute (2:00:30–2:01:30) mein 10 requests</b> nikal gayi — limit ka double!</figcaption></figure>
+<p><strong>Pros:</strong> memory efficient, samajhna easy, window end pe quota reset kuch use cases fit karta hai (e.g. "har ghante 100 requests"). <strong>Cons:</strong> edge pe spike allowed quota se zyada requests nikaal deta hai.</p>
+<pre><code># Redis mein fixed window (simple)
+key   = "rl:{user}:{epoch_minute}"
+count = INCR key
+if count == 1: EXPIRE key 60
+if count &gt; LIMIT: reject 429</code></pre>
+
+<h3 id="sliding-log">4. Sliding Window Log</h3>
+<figure class="diagram"><img src="../img/04/sliding-window-log.png" alt="Sliding window log" loading="lazy"><figcaption><b>Kaise padhein (limit = 2 requests/minute):</b> ① 1:00:01 pe request — log khali tha, timestamp add, allowed ✓. ② 1:00:30 — log mein 2 entries, allowed ✓. ③ 1:00:50 — log size 3 &gt; 2, rejected ✗ (lekin timestamp log mein rehta hai). ④ 1:01:40 — range [1:00:40, 1:01:40] se purane 1:00:01 aur 1:00:30 (strike-through) hata diye; ab log size 2 → allowed ✓.</figcaption></figure>
+<ul>
+<li>Har request ka timestamp rakho (Redis <strong>sorted set</strong> mein typically).</li>
+<li>Nayi request aaye → current window ki shuruat se purane timestamps hatao → naya timestamp add → log size ≤ limit ho to accept, warna reject.</li>
+<li><strong>Pros:</strong> bahut accurate — kisi bhi rolling window mein limit exceed nahi.</li>
+<li><strong>Cons:</strong> bahut memory — rejected requests ke timestamps bhi store hote hain.</li>
+</ul>
+<pre><code>ZREMRANGEBYSCORE rl:u1 0 (now-60000)
+ZADD rl:u1 now now
+ZCARD rl:u1         -- &gt; LIMIT ? reject
+EXPIRE rl:u1 60</code></pre>
+
+<h3 id="sliding-counter">5. Sliding Window Counter</h3>
+<figure class="diagram"><img src="../img/04/sliding-window-counter.png" alt="Sliding window counter" loading="lazy"><figcaption><b>Kaise padhein:</b> Limit = 5 requests/min. Black box = previous minute (5 requests), blue box = current minute (3 requests). Green 'Rolling minute' current time pe khatam hota hai — ye 30% current minute mein aur 70% previous minute mein overlap karta hai. Estimate = 3 + 5 × 70% = <b>6.5</b> → round down 6 &gt; 5, isliye nayi request reject.</figcaption></figure>
+<p>Formula: <code>requests in rolling window = current_window_count + previous_window_count × overlap%</code>.</p>
+<ul>
+<li><strong>Pros:</strong> traffic spikes smooth (previous window ka average use hota hai); memory efficient (sirf 2 counters).</li>
+<li><strong>Cons:</strong> approximation hai — previous window mein requests evenly distributed maan leta hai. Lekin Cloudflare ke experiments ke mutabik 400 million requests mein sirf 0.003% galat allow/limit hui (book ka reference) — practically kaafi achha.</li>
+</ul>
+
+<table class="cmp"><thead><tr><th>Algorithm</th><th>Memory</th><th>Bursts</th><th>Accuracy</th><th>Best for</th></tr></thead><tbody>
+<tr><td>Token bucket</td><td>Low (2 values)</td><td>Allowed (up to bucket size)</td><td>Good</td><td>Public APIs, general purpose</td></tr>
+<tr><td>Leaking bucket</td><td>Low (bounded queue)</td><td>Smoothed out</td><td>Good</td><td>Stable outflow chahiye (downstream protect)</td></tr>
+<tr><td>Fixed window</td><td>Very low</td><td>Edge pe 2x leak</td><td>Weak at edges</td><td>Simple quotas ("per hour")</td></tr>
+<tr><td>Sliding log</td><td>High (har timestamp)</td><td>Strict</td><td>Exact</td><td>Low-volume, strict limits</td></tr>
+<tr><td>Sliding counter</td><td>Low (2 counters)</td><td>Smoothed</td><td>Approx (very close)</td><td>High-scale, near-accurate</td></tr>
+</tbody></table>
+
+<h2 id="architecture">High-level architecture</h2>
+<p>Basic idea simple hai: ek counter rakho ki same user/IP se kitni requests aayi; limit cross → reject. Counter kahan? DB slow hai (disk). <strong>In-memory cache</strong> (Redis) fast hai aur time-based expiry support karta hai. Redis ke do commands: <code>INCR</code> (counter atomically +1) aur <code>EXPIRE</code> (timeout ke baad auto-delete).</p>
+<figure class="diagram"><img src="../img/04/architecture.png" alt="Detailed rate limiter architecture" loading="lazy"><figcaption><b>Kaise padhein:</b> Client → <b>Rate limiter middleware</b>. Middleware <b>Cached rules</b> (CACHE) padhta hai — ye rules disk pe 'Rules' file mein hain jinhe <b>Workers</b> periodically cache mein load karte hain. Middleware <b>Redis</b> se counter + last timestamp fetch karta hai. Limit ke andar → green 'success' → API Servers. Limit cross → red 'rate limited': client ko <b>429: too many requests</b>, aur request ko <i>option 1</i> drop karo ya <i>option 2</i> Message queue mein daal do baad mein process karne ke liye.</figcaption></figure>
+<h3>Rules</h3>
+<p>Rules generally config files mein disk pe hote hain. Lyft ka open-source rate limiter YAML rules use karta hai, jaise:</p>
+<pre><code>domain: messaging
+descriptors:
+  - key: message_type
+    value: marketing
+    rate_limit:
+      unit: day
+      requests_per_unit: 5</code></pre>
+<h3>Rate limit exceed hone pe</h3>
+<ul>
+<li>HTTP <strong>429</strong> return. Use case ke hisaab se rate-limited requests ko queue mein rakh ke baad mein process kar sakte ho (e.g. orders jo overload ki wajah se reject hue).</li>
+<li><strong>Headers</strong> se client ko batao:
+<pre><code>X-Ratelimit-Remaining:   current window mein baaki allowed requests
+X-Ratelimit-Limit:       per window kitni calls allowed
+X-Ratelimit-Retry-After: kitne seconds baad retry karo taaki throttle na ho</code></pre></li>
+</ul>
+<h3>Flow</h3>
+<ol><li>Client request rate limiter middleware ko bhejta hai.</li><li>Middleware cache se rules load karta hai; Redis se counters aur last request timestamp fetch karta hai.</li><li>Response ke hisaab se: limit nahi hui → API servers; hui → 429, request drop ya queue.</li></ol>
+
+<h2 id="distributed">Distributed environment mein challenges</h2>
+<h3>1. Race condition</h3>
+<p>Do requests concurrently counter padhti hain (dono ko 3 mila), dono +1 karke 4 likhti hain — sahi value 5 thi. Read-check-write atomic nahi hai.</p>
+<ul>
+<li><strong>Locks</strong> obvious solution hain lekin system ko significantly slow karte hain.</li>
+<li>Better: <strong>Lua script</strong> (Redis mein atomically execute hoti hai) ya <strong>sorted sets</strong> data structure.</li>
+</ul>
+<pre><code>-- Redis Lua: atomic fixed-window check
+local c = redis.call('INCR', KEYS[1])
+if c == 1 then redis.call('EXPIRE', KEYS[1], ARGV[1]) end
+if c &gt; tonumber(ARGV[2]) then return 0 end
+return 1</code></pre>
+<h3>2. Synchronization</h3>
+<p>Millions users ke liye ek rate limiter server kaafi nahi. Multiple rate limiter servers hon aur client ki requests alag servers pe jaayein (stateless web tier) to har server ka local counter galat hoga. Sticky sessions ek option hai lekin scalable/flexible nahi. Better: <strong>centralized data store (Redis)</strong> jo saare rate limiter instances share karein.</p>
+
+<h2 id="performance">Performance optimization aur monitoring</h2>
+<ul>
+<li><strong>Multi-data center setup:</strong> door ke users ke liye latency high hoti hai. Cloud/edge providers duniya bhar mein edge servers rakhte hain; traffic nearest edge server pe route hota hai.</li>
+<li><strong>Eventual consistency</strong> se data sync karo — har request pe globally strong sync mehenga hai; thoda over-allow acceptable trade-off hai.</li>
+<li><strong>Monitoring:</strong> analytics se check karo ki (a) algorithm effective hai, (b) rules effective hain. Rules bahut strict → valid requests drop → relax karo. Flash sale jaise bursts mein algorithm ineffective → token bucket jaisa burst-friendly algorithm.</li>
+</ul>
+
+<h2 id="wrapup">Wrap-up: extra talking points</h2>
+<ul>
+<li><strong>Hard vs soft limit:</strong> hard — threshold kabhi exceed nahi; soft — thodi der ke liye exceed allowed.</li>
+<li><strong>Different OSI layers:</strong> yahan application layer (HTTP, L7) pe limit kiya; network layer (L3) pe IP tables se IP-based limiting bhi possible.</li>
+<li><strong>Client best practices:</strong> client cache use kare taaki API calls kam hon; limit samjhe aur short time mein zyada na bheje; exceptions/errors gracefully handle kare; retry mein enough back-off time (exponential backoff + jitter).</li>
+</ul>
+
+<div class="callout interview"><strong>Interview mein kaise bolein</strong>
+<ol>
+<li>Clarify: client vs server, kis key pe limit (user/IP/API key), distributed hai?, throttled user ko kya response.</li>
+<li>Placement bolo: "API gateway / middleware, kyunki microservices mein cross-cutting concern hai."</li>
+<li>5 algorithms ka 1-line comparison, phir ek choose karo with reason: "Token bucket — bursts allow, 2 numbers per key, Redis mein cheap."</li>
+<li>Architecture draw: middleware + Redis + rules cache + 429 headers.</li>
+<li>Deep dive: race condition → Lua script; multiple limiter nodes → central Redis; Redis down → <em>fail-open</em> (allow) vs <em>fail-closed</em> — business decide kare.</li>
+</ol></div>
+
+<h2 id="followups">Common follow-up questions</h2>
+<details><summary>Redis down ho gaya to?</summary><p>Fault tolerance requirement ke hisaab se: fail-open (requests allow karo, local in-memory fallback limiter ke saath) taaki poori API down na ho. Payment/OTP jaise abuse-sensitive endpoints ke liye fail-closed justify ho sakta hai. Redis ko replicate (Sentinel/Cluster) karo.</p></details>
+<details><summary>Har request pe Redis call — latency?</summary><p>Same-DC round trip ~0.5ms (Chapter 02). Aur kam karna ho to local token bucket + periodic sync with central store (approximate, eventual consistency).</p></details>
+<details><summary>Token bucket vs sliding window counter kab?</summary><p>Burst allow karna hai (user ne app khola, 10 calls ek saath) → token bucket. Smooth, near-exact per-minute limit chahiye → sliding window counter.</p></details>
+<details><summary>Rules kaise update honge bina deploy?</summary><p>Rules config store (file/DB) mein; workers periodically cache refresh karte hain (diagram ka Rules → Workers → Cache path).</p></details>
+
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul>
+<li>Rate limiter server-side / API gateway pe; throttled request → <strong>HTTP 429</strong> + <code>X-Ratelimit-*</code> headers.</li>
+<li>5 algorithms: token bucket, leaking bucket, fixed window, sliding log, sliding counter — memory vs accuracy vs burst trade-off.</li>
+<li>Counters <strong>Redis</strong> mein (<code>INCR</code> + <code>EXPIRE</code>); race conditions ke liye <strong>Lua scripts / sorted sets</strong>, locks nahi.</li>
+<li>Multiple limiter nodes → centralized store; multi-DC → edge + eventual consistency.</li>
+<li>Monitoring se rules aur algorithm tune karo; clients ko backoff sikhao.</li>
+</ul></div>
+
+<div class="chapter-nav"><a class="prev" href="03-framework.html">← Prev: 03. A Framework for System Design Interviews</a><a class="next" href="05-consistent-hashing.html">Next: 05. Design Consistent Hashing →</a></div>
+</main>
+<aside class="toc"></aside>
+</div>
+<script src="../assets/app.js"></script>
+</body>
+</html>

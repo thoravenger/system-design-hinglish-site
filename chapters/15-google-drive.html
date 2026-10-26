@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 15: Design Google Drive · SystemDesign.hinglish</title>
+<meta name="description" content="Files upload/download, multiple devices pe sync, sharing, revision history aur notifications — 10M DAU aur 500 PB storage ke saath. Block servers, delta sync, metadata DB aur conflict resolution ka poora design.">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+ <header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><button class="theme-toggle" aria-label="theme">◐</button></header>
+ <div class="layout">
+<nav class="sidebar">
+  <div class="nav-group"><div class="nav-group-title">Foundations</div><ul>
+    <li><a href="01-scaling.html"><span class="n">01</span> Scaling from Zero to Millions</a></li>
+    <li><a href="02-back-of-envelope.html"><span class="n">02</span> Back-of-the-Envelope Estimation</a></li>
+    <li><a href="03-framework.html"><span class="n">03</span> System Design Interview Framework</a></li>
+    <li><a href="04-rate-limiter.html"><span class="n">04</span> Design a Rate Limiter</a></li>
+    <li><a href="05-consistent-hashing.html"><span class="n">05</span> Consistent Hashing</a></li>
+    <li><a href="06-key-value-store.html"><span class="n">06</span> Design a Key-Value Store</a></li>
+    <li><a href="07-unique-id-generator.html"><span class="n">07</span> Unique ID Generator</a></li>
+  </ul></div>
+  <div class="nav-group"><div class="nav-group-title">Classic Designs</div><ul>
+    <li><a href="08-url-shortener.html"><span class="n">08</span> Design a URL Shortener</a></li>
+    <li><a href="09-web-crawler.html"><span class="n">09</span> Design a Web Crawler</a></li>
+    <li><a href="10-notification-system.html"><span class="n">10</span> Design a Notification System</a></li>
+    <li><a href="11-news-feed.html"><span class="n">11</span> Design a News Feed System</a></li>
+    <li><a href="12-chat-system.html"><span class="n">12</span> Design a Chat System</a></li>
+    <li><a href="13-search-autocomplete.html"><span class="n">13</span> Design Search Autocomplete</a></li>
+    <li><a href="14-youtube.html"><span class="n">14</span> Design YouTube</a></li>
+  </ul></div>
+  <div class="nav-group"><div class="nav-group-title">Vol 2 · Part 1</div><ul>
+    <li><a class="active" aria-current="page" href="15-google-drive.html"><span class="n">15</span> Design Google Drive</a></li>
+    <li><a href="16-proximity-service.html"><span class="n">16</span> Design a Proximity Service</a></li>
+    <li><a href="17-nearby-friends.html"><span class="n">17</span> Design Nearby Friends</a></li>
+    <li><a href="18-google-maps.html"><span class="n">18</span> Design Google Maps</a></li>
+    <li><a href="19-message-queue.html"><span class="n">19</span> Distributed Message Queue</a></li>
+    <li><a href="20-metrics-monitoring.html"><span class="n">20</span> Metrics Monitoring &amp; Alerting</a></li>
+    <li><a href="21-ad-click-aggregation.html"><span class="n">21</span> Ad Click Event Aggregation</a></li>
+    <li><a href="22-hotel-reservation.html"><span class="n">22</span> Hotel Reservation System</a></li>
+  </ul></div>
+  <div class="nav-group"><div class="nav-group-title">Vol 2 · Part 2</div><ul>
+    <li><a href="23-email-service.html"><span class="n">23</span> Distributed Email Service</a></li>
+    <li><a href="24-s3-object-storage.html"><span class="n">24</span> S3-like Object Storage</a></li>
+    <li><a href="25-gaming-leaderboard.html"><span class="n">25</span> Real-time Gaming Leaderboard</a></li>
+    <li><a href="26-payment-system.html"><span class="n">26</span> Payment System</a></li>
+    <li><a href="27-digital-wallet.html"><span class="n">27</span> Digital Wallet</a></li>
+    <li><a href="28-stock-exchange.html"><span class="n">28</span> Stock Exchange</a></li>
+  </ul></div>
+  <div class="nav-group"><ul><li><a href="../index.html">🏠 Home</a></li><li><a href="../links.html">🔗 Links guide</a></li></ul></div>
+</nav>
+  <main class="content">
+   <div class="chapter-hero"><span class="chapter-num">Chapter 15</span><h1>Design Google Drive</h1><p class="lead">Files upload/download, multiple devices pe sync, sharing, revision history aur notifications — 10M DAU aur 500 PB storage ke saath. Block servers, delta sync, metadata DB aur conflict resolution ka poora design.</p><div class="tags"><span class="tag">Block storage</span><span class="tag">Delta sync</span><span class="tag">Dedup</span><span class="tag">S3</span><span class="tag">Long polling</span><span class="tag">Strong consistency</span></div></div>
+<h2 id="intro">Introduction</h2>
+<p><b>Google Drive</b> (ya Dropbox, OneDrive, iCloud) ek file storage + synchronization service hai — documents, photos, videos cloud pe rakho aur kisi bhi device se access karo, dosto/family/colleagues ke saath share karo. Is chapter ke features:</p>
+<ul>
+<li>File <b>upload aur download</b></li>
+<li>Multiple devices pe <b>file sync</b></li>
+<li>File <b>sharing</b> (permissions ke saath)</li>
+<li>File <b>revision history</b></li>
+<li>File edit, delete ya share hone pe <b>notifications</b></li>
+</ul>
+<p>Google Docs jaisa collaborative real-time editing out of scope hai — wo alag problem (OT/CRDT) hai.</p>
+
+<h2 id="step1">Step 1: Requirements</h2>
+<h3>Functional</h3>
+<ul>
+<li>Files add karo (drag-and-drop), download karo.</li>
+<li>Multiple devices pe sync.</li>
+<li>File revisions dekhna.</li>
+<li>Files share karna (permission ke saath).</li>
+<li>Edit/delete/share pe notification.</li>
+</ul>
+<h3>Non-functional</h3>
+<ul>
+<li><b>Reliability</b>: data loss bilkul unacceptable — storage system ka sabse important property.</li>
+<li><b>Fast sync</b>: sync slow hua to user impatient hoke product chhod dega.</li>
+<li><b>Bandwidth efficiency</b>: khaas kar mobile data pe — bekaar bytes mat bhejo.</li>
+<li><b>Scalability</b>: 10M DAU.</li>
+<li><b>High availability</b>: kuch servers down ho, network slow ho, phir bhi chale.</li>
+</ul>
+<h3>Back-of-the-envelope</h3>
+<table class="cmp">
+<tr><th>Assumption</th><th>Value</th></tr>
+<tr><td>Signed-up users / DAU</td><td>50M / 10M</td></tr>
+<tr><td>Free space</td><td>10 GB per user</td></tr>
+<tr><td>Uploads</td><td>2 files/day/user, avg 500 KB</td></tr>
+<tr><td>Max file size</td><td>10 GB</td></tr>
+<tr><td>Read:write</td><td>1:1</td></tr>
+<tr><td>Total space allocated</td><td>50M × 10 GB = <b>500 PB</b></td></tr>
+<tr><td>Upload QPS</td><td>10M × 2 / 86,400 ≈ <b>~240</b>; peak ≈ ~480</td></tr>
+</table>
+<div class="callout tip">💡 <b>Pro tip:</b> QPS chhota hai (~240) lekin storage 500 PB hai — ye "storage-heavy, not QPS-heavy" system hai. Interview mein ye contrast bolo: design ka focus durability, bandwidth aur dedup pe hoga, request throughput pe nahi.</div>
+
+<h2 id="step2">Step 2: High-level design</h2>
+<h3>Single server se shuru</h3>
+<ul>
+<li>Ek <b>web server</b> upload/download ke liye.</li>
+<li>Ek <b>metadata database</b> (MySQL jaisa) — user data, login info, files info.</li>
+<li>Ek <b>storage directory</b> — <code>drive/</code> root.</li>
+</ul>
+<figure class="diagram"><img src="../img/15/namespaces.png" alt="Storage directory with namespaces" loading="lazy"><figcaption>Left: <code>drive</code> root ke neeche collapsed folders <b>user1, user2, user3</b> — har ek ek <b>namespace</b>. "expand" ke baad right: user1 ke andar <code>recipes/</code> folder aur <code>chicken_soup.txt</code>; user2 ke andar <code>football.mov</code>, <code>sports.txt</code>; user3 ke andar <code>best_pic_ever.png</code>. Kisi bhi file ki unique identity = namespace + relative path.</figcaption></figure>
+
+<h3>APIs</h3>
+<p>Teen basic APIs. Notes mein endpoints <code>api.example.com</code> pe hain — <b>ye placeholder/example domain hai</b>, asli Google API nahi; sirf API shape samjhane ke liye. (example.com domains documentation ke liye reserved hote hain, unpe koi real API nahi chalti.)</p>
+<h3>1. Upload a file</h3>
+<ul>
+<li><b>Simple upload</b>: file chhoti ho tab.</li>
+<li><b>Resumable upload</b>: file badi ho aur network interruption ka chance ho.</li>
+</ul>
+<p>Endpoint: <a href="https://api.example.com/files/upload?uploadType=resumable" target="_blank" rel="noopener">https://api.example.com/files/upload?uploadType=resumable</a> — <i>resumable upload start karne ka example endpoint; <code>uploadType=resumable</code> query param server ko batata hai ki ye chunked/resumable session hoga.</i></p>
+<pre><code>POST https://api.example.com/files/upload?uploadType=resumable
+Params:
+  uploadType = resumable
+  data       = local file to upload
+
+Resumable flow (3 steps):
+ 1. Initial request bhejo → server ek "resumable URL" (session) lautata hai
+ 2. Data upload karo aur upload state monitor karo
+ 3. Upload disturb hua → usi resumable URL se jahan ruka tha wahan se resume</code></pre>
+<h3>2. Download a file</h3>
+<p>Endpoint: <a href="https://api.example.com/files/download" target="_blank" rel="noopener">https://api.example.com/files/download</a> — <i>file download ka example endpoint; params mein file ka path dete hain.</i></p>
+<pre><code>GET https://api.example.com/files/download
+Params:
+  path = download file path
+Example: { "path": "/recipes/soup/best_soup.txt" }</code></pre>
+<h3>3. Get file revisions</h3>
+<p>Endpoint: <a href="https://api.example.com/files/list_revisions" target="_blank" rel="noopener">https://api.example.com/files/list_revisions</a> — <i>kisi file ke purane versions ki list laane ka example endpoint; limit se kitne revisions chahiye wo control hota hai.</i></p>
+<pre><code>GET https://api.example.com/files/list_revisions
+Params:
+  path  = file path jiske revisions chahiye
+  limit = max kitne revisions return karein
+Example: { "path": "/recipes/soup/best_soup.txt", "limit": 20 }</code></pre>
+<div class="callout tip">🔗 Saare URLs ka detail guide (kya hai, kaise padhein, real-world equivalent jaise Google Drive API resumable upload) — <a href="../links.html#ch15">Links guide → Chapter 15</a>.</div>
+<p>Saare APIs ko <b>user authentication</b> aur <b>HTTPS</b> chahiye — SSL client-server data ko protect karta hai.</p>
+
+<h3>Single server se distributed system tak</h3>
+<p>Jaise files badhti hain, ek din disk full warning aati hai. Options:</p>
+<ol>
+<li><b>Sharding</b>: storage ko multiple servers pe <code>user_id</code> ke basis pe baanto. Lekin ek server ka disk fail = us shard ke users ka data gaya.</li>
+<li><b>Amazon S3</b>: industry-leading scalability, availability, durability, security. Same-region aur cross-region replication.</li>
+</ol>
+<figure class="diagram"><img src="../img/15/replication.png" alt="Same-region vs cross-region replication" loading="lazy"><figcaption>Left box (<b>Same-region replication</b>): <b>Region A</b> ke andar ek <b>Bucket</b> teen dusre buckets mein "replication" karta hai — sab ek hi region mein. Right (<b>Cross-region replication</b>): <b>Region A</b> ka bucket <b>Region B</b> ke buckets mein replicate karta hai. Cross-region = poora region down ho jaye tab bhi data safe aur available.</figcaption></figure>
+<p>Aur improvements:</p>
+<ul>
+<li><b>Load balancer</b>: traffic distribute, web server fail ho to redirect.</li>
+<li><b>Web servers</b> scale out.</li>
+<li><b>Metadata DB</b>: SPOF hatane ke liye DB ko web server se bahar, replication + sharding.</li>
+<li><b>File storage</b>: S3 with multi-region replication.</li>
+</ul>
+
+<h3>Sync conflicts</h3>
+<p>Bade storage system mein do users same file/folder ek saath modify karein — <b>conflict</b>. Strategy: <b>jo version pehle process hua wo jeetega</b>, baad wale ko conflict milega.</p>
+<figure class="diagram"><img src="../img/15/sync-conflicts.png" alt="Sync conflict resolution" loading="lazy"><figcaption>Teen panels left se right: (1) <b>User 1</b> aur <b>User 2</b> dono same file update karke <b>Our system</b> ko bhejte hain. (2) User 1 ki request pehle process hui — green "<b>synced</b>" arrow User 1 ko. (3) User 2 ko red "<b>Conflict</b>" milta hai, jabki User 1 synced hai.</figcaption></figure>
+<p>System User 2 ko dono copies dikhata hai — uski <b>local copy</b> aur server ka <b>latest version</b>. User 2 merge kar sakta hai ya ek version se dusre ko override.</p>
+
+<h3>Improved high-level design</h3>
+<figure class="diagram"><img src="../img/15/high-level-design.png" alt="Improved high-level design" loading="lazy"><figcaption>Upar <b>User</b> se teen raaste: (a) left — <b>Block servers</b> → <b>Cloud storage</b> → (inactive data) <b>Cold storage</b>; Cloud storage se Load balancer ki taraf arrow upload completion info ke liye. (b) beech — <b>Load balancer</b> → <b>API servers</b> → <b>Metadata Cache</b> + <b>Metadata DB</b>. (c) right — <b>long polling</b> se <b>Notification Service</b>; API servers changes notification service ko batate hain, aur offline clients ke liye changes <b>Offline backup Queue</b> mein jaate hain.</figcaption></figure>
+<ul>
+<li><b>User</b>: browser ya mobile app.</li>
+<li><b>Block servers</b>: files ko blocks mein todke cloud storage pe upload. <b>Block-level storage</b> — har block ka unique hash value, metadata DB mein store. Blocks independent S3 objects; file reconstruct = blocks ko order mein join. Block ka max size <b>4 MB</b> (Dropbox ka reference number).</li>
+<li><b>Cloud storage</b>: blocks S3 pe.</li>
+<li><b>Cold storage</b>: inactive files ke liye sasta storage.</li>
+<li><b>Load balancer</b> + <b>API servers</b>: upload ke alawa sab — auth, profile, file metadata update.</li>
+<li><b>Metadata DB + cache</b>: users, files, blocks, versions ka metadata. Files cloud mein, DB mein sirf metadata.</li>
+<li><b>Notification service</b>: publisher/subscriber system — file add/edit/delete pe clients ko batata hai taaki wo latest changes pull karein.</li>
+<li><b>Offline backup queue</b>: client offline hai to file changes ki info yahan, online aane pe sync.</li>
+</ul>
+
+<h2 id="step3">Step 3: Design deep dive</h2>
+<h3>Block servers: delta sync + compression</h3>
+<p>Badi files jo baar-baar update hoti hain — har update pe poori file bhejna bandwidth waste. Do optimizations:</p>
+<ul>
+<li><b>Delta sync</b>: file modify ho to sabse sirf <b>modified blocks</b> sync karo, poori file nahi (sync algorithm se).</li>
+<li><b>Compression</b>: file type ke hisaab se algorithm — text ke liye gzip/bzip2, images/videos ke liye alag.</li>
+</ul>
+<figure class="diagram"><img src="../img/15/file-sync.png" alt="Block server processing pipeline" loading="lazy"><figcaption>Block servers box mein left ki file ko <b>split</b> karke <b>Block 1, Block 2, …, Block N</b> banaye jaate hain → har block <b>compress</b> hota hai → phir <b>encrypt</b> (lock icon) → aur encrypted blocks right side <b>Cloud storage</b> mein upload. Ye kaam client se hata ke block servers pe hai.</figcaption></figure>
+<figure class="diagram"><img src="../img/15/delta-sync.png" alt="Delta sync" loading="lazy"><figcaption><b>Block servers</b> mein file ke 10 blocks hain; <b>Block 2</b> aur <b>Block 5</b> black hain = changed. "changed only" arrow dikhata hai ki sirf ye do blocks <b>Cloud storage</b> mein jaate hain — baaki 8 blocks dobara upload nahi hote.</figcaption></figure>
+<div class="callout realworld">🌍 <b>Real world:</b> rsync ka rolling-checksum delta algorithm is idea ka classic open-source example hai. Dropbox ne bhi block-level sync aur dedup ke baare mein publicly baat ki hai — book ka 4 MB block size Dropbox se hi liya gaya reference hai.</div>
+
+<h3>High consistency requirement</h3>
+<p>System ko default <b>strongly consistent</b> hona chahiye — alag clients ek file ko alag dikha nahi sakte. Memory cache by default eventually consistent hota hai, to:</p>
+<ul>
+<li>Cache replicas aur master consistent rahein.</li>
+<li>DB write pe cache invalidate karo.</li>
+</ul>
+<p>Isliye metadata ke liye <b>relational DB</b> — ACID natively support karta hai. NoSQL mein ACID default nahi milta, application logic mein banana padta.</p>
+
+<h3>Metadata database</h3>
+<figure class="diagram"><img src="../img/15/metadata-database.png" alt="Metadata database schema" loading="lazy"><figcaption>Tables aur relations (1 aur * = one-to-many): <b>user</b> (user_id, user_name, created_at) 1→* <b>workspace</b> (id, owner_id, is_shared, created_at) aur 1→* <b>device</b> (device_id uuid, user_id, last_logged_in_at). <b>workspace</b> 1→* <b>file</b> (id, file_name, relative_path, is_directory, latest_version, checksum, workspace_id, created_at, last_modified). <b>file</b> 1→* <b>file_version</b> (id, file_id, device_id, version_number, last_modified). <b>file_version</b> 1→* <b>block</b> (block_id, file_version_id, block_order). Device bhi 1→* file_version — kaunse device ne version banaya.</figcaption></figure>
+<ul>
+<li><b>User</b>: username, profile photo jaisi basic info.</li>
+<li><b>Device</b>: device info; <code>push_id</code> mobile push ke liye. Ek user ke multiple devices.</li>
+<li><b>Namespace/workspace</b>: user ki root directory.</li>
+<li><b>File</b>: latest file se related sab.</li>
+<li><b>File_version</b>: version history. Rows <b>read-only</b> rakho — revision history ki integrity bani rahe.</li>
+<li><b>Block</b>: block info; file ka koi bhi version blocks ko sahi order mein join karke reconstruct.</li>
+</ul>
+
+<h3>Upload flow</h3>
+<figure class="diagram"><img src="../img/15/upload-flow.png" alt="Upload flow sequence diagram" loading="lazy"><figcaption>Columns: Client 1, Client 2, Block servers, Cloud storage, API Servers, Metadata DB, Notification service. Do parallel requests: <b>Metadata path</b> — 1. Client 1 "add file metadata" API server ko → 2. Metadata DB mein "upload status: pending" → 3. notification service ko "notify change" → 4. Client 2 ko "notify changes" (file upload ho rahi hai). <b>File path</b> — 2.1 Client 1 block servers ko "upload file" → 2.2 block servers chunk/compress/encrypt karke cloud storage pe → 2.3 cloud storage upload complete callback ("update file metadata") API servers ko → 2.4 Metadata DB mein status "uploaded" → 2.5 notify change → 2.6 Client 2 ko notify.</figcaption></figure>
+<ol>
+<li><b>Add file metadata</b>: client 1 naye file ka metadata bhejta hai → DB mein status <code>pending</code> → notification service client 2 ko batati hai.</li>
+<li><b>Upload file content</b>: client 1 block servers ko content bhejta hai → blocks chunk, compress, encrypt hoke cloud storage pe → upload complete hone pe cloud storage callback API servers ko → status <code>uploaded</code> → notification → client 2.</li>
+</ol>
+<p>File edit hone pe bhi same flow.</p>
+<div class="callout warn">⚠️ <b>Failure mode:</b> Metadata "pending" ho gaya lekin block upload kabhi complete nahi hua (client crash). Pending files ko TTL ke baad cleanup karna, ya resumable session se client ko continue karne dena — warna orphan metadata aur orphan blocks jama honge.</div>
+
+<h3>Download flow</h3>
+<p>Download tab trigger hota hai jab kahin aur file add/edit hui. Client ko kaise pata chale?</p>
+<ul>
+<li>Client A <b>online</b> hai → notification service batati hai ki changes hain, pull karo.</li>
+<li>Client A <b>offline</b> hai → changes cache (offline backup queue) mein save; online aane pe latest changes pull.</li>
+</ul>
+<figure class="diagram"><img src="../img/15/download-flow.png" alt="Download flow sequence diagram" loading="lazy"><figcaption>Columns: Client 2, Block servers, Cloud storage, API Servers, Metadata DB, Notification service. <b>1</b> Notification service Client 2 ko "notify changes" → <b>2</b> Client 2 API servers se "get changes" → <b>3</b> API servers Metadata DB se → <b>4</b> DB changes return → <b>5</b> API servers client ko changes (kaunse blocks badle) return → <b>6</b> Client 2 block servers se "download blocks" → <b>7</b> block servers cloud storage se → <b>8</b> blocks wapas → <b>9</b> client ko blocks; client file reconstruct karta hai.</figcaption></figure>
+
+<h3>Notification service</h3>
+<p>Do options the: <b>long polling</b> (Dropbox use karta hai) aur <b>WebSocket</b>. Yahan <b>long polling</b> choose kiya kyunki:</p>
+<ul>
+<li>Communication <b>bidirectional nahi</b> hai — server client ko change ki khabar deta hai, client kuch wapas push nahi karta.</li>
+<li>WebSocket real-time bidirectional (chat) ke liye best; Drive mein notifications kam frequent hain aur data burst nahi hota.</li>
+</ul>
+<p>Har client notification server se long-poll connection rakhta hai; change detect hone pe connection close, client metadata server se latest changes laata hai, phir nayi long-poll request.</p>
+
+<h3>Storage space bachana</h3>
+<ul>
+<li><b>De-duplicate blocks</b>: account level pe redundant blocks hatao — do blocks identical hain agar unka <b>hash same</b> hai.</li>
+<li><b>Intelligent backup strategy</b>:
+<ul><li><b>Limit</b>: max kitne versions store karein — limit pe sabse purana version drop.</li>
+<li><b>Valuable versions only</b>: baar-baar edit hone wali file ke har chhote edit ka version mat rakho; recent versions ko weight do. Experimentation se optimal number nikalo.</li></ul></li>
+<li><b>Cold storage</b>: mahino/saalon se untouched data ko <b>Amazon S3 Glacier</b> jaisi sasti storage mein.</li>
+</ul>
+
+<h3>Failure handling</h3>
+<table class="cmp">
+<tr><th>Failure</th><th>Handling</th></tr>
+<tr><td>Load balancer</td><td>Secondary active ho jaata hai (heartbeats se monitoring)</td></tr>
+<tr><td>Block server</td><td>Pending/unfinished jobs dusre servers ko</td></tr>
+<tr><td>Cloud storage</td><td>S3 buckets multi-region replicated — dusre region se fetch</td></tr>
+<tr><td>API server</td><td>Stateless — LB traffic dusre servers pe bhejta hai</td></tr>
+<tr><td>Metadata cache</td><td>Replicated — dusre node se; failed node replace</td></tr>
+<tr><td>Metadata DB master</td><td>Slave ko master promote, nayi slave node</td></tr>
+<tr><td>Metadata DB slave</td><td>Reads dusre slave pe, failed replace</td></tr>
+<tr><td>Notification service</td><td>Har online user ka long-poll connection hai; server down → saare clients reconnect karte hain dusre servers se. Ek server 1M+ connections rakh sakta hai, lekin itne saare reconnects ek saath slow hote hain — ye known pain point hai.</td></tr>
+<tr><td>Offline backup queue</td><td>Replicated queues; ek fail → consumers re-subscribe backup queue ko</td></tr>
+</table>
+
+<h2 id="wrapup">Step 4: Wrap-up</h2>
+<p>Design ke do bade flows: <b>file metadata manage karna</b> aur <b>file sync</b>; notification service teesra. Ek alternate design: client seedha cloud storage pe upload kare (block servers bypass) — faster, lekin chunking/compression/encryption logic har platform (iOS, Android, web) pe alag implement karna padta, aur client-side encryption logic ko tamper kiya ja sakta hai. Isliye centralized block servers. Aur ek idea: <b>presence service</b> ko notification servers se alag nikaalna taaki dusri services bhi use karein.</p>
+
+<h2 id="interview">Interview mein kaise bolein</h2>
+<div class="callout interview">🎤 <b>45-min plan:</b>
+<ol>
+<li><b>(5 min)</b> Features + NFRs (reliability #1, fast sync, bandwidth). Estimation: 500 PB, ~240 upload QPS.</li>
+<li><b>(8 min)</b> Single server + namespaces + 3 APIs (resumable upload), phir S3, LB, DB replication.</li>
+<li><b>(7 min)</b> Improved diagram: block servers, cloud/cold storage, API servers, metadata DB/cache, notification service, offline queue.</li>
+<li><b>(15 min)</b> Deep dive: 4 MB blocks + delta sync + compression + encryption, strong consistency → RDBMS, schema, upload/download sequence, long polling choice, sync conflicts.</li>
+<li><b>(5 min)</b> Storage savings (dedup, versions, Glacier) + failure table.</li>
+</ol>
+Key line: <i>"Ye QPS-heavy nahi, storage aur bandwidth-heavy system hai — isliye blocks, delta sync aur dedup pe focus karunga, aur metadata ke liye strong consistency."</i></div>
+
+<h2 id="followups">Common follow-up questions</h2>
+<p><b>Q: Block size 4 MB hi kyun?</b><br>A: Chhote blocks = better dedup/delta, lekin metadata rows zyada; bade blocks = kam metadata, lekin small edit pe zyada re-upload. 4 MB practical balance hai (Dropbox reference).</p>
+<p><b>Q: Do devices se same file ek saath edit hui?</b><br>A: First-processed wins; dusre ko conflict, dono copies dikhao — merge ya override user decide kare.</p>
+<p><b>Q: Dedup encryption ke saath kaise?</b><br>A: Hash plaintext block pe (encryption se pehle) compute karke compare; account-level dedup mein ye safe hai kyunki same user ke blocks hain.</p>
+<p><b>Q: Sharing kaise model karoge?</b><br>A: Workspace <code>is_shared</code> + ek ACL/permission table (user/group → file/folder → role). Notification service share event bhi bhejegi.</p>
+<p><b>Q: WebSocket kyun nahi?</b><br>A: Traffic unidirectional aur infrequent hai; long polling simple aur kaafi hai.</p>
+<p><b>Q: 10 GB ki file?</b><br>A: Resumable upload + parallel block upload; fail hone pe sirf missing blocks.</p>
+
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul>
+<li>Reliability (no data loss) #1 NFR; 500 PB storage, sirf ~240 upload QPS.</li>
+<li>APIs: simple + resumable upload, download, list_revisions (api.example.com sirf example domain hai).</li>
+<li>Files ko ≤4 MB blocks mein todo — compress + encrypt + hash; delta sync se sirf changed blocks.</li>
+<li>Metadata = relational DB (ACID, strong consistency), cache invalidation on write.</li>
+<li>Upload: metadata (pending) ∥ blocks → cloud callback → uploaded → notify. Download: notify → get changes → download blocks.</li>
+<li>Notification via long polling; offline clients ke liye offline backup queue.</li>
+<li>Storage bachao: hash-based dedup, version limits, cold storage (S3 Glacier); S3 cross-region replication for durability.</li>
+</ul></div>
+   <div class="chapter-nav"><a class="prev" href="14-youtube.html">← Prev: Design YouTube</a><a class="next" href="16-proximity-service.html">Next: Design a Proximity Service →</a></div>
+  </main>
+  <aside class="toc"><div class="toc-title">On this page</div><ul>
+    <li><a href="#intro">Introduction</a></li>
+    <li><a href="#step1">Step 1: Requirements</a></li>
+    <li><a href="#step2">Step 2: High-level design</a></li>
+    <li><a href="#step3">Step 3: Design deep dive</a></li>
+    <li><a href="#wrapup">Step 4: Wrap-up</a></li>
+    <li><a href="#interview">Interview mein kaise bolein</a></li>
+    <li><a href="#followups">Common follow-up questions</a></li>
+    <li><a href="#takeaways">Key Takeaways</a></li>
+  </ul></aside>
+ </div>
+ <script src="../assets/app.js"></script>
+</body>
+</html>

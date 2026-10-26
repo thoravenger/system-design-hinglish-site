@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 27: Digital Wallet · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+ <header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><button class="theme-toggle" aria-label="theme">◐</button></header>
+ <div class="layout">
+  <nav class="sidebar">
+   <div class="nav-group"><p class="nav-group-title">Foundations</p>
+    <a href="01-scaling.html"><span class="num">01</span> Scaling 0 to Millions</a>
+    <a href="02-back-of-envelope.html"><span class="num">02</span> Back-of-the-Envelope Estimation</a>
+    <a href="03-framework.html"><span class="num">03</span> System Design Interview Framework</a>
+    <a href="04-rate-limiter.html"><span class="num">04</span> Rate Limiter</a>
+    <a href="05-consistent-hashing.html"><span class="num">05</span> Consistent Hashing</a>
+    <a href="06-key-value-store.html"><span class="num">06</span> Key-Value Store</a>
+    <a href="07-unique-id-generator.html"><span class="num">07</span> Unique ID Generator</a>
+   </div>
+   <div class="nav-group"><p class="nav-group-title">Classic Designs</p>
+    <a href="08-url-shortener.html"><span class="num">08</span> URL Shortener</a>
+    <a href="09-web-crawler.html"><span class="num">09</span> Web Crawler</a>
+    <a href="10-notification-system.html"><span class="num">10</span> Notification System</a>
+    <a href="11-news-feed.html"><span class="num">11</span> News Feed System</a>
+    <a href="12-chat-system.html"><span class="num">12</span> Chat System</a>
+    <a href="13-search-autocomplete.html"><span class="num">13</span> Search Autocomplete</a>
+    <a href="14-youtube.html"><span class="num">14</span> YouTube</a>
+   </div>
+   <div class="nav-group"><p class="nav-group-title">Vol 2 · Part 1</p>
+    <a href="15-google-drive.html"><span class="num">15</span> Google Drive</a>
+    <a href="16-proximity-service.html"><span class="num">16</span> Proximity Service</a>
+    <a href="17-nearby-friends.html"><span class="num">17</span> Nearby Friends</a>
+    <a href="18-google-maps.html"><span class="num">18</span> Google Maps</a>
+    <a href="19-message-queue.html"><span class="num">19</span> Distributed Message Queue</a>
+    <a href="20-metrics-monitoring.html"><span class="num">20</span> Metrics Monitoring & Alerting</a>
+    <a href="21-ad-click-aggregation.html"><span class="num">21</span> Ad Click Event Aggregation</a>
+    <a href="22-hotel-reservation.html"><span class="num">22</span> Hotel Reservation System</a>
+   </div>
+   <div class="nav-group"><p class="nav-group-title">Vol 2 · Part 2</p>
+    <a href="23-email-service.html"><span class="num">23</span> Distributed Email Service</a>
+    <a href="24-s3-object-storage.html"><span class="num">24</span> S3-like Object Storage</a>
+    <a href="25-gaming-leaderboard.html"><span class="num">25</span> Real-time Gaming Leaderboard</a>
+    <a href="26-payment-system.html"><span class="num">26</span> Payment System</a>
+    <a href="27-digital-wallet.html" class="active" aria-current="page"><span class="num">27</span> Digital Wallet</a>
+    <a href="28-stock-exchange.html"><span class="num">28</span> Stock Exchange</a>
+   </div>
+  </nav>
+  <main class="content">
+   <div class="chapter-hero"><span class="chapter-num">Chapter 27</span><h1>Digital Wallet</h1><p class="lead">1 million TPS wala digital wallet — Redis sharding se shuru karke 2PC, TC/C, Saga, phir event sourcing + CQRS, mmap/RocksDB se single-node speed, Raft se durability, aur sharded Raft groups pe distributed transactions. Ledger, idempotency aur replayability ka sabse deep chapter.</p><div class="tags"><span class="tag">Event Sourcing</span><span class="tag">CQRS</span><span class="tag">TC/C</span><span class="tag">Saga</span><span class="tag">2PC</span><span class="tag">Raft</span><span class="tag">Ledger</span></div></div>
+<h2 id="intro">Introduction</h2>
+<p>Payment platforms ka <strong>wallet service</strong> users ko app ke andar funds rakhne deta hai — baad mein withdraw, goods/services pe kharch, ya doosre wallet users ko transfer. Wallet-to-wallet transfer normal payment rails se fast aur sasta hota hai (paisa platform ke ledger ke andar hi move hota hai, bank tak nahi jaata).</p>
+<figure class="diagram"><img src="../img/27/digital-wallet.png" alt="digital wallet" loading="lazy"><figcaption>Bank (Bank card) → "Deposit" → Payment System ke andar Digital wallet ($) → E-commerce site pe kharch. Wallet ek closed-loop balance hai jo platform ke books mein rehta hai.</figcaption></figure>
+
+<h2 id="step1">Step 1: Requirements aur scope</h2>
+<ul>
+ <li>Sirf <strong>wallet-to-wallet balance transfers</strong>.</li>
+ <li><strong>1M TPS</strong>.</li>
+ <li>Transactional guarantees kaafi.</li>
+ <li><strong>Correctness prove</strong> karni hai — reconciliation sirf discrepancy batata hai, root cause nahi. Isliye data ko <strong>shuru se replay</strong> karke history reconstruct kar sakein (reproducibility).</li>
+ <li>Availability 99.99%.</li>
+ <li>FX out of scope.</li>
+</ul>
+<h3>Back-of-the-envelope</h3>
+<p>Cloud RDBMS node ≈ 1,000 TPS. 1M TPS → 1,000 nodes; aur har transfer ke <strong>do legs</strong> (debit + credit) → effectively <strong>2M TPS</strong>. Design goal: per-node TPS badhao taaki nodes kam hon.</p>
+<table class="cmp">
+<tr><th>Per-node TPS</th><th>Nodes (2M ops)</th></tr>
+<tr><td>100</td><td>20,000</td></tr>
+<tr><td>1,000</td><td>2,000</td></tr>
+<tr><td>10,000</td><td>200</td></tr>
+</table>
+
+<h2 id="api">Step 2: API</h2>
+<pre><code>POST /v1/wallet/balance_transfer
+  from_account, to_account,
+  amount        (string — precision loss nahi),
+  currency,
+  transaction_id (idempotency key)
+-&gt; { "status": "success", "transaction_id": "01589980-2664-11ec-9621-0242ac130002" }</code></pre>
+
+<h2 id="redis">Step 2a: In-memory sharding (Redis)</h2>
+<p><code>map&lt;user_id, balance&gt;</code> Redis mein; ek Redis node 1M TPS nahi jhel sakta → partitions:</p>
+<pre><code>String accountID = "A";
+int partitionNumber = 7;
+int myPartition = accountID.hashCode() % partitionNumber;</code></pre>
+<div class="callout warn">⚠️ <strong>Java gotcha:</strong> <code>String.hashCode()</code> negative ho sakta hai → <code>%</code> negative partition dega (ArrayIndexOutOfBounds ya galat routing). Use <code>Math.floorMod(accountID.hashCode(), n)</code>. Aur modulo hashing mein partitions badhane pe almost saari keys move hoti hain — consistent hashing ya fixed virtual slots (Redis Cluster ke 16384 slots) better.</div>
+<p>ZooKeeper partitions ka count aur Redis node addresses rakhta hai; wallet service stateless hai, horizontally scale.</p>
+<figure class="diagram"><img src="../img/27/wallet-service.png" alt="wallet service" loading="lazy"><figcaption>Do Transfer Commands. Red path: "A — $1 → B" Wallet Service tak; service do alag Redis nodes ko "A: -$1" aur "B: +$1" bhejta hai. Doosra wallet service bhi saare Redis nodes ({A}, {B}, {C} balance) se baat karta hai; Partition Info ZooKeeper mein. Problem: do alag nodes pe do writes — atomic nahi! Ek ho gaya aur doosra fail = paisa gayab ya paida.</figcaption></figure>
+<p>Scale mil gaya, lekin <strong>atomicity</strong> nahi — aur Redis by default durable bhi nahi.</p>
+
+<h2 id="2pc">Step 2b: Distributed transactions — 2PC</h2>
+<figure class="diagram"><img src="../img/27/distributed-transactions-relational-dbs.png" alt="distributed transactions relational dbs" loading="lazy"><figcaption>Redis ki jagah ab teen sharded Relational Databases (A, B, C ke balance rows). Wallet Services Transfer Commands lete hain, ZooKeeper se partition info, aur multiple DBs pe ek distributed transaction chalate hain.</figcaption></figure>
+<figure class="diagram"><img src="../img/27/2pc-protocol.png" alt="2pc protocol" loading="lazy"><figcaption>Timeline: Coordinator (Wallet Service) Database A aur C pe "write data" karta hai — A aur C dono lock (lambi red lines). Phase 1 "Prepare": coordinator dono se poochta hai, dono "yes". Phase 2 "Commit": dono commit, "ok", tab unlock A, unlock C. Red line ki lambai = poore protocol tak locks held — yahi performance killer hai.</figcaption></figure>
+<ul>
+ <li>Coordinator normal reads/writes karta hai multiple DBs pe.</li>
+ <li>Commit se pehle sabko <strong>prepare</strong>; sab "yes" → <strong>commit</strong>; koi "no" → <strong>abort</strong>.</li>
+ <li>❌ Lock contention (locks dono phases tak). ❌ Coordinator SPOF — prepare ke baad coordinator mar gaya to participants locks pakde "in-doubt" baithe rehte hain.</li>
+</ul>
+<div class="callout realworld">🌍 Java world mein yeh XA transactions hain (JTA + Atomikos/Narayana). Banks ke core systems mein (mainframe, MQ + DB2) XA aaj bhi milta hai, lekin microservices/cloud-native payments mein XA almost kabhi use nahi hota — Kafka XA support karta hi nahi, aur in-doubt transactions ops nightmare hain. Isliye industry TC/C/Saga + idempotency pe shift hui.</div>
+
+<h2 id="tcc">Step 2c: Try-Confirm/Cancel (TC/C)</h2>
+<p>2PC ka compensation-based variant. 2PC = ek badi transaction; TC/C = <strong>do independent local transactions</strong> (har phase apna commit).</p>
+<table class="cmp">
+<tr><th>Phase</th><th>Operation</th><th>A</th><th>C</th></tr>
+<tr><td>1</td><td>Try</td><td>Balance −$1</td><td>Do nothing</td></tr>
+<tr><td>2</td><td>Confirm</td><td>Do nothing</td><td>Balance +$1</td></tr>
+<tr><td>2</td><td>Cancel</td><td>Balance +$1</td><td>Do nothing</td></tr>
+</table>
+<figure class="diagram"><img src="../img/27/try-phase.png" alt="try phase" loading="lazy"><figcaption>First Phase: Coordinator A ko "Try: A−$1" — A pe local txn: lock A → <code>UPDATE balance SET amount=amount-1 WHERE account='A'</code> → unlock A (A: $1 → $0) → Done ✓. C ko NOP → Done ✓. Lock sirf local txn tak (chhoti red line) — 2PC jaisa lamba nahi.</figcaption></figure>
+<figure class="diagram"><img src="../img/27/confirm-phase.png" alt="confirm phase" loading="lazy"><figcaption>Dono ne yes bola → Second Phase: Confirm. A ko NOP (Done). C ko "Confirm: C+$1" — lock C, <code>amount=amount+1 WHERE account='C'</code>, unlock (C: $0 → $1), Done ✓.</figcaption></figure>
+<figure class="diagram"><img src="../img/27/cancel-phase.png" alt="cancel phase" loading="lazy"><figcaption>First Phase mein C side "Failed" (red X). Second Phase: Cancel — A ko "Cancel: A+$1" (lock A, amount+1, unlock: $0 → $1 wapas), C ko NOP. Pehle se committed deduction ko <em>reverse</em> karna = compensation.</figcaption></figure>
+<table class="cmp">
+<tr><th></th><th>First phase</th><th>Second phase: success</th><th>Second phase: fail</th></tr>
+<tr><td>2PC</td><td>Transactions abhi done nahi (locks held)</td><td>Commit all</td><td>Cancel all</td></tr>
+<tr><td>TC/C</td><td>Saari local txns complete (committed ya cancelled)</td><td>Naye txns execute (if needed)</td><td>Committed txn ko reverse</td></tr>
+</table>
+<p>TC/C = "distributed transaction by compensation"; business logic level pe; DB agnostic (bas local transactions chahiye); complexity application mein.</p>
+<h3>TC/C failure modes</h3>
+<figure class="diagram"><img src="../img/27/phase-status-tables.png" alt="phase status tables" loading="lazy"><figcaption>Har DB shard mein Balance Table ke saath pink <strong>Phase Status Table</strong>. Wallet service balance update aur phase status <em>same local transaction</em> mein likhta hai — coordinator crash ke baad isse padh ke recover.</figcaption></figure>
+<p>Phase status table: distributed txn ID + content, try status (not sent / sent / response received), second phase name (confirm/cancel), uska status, <strong>out-of-order flag</strong>.</p>
+<figure class="diagram"><img src="../img/27/unbalanced-state.png" alt="unbalanced state" loading="lazy"><figcaption>Before TC/C: A+C = $1. First phase ke baad A = $0, C = $0 → A+C = <strong>$0</strong> (red box "Unbalanced state", "Money loss: $1"). Second phase confirm ke baad A+C = $1 ("Money recovery"). Beech mein ek moment system ke total mein $1 "in flight" hai.</figcaption></figure>
+<p>Yeh temporary imbalance theek hai jab tak hum hamesha recover karein aur user beech ki state kharch na kar sake — isliye <strong>deduction hamesha addition se pehle</strong>:</p>
+<table class="cmp">
+<tr><th>Try choice</th><th>A</th><th>C</th><th>Valid?</th></tr>
+<tr><td>Choice 1</td><td>−$1</td><td>NOP</td><td>✅</td></tr>
+<tr><td>Choice 2</td><td>NOP</td><td>+$1</td><td>❌ C pehle kharch kar sakta hai, phir A fail → paisa create ho gaya</td></tr>
+<tr><td>Choice 3</td><td>−$1</td><td>+$1</td><td>❌ do DBs pe atomic nahi bina 2PC ke</td></tr>
+</table>
+<figure class="diagram"><img src="../img/27/out-of-order-execution.png" alt="out of order execution" loading="lazy"><figcaption>Coordinator ne A aur C ko Try bheja. A fail hua → Second Phase: Cancel dono ko. Lekin network delay se C pe <strong>Cancel pehle pahuncha, Try baad mein</strong> ("Out-of-order: Cancel operation arrived before Try operation"). Agar C ab Try execute kare to woh kabhi cancel nahi hoga.</figcaption></figure>
+<p>Fix: Cancel aaye aur Try record na mile → out-of-order flag set karo; baad mein Try aaye aur flag set ho → Try reject.</p>
+<div class="callout realworld">🌍 <strong>TCC ke teen classic rules</strong> (Seata jaise TCC frameworks yahi terminology use karte hain):
+<ol>
+<li><strong>Idempotency</strong> — Try/Confirm/Cancel har ek retry-safe (txn_id + phase pe unique).</li>
+<li><strong>Empty rollback allowed</strong> — Try kabhi pahuncha hi nahi aur Cancel aaya → success return karo (kuch reverse karne ko nahi), lekin record rakho.</li>
+<li><strong>Anti-hanging (suspension)</strong> — empty rollback ke baad late Try aaye to reject (yahi notes ka out-of-order flag).</li>
+</ol>
+Payments ki duniya mein Try = <em>authorization/hold</em>: balance seedha −$1 karne ke bajaye <code>available -= 1, held += 1</code>; Confirm = <code>held -= 1</code> + credit; Cancel = <code>held -= 1, available += 1</code>. Isse user beech ki state kharch nahi kar sakta aur ledger pe hold dikhta hai.</div>
+
+<h2 id="saga">Step 2d: Saga</h2>
+<p>Operations ek sequence mein, har ek apne DB mein independent; first → last; fail hua to compensating operations se ulta rollback.</p>
+<figure class="diagram"><img src="../img/27/saga.png" alt="saga" loading="lazy"><figcaption>Start → "A−$1" → "C+$1" → Success ✓. A−$1 pe error → compensate "A+$1" → Error end. C+$1 pe error → "C−$1" (agar kuch hua ho) → phir "A+$1" → Error end. Rollback hamesha reverse order mein.</figcaption></figure>
+<ul>
+ <li><strong>Choreography</strong>: services events subscribe karke apna hissa karti hain — logic bikhar jaata hai.</li>
+ <li><strong>Orchestration</strong>: ek coordinator order mein instruct karta hai — wallet ke liye preferred.</li>
+</ul>
+<table class="cmp">
+<tr><th></th><th>TC/C</th><th>Saga</th></tr>
+<tr><td>Compensation</td><td>Cancel phase</td><td>Rollback phase</td></tr>
+<tr><td>Central coordination</td><td>Yes</td><td>Yes (orchestration)</td></tr>
+<tr><td>Execution order</td><td>Any</td><td>Linear</td></tr>
+<tr><td>Parallel</td><td>Yes</td><td>No</td></tr>
+<tr><td>Partial inconsistent state visible</td><td>Yes</td><td>Yes</td></tr>
+<tr><td>Logic</td><td>Application</td><td>Application</td></tr>
+</table>
+<p>Main farak: TC/C parallel ho sakta hai → low latency chahiye to TC/C. Dono mein auditing + replay phir bhi chahiye.</p>
+<div class="callout tip">💡 Spring/Java ecosystem: orchestrated sagas ke liye Temporal (Java SDK), Camunda, Axon (saga + event sourcing), ya apna orchestrator with state table + outbox. Har step ka command Kafka pe, reply topic se response; orchestrator state DB mein, aur har step/compensation idempotent.</div>
+
+<h2 id="event-sourcing">Step 2e: Event sourcing</h2>
+<p>Auditor ke sawaal: (1) kisi bhi time pe balance kya tha? (2) historical aur current balances sahi hain, kaise pata? (3) code change ke baad logic sahi hai, kaise prove? → <strong>Event sourcing</strong>.</p>
+<ul>
+ <li><strong>Command</strong>: intended action ("A se B ko $1"). Global order chahiye → FIFO queue. Fail ho sakta hai, randomness/IO ho sakti hai; 0 ya zyada events produce karta hai.</li>
+ <li><strong>Event</strong>: fact jo ho chuka ("A se B ko $1 transfer hua"). Immutable, ordered (FIFO).</li>
+ <li><strong>State</strong>: events ka result — account → balance KV.</li>
+ <li><strong>State machine</strong>: commands validate karta hai, events apply karta hai. <strong>Deterministic</strong> — external IO ya randomness nahi.</li>
+</ul>
+<figure class="diagram"><img src="../img/27/event-sourcing.png" alt="event sourcing" loading="lazy"><figcaption>Static view: Command → State Machine (Read State, Validate) → Event → State Machine (Apply) → State. Do state machine icons: pehla validate karke event banata hai, doosra event apply karke state update karta hai.</figcaption></figure>
+<figure class="diagram"><img src="../img/27/dynamic-event-sourcing.png" alt="dynamic event sourcing" loading="lazy"><figcaption>Teen horizontal timelines: Command, Event, State. Har command (cyan) "Validate" hoke event (yellow) banta hai, event "Apply" hoke state (pink) badalta hai, aur naya state agle command ke validation mein use hota hai — zig-zag pattern time ke saath.</figcaption></figure>
+<figure class="diagram"><img src="../img/27/command-queue.png" alt="command queue" loading="lazy"><figcaption>Command Queue (Kafka): "A −$1→ C" in side se aata hai; queue mein A→C, A→B, A→D order mein; out side se state machine ek-ek karke nikaalta hai. FIFO = deterministic order.</figcaption></figure>
+<figure class="diagram"><img src="../img/27/wallet-service-state-macghine.png" alt="wallet service state macghine" loading="lazy"><figcaption>Full picture: Client → Command Queue. ① State machine command padhta hai, ② State DB se balance read (A:$5, B:$4…), validate. ③ Valid → do events (A:−$1, D:+$1) Event Queue mein. ④ Doosra state machine events padhta hai, ⑤ State update. Commands ke dashed arrows dikhate hain ki har command se do events bane.</figcaption></figure>
+<p>Fayda: <strong>reproducibility</strong>. Events immutable + state machine deterministic → kisi bhi point tak replay = exact same state.</p>
+<figure class="diagram"><img src="../img/27/historical-states.png" alt="historical states" loading="lazy"><figcaption>Command Queue (A→C, A→B, A→D) → Event Queue (A:−$1, C:+$1, A:−$1, B:+$1, A:−$1, D:+$1) → teen Historical States: A ka balance $5 → $4 → $3 (red), aur B, C, D ka corresponding change. Kisi bhi event tak replay karo, us waqt ka exact snapshot.</figcaption></figure>
+<ul>
+ <li>Kisi time ka balance → us point tak replay.</li>
+ <li>Sahi hai? → shuru se recalc karke compare.</li>
+ <li>Code change sahi? → naye aur purane code ko same events pe chalao, results identical hone chahiye.</li>
+</ul>
+<h3>CQRS</h3>
+<figure class="diagram"><img src="../img/27/cqrs-architecture.png" alt="cqrs architecture" loading="lazy"><figcaption>Write Path (upar): Client → Command Queue → state machine (① read state ② validate ③ events ④ read ⑤ update) → Event Queue. "Publish Events" dashed arrow Read Path ko: wahan "Rebuild State" se Historical State banta hai, aur Client ka "query" Query Service se isi read-side state ko padhta hai. Write aur read models alag.</figcaption></figure>
+<div class="callout realworld">🌍 <strong>Event sourcing — production gotchas (senior depth):</strong>
+<ul>
+<li><strong>Determinism</strong>: state machine mein <code>System.currentTimeMillis()</code>, <code>UUID.randomUUID()</code>, HashMap iteration order, floating point — sab replay ko non-deterministic banate hain. Timestamp/IDs command ke saath aaye (sequencer assign kare), money BigDecimal/long.</li>
+<li><strong>Idempotent commands</strong>: <code>transaction_id</code> ko state ka hissa banao (processed set / per-account last-seq). Duplicate command → no new events, same result.</li>
+<li><strong>Event schema evolution</strong>: events hamesha ke liye hain → versioned events + upcasters; event kabhi edit nahi.</li>
+<li><strong>Corrections</strong>: galat transfer = compensating event (reversal), jaise double-entry ledger mein. Event sourcing aur double-entry ek hi philosophy hain — append-only facts, derived balances.</li>
+<li><strong>Kafka as event store?</strong> Command/event <em>transport</em> ke liye badhiya, lekin per-account event stream load karna (random access by aggregate id) Kafka mein efficient nahi; isliye EventStoreDB/Axon Server/DB-table + Kafka for distribution common hai.</li>
+</ul></div>
+
+<h2 id="perf">Step 3a: High-performance event sourcing</h2>
+<p>1M TPS ke liye external Kafka + external DB ka network hop bhi mehenga. Optimizations:</p>
+<ol>
+ <li>Commands/events <strong>local disk</strong> pe append (sequential — HDD pe bhi fast).</li>
+ <li>Recent commands/events <strong>memory mein cache</strong>.</li>
+ <li><code>mmap</code> se dono ek saath — file ko memory mein map karo.</li>
+</ol>
+<figure class="diagram"><img src="../img/27/mmap-optimization.png" alt="mmap optimization" loading="lazy"><figcaption>Memory box mein Command List → state machine → Event List. Neeche disk pe Command File aur Event File, jo "mmap" dashed arrows se memory lists se jude hain. Likhna = memory write, OS page cache disk pe flush karta hai; padhna = memory read.</figcaption></figure>
+<p>State bhi local: SQLite ya <strong>RocksDB</strong> (LSM tree, write-optimised; reads caching se).</p>
+<figure class="diagram"><img src="../img/27/rocks-db-approach.png" alt="rocks db approach" loading="lazy"><figcaption>Ab memory mein beech mein "State — RocksDB In-memory cache", aur disk pe teesri file RocksDB File. Command/Event files mmap se; state RocksDB se. Sab kuch ek machine pe, network hop zero.</figcaption></figure>
+<figure class="diagram"><img src="../img/27/snapshot-approach.png" alt="snapshot approach" loading="lazy"><figcaption>Left: wahi local setup. "Take snapshot" se RocksDB state periodically Object Store mein (Snapshot 2020-03-01, 03-02, 03-03 24:00). Right: Read-only State Machine latest snapshot "Load snapshot" karta hai aur sirf uske baad ke events replay karta hai; Event List "Replicate" hoke usko milti hai; Query wahan se.</figcaption></figure>
+<p>Snapshots (HDFS/object store) se har baar zero se replay nahi karna padta.</p>
+<div class="callout realworld">🌍 <strong>LMAX architecture</strong> (Martin Fowler ka famous article) exactly yahi idea hai: single-threaded in-memory business logic processor, input events journaled to disk + replicated, aur restart pe snapshot + replay. Java mein LMAX Disruptor (lock-free ring buffer) isi ka byproduct hai. Aur <strong>TigerBeetle</strong> — purpose-built financial ledger DB — bhi deterministic state machine + consensus-replicated log + debit/credit primitives pe bana hai. Interview mein naam lo: dikhata hai ki "single-node 10k+ TPS" theory nahi, proven pattern hai.</div>
+
+<h2 id="raft">Step 3b: Reliable — Raft replication</h2>
+<p>Local storage = stateful = node gaya to data gaya. Kya replicate karna hai?</p>
+<ul>
+ <li>State aur snapshots events se regenerate ho sakte hain.</li>
+ <li>Events commands se regenerate <strong>nahi</strong> — commands non-deterministic (validation us waqt ke state pe depend karti hai, external IO).</li>
+ <li>→ Sirf <strong>event list</strong> ko highly reliable banao: no data loss + sab replicas pe same order.</li>
+</ul>
+<figure class="diagram"><img src="../img/27/raft-replication.png" alt="raft replication" loading="lazy"><figcaption>Raft Node Group: beech mein pink Leader (Commands → state machine → Events → state), upar-neeche cyan Followers (sirf Events → state). "Raft" arrows leader ke events followers tak replicate karte hain. User leader ko command bhejta hai; doosra user Read side ke state machines se "Query" karta hai. Write | Read zones alag.</figcaption></figure>
+<p>Leader active, followers passive; leader gaya to follower leader banta hai; majority up = system up (3 nodes → 1 failure, 5 → 2).</p>
+<div class="callout tip">💡 Raft commit = majority ne event log mein likh diya. Isliye 5-node group mein har write 2 doosre nodes ke fsync ka wait karta hai — latency ≈ network RTT + fsync. Throughput ke liye events <strong>batch</strong> mein replicate karo (Ch19 ka batching lesson). Kafka KRaft, etcd, CockroachDB sab Raft pe hain.</div>
+
+<h2 id="distributed">Step 3c: Distributed event sourcing</h2>
+<p>Limitations: (1) ek Raft group ki capacity limited → shard + distributed txns, (2) CQRS mein client ko result jaanne ke liye poll karna padta hai.</p>
+<figure class="diagram"><img src="../img/27/polling-approach.png" alt="polling approach" loading="lazy"><figcaption>User command leader ko bhejta hai (red path), lekin result jaanne ke liye blue line "Periodically query for the latest status" se read-side state ko baar-baar poll karta hai. Real-time nahi, aur bahut users poll karein to query service overload.</figcaption></figure>
+<figure class="diagram"><img src="../img/27/reverse-proxy.png" alt="reverse proxy" loading="lazy"><figcaption>Beech mein ek <strong>Reverse Proxy</strong>: user command proxy ko, proxy leader ko forward karta hai aur user ki taraf se poll karta hai (blue line ab proxy se). Proxy multiple users ka status ek request mein le sakta hai — load kam, lekin abhi bhi polling.</figcaption></figure>
+<figure class="diagram"><img src="../img/27/push-state-machines.png" alt="push state machines" loading="lazy"><figcaption>Final: read-only state machine result ready hote hi blue line "Push the latest status to reverse proxy in real-time" — proxy user ko Response deta hai. Polling khatam, user ko lagta hai sab real-time hai.</figcaption></figure>
+<figure class="diagram"><img src="../img/27/sharded-raft-groups.png" alt="sharded raft groups" loading="lazy"><figcaption>Do partitions — Partition 1 (account A) aur Partition 2 (account C) — har ek apna Raft Node Group + Reverse Proxy. User ke saamne <strong>TCC/Saga Coordinator</strong> with Phase Status Table. Coordinator har partition ko Command bhejta hai (red), aur har partition ka read side push karke Response (blue) wapas deta hai.</figcaption></figure>
+<h3>Ek transfer ki poori lifecycle</h3>
+<ol>
+ <li>User A Saga coordinator ko distributed txn bhejta hai: <code>A-1</code>, <code>C+1</code>.</li>
+ <li>Coordinator phase status table mein record banata hai.</li>
+ <li>Partitions decide karta hai.</li>
+ <li>Partition 1 ka Raft leader <code>A-1</code> command leta hai, validate karta hai, event banata hai, Raft se replicate.</li>
+ <li>Event read state machine tak sync, woh coordinator ko response push karta hai.</li>
+ <li>Coordinator success record karke next op <code>C+1</code>.</li>
+ <li>Same flow Partition 2 pe.</li>
+ <li>Coordinator op 2 success record karke client ko result.</li>
+</ol>
+<div class="callout warn">⚠️ <strong>Coordinator khud bhi stateful hai</strong> — phase status table ko bhi replicated/consensus-backed hona chahiye, warna coordinator crash = in-flight transfers atke. Aur hot account (merchant jise lakhon log pay karte hain) ek partition ko hot karega — merchant account ko sub-accounts mein split karo aur periodically sweep karo.</div>
+
+<h2 id="wrapup">Step 4: Wrap up — design evolution</h2>
+<ol>
+ <li>In-memory Redis → durable nahi.</li>
+ <li>Relational DBs + distributed txns (2PC / TC/C / Saga).</li>
+ <li>Event sourcing → auditable.</li>
+ <li>External DB + queue → slow.</li>
+ <li>Local file storage (append-only, mmap) + caching.</li>
+ <li>Durability ke liye Raft replication.</li>
+ <li>CQRS + reverse proxy (push) for lifecycle.</li>
+ <li>Multiple Raft groups + TC/C/Saga orchestration.</li>
+</ol>
+
+<div class="callout interview">🎤 <strong>Interview mein kaise bolein:</strong>
+<ol>
+<li>Numbers: 1M TPS × 2 legs = 2M ops; 1k TPS/node → 2,000 nodes. Goal = per-node TPS.</li>
+<li>Naive Redis → "atomic nahi, durable nahi".</li>
+<li>2PC vs TC/C vs Saga table; TC/C mein "deduct first", out-of-order/empty rollback.</li>
+<li>Requirement "prove correctness/replay" → event sourcing (command/event/state/state machine) + CQRS.</li>
+<li>Perf: local append-only + mmap + RocksDB + snapshots; reliability: Raft on event log only (kyun only events — determinism argument).</li>
+<li>Scale: sharded Raft groups + coordinator; push via reverse proxy.</li>
+</ol>
+Bonus: double-entry ledger se jodo — "events hi mera journal hain, balances projections."</div>
+
+<h2 id="faq">Follow-up questions</h2>
+<dl>
+<dt>Q: Same partition mein dono accounts (A aur B same shard)?</dt><dd>Ek hi state machine mein ek command = do events atomically — distributed txn ki zaroorat nahi. Isliye related accounts ko co-locate karne ka partitioning (e.g. same user ke sub-wallets) bada win hai.</dd>
+<dt>Q: Snapshot corrupt hua to?</dt><dd>Purana snapshot + zyada events replay; snapshots ka checksum + periodic "replay from zero" verification job.</dd>
+<dt>Q: Command duplicate aaya (client retry)?</dt><dd>transaction_id state machine ke state mein tracked; duplicate → koi naya event nahi, previous result return.</dd>
+<dt>Q: Reconciliation phir bhi chahiye?</dt><dd>Haan — internal consistency event sourcing deta hai, lekin bank/PSP (external) ke saath recon alag (Ch26).</dd>
+</dl>
+
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul>
+<li>Wallet transfer = do legs; atomicity across shards hi asli problem.</li>
+<li>2PC: locks + coordinator SPOF. TC/C: do local txns, parallel, compensation. Saga: linear, compensation.</li>
+<li>Hamesha deduct before add; TC/C ko idempotent + empty-rollback + anti-hanging banao.</li>
+<li>Event sourcing = immutable events + deterministic state machine → replay, audit, code-change verification.</li>
+<li>CQRS: write path (commands → events) aur read path (projections) alag; push se real-time.</li>
+<li>Perf: local append-only log + mmap + RocksDB + snapshots (LMAX style).</li>
+<li>Sirf event log ko Raft se replicate karo; state derive hota hai.</li>
+<li>Scale: sharded Raft groups + TC/C/Saga coordinator (jo khud bhi durable ho).</li>
+</ul></div>
+   <div class="chapter-nav"><a class="prev" href="26-payment-system.html">← Prev: Payment System</a><a class="next" href="28-stock-exchange.html">Next: Stock Exchange →</a></div>
+  </main>
+  <aside class="toc">
+   <p class="toc-title">On this page</p>
+    <a href="#intro">Introduction</a>
+    <a href="#step1">Step 1: Requirements aur scope</a>
+    <a href="#api">Step 2: API</a>
+    <a href="#redis">Step 2a: In-memory sharding (Redis)</a>
+    <a href="#2pc">Step 2b: Distributed transactions — 2PC</a>
+    <a href="#tcc">Step 2c: Try-Confirm/Cancel (TC/C)</a>
+    <a href="#saga">Step 2d: Saga</a>
+    <a href="#event-sourcing">Step 2e: Event sourcing</a>
+    <a href="#perf">Step 3a: High-performance event sourcing</a>
+    <a href="#raft">Step 3b: Reliable — Raft replication</a>
+    <a href="#distributed">Step 3c: Distributed event sourcing</a>
+    <a href="#wrapup">Step 4: Wrap up — design evolution</a>
+    <a href="#faq">Follow-up questions</a>
+    <a href="#takeaways">Key Takeaways</a>
+  </aside>
+ </div>
+ <script src="../assets/app.js"></script>
+</body>
+</html>

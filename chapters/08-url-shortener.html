@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 08: Design a URL Shortener · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{if(localStorage.getItem('sd-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><div class="toplinks"><a href="../index.html#chapters">Chapters</a><a href="../index.html#how">Kaise padhein</a><a href="../links.html">URL Guide</a></div><button class="theme-toggle" aria-label="theme">◐</button></header>
+<div class="layout">
+<nav class="sidebar">
+<div class="group">Foundations</div><ul>
+<li><a href="01-scaling.html"><span class="num">01</span> Scale from Zero to Millions of Users</a></li>
+<li><a href="02-back-of-envelope.html"><span class="num">02</span> Back-of-the-Envelope Estimation</a></li>
+<li><a href="03-framework.html"><span class="num">03</span> A Framework for System Design Interviews</a></li>
+<li><a href="04-rate-limiter.html"><span class="num">04</span> Design a Rate Limiter</a></li>
+<li><a href="05-consistent-hashing.html"><span class="num">05</span> Design Consistent Hashing</a></li>
+<li><a href="06-key-value-store.html"><span class="num">06</span> Design a Key-Value Store</a></li>
+<li><a href="07-unique-id-generator.html"><span class="num">07</span> Design a Unique ID Generator</a></li>
+</ul>
+<div class="group">Classic Designs</div><ul>
+<li><a class="active" href="08-url-shortener.html"><span class="num">08</span> Design a URL Shortener</a></li>
+<li><a href="09-web-crawler.html"><span class="num">09</span> Design a Web Crawler</a></li>
+<li><a href="10-notification-system.html"><span class="num">10</span> Design a Notification System</a></li>
+<li><a href="11-news-feed.html"><span class="num">11</span> Design a News Feed System</a></li>
+<li><a href="12-chat-system.html"><span class="num">12</span> Design a Chat System</a></li>
+<li><a href="13-search-autocomplete.html"><span class="num">13</span> Design a Search Autocomplete System</a></li>
+<li><a href="14-youtube.html"><span class="num">14</span> Design YouTube</a></li>
+</ul>
+<div class="group">Vol 2 · Part 1</div><ul>
+<li><a href="15-google-drive.html"><span class="num">15</span> Design Google Drive</a></li>
+<li><a href="16-proximity-service.html"><span class="num">16</span> Design a Proximity Service</a></li>
+<li><a href="17-nearby-friends.html"><span class="num">17</span> Design Nearby Friends</a></li>
+<li><a href="18-google-maps.html"><span class="num">18</span> Design Google Maps</a></li>
+<li><a href="19-message-queue.html"><span class="num">19</span> Design a Distributed Message Queue</a></li>
+<li><a href="20-metrics-monitoring.html"><span class="num">20</span> Metrics Monitoring and Alerting System</a></li>
+<li><a href="21-ad-click-aggregation.html"><span class="num">21</span> Ad Click Event Aggregation</a></li>
+<li><a href="22-hotel-reservation.html"><span class="num">22</span> Hotel Reservation System</a></li>
+</ul>
+<div class="group">Vol 2 · Part 2</div><ul>
+<li><a href="23-email-service.html"><span class="num">23</span> Distributed Email Service</a></li>
+<li><a href="24-s3-object-storage.html"><span class="num">24</span> S3-like Object Storage</a></li>
+<li><a href="25-gaming-leaderboard.html"><span class="num">25</span> Real-time Gaming Leaderboard</a></li>
+<li><a href="26-payment-system.html"><span class="num">26</span> Design a Payment System</a></li>
+<li><a href="27-digital-wallet.html"><span class="num">27</span> Design a Digital Wallet</a></li>
+<li><a href="28-stock-exchange.html"><span class="num">28</span> Design a Stock Exchange</a></li>
+</ul>
+<div class="group">Extras</div><ul>
+<li><a href="../index.html">🏠 Home / Kaise padhein</a></li><li><a href="../links.html">🔗 Notes ke URLs ka guide</a></li></ul>
+</nav>
+<main class="content">
+<div class="chapter-hero"><span class="chapter-num">Chapter 08</span><h1>Design a URL Shortener</h1><p class="lead">TinyURL jaisa service: 100M URLs/day ka estimate, 301 vs 302, hash+collision vs base62 aur cache-first redirect flow.</p><div class="tags"><span class="tag">Base62</span><span class="tag">Hashing</span><span class="tag">301 vs 302</span><span class="tag">Cache</span><span class="tag">Bloom Filter</span></div></div>
+
+<h2 id="intro">Introduction</h2>
+<p>Classic interview question: TinyURL jaisa URL shortener design karo. Chhota lagta hai, lekin isme estimation, API design, HTTP semantics (301 vs 302), hashing vs ID generation, caching aur read-heavy scaling — sab aata hai.</p>
+
+<h2 id="step1">Step 1: Problem samjho aur scope</h2>
+<p>Clarification conversation se:</p>
+<ul>
+<li>Example: <code>https://www.systeminterview.com/q=chatsystem&amp;c=loggedin&amp;v=v3&amp;l=long</code> → <code>https://tinyurl.com/y7keocwj</code>. Short URL click → original pe redirect.</li>
+<li>Traffic: <strong>100 million URLs/day</strong> generate.</li>
+<li>Short URL jitna chhota ho sake.</li>
+<li>Characters: <code>[0-9, a-z, A-Z]</code> — 10 + 26 + 26 = <strong>62</strong>.</li>
+<li>Short URLs delete/update nahi kar sakte (simplicity ke liye).</li>
+</ul>
+<h3>Basic use cases</h3>
+<ol><li><strong>URL shortening:</strong> long URL → much shorter URL.</li><li><strong>URL redirecting:</strong> short URL → original URL pe redirect.</li><li>High availability, scalability, fault tolerance.</li></ol>
+<h3>Back-of-the-envelope estimation</h3>
+<pre><code>Write ops      : 100M URLs/day
+Write QPS      : 100M / 24 / 3600            ≈ 1,160
+Read QPS       : read:write = 10:1           ≈ 11,600
+10 years       : 100M × 365 × 10             = 365 billion records
+Avg URL length : 100 bytes (assume)
+Storage        : 365B × 100 bytes            = 365 TB over 10 years</code></pre>
+<div class="callout tip"><strong>So what?</strong>~1.2K write QPS ek achhe RDBMS ke liye manageable hai; ~11.6K read QPS ke liye cache zaroori. 365 TB ka matlab eventually sharding. Short URL ki length bhi isi 365B se nikalegi (neeche).</div>
+
+<h2 id="step2">Step 2: High-level design</h2>
+<h3>API endpoints</h3>
+<p>REST style, do endpoints:</p>
+<pre><code>1) URL shortening
+POST api/v1/data/shorten
+  request : { "longUrl": "longURLString" }
+  return  : shortURL
+
+2) URL redirecting
+GET api/v1/shortUrl
+  return  : longURL for HTTP redirection</code></pre>
+
+<h3 id="redirect">URL redirecting: 301 vs 302</h3>
+<figure class="diagram"><img src="../img/08/url-redirection.png" alt="Browser network tab for a tinyurl redirect" loading="lazy"><figcaption><b>Kaise padhein:</b> Ye browser DevTools ka network tab hai. Red box 1: <b>Request URL</b> <code>https://tinyurl.com/qtj5opu</code> (GET). Red box 2: <b>Status Code: 301</b>. Red box 3: response header <b>location</b> = asli long Amazon URL. Browser 301 dekh ke turant <code>location</code> wale URL pe chala jaata hai.</figcaption></figure>
+<p>Server short URL ki request pe long URL ko HTTP 301 ya 302 response ke <code>Location</code> header mein bhejta hai.</p>
+<table class="cmp"><thead><tr><th></th><th>301 Moved Permanently</th><th>302 Found (temporary)</th></tr></thead><tbody>
+<tr><td>Meaning</td><td>URL "permanently" long URL pe move ho gaya</td><td>"Temporarily" long URL pe moved</td></tr>
+<tr><td>Browser caching</td><td>Browser response cache karta hai; next requests shortener service tak jaati hi nahi</td><td>Har request pehle shortener service pe aati hai, phir redirect</td></tr>
+<tr><td>Kab use karein</td><td>Server load kam karna priority hai</td><td>Analytics important hai — click rate, source track karna</td></tr>
+</tbody></table>
+<p>Implementation sabse simple: hash table <code>&lt;shortURL, longURL&gt;</code>. Short URL se long URL lo, redirect karo.</p>
+<pre><code>longURL = hashTable.get(shortURL)
+→ HTTP 301/302, Location: longURL</code></pre>
+
+<h3 id="shortening">URL shortening</h3>
+<figure class="diagram"><img src="../img/08/url-shortening.png" alt="Hash function maps long URL to short code" loading="lazy"><figcaption><b>Kaise padhein:</b> <b>longURL</b> ek hash function <b>f(x)</b> mein jaata hai, output <b>hash</b> = <code>qtj5opu</code> jo <code>https://tinyurl.com/</code> ke baad lagta hai. Short URL format: <code>www.tinyurl.com/{{hashValue}}</code>.</figcaption></figure>
+<p>Hash function ki requirements:</p>
+<ul><li>Har longURL ek hashValue mein hash ho.</li><li>Har hashValue wapas longURL pe map ho sake.</li></ul>
+
+<h2 id="step3">Step 3: Design deep dive</h2>
+<h3 id="data-model">Data model</h3>
+<p>High-level mein sab hash table mein tha — lekin real system mein memory limited aur mehengi. Better: <code>&lt;shortURL, longURL&gt;</code> mapping <strong>relational database</strong> mein.</p>
+<figure class="diagram"><img src="../img/08/table-schema.png" alt="url table schema" loading="lazy"><figcaption><b>Kaise padhein:</b> Single table <b>url</b>. <b>PK = id (auto increment)</b>, aur do columns <b>shortURL</b> aur <b>longURL</b>. Practically <code>shortURL</code> pe unique index aur <code>longURL</code> pe index (dedup lookup ke liye) chahiye.</figcaption></figure>
+
+<h3 id="hash-length">Hash value length</h3>
+<p>hashValue mein <code>[0-9, a-z, A-Z]</code> = 62 characters. Smallest <code>n</code> dhoondo jisme <code>62<sup>n</sup> ≥ 365 billion</code>:</p>
+<table class="cmp"><thead><tr><th>n</th><th>Max URLs (62<sup>n</sup>)</th></tr></thead><tbody>
+<tr><td>6</td><td>~56.8 billion — kaafi nahi</td></tr>
+<tr><td><strong>7</strong></td><td><strong>~3.5 trillion</strong> — 365 billion se bahut zyada ✅</td></tr>
+</tbody></table>
+<p>To hashValue ki length = <strong>7</strong>. Do approaches: <em>hash + collision resolution</em> aur <em>base 62 conversion</em>.</p>
+
+<h3 id="hash-collision">Approach 1: Hash + collision resolution</h3>
+<p>Well-known hash functions (CRC32, MD5, SHA-1) se long URL shorten karo:</p>
+<figure class="diagram"><img src="../img/08/hash-function.png" alt="Hash outputs for the same URL" loading="lazy"><figcaption><b>Kaise padhein:</b> Same long URL (book ka example <code>https://en.wikipedia.org/wiki/Systems_design</code>) ke liye teen hash functions ke hexadecimal outputs: CRC32 → <code>5cb54054</code> (8 chars), MD5 → 32 chars, SHA-1 → 40 chars. Sabse chhota bhi 7 se lamba hai — isliye truncate karna padega.</figcaption></figure>
+<p>Pehle 7 characters le lo — lekin isse <strong>collisions</strong> ho sakte hain. Fix: collision mile to long URL ke saath ek predefined string append karke dobara hash, jab tak collision khatam na ho.</p>
+<figure class="diagram"><img src="../img/08/url-lookup.png" alt="Hash + collision resolution flow" loading="lazy"><figcaption><b>Kaise padhein:</b> start → <b>input: longURL</b> → <b>hash function</b> → <b>shortURL</b> (first 7 chars) → diamond '<b>exist in DB?</b>'. Yes (has collision) → <b>longURL + predefined string</b> banao aur wapas hash function pe loop. No → <b>save to DB</b> → end.</figcaption></figure>
+<p>Ye collision hata deta hai, lekin har request pe DB query karke shortURL check karna <strong>expensive</strong> hai. <strong>Bloom filter</strong> performance improve kar sakta hai — space-efficient probabilistic technique jo batata hai ki element set ka member hai ya nahi ("definitely no" ya "maybe yes").</p>
+
+<h3 id="base62">Approach 2: Base 62 conversion</h3>
+<p>Base conversion URL shorteners ka common approach hai. Ek number ko alag representation (base) mein convert karna. Base 62 kyunki hashValue ke liye 62 possible characters hain. Mapping: <code>0-0, ..., 9-9, 10-a, 11-b, ..., 35-z, 36-A, ..., 61-Z</code>.</p>
+<pre><code>Example: 11157 (base 10) → base 62
+11157 = 2 × 62² + 55 × 62¹ + 59 × 62⁰
+      = [2, 55, 59] → [2, T, X] → "2TX"
+Short URL: https://tinyurl.com/2TX
+
+Notes ka example: ID 2009215674938 → "zn9edcu"  (7 chars)</code></pre>
+<pre><code>// Java
+static final String B62 = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+static String encode(long id) {
+  StringBuilder sb = new StringBuilder();
+  do { sb.append(B62.charAt((int)(id % 62))); id /= 62; } while (id &gt; 0);
+  return sb.reverse().toString();
+}</code></pre>
+
+<h3 id="comparison">Dono approaches ka comparison</h3>
+<table class="cmp"><thead><tr><th>Hash + collision resolution</th><th>Base 62 conversion</th></tr></thead><tbody>
+<tr><td>Short URL length fixed</td><td>Length fixed nahi — ID ke saath badhti hai</td></tr>
+<tr><td>Unique ID generator nahi chahiye</td><td>Unique ID generator chahiye (<a href="07-unique-id-generator.html">Chapter 07</a>)</td></tr>
+<tr><td>Collision possible — resolve karna padta hai</td><td>Collision possible nahi (ID unique hai)</td></tr>
+<tr><td>Next available short URL nikalna possible nahi (ID pe depend nahi)</td><td>ID +1 badhta ho to next short URL guess karna easy — <strong>security concern</strong></td></tr>
+</tbody></table>
+<div class="callout warn"><strong>Enumeration risk</strong>Sequential IDs + base62 → koi bhi <code>2TX</code>, <code>2TY</code>, <code>2TZ</code>... crawl karke saare (shayad private) long URLs dekh sakta hai. Mitigation: Snowflake-style non-sequential IDs, ID ko reversible bit-shuffle/encrypt (e.g. Feistel) karke encode karna, aur private links pe auth.</div>
+
+<h3 id="shortening-flow">URL shortening deep dive</h3>
+<p>Base 62 approach use karte hain (simpler, no collisions):</p>
+<figure class="diagram"><img src="../img/08/url-shortening-flow.png" alt="URL shortening flow" loading="lazy"><figcaption><b>Kaise padhein (numbered):</b> <b>1.</b> longURL input. <b>2.</b> Diamond: longURL already DB mein hai? <b>Yes →</b> <b>3.</b> existing shortURL return (dedup). <b>No →</b> <b>4.</b> naya unique ID generate. <b>5.</b> ID ko base 62 se shortURL banao. <b>6.</b> ID, shortURL, longURL DB mein save.</figcaption></figure>
+<p>Concrete example: input <code>https://en.wikipedia.org/wiki/Systems_design</code>, ID generator ne <code>2009215674938</code> diya → base 62 → <code>zn9edcu</code> → DB row <code>(2009215674938, zn9edcu, https://en.wikipedia.org/wiki/Systems_design)</code>.</p>
+<p>Distributed unique ID generator (Snowflake jaisa) chahiye taaki globally unique IDs milein — single DB ka auto_increment scale nahi karega.</p>
+
+<h3 id="redirecting-flow">URL redirecting deep dive</h3>
+<p>Reads writes se 10x zyada hain, isliye <code>&lt;shortURL, longURL&gt;</code> mapping <strong>cache</strong> mein.</p>
+<figure class="diagram"><img src="../img/08/url-redirecting-flow.png" alt="URL redirecting flow" loading="lazy"><figcaption><b>Kaise padhein (numbered):</b> <b>1.</b> User short link click karta hai: <code>GET https://tinyurl.com/zn9edcu</code>. <b>2.</b> Load balancer request Web servers ko forward karta hai. <b>3.</b> shortURL cache mein hai to longURL seedha return. <b>4.</b> Cache miss → Database se fetch (DB mein bhi nahi = user ne invalid short URL diya). <b>5.</b> longURL (<code>https://en.wikipedia.org/wiki/Systems_design</code>) user ko return (301/302).</figcaption></figure>
+<div class="callout realworld"><strong>Real world</strong>Ye Redis cache-aside ka textbook use case hai: key = short code, value = long URL, TTL ke saath. Kyunki mapping kabhi update nahi hoti (requirement), cache invalidation ka sirdard hi nahi — cache hit ratio bahut high rehta hai. CDN/edge pe bhi 301 responses cache ho sakte hain.</div>
+
+<h2 id="wrapup">Step 4: Wrap-up — extra talking points</h2>
+<ul>
+<li><strong>Rate limiter:</strong> malicious user bahut saari shortening requests bhej sakta hai. IP address ya filtering rules se limit (<a href="04-rate-limiter.html">Chapter 04</a>).</li>
+<li><strong>Web server scaling:</strong> web tier stateless hai → servers add/remove easy.</li>
+<li><strong>Database scaling:</strong> replication aur sharding.</li>
+<li><strong>Analytics:</strong> data ka business mein importance badh raha hai. Analytics solution integrate karke — kitne log click karte hain, kab click karte hain — insights (302 redirect isme help karta hai).</li>
+<li><strong>Availability, consistency, reliability:</strong> bade system ki success ke core concepts — Chapter 01 mein detail.</li>
+</ul>
+
+<div class="callout interview"><strong>Interview mein kaise bolein</strong>
+<ol>
+<li>Scope + estimate 3 min mein: 100M/day writes → ~1.2K WQPS, ~11.6K RQPS, 365B records, 365TB, 7 chars.</li>
+<li>Do APIs + 301 vs 302 decision with reason ("analytics chahiye to 302").</li>
+<li>Hash+collision vs base62 table bolo, base62 + Snowflake choose karo.</li>
+<li>Do flows draw karo (shortening + redirecting), cache ko redirect path pe.</li>
+<li>Deep dive options: enumeration security, hot links, custom aliases, expiry, sharding by short code.</li>
+</ol></div>
+
+<h2 id="followups">Common follow-up questions</h2>
+<details><summary>Same long URL do baar aaye to same short URL?</summary><p>Flow mein step 2 dedup karta hai (longURL index). Lekin per-user analytics chahiye to har user ko alag short URL dena bhi valid choice hai — requirement pe depend.</p></details>
+<details><summary>Custom alias (tinyurl.com/my-sale) kaise?</summary><p>Alias ko shortURL column mein directly insert karo with unique constraint; conflict → user ko error. Generated codes aur aliases ka namespace overlap avoid karne ke liye alias min length ya prefix rule.</p></details>
+<details><summary>DB ko shard kaise karoge?</summary><p>Redirect read path short code se aata hai, isliye shard key = shortURL (ya ID) ka hash. longURL dedup ke liye alag lookup table/index chahiye hoga, ya dedup ko best-effort maan lo.</p></details>
+<details><summary>Expired links?</summary><p><code>expires_at</code> column, cache TTL usse chhota, aur background job cleanup. Expired pe 404/410.</p></details>
+
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul>
+<li>100M URLs/day → ~1,160 write QPS, ~11,600 read QPS, 365B records, ~365 TB / 10 saal.</li>
+<li>62<sup>7</sup> ≈ 3.5 trillion → 7-character short code kaafi.</li>
+<li><strong>301</strong> = browser cache, kam load; <strong>302</strong> = har click server pe, analytics possible.</li>
+<li>Base 62 + distributed unique ID generator: no collisions, lekin sequential IDs guessable.</li>
+<li>Hash + collision resolution: fixed length, lekin DB/Bloom filter check chahiye.</li>
+<li>Read-heavy → cache-first redirect path; rate limiter, stateless web tier, sharded DB, analytics.</li>
+</ul></div>
+
+<div class="chapter-nav"><a class="prev" href="07-unique-id-generator.html">← Prev: 07. Design a Unique ID Generator</a><a class="next" href="09-web-crawler.html">Next: 09. Design a Web Crawler →</a></div>
+</main>
+<aside class="toc"></aside>
+</div>
+<script src="../assets/app.js"></script>
+</body>
+</html>

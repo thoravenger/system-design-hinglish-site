@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 13: Design Search Autocomplete · SystemDesign.hinglish</title>
+<meta name="description" content="Google search box mein &quot;tw&quot; type karte hi top-5 suggestions — 100 ms se kam mein. Trie, har node pe cached top-k, weekly data pipeline aur prefix sharding se ye kaise banta hai, step by step.">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+ <header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><button class="theme-toggle" aria-label="theme">◐</button></header>
+ <div class="layout">
+<nav class="sidebar">
+  <div class="nav-group"><div class="nav-group-title">Foundations</div><ul>
+    <li><a href="01-scaling.html"><span class="n">01</span> Scaling from Zero to Millions</a></li>
+    <li><a href="02-back-of-envelope.html"><span class="n">02</span> Back-of-the-Envelope Estimation</a></li>
+    <li><a href="03-framework.html"><span class="n">03</span> System Design Interview Framework</a></li>
+    <li><a href="04-rate-limiter.html"><span class="n">04</span> Design a Rate Limiter</a></li>
+    <li><a href="05-consistent-hashing.html"><span class="n">05</span> Consistent Hashing</a></li>
+    <li><a href="06-key-value-store.html"><span class="n">06</span> Design a Key-Value Store</a></li>
+    <li><a href="07-unique-id-generator.html"><span class="n">07</span> Unique ID Generator</a></li>
+  </ul></div>
+  <div class="nav-group"><div class="nav-group-title">Classic Designs</div><ul>
+    <li><a href="08-url-shortener.html"><span class="n">08</span> Design a URL Shortener</a></li>
+    <li><a href="09-web-crawler.html"><span class="n">09</span> Design a Web Crawler</a></li>
+    <li><a href="10-notification-system.html"><span class="n">10</span> Design a Notification System</a></li>
+    <li><a href="11-news-feed.html"><span class="n">11</span> Design a News Feed System</a></li>
+    <li><a href="12-chat-system.html"><span class="n">12</span> Design a Chat System</a></li>
+    <li><a class="active" aria-current="page" href="13-search-autocomplete.html"><span class="n">13</span> Design Search Autocomplete</a></li>
+    <li><a href="14-youtube.html"><span class="n">14</span> Design YouTube</a></li>
+  </ul></div>
+  <div class="nav-group"><div class="nav-group-title">Vol 2 · Part 1</div><ul>
+    <li><a href="15-google-drive.html"><span class="n">15</span> Design Google Drive</a></li>
+    <li><a href="16-proximity-service.html"><span class="n">16</span> Design a Proximity Service</a></li>
+    <li><a href="17-nearby-friends.html"><span class="n">17</span> Design Nearby Friends</a></li>
+    <li><a href="18-google-maps.html"><span class="n">18</span> Design Google Maps</a></li>
+    <li><a href="19-message-queue.html"><span class="n">19</span> Distributed Message Queue</a></li>
+    <li><a href="20-metrics-monitoring.html"><span class="n">20</span> Metrics Monitoring &amp; Alerting</a></li>
+    <li><a href="21-ad-click-aggregation.html"><span class="n">21</span> Ad Click Event Aggregation</a></li>
+    <li><a href="22-hotel-reservation.html"><span class="n">22</span> Hotel Reservation System</a></li>
+  </ul></div>
+  <div class="nav-group"><div class="nav-group-title">Vol 2 · Part 2</div><ul>
+    <li><a href="23-email-service.html"><span class="n">23</span> Distributed Email Service</a></li>
+    <li><a href="24-s3-object-storage.html"><span class="n">24</span> S3-like Object Storage</a></li>
+    <li><a href="25-gaming-leaderboard.html"><span class="n">25</span> Real-time Gaming Leaderboard</a></li>
+    <li><a href="26-payment-system.html"><span class="n">26</span> Payment System</a></li>
+    <li><a href="27-digital-wallet.html"><span class="n">27</span> Digital Wallet</a></li>
+    <li><a href="28-stock-exchange.html"><span class="n">28</span> Stock Exchange</a></li>
+  </ul></div>
+  <div class="nav-group"><ul><li><a href="../index.html">🏠 Home</a></li><li><a href="../links.html">🔗 Links guide</a></li></ul></div>
+</nav>
+  <main class="content">
+   <div class="chapter-hero"><span class="chapter-num">Chapter 13</span><h1>Design Search Autocomplete</h1><p class="lead">Google search box mein "tw" type karte hi top-5 suggestions — 100 ms se kam mein. Trie, har node pe cached top-k, weekly data pipeline aur prefix sharding se ye kaise banta hai, step by step.</p><div class="tags"><span class="tag">Trie</span><span class="tag">Top-K</span><span class="tag">Caching</span><span class="tag">Data pipeline</span><span class="tag">Sharding</span></div></div>
+<h2 id="intro">Introduction</h2>
+<p><b>Autocomplete</b> ko typeahead, search-as-you-type ya incremental search bhi kehte hain. User jaise-jaise type karta hai, system historical query data ke basis pe <b>top-k popular</b> suggestions dikhata hai. Simple lagta hai, lekin har keystroke ek request hai — isliye ye ek extreme low-latency, read-heavy system hai.</p>
+<ul>
+<li>Max <b>5 suggestions</b>.</li>
+<li>Ranking <b>query popularity (frequency)</b> se.</li>
+<li>Sirf <b>lowercase English</b> characters (spell-check, special chars out of scope).</li>
+<li>Response <b>&lt;100 ms</b> — warna typing ke saath suggestions "stutter" karenge.</li>
+</ul>
+
+<h2 id="step1">Step 1: Requirements aur estimation</h2>
+<ul>
+<li><b>Fast response</b>: &lt;100 ms.</li>
+<li><b>Relevant</b>: prefix se match karein.</li>
+<li><b>Sorted</b>: popularity ke hisaab se.</li>
+<li><b>Scalable</b> aur <b>highly available</b>.</li>
+</ul>
+<h3>Numbers kahan se aate hain</h3>
+<p>Notes mein final numbers hain: <b>10M DAU</b>, <b>peak 48,000 QPS</b>, aur <b>0.4 GB/day</b> naya storage. Ye aise derive hote hain (book ki standard assumptions):</p>
+<ul>
+<li>Har user roz ~10 searches karta hai; har query ~20 bytes (avg ~4 words × ~5 chars).</li>
+<li>Har character type karne pe ek request → ek search ≈ 20 requests.</li>
+<li>QPS = 10M × 10 × 20 / 86,400 ≈ <b>~24,000</b>. Peak ≈ 2× ≈ <b>~48,000</b>.</li>
+<li>Maan lo 20% queries naye hain: 10M × 10 × 20 bytes × 20% ≈ <b>0.4 GB/day</b>.</li>
+</ul>
+<div class="callout tip">💡 <b>Pro tip:</b> "Har keystroke ek request" wala point zaroor bolo — isi se QPS 20× badhta hai, aur yahi browser caching / client-side debouncing jaise optimizations ko justify karta hai.</div>
+
+<h2 id="step2">Step 2: High-level design</h2>
+<p>System do services mein bata hai:</p>
+<ol>
+<li><b>Data gathering service</b>: user queries collect karke frequency aggregate karta hai.</li>
+<li><b>Query service</b>: prefix diya, top-5 queries lautata hai.</li>
+</ol>
+<h3>Data gathering service (naive, real-time version)</h3>
+<figure class="diagram"><img src="../img/13/data-gathering.png" alt="Frequency table updating as queries arrive" loading="lazy"><figcaption>Left se right time ke saath padho: shuru mein <b>Query/Frequency</b> table khaali hai. "query: twitch" aaya → twitch: 1. "query: twitter" → twitter: 1 add. Phir se "twitter" → twitter ka count 2. "query: twillo" → twillo: 1 add. Yani har query aate hi table mein uska count +1 ho raha hai.</figcaption></figure>
+<p>Ye starting point ke liye theek hai, lekin billions of queries pe real-time update practical nahi — aage fix karenge.</p>
+<h3>Query service</h3>
+<figure class="diagram"><img src="../img/13/frequency-table.png" alt="Frequency table" loading="lazy"><figcaption>Do columns: <b>Query</b> aur <b>Frequency</b>. Example: Twitter 35, twitch 29, twilight 25, twin peak 21, twitch prime 18, twitter search 14, twillo 10, twin peak sf 8. Prefix "tw" ke liye inme se top 5 frequency wale chahiye.</figcaption></figure>
+<figure class="diagram"><img src="../img/13/basic-search-suggestions.png" alt="Suggestions for prefix tw" loading="lazy"><figcaption>Search box mein user ne <b>"tw"</b> type kiya; neeche top-5 suggestions frequency order mein: <b>twitter, twitch, twilight, twin peak, twitch prime</b>. Bold hissa ("tw") typed prefix hai.</figcaption></figure>
+<p>Naive SQL approach:</p>
+<pre><code>SELECT * FROM frequency_table
+WHERE query LIKE 'tw%'
+ORDER BY frequency DESC
+LIMIT 5;</code></pre>
+<p>Chhote data pe chal jaata hai, lekin data bada hote hi <code>LIKE + ORDER BY</code> har keystroke pe database bottleneck ban jaata hai. Isliye trie.</p>
+
+<h2 id="step3">Step 3: Design deep dive</h2>
+<h3>Trie data structure</h3>
+<p><b>Trie</b> (prefix tree, "retrieval" se naam) strings ko compactly store karta hai:</p>
+<ul>
+<li>Root empty string hai.</li>
+<li>Har node ek character/prefix store karta hai; har node ke max 26 children (a–z).</li>
+<li>Har tree node ek word ya prefix string represent karta hai.</li>
+<li>Popularity ke liye nodes pe <b>frequency</b> bhi store karte hain.</li>
+</ul>
+<figure class="diagram"><img src="../img/13/trie-structure.png" alt="Trie with frequencies" loading="lazy"><figcaption>Upar <b>root</b> (empty). Left branch <b>t → tr / to</b>; tr ke neeche <b>tre → tree: 10</b>, <b>tru → true: 35</b>, aur <b>try: 29</b>; to ke neeche <b>toy: 14</b>. Right branch <b>w → wi → wis → wish: 25</b> aur <b>win: 50</b>. Green-border nodes complete queries hain (number = frequency); black-border nodes sirf prefixes.</figcaption></figure>
+<h3>Top-k nikalne ke steps (naive)</h3>
+<ol>
+<li>Prefix ka node dhoondo — O(p), p = prefix length.</li>
+<li>Us node se poore subtree ko traverse karke saare valid children (complete queries) lo — O(c), c = children count.</li>
+<li>Sort karke top k — O(c log c).</li>
+</ol>
+<p>Example: "tr" → tree:10, true:35, try:29 → top-2 = true, try. Lekin worst case mein (e.g. prefix "a") poora bada subtree traverse karna padega — bahut slow.</p>
+<h3>Optimization 1: Prefix length limit</h3>
+<p>Users rarely lambi query type karte hain — max prefix length ek chhota number (jaise 50) maan lo. Tab "prefix dhoondo" O(1) ho jaata hai.</p>
+<h3>Optimization 2: Har node pe top-k cache karo</h3>
+<figure class="diagram"><img src="../img/13/cached-trie.png" alt="Trie with cached top-k at each node" loading="lazy"><figcaption>Har node ke bagal mein dashed green box us node ka <b>cached top-k list</b> hai. Jaise node <b>b</b> pe [best: 35, bet: 29, bee: 20, be: 15, buy: 14]; <b>be</b> pe [best: 35, bet: 29, bee: 20, be: 15, beer: 10]; <b>bu</b> pe [buy: 14]; <b>bee</b> pe [bee: 20, beer: 10]; <b>w</b> aur <b>wi</b> pe [win: 11]. Ab "be" type kiya to subtree traverse nahi — seedha node "be" ki list utha lo.</figcaption></figure>
+<p>Ab dono steps O(1) ho gaye — top-k query <b>O(1)</b>. Trade-off: <b>zyada memory</b> (har node pe list), lekin fast response ke liye ye worth it hai. Space = time ka classic trade.</p>
+
+<h3>Data gathering service (improved)</h3>
+<p>Real-time har query pe trie update kyun nahi?</p>
+<ul>
+<li>Billions of queries/day — har ek pe trie update karna system ko slow kar dega.</li>
+<li>Trie banne ke baad top suggestions zyada badalte nahi.</li>
+</ul>
+<figure class="diagram"><img src="../img/13/data-gathering-flow.png" alt="Improved data gathering pipeline" loading="lazy"><figcaption>Left se right: <b>Analytics Logs</b> (raw search queries) → <b>Aggregators</b> (logs ko count karte hain) → <b>Aggregated Data</b> (query, time, frequency) → <b>Workers</b> (naya trie build karte hain) → "Update weekly" → <b>Trie DB</b> (persistent storage) → "Weekly snapshot of DB" → <b>Trie Cache</b> (memory mein, fast reads ke liye).</figcaption></figure>
+<ol>
+<li><b>Analytics logs</b>: raw search queries, append-only, indexed nahi.</li>
+<li><b>Aggregators</b>: logs ko frequency mein convert. Twitter jaise real-time use case mein chhota aggregation interval; baaki ke liye weekly kaafi.</li>
+<li><b>Aggregated data</b>: e.g. <code>query, week_start_time, frequency</code>.</li>
+<li><b>Workers</b>: async servers jo regular interval pe trie build karke Trie DB mein store karte hain.</li>
+<li><b>Trie cache</b>: distributed cache jo trie memory mein rakhta hai, weekly DB snapshot se refresh.</li>
+<li><b>Trie DB</b> options:
+<ul>
+<li><b>Document store</b> (e.g. MongoDB): weekly trie ka snapshot serialize karke store.</li>
+<li><b>Key-value store</b>: har prefix = key, us node ka data (top-k) = value.</li>
+</ul></li>
+</ol>
+<figure class="diagram"><img src="../img/13/trie-db.png" alt="Trie mapped to key-value store" loading="lazy"><figcaption>Left mein cached trie (root → b → be → bee/bes → beer/best), har node ke bagal mein uski top-k list. Dotted arrows har node ko right side ki <b>Key/Value</b> table ki ek row pe map karte hain: key <b>b</b> → [be: 15, bee: 20, beer: 10, best: 35], <b>be</b> → same list, <b>bee</b> → [bee: 20, beer: 10], <b>bes</b> → [best: 35], <b>beer</b> → [beer: 10], <b>best</b> → [best: 35]. Matlab trie ko flat hash table mein badal diya — lookup ek key-get ban gaya.</figcaption></figure>
+<div class="callout realworld">🌍 <b>Real world:</b> Redis is pattern ke liye natural fit hai — key = prefix, value = top-k list (ya sorted set). Weekly rebuild ke liye naya keyspace/instance warm karke traffic switch kar sakte ho (blue-green), taaki rebuild ke dauran reads affect na hon.</div>
+
+<h3>Query service flow + optimizations</h3>
+<ol>
+<li>Search query load balancer → API servers.</li>
+<li>API servers Trie Cache se data lete hain aur response banate hain.</li>
+<li>Cache miss (cache node down / naya) → Trie DB se laake cache mein replenish.</li>
+</ol>
+<ul>
+<li><b>AJAX requests</b>: poora page refresh nahi, lightweight async request.</li>
+<li><b>Browser caching</b>: suggestions zyada badalte nahi, to browser cache mein rakho. Google search, for example, autocomplete responses ko browser mein ~1 ghante tak cache karne ke liye <code>Cache-Control: private, max-age=3600</code> header bhejta tha (book ka example).</li>
+<li><b>Data sampling</b>: har query log karna CPU/storage heavy — 1 in N log karo.</li>
+</ul>
+
+<h3>Trie operations</h3>
+<ul>
+<li><b>Create</b>: workers aggregated data (analytics log/DB) se weekly banate hain.</li>
+<li><b>Update</b>: Option 1 — weekly poora naya trie, purana replace. Option 2 — individual node update; lekin ek node update karne pe uske saare ancestors ki top-k list bhi update karni padti hai (kyunki unme bhi wo query ho sakti hai) — slow, isliye rare.</li>
+<li><b>Delete</b>: hateful, violent, sexually explicit, dangerous suggestions hatane hain.</li>
+</ul>
+<figure class="diagram"><img src="../img/13/delete-kv.png" alt="Filter layer before API servers" loading="lazy"><figcaption>Right se left padho: <b>Trie Cache</b> se results nikalte hain → beech mein funnel <b>Filter Layer</b> unwanted suggestions hata deta hai → saaf results <b>API servers</b> tak jaate hain. Filter rules badalna aasaan hai bina trie rebuild kiye.</figcaption></figure>
+<p>Filter layer ke saath unwanted entries ko database se <b>physically async</b> hataya jaata hai, taaki agle weekly build mein wo trie mein na aayein.</p>
+
+<h3>Scale the storage: sharding</h3>
+<p>Trie ek server mein fit na ho to shard karo:</p>
+<ul>
+<li>Naive: first character pe — 'a–m' ek server, 'n–z' dusra. 26 servers tak first char; aage second level (aa–ag, ah–an…).</li>
+<li>Problem: English mein letters even distributed nahi — 'c' se shuru hone wale words 'x' se kahin zyada. Uneven shards.</li>
+<li>Fix: <b>historical data distribution</b> ke basis pe shard karo — e.g. agar 's' ke queries 'u–z' ke combined jitne hain, to 's' ek shard aur 'u–z' ek shard.</li>
+</ul>
+<figure class="diagram"><img src="../img/13/sharding.png" alt="Shard map manager" loading="lazy"><figcaption><b>Web servers</b> pehle <b>(1) "What shard is it?"</b> — <b>Shard map manager</b> se poochte hain ki ye prefix kis shard pe hai → phir <b>(2) "Retrieve data from shard"</b> — <b>Databases</b> box ke sahi shard (Shard 1, Shard 2, …) se data lete hain. Shard map manager ek lookup database hai jo prefix-range → shard mapping rakhta hai.</figcaption></figure>
+
+<h2 id="wrapup">Step 4: Wrap-up — advanced features</h2>
+<ul>
+<li><b>Multi-language</b>: trie nodes mein Unicode characters store karo.</li>
+<li><b>Country-specific</b>: alag countries ke liye alag tries, CDN mein store karke response time improve.</li>
+<li><b>Trending / real-time queries</b> (breaking news): weekly trie mein nahi aayenge. Ideas: working data set ko shard karke kam karo, ranking model mein recent queries ko zyada weight do, stream processing (Kafka, Spark Streaming, Storm jaise tools) use karo.</li>
+</ul>
+
+<h2 id="interview">Interview mein kaise bolein</h2>
+<div class="callout interview">🎤 <b>45-min plan:</b>
+<ol>
+<li><b>(5 min)</b> Scope: top-5, frequency ranking, lowercase English, &lt;100ms, 10M DAU. Estimation: ~24k QPS, peak ~48k, 0.4 GB/day.</li>
+<li><b>(7 min)</b> Two services: data gathering + query service; SQL LIKE approach aur uski limitation.</li>
+<li><b>(15 min)</b> Trie: structure, naive top-k complexity, phir dono optimizations (prefix limit + cached top-k) → O(1).</li>
+<li><b>(10 min)</b> Pipeline: analytics logs → aggregators → workers → Trie DB → Trie cache; KV mapping; filter layer.</li>
+<li><b>(5 min)</b> Sharding by historical distribution + shard map manager; trending queries, multi-language.</li>
+</ol>
+Key line: <i>"Reads ko O(1) banane ke liye main memory pay karunga — har trie node pe top-k precompute — aur writes ko offline weekly batch mein le jaunga."</i></div>
+
+<h2 id="followups">Common follow-up questions</h2>
+<p><b>Q: Har keystroke pe request — server pe load kaise kam karein?</b><br>A: Client-side debounce (e.g. typing ruke tab bhejo), browser cache, aur CDN/edge caching for popular prefixes.</p>
+<p><b>Q: Weekly update bahut slow hai, breaking news ka kya?</b><br>A: Streaming pipeline se chhote interval pe trending prefixes update karo, ya recent queries ko higher weight do.</p>
+<p><b>Q: Trie rebuild ke time reads ka kya?</b><br>A: Naya trie alag build hota hai, ready hone pe atomically swap — reads purane pe chalte rehte hain.</p>
+<p><b>Q: Har node pe top-k store karne se memory kitni badhegi?</b><br>A: Har node pe k entries — k=5 chhota hai, aur prefix length 50 tak capped; trade-off acceptable hai kyunki latency requirement strict hai.</p>
+<p><b>Q: Personalized suggestions?</b><br>A: Global top-k ko user history ke saath merge karke re-rank — ye query service mein ek extra layer hai.</p>
+<p><b>Q: Offensive suggestion turant hatani hai?</b><br>A: Filter layer mein rule add karo (instant), aur DB se async delete taaki agle build mein na aaye.</p>
+
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul>
+<li>Do services: data gathering (offline) aur query service (online, &lt;100ms).</li>
+<li>10M DAU × 10 searches × 20 chars → ~24k QPS, peak ~48k; 0.4 GB/day naya data.</li>
+<li>Trie + prefix length cap + har node pe cached top-k = O(1) lookup, memory ke badle.</li>
+<li>Trie ko real-time update mat karo; analytics logs → aggregators → workers → Trie DB → Trie cache (weekly).</li>
+<li>Trie DB: document store snapshot ya KV (prefix → top-k).</li>
+<li>Filter layer unwanted suggestions turant rokti hai.</li>
+<li>Sharding historical data distribution pe; shard map manager routing karta hai.</li>
+</ul></div>
+   <div class="chapter-nav"><a class="prev" href="12-chat-system.html">← Prev: Design a Chat System</a><a class="next" href="14-youtube.html">Next: Design YouTube →</a></div>
+  </main>
+  <aside class="toc"><div class="toc-title">On this page</div><ul>
+    <li><a href="#intro">Introduction</a></li>
+    <li><a href="#step1">Step 1: Requirements aur estimation</a></li>
+    <li><a href="#step2">Step 2: High-level design</a></li>
+    <li><a href="#step3">Step 3: Design deep dive</a></li>
+    <li><a href="#wrapup">Step 4: Wrap-up — advanced features</a></li>
+    <li><a href="#interview">Interview mein kaise bolein</a></li>
+    <li><a href="#followups">Common follow-up questions</a></li>
+    <li><a href="#takeaways">Key Takeaways</a></li>
+  </ul></aside>
+ </div>
+ <script src="../assets/app.js"></script>
+</body>
+</html>

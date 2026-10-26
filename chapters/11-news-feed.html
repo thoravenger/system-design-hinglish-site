@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 11: Design a News Feed System · SystemDesign.hinglish</title>
+<meta name="description" content="Facebook feed, Instagram feed, Twitter timeline — sab ek hi problem hain: post publish karo aur friends ke feed tak fast pahunchao. Fanout on write vs read, celebrity problem aur 5-layer cache — sab yahan.">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+ <header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><button class="theme-toggle" aria-label="theme">◐</button></header>
+ <div class="layout">
+<nav class="sidebar">
+  <div class="nav-group"><div class="nav-group-title">Foundations</div><ul>
+    <li><a href="01-scaling.html"><span class="n">01</span> Scaling from Zero to Millions</a></li>
+    <li><a href="02-back-of-envelope.html"><span class="n">02</span> Back-of-the-Envelope Estimation</a></li>
+    <li><a href="03-framework.html"><span class="n">03</span> System Design Interview Framework</a></li>
+    <li><a href="04-rate-limiter.html"><span class="n">04</span> Design a Rate Limiter</a></li>
+    <li><a href="05-consistent-hashing.html"><span class="n">05</span> Consistent Hashing</a></li>
+    <li><a href="06-key-value-store.html"><span class="n">06</span> Design a Key-Value Store</a></li>
+    <li><a href="07-unique-id-generator.html"><span class="n">07</span> Unique ID Generator</a></li>
+  </ul></div>
+  <div class="nav-group"><div class="nav-group-title">Classic Designs</div><ul>
+    <li><a href="08-url-shortener.html"><span class="n">08</span> Design a URL Shortener</a></li>
+    <li><a href="09-web-crawler.html"><span class="n">09</span> Design a Web Crawler</a></li>
+    <li><a href="10-notification-system.html"><span class="n">10</span> Design a Notification System</a></li>
+    <li><a class="active" aria-current="page" href="11-news-feed.html"><span class="n">11</span> Design a News Feed System</a></li>
+    <li><a href="12-chat-system.html"><span class="n">12</span> Design a Chat System</a></li>
+    <li><a href="13-search-autocomplete.html"><span class="n">13</span> Design Search Autocomplete</a></li>
+    <li><a href="14-youtube.html"><span class="n">14</span> Design YouTube</a></li>
+  </ul></div>
+  <div class="nav-group"><div class="nav-group-title">Vol 2 · Part 1</div><ul>
+    <li><a href="15-google-drive.html"><span class="n">15</span> Design Google Drive</a></li>
+    <li><a href="16-proximity-service.html"><span class="n">16</span> Design a Proximity Service</a></li>
+    <li><a href="17-nearby-friends.html"><span class="n">17</span> Design Nearby Friends</a></li>
+    <li><a href="18-google-maps.html"><span class="n">18</span> Design Google Maps</a></li>
+    <li><a href="19-message-queue.html"><span class="n">19</span> Distributed Message Queue</a></li>
+    <li><a href="20-metrics-monitoring.html"><span class="n">20</span> Metrics Monitoring &amp; Alerting</a></li>
+    <li><a href="21-ad-click-aggregation.html"><span class="n">21</span> Ad Click Event Aggregation</a></li>
+    <li><a href="22-hotel-reservation.html"><span class="n">22</span> Hotel Reservation System</a></li>
+  </ul></div>
+  <div class="nav-group"><div class="nav-group-title">Vol 2 · Part 2</div><ul>
+    <li><a href="23-email-service.html"><span class="n">23</span> Distributed Email Service</a></li>
+    <li><a href="24-s3-object-storage.html"><span class="n">24</span> S3-like Object Storage</a></li>
+    <li><a href="25-gaming-leaderboard.html"><span class="n">25</span> Real-time Gaming Leaderboard</a></li>
+    <li><a href="26-payment-system.html"><span class="n">26</span> Payment System</a></li>
+    <li><a href="27-digital-wallet.html"><span class="n">27</span> Digital Wallet</a></li>
+    <li><a href="28-stock-exchange.html"><span class="n">28</span> Stock Exchange</a></li>
+  </ul></div>
+  <div class="nav-group"><ul><li><a href="../index.html">🏠 Home</a></li><li><a href="../links.html">🔗 Links guide</a></li></ul></div>
+</nav>
+  <main class="content">
+   <div class="chapter-hero"><span class="chapter-num">Chapter 11</span><h1>Design a News Feed System</h1><p class="lead">Facebook feed, Instagram feed, Twitter timeline — sab ek hi problem hain: post publish karo aur friends ke feed tak fast pahunchao. Fanout on write vs read, celebrity problem aur 5-layer cache — sab yahan.</p><div class="tags"><span class="tag">Fanout</span><span class="tag">Cache Layers</span><span class="tag">Graph DB</span><span class="tag">Message Queue</span><span class="tag">Celebrity problem</span></div></div>
+<h2 id="intro">Introduction</h2>
+<p><b>News feed</b> ek constantly update hone wali list hai — status updates, photos, videos, links — jo aapke friends/connections ne post kiye hain. Facebook news feed, Instagram feed, Twitter (X) timeline sab isi ke examples hain. Problem simple lagti hai, lekin jab ek user ke 5,000 friends hon aur 10M log roz feed khole, tab "kisko kab kya dikhana hai" ek serious distributed systems problem ban jaata hai.</p>
+
+<h2 id="step1">Step 1: Requirements aur scope</h2>
+<table class="cmp">
+<tr><th>Question</th><th>Answer</th></tr>
+<tr><td>Platform</td><td>Web + mobile app dono</td></tr>
+<tr><td>Features</td><td>Post publish karna, aur friends ke posts feed mein dekhna</td></tr>
+<tr><td>Sorting</td><td><b>Reverse chronological</b> (naya pehle) — ranking ko simplicity ke liye out of scope rakha</td></tr>
+<tr><td>Friends limit</td><td>Max 5,000 friends per user</td></tr>
+<tr><td>Traffic</td><td>10 million DAU</td></tr>
+<tr><td>Content</td><td>Text, images, videos</td></tr>
+</table>
+<h3>Numbers ka matlab</h3>
+<p>Agar ek user ke 5,000 friends hain aur wo post karta hai, to <b>fanout on write</b> mein ek post = 5,000 cache writes. 10M DAU mein agar har user roz ~1–2 baar post kare (assumption), to fanout writes tens of billions tak ja sakte hain per day — isliye fanout ko async (queue + workers) karna padega, request path mein nahi.</p>
+<div class="callout tip">💡 <b>Pro tip:</b> "Reverse chronological" bolke scope chhota karo, lekin ek line mein mention karo ki ranking (ML-based) baad mein News Feed Service ke andar plug ho sakti hai. Isse interviewer ko lagta hai aap extensibility soch rahe ho.</div>
+
+<h2 id="step2">Step 2: High-level design</h2>
+<p>Design do flows mein toot-ta hai:</p>
+<ol>
+<li><b>Feed publishing</b>: user post karta hai → DB/cache mein save → friends ke feeds mein propagate.</li>
+<li><b>News feed building</b>: user feed kholta hai → friends ke posts reverse chronological order mein aggregate.</li>
+</ol>
+<h3>News feed APIs</h3>
+<pre><code># Feed publish
+POST /v1/me/feed
+  params: content   = post ka text
+          auth_token = request authenticate karne ke liye
+
+# Feed retrieve
+GET /v1/me/feed
+  params: auth_token</code></pre>
+<p><code>/me/</code> pattern ka fayda: user id URL mein nahi, token se nikalti hai — dusre user ka feed access karne ka chance hi nahi.</p>
+
+<h3>Feed publishing flow</h3>
+<figure class="diagram"><img src="../img/11/feed-publishing.png" alt="Feed publishing high-level" loading="lazy"><figcaption>Upar se neeche padho: <b>User</b> (web browser / mobile app) pehle <b>DNS</b> se address resolve karta hai, phir <code>v1/me/feed?content=Hello&amp;auth_token=…</code> request bhejta hai → <b>Load balancer</b> → <b>Web servers</b>. Web servers teen services ko call karte hain: <b>Post Service</b> (post ko <b>Post Cache</b> aur <b>Post DB</b> mein save), <b>Fanout Service</b> (post ko friends ke <b>News Feed Cache</b> mein push), aur <b>Notification Service</b> (friends ko "naya post" notify).</figcaption></figure>
+<ul>
+<li><b>Web servers</b>: authentication + rate limiting, phir internal services ko route.</li>
+<li><b>Post service</b>: post ko DB + cache mein persist.</li>
+<li><b>Fanout service</b>: post id ko friends ke feed cache mein daalna.</li>
+<li><b>Notification service</b>: friends ko inform karna (Chapter 10 wala system!).</li>
+</ul>
+
+<h3>News feed building flow</h3>
+<figure class="diagram"><img src="../img/11/news-feed-building.png" alt="News feed building" loading="lazy"><figcaption>Read path bahut seedha hai: <b>User</b> → DNS → <code>GET v1/me/feed</code> → <b>Load balancer</b> → <b>Web servers</b> → <b>News Feed Service</b> → <b>News Feed Cache</b>. Matlab feed padhte waqt hum friends ke posts "compute" nahi kar rahe — sirf precomputed cache se post IDs utha rahe hain. Yahi fast reads ka secret hai.</figcaption></figure>
+
+<h2 id="step3">Step 3: Design deep dive</h2>
+<h3>Feed publishing deep dive</h3>
+<figure class="diagram"><img src="../img/11/feed-publishing-deep-dive.png" alt="Feed publishing deep dive" loading="lazy"><figcaption>Web servers box ke andar ab <b>Authentication</b> aur <b>Rate Limiting</b> dikh rahe hain. Left branch: <b>Post Service → Post Cache → Post DB</b>. Right: <b>Notification Service</b>. Beech ka path numbered hai: Fanout Service <b>(1)</b> <b>Graph DB</b> se friend ids laata hai, <b>(2)</b> <b>User Cache</b> (backed by <b>User DB</b>) se friends ka data/settings laata hai, <b>(3)</b> filtered friend list + post id <b>Message Queue</b> mein daalta hai, <b>(4)</b> <b>Fanout Workers</b> queue se padhte hain, <b>(5)</b> <b>News Feed Cache</b> mein entries likhte hain.</figcaption></figure>
+<h3>Web servers</h3>
+<p>Sirf valid <code>auth_token</code> wale users post kar sakein. Saath hi <b>rate limiting</b> — ek user kitni posts kitne time mein kar sakta hai — taaki spam aur abuse ruke.</p>
+
+<h3>Fanout service: sabse important decision</h3>
+<p>Fanout = ek post ko saare friends tak pahunchana. Do models:</p>
+<table class="cmp">
+<tr><th></th><th>Fanout on write (push)</th><th>Fanout on read (pull)</th></tr>
+<tr><td>Kab kaam hota hai</td><td>Post publish hote hi friends ke feed cache mein likho</td><td>Jab user feed khole tab friends ke recent posts fetch karo</td></tr>
+<tr><td>Pros</td><td>Feed real-time precomputed; read bahut fast</td><td>Inactive users pe resources waste nahi; hotkey problem nahi</td></tr>
+<tr><td>Cons</td><td>Celebrity (lakhs/crores followers) pe <b>hotkey problem</b> — ek post = huge write; inactive users ke liye bhi kaam</td><td>Feed load slow — read time pe aggregation</td></tr>
+</table>
+<p><b>Hybrid approach</b> (jo practically use hota hai): zyada tar users ke liye <b>push</b> (fast reads), aur celebrities / bahut followers wale accounts ke liye <b>pull</b> — follower jab feed khole tab celebrity ke posts on-demand merge karo. <b>Consistent hashing</b> se requests/data evenly distribute karke hotkey problem aur kam karte hain.</p>
+<div class="callout realworld">🌍 <b>Real world:</b> Twitter ka home timeline publicly described architecture is hybrid idea ka famous example hai — normal users ke tweets followers ki Redis-based timelines mein fanout hote the, aur bahut bade accounts ke tweets read time pe merge hote the.</div>
+
+<figure class="diagram"><img src="../img/11/fanout-service.png" alt="Fanout service internal steps" loading="lazy"><figcaption>Ye deep-dive ka zoom-in hai. <b>Fanout Service</b> se arrows: <b>(1) get friend ids</b> → <b>Graph DB</b>; <b>(2) get friends data</b> → <b>User Cache</b> (miss pe <b>User DB</b>); <b>(3)</b> → <b>Message Queue</b>; <b>(4)</b> queue → <b>Fanout Workers</b>; <b>(5)</b> workers → <b>News Feed Cache</b>. Steps 1–3 synchronous-ish hain, 4–5 async background mein chalte hain.</figcaption></figure>
+<ol>
+<li><b>Friend IDs fetch</b> — graph database se (friend relationships aur recommendations ke liye graph DB natural fit hai).</li>
+<li><b>Friends filter</b> — user cache se settings padho: muted friends hata do, selective sharing (sirf close friends) respect karo.</li>
+<li><b>Message queue mein bhejo</b> — friend list + new post_id.</li>
+<li><b>Fanout workers</b> queue se data lekar news feed cache update karte hain. Cache mein <code>&lt;post_id, user_id&gt;</code> mapping store hoti hai, <b>full post/user object nahi</b> — memory bachane ke liye.</li>
+<li><b>News feed cache mein append</b> — configurable limit ke saath (sirf recent N posts), kyunki log mostly latest content hi dekhte hain; purane posts pe cache miss acceptable hai.</li>
+</ol>
+<div class="callout warn">⚠️ <b>Failure mode:</b> Worker crash ho gaya fanout ke beech — kuch friends ke feed mein post aayi, kuch mein nahi. Queue redelivery + idempotent writes (same post_id dobara append na ho) se fix. Feed cache "best effort" hai; source of truth Post DB hai.</div>
+
+<h3>News feed retrieval deep dive</h3>
+<p>User feed request karta hai → News Feed Service cache se <b>post IDs</b> nikalta hai → phir user cache aur post cache se <b>complete objects</b> (username, profile pic, post content, likes count) "hydrate" karke JSON client ko bhejta hai. Images/videos <b>CDN</b> se serve hote hain, API se nahi.</p>
+
+<h3>Cache architecture: 5 layers</h3>
+<figure class="diagram"><img src="../img/11/cache-architecture.png" alt="Five cache layers" loading="lazy"><figcaption>Har horizontal row ek cache layer hai, aur row ke andar ke boxes us layer ke sub-types: <b>News Feed</b> (news feed ids); <b>Content</b> (<b>hot cache</b> popular posts ke liye, <b>normal</b> baaki ke liye); <b>Social Graph</b> (follower, following); <b>Action</b> (liked, replied, others — user ne kya action liya); <b>Counters</b> (like counter, reply counter, other counters). Layers alag isliye hain kyunki inka access pattern, size aur TTL alag hai.</figcaption></figure>
+<ul>
+<li><b>News Feed</b>: post IDs ki list per user.</li>
+<li><b>Content</b>: post data; popular content ke liye hot cache.</li>
+<li><b>Social Graph</b>: kaun kisko follow karta hai.</li>
+<li><b>Action</b>: user ne post like/reply/share kiya ya nahi.</li>
+<li><b>Counters</b>: likes, replies, followers ke counts.</li>
+</ul>
+<div class="callout realworld">🌍 <b>Real world:</b> Redis is kaam ke liye standard hai — feed ke liye <code>LPUSH</code> + <code>LTRIM</code> (list ko last N tak limit) ya sorted set (score = timestamp), counters ke liye <code>INCR</code>. Spring stack mein Spring Data Redis / Lettuce client se ye directly use hota hai.</div>
+
+<h2 id="wrapup">Step 4: Wrap-up — scaling aur reliability</h2>
+<ul>
+<li><b>Database scaling</b>: vertical vs horizontal, SQL vs NoSQL, master-slave replication, read replicas, sharding.</li>
+<li><b>Stateless web tier</b>: easily horizontal scale.</li>
+<li><b>Caching</b>: jitna data ho sake memory mein.</li>
+<li><b>Multiple data centers</b> support.</li>
+<li><b>Message queues</b>: loose coupling + traffic buffering.</li>
+<li><b>Consistent hashing</b>: load even distribution.</li>
+<li><b>Monitoring</b>: QPS (peak hours), feed refresh latency, cache hit rate.</li>
+</ul>
+
+<h2 id="interview">Interview mein kaise bolein</h2>
+<div class="callout interview">🎤 <b>45-min plan:</b>
+<ol>
+<li><b>(5 min)</b> Scope: web+mobile, publish + view, reverse chrono, 5,000 friends, 10M DAU, media.</li>
+<li><b>(5 min)</b> APIs: <code>POST /v1/me/feed</code>, <code>GET /v1/me/feed</code>.</li>
+<li><b>(10 min)</b> Do flows draw karo — publishing aur building — alag-alag diagrams.</li>
+<li><b>(15 min)</b> Fanout deep dive: push vs pull table, celebrity problem, hybrid; fanout service ke 5 steps; cache mein sirf IDs.</li>
+<li><b>(5 min)</b> Retrieval + 5-layer cache, CDN for media.</li>
+<li><b>(5 min)</b> Scaling, monitoring, failure modes.</li>
+</ol>
+Key line: <i>"Reads writes se kahin zyada hain, isliye main write time pe kaam karke reads ko O(1) cache lookup banata hoon — except celebrities, jahan pull better hai."</i></div>
+
+<h2 id="followups">Common follow-up questions</h2>
+<p><b>Q: Celebrity ke 10 crore followers hain — fanout on write kya karega?</b><br>A: Hotkey/write storm. Isliye hybrid: celebrity ke posts pull model se read time pe merge karo.</p>
+<p><b>Q: Cache mein full post kyun nahi rakhte?</b><br>A: Ek post hazaron feeds mein duplicate hoti — memory blow up. Sirf IDs rakho, content ek baar content cache mein.</p>
+<p><b>Q: User ne post delete/edit kiya?</b><br>A: Content cache/DB update karo; feeds mein sirf ID hai to hydrate karte waqt deleted post skip ho jaayegi. Feed IDs lazily clean ho sakte hain.</p>
+<p><b>Q: Inactive users ke liye fanout kyun karein?</b><br>A: Optimization: jo users long time se login nahi kiye, unke liye push skip karo; login pe pull se feed build.</p>
+<p><b>Q: Feed pagination?</b><br>A: Cursor-based (last seen post_id/timestamp), offset nahi — naye posts aate rehte hain to offset shift hota hai.</p>
+<p><b>Q: Graph DB kyun?</b><br>A: Friend-of-friend, recommendations jaise relationship queries graph DB mein natural hain; simple follower lists ke liye KV/wide-column bhi chal jaata hai.</p>
+
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul>
+<li>Do flows: feed publishing (write + fanout) aur news feed building (read from cache).</li>
+<li>Fanout on write = fast reads, lekin celebrity hotkey; fanout on read = slow reads, kam waste. Hybrid best.</li>
+<li>Fanout service: graph DB se friends → settings se filter → queue → workers → feed cache.</li>
+<li>Feed cache mein sirf <code>&lt;post_id, user_id&gt;</code> aur limited recent entries — memory control.</li>
+<li>5 cache layers: news feed, content, social graph, action, counters.</li>
+<li>Stateless web tier, sharding, replicas, CDN for media, aur QPS/latency/cache-hit monitoring.</li>
+</ul></div>
+   <div class="chapter-nav"><a class="prev" href="10-notification-system.html">← Prev: Design a Notification System</a><a class="next" href="12-chat-system.html">Next: Design a Chat System →</a></div>
+  </main>
+  <aside class="toc"><div class="toc-title">On this page</div><ul>
+    <li><a href="#intro">Introduction</a></li>
+    <li><a href="#step1">Step 1: Requirements aur scope</a></li>
+    <li><a href="#step2">Step 2: High-level design</a></li>
+    <li><a href="#step3">Step 3: Design deep dive</a></li>
+    <li><a href="#wrapup">Step 4: Wrap-up — scaling aur reliability</a></li>
+    <li><a href="#interview">Interview mein kaise bolein</a></li>
+    <li><a href="#followups">Common follow-up questions</a></li>
+    <li><a href="#takeaways">Key Takeaways</a></li>
+  </ul></aside>
+ </div>
+ <script src="../assets/app.js"></script>
+</body>
+</html>

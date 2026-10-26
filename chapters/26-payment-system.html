@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 26: Payment System · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+ <header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><button class="theme-toggle" aria-label="theme">◐</button></header>
+ <div class="layout">
+  <nav class="sidebar">
+   <div class="nav-group"><p class="nav-group-title">Foundations</p>
+    <a href="01-scaling.html"><span class="num">01</span> Scaling 0 to Millions</a>
+    <a href="02-back-of-envelope.html"><span class="num">02</span> Back-of-the-Envelope Estimation</a>
+    <a href="03-framework.html"><span class="num">03</span> System Design Interview Framework</a>
+    <a href="04-rate-limiter.html"><span class="num">04</span> Rate Limiter</a>
+    <a href="05-consistent-hashing.html"><span class="num">05</span> Consistent Hashing</a>
+    <a href="06-key-value-store.html"><span class="num">06</span> Key-Value Store</a>
+    <a href="07-unique-id-generator.html"><span class="num">07</span> Unique ID Generator</a>
+   </div>
+   <div class="nav-group"><p class="nav-group-title">Classic Designs</p>
+    <a href="08-url-shortener.html"><span class="num">08</span> URL Shortener</a>
+    <a href="09-web-crawler.html"><span class="num">09</span> Web Crawler</a>
+    <a href="10-notification-system.html"><span class="num">10</span> Notification System</a>
+    <a href="11-news-feed.html"><span class="num">11</span> News Feed System</a>
+    <a href="12-chat-system.html"><span class="num">12</span> Chat System</a>
+    <a href="13-search-autocomplete.html"><span class="num">13</span> Search Autocomplete</a>
+    <a href="14-youtube.html"><span class="num">14</span> YouTube</a>
+   </div>
+   <div class="nav-group"><p class="nav-group-title">Vol 2 · Part 1</p>
+    <a href="15-google-drive.html"><span class="num">15</span> Google Drive</a>
+    <a href="16-proximity-service.html"><span class="num">16</span> Proximity Service</a>
+    <a href="17-nearby-friends.html"><span class="num">17</span> Nearby Friends</a>
+    <a href="18-google-maps.html"><span class="num">18</span> Google Maps</a>
+    <a href="19-message-queue.html"><span class="num">19</span> Distributed Message Queue</a>
+    <a href="20-metrics-monitoring.html"><span class="num">20</span> Metrics Monitoring & Alerting</a>
+    <a href="21-ad-click-aggregation.html"><span class="num">21</span> Ad Click Event Aggregation</a>
+    <a href="22-hotel-reservation.html"><span class="num">22</span> Hotel Reservation System</a>
+   </div>
+   <div class="nav-group"><p class="nav-group-title">Vol 2 · Part 2</p>
+    <a href="23-email-service.html"><span class="num">23</span> Distributed Email Service</a>
+    <a href="24-s3-object-storage.html"><span class="num">24</span> S3-like Object Storage</a>
+    <a href="25-gaming-leaderboard.html"><span class="num">25</span> Real-time Gaming Leaderboard</a>
+    <a href="26-payment-system.html" class="active" aria-current="page"><span class="num">26</span> Payment System</a>
+    <a href="27-digital-wallet.html"><span class="num">27</span> Digital Wallet</a>
+    <a href="28-stock-exchange.html"><span class="num">28</span> Stock Exchange</a>
+   </div>
+  </nav>
+  <main class="content">
+   <div class="chapter-hero"><span class="chapter-num">Chapter 26</span><h1>Payment System</h1><p class="lead">Amazon jaise e-commerce ka payment backend — pay-in, pay-out, PSP integration (hosted page + webhooks), double-entry ledger, reconciliation, retries, idempotency aur exactly-once. Aapke Western Union/HSBC background ke liye yeh chapter interview ka "home ground" hai — isliye har section pe production-grade depth.</p><div class="tags"><span class="tag">Payments</span><span class="tag">Idempotency</span><span class="tag">Double-entry Ledger</span><span class="tag">Reconciliation</span><span class="tag">PSP</span><span class="tag">Kafka</span><span class="tag">Exactly-once</span></div></div>
+<h2 id="intro">Introduction</h2>
+<p>Payment system financial transactions settle karta hai — monetary value ek account se doosre mein. Is chapter ka sabse bada lesson: <strong>payments mein throughput problem nahi hai, correctness hai</strong>. 10 TPS pe bhi ek double charge ya ek lost payout = customer trust + regulatory issue.</p>
+
+<h2 id="step1">Step 1: Requirements aur scope</h2>
+<ul>
+ <li>Amazon.com jaisa e-commerce payment backend — saari money movement.</li>
+ <li>Real life mein cards, PayPal, bank transfers; interview ke liye <strong>credit card</strong>.</li>
+ <li>Card processing khud nahi — <strong>PSP</strong> (Stripe, Braintree, Square…).</li>
+ <li>Card data hum <strong>store nahi</strong> karte (compliance).</li>
+ <li>Global app, lekin interview mein <strong>ek currency</strong>.</li>
+ <li><strong>1M transactions/day</strong>.</li>
+ <li><strong>Pay-out</strong> flow bhi (sellers ko monthly).</li>
+ <li><strong>Reconciliation</strong> internal aur external systems ke beech.</li>
+</ul>
+<h3>Functional / non-functional</h3>
+<ul>
+ <li>Pay-in: customers se merchants ki taraf se paisa lena.</li>
+ <li>Pay-out: sellers ko duniya bhar mein paisa bhejna.</li>
+ <li>Reliability + fault tolerance — failed payments carefully handle.</li>
+ <li>Internal ↔ external reconciliation.</li>
+</ul>
+<p><strong>Estimation</strong>: 1M/day ≈ <strong>10 TPS</strong> — kisi bhi DB ke liye trivial. Focus correctness pe.</p>
+<div class="callout interview">🎤 <strong>Opening line jo tone set kare:</strong> "10 TPS pe scale meri chinta nahi hai. Meri teen chintayein hain: (1) koi customer double charge na ho, (2) koi payment 'lost in limbo' na rahe, (3) hamare books PSP aur bank ke saath har din match karein. Main design inhi teen ke around karunga — idempotency, state machine + retries, aur ledger + reconciliation."</div>
+
+<h2 id="step2">Step 2: High-level design</h2>
+<figure class="diagram"><img src="../img/26/high-level-flow.png" alt="high level flow" loading="lazy"><figcaption>Teen actors: Buyer ka Credit Card → <strong>Pay-in</strong> → E-commerce Website ka Bank Account → <strong>Pay-out</strong> → Seller ka Bank Account. Platform beech mein paisa hold karta hai (marketplace model) — isliye ledger aur wallet zaroori hain.</figcaption></figure>
+<h3>Pay-in flow</h3>
+<figure class="diagram"><img src="../img/26/payin-flow-high-level.png" alt="payin flow high level" loading="lazy"><figcaption>① User ka payment event → Payment Service. ② Service event DB mein store. ③ Har payment order Payment Executor ko. ④ Executor order apne DB mein. ⑤ Executor external PSP (PayPal/Stripe/Adyen) ko call → PSP Card Schemes (Visa/MasterCard) se. ⑥ Success pe Payment Service Wallet update → ⑦ wallet DB. ⑧ Ledger ko money movement → ⑨ ledger DB. Dotted line = Internal | External boundary.</figcaption></figure>
+<ul>
+ <li><strong>Payment service</strong>: payment events accept, process coordinate; risk check (AML, fraud) third-party se.</li>
+ <li><strong>Payment executor</strong>: ek payment <em>order</em> PSP ke through execute (ek event mein multiple orders — multiple sellers).</li>
+ <li><strong>PSP</strong>: buyer card → platform bank account.</li>
+ <li><strong>Card schemes</strong>: Visa, Mastercard.</li>
+ <li><strong>Ledger</strong>: har money movement ka financial record.</li>
+ <li><strong>Wallet</strong>: merchants ka balance.</li>
+</ul>
+<h3>API</h3>
+<pre><code>POST /v1/payments
+{
+  "buyer_info": {...},
+  "checkout_id": "some_id",
+  "credit_card_info": {...},
+  "payment_orders": [{...}, {...}, {...}]
+}
+// payment_order
+{
+  "seller_account": "SELLER_IBAN",
+  "amount": "3.15",
+  "currency": "USD",
+  "payment_order_id": "globally_unique_payment_id"   // PSP ko idempotency key
+}
+GET /v1/payments/{payment_order_id}   // execution status</code></pre>
+<div class="callout warn">⚠️ <strong>Money kabhi double/float mein nahi.</strong> <code>0.1 + 0.2 != 0.3</code> binary floating point mein. Notes amount ko string rakhte hain (wire format, precision safe). Java mein <code>BigDecimal</code> (aur <code>new BigDecimal("3.15")</code>, <em>kabhi</em> <code>new BigDecimal(3.15)</code> nahi), ya <strong>minor units</strong> mein <code>long</code> (315 cents). Currency ke minor units ISO 4217 se — JPY ke 0 decimals, USD ke 2, KWD/BHD ke 3. Cross-border mein yeh galti rounding breaks banati hai jo recon mein "unexplained 0.01" ban ke dikhti hai. Rounding mode explicit (<code>HALF_EVEN</code> banker's rounding common) aur kis step pe round karna hai — policy document karo.</div>
+<h3>Data model</h3>
+<p>Performance nahi, <strong>strong consistency</strong>. DB choice ke factors: DBA hiring market, bade financial institutions mein proven track record, tooling, aur <strong>ACID ke liye traditional SQL</strong>.</p>
+<table class="cmp">
+<tr><th>payment_events</th><th>payment_orders</th></tr>
+<tr><td>
+<code>checkout_id</code> PK<br><code>buyer_info</code><br><code>seller_info</code><br><code>credit_card_info</code> (PSP token)<br><code>is_payment_done</code> boolean
+</td><td>
+<code>payment_order_id</code> PK<br><code>buyer_account</code><br><code>amount</code><br><code>currency</code><br><code>checkout_id</code> FK<br><code>payment_order_status</code> enum (NOT_STARTED, EXECUTING, SUCCESS, FAILED)<br><code>ledger_updated</code> boolean<br><code>wallet_updated</code> boolean
+</td></tr>
+</table>
+<ul>
+ <li>Ek event → many orders. <code>seller_info</code> pay-in mein nahi, pay-out mein chahiye.</li>
+ <li><code>ledger_updated</code>/<code>wallet_updated</code> — downstream calls ka progress (yeh basically ek saga ka state hai).</li>
+ <li>Background job in-flight payments monitor karta hai; time pe complete na ho to alert.</li>
+</ul>
+<div class="callout realworld">🌍 <strong>State machine ko 4 states se aage le jao (production):</strong>
+<pre><code>NOT_STARTED -&gt; EXECUTING -&gt; SUCCESS
+                         -&gt; FAILED          (definitive decline)
+                         -&gt; UNKNOWN         (timeout / 5xx / connection reset: PSP ne charge kiya ya nahi, pata nahi!)
+UNKNOWN -&gt; (status query with SAME idempotency key | webhook | recon) -&gt; SUCCESS / FAILED
+SUCCESS -&gt; REFUND_PENDING -&gt; REFUNDED / PARTIALLY_REFUNDED</code></pre>
+<code>UNKNOWN</code> state sabse important hai — interviewers yahi poochte hain: "PSP call timeout ho gaya, ab kya?" Answer: <strong>naya charge mat karo</strong>. Same idempotency key se retry (PSP duplicate detect karega aur original result dega) ya PSP ka GET status API poll karo; tab tak user ko "pending". Transitions ko DB mein guarded update se: <code>UPDATE payment_orders SET status='SUCCESS' WHERE id=? AND status IN ('EXECUTING','UNKNOWN')</code> — late/duplicate webhook state ko peeche nahi le jaa sakta.</div>
+
+<h2 id="ledger">Step 2b: Double-entry ledger</h2>
+<p>Har money movement do accounts pe — ek debit, ek credit, same amount:</p>
+<table class="cmp">
+<tr><th>Account</th><th>Debit</th><th>Credit</th></tr>
+<tr><td>buyer</td><td>$1</td><td></td></tr>
+<tr><td>seller</td><td></td><td>$1</td></tr>
+</table>
+<p>Saari entries ka sum hamesha <strong>zero</strong>. End-to-end traceability.</p>
+<div class="callout realworld">🌍 <strong>Ledger deep dive (jo notes nahi batate):</strong>
+<ol>
+<li><strong>Immutable, append-only</strong>: entry kabhi UPDATE/DELETE nahi. Galti = <em>reversal entry</em> (opposite) + correct entry. Audit trail intact.</li>
+<li><strong>Journal (transaction) + postings</strong>: <code>journal(id, idempotency_key UNIQUE, created_at, description)</code>, <code>posting(journal_id, account_id, amount, direction, currency)</code>. Invariant: har journal mein Σdebits = Σcredits <em>per currency</em> — DB transaction ke andar enforce.</li>
+<li><strong>Realistic pay-in with fee</strong> (buyer $100, platform fee 3%):
+<pre><code>Dr  PSP_Receivable          100.00   (PSP humein dega)
+  Cr  Merchant_Payable(S1)        97.00   (seller ka paisa, platform pe liability)
+  Cr  Fee_Revenue                  3.00
+-- settlement day, PSP bank mein bhejta hai (PSP fee 2.10 kaat ke):
+Dr  Bank_Cash                97.90
+Dr  PSP_Fee_Expense           2.10
+  Cr  PSP_Receivable             100.00
+-- pay-out to seller:
+Dr  Merchant_Payable(S1)     97.00
+  Cr  Bank_Cash                  97.00</code></pre></li>
+<li><strong>Balance = derived</strong>: Σpostings per account. Performance ke liye balance snapshot/materialized table jo same transaction mein update ho, lekin truth postings hain.</li>
+<li><strong>Multi-currency (aapka FX background)</strong>: har currency alag balance karti hai. USD→EUR conversion ke liye FX "position" accounts: <code>Dr Customer_USD 100 / Cr FX_Position_USD 100</code> aur <code>Dr FX_Position_EUR 92 / Cr Beneficiary_EUR 92</code>; rate + quote id journal pe store. FX P&amp;L in position accounts ke revaluation se nikalta hai.</li>
+</ol></div>
+<h3>Hosted payment page</h3>
+<figure class="diagram"><img src="../img/26/hosted-payment-page.png" alt="hosted payment page" loading="lazy"><figcaption>PayPal ka hosted page: "Pay with PayPal" — email/mobile, password, Log In, ya "Pay with Debit or Credit Card". Yeh page PSP ka hai, hamara nahi — card details kabhi hamare servers ko touch nahi karte.</figcaption></figure>
+<p>Card data store karne ke heavy regulations (PCI DSS) se bachne ke liye companies PSP ka widget/hosted page use karti hain.</p>
+<h3>Pay-out flow</h3>
+<ul>
+ <li>Paisa platform ke bank account se merchant ke bank account mein.</li>
+ <li>Third-party accounts-payable provider (e.g. Tipalti) use kar sakte hain.</li>
+ <li>Bookkeeping + regulatory requirements bahut (KYC/KYB, sanctions screening, tax reporting).</li>
+</ul>
+
+<h2 id="psp">Step 3a: PSP integration</h2>
+<p>Banks/card schemes se direct connection rare hai (sirf bahut badi companies). Normal: PSP via (a) API (agar hum card data collect karte hain — PCI scope bada) ya (b) <strong>hosted payment page</strong>.</p>
+<figure class="diagram"><img src="../img/26/hosted-payment-page-workflow.png" alt="hosted payment page workflow" loading="lazy"><figcaption>Client Browser (Checkout Page, Hosted Payment Page, Payment Completion Page) aur Payment System. ① Checkout → Payment Service. ② Service PSP ko "Create payment with nonce" (payment_order_id as UUID). ③ PSP payment token lautata hai. ④ Token DB mein store. ⑤ Browser mein PSP ka Payment page token ke saath. ⑥ User card details PSP pe daalke start payment. ⑦ PSP payment result. ⑧ Redirect to completion page. ⑨ Alag se async <strong>Webhook</strong> PSP → Payment Service with completion result.</figcaption></figure>
+<ol>
+ <li>User "checkout" → client payment service ko order info bhejta hai.</li>
+ <li>Payment service PSP ko <strong>payment registration</strong> (amount, currency, expiry + idempotency UUID, usually payment_order_id).</li>
+ <li>PSP token deta hai → DB mein.</li>
+ <li>User ko PSP-hosted page, token + success/failure redirect URL ke saath.</li>
+ <li>User details bharta hai, PSP process karta hai.</li>
+ <li>Redirect back, example: <a href="https://your-company.com/?tokenID=JIOUIQ123NSF&amp;payResult=X324FSa" target="_blank" rel="noopener nofollow">https://your-company.com/?tokenID=JIOUIQ123NSF&amp;payResult=X324FSa</a> — <em>yeh sirf illustrative URL hai (real site nahi): <code>tokenID</code> = registration token jisse hum apna order dhoondhte hain, <code>payResult</code> = PSP ka result reference. Ise kabhi final truth mat maano — user URL edit kar sakta hai; final status webhook/PSP API se verify karo. Detail: <a href="../links.html#ch26">links guide</a>.</em></li>
+ <li>Async <strong>webhook</strong> PSP → payment service; result record.</li>
+</ol>
+<div class="callout realworld">🌍 <strong>Webhook handling — production checklist:</strong>
+<ul>
+<li><strong>Signature verify</strong> (e.g. Stripe <code>Stripe-Signature</code> header — HMAC-SHA256 with timestamp; tolerance window se replay attack rokna).</li>
+<li><strong>Jaldi 2xx</strong> do, processing async (Kafka) — warna PSP timeout maan ke retry karega.</li>
+<li><strong>At-least-once + out-of-order</strong>: PSPs retry karte hain aur order guarantee nahi. Event id pe dedupe table, aur guarded state transitions (SUCCESS ke baad late "processing" event ignore).</li>
+<li><strong>Webhook miss</strong> ho sakta hai → poller jo UNKNOWN/EXECUTING orders ko N minute baad PSP API se check kare. Webhook + polling + nightly recon = teen layers.</li>
+</ul></div>
+<div class="callout tip">💡 <strong>PCI scope:</strong> Hosted page/iframe (Stripe Elements, Adyen Drop-in) use karne se merchant ka PCI DSS self-assessment sabse halka (SAQ A) ho jaata hai, kyunki card data merchant ke servers pe aata hi nahi. Direct API card collection = SAQ D jaisa bhaari scope. EU mein PSD2 SCA ki wajah se 3-D Secure 2 challenge flow bhi hosted/SDK side handle hota hai.</div>
+
+<h2 id="recon">Step 3b: Reconciliation</h2>
+<p>Happy path upar tha; unhappy paths ko background reconciliation pakadta hai. Har raat PSP <strong>settlement file</strong> bhejta hai; hum usse apne internal state se compare karte hain.</p>
+<figure class="diagram"><img src="../img/26/settlement-report.png" alt="settlement report" loading="lazy"><figcaption>Upar wahi pay-in system (Payment Service, Executor, Ledger, Wallet) aur PSP/Card schemes. PSP se "Settlement file" Internal|External line cross karke pink <strong>Reconciliation</strong> box mein aata hai; Ledger aur Wallet DBs bhi reconciliation ko feed karte hain. Recon external vs internal aur internal vs internal (ledger vs wallet) dono compare karta hai.</figcaption></figure>
+<p>Mismatches finance team handle karti hai, teen buckets mein:</p>
+<ul>
+ <li><strong>Classifiable + automatable</strong> — known type, standard procedure se auto-adjust.</li>
+ <li><strong>Classifiable, automate nahi ho sakta</strong> — finance manually adjust.</li>
+ <li><strong>Unclassifiable</strong> — manual investigation.</li>
+</ul>
+<div class="callout realworld">🌍 <strong>Recon jaise HSBC/WU mein hota hai:</strong>
+<ul>
+<li><strong>Three-way recon</strong>: (1) internal ledger vs (2) PSP settlement report vs (3) bank statement (SWIFT MT940 / ISO 20022 camt.053). PSP bolta hai "97.90 bheja", bank bolta hai "aaya" — dono check.</li>
+<li><strong>Matching keys</strong>: PSP reference ↔ payment_order_id (isliye apna id PSP ko metadata/merchant reference mein bhejo). Fallback fuzzy match: amount + date + last4.</li>
+<li><strong>Break types</strong>: missing internal (PSP ne charge kiya, humare paas FAILED/UNKNOWN → auto-fix ya refund), missing external (humne SUCCESS mana, PSP ke paas nahi → investigate), amount mismatch (fees, FX rounding, partial capture), timing (T+1/T+2 settlement — next day auto-clear).</li>
+<li><strong>Ageing &amp; SLA</strong>: breaks ko age ke saath escalate; month-end close se pehle zero unexplained.</li>
+<li>Recon output khud ledger entries banata hai (adjustments) — wahi double-entry rules.</li>
+</ul></div>
+
+<h2 id="delays">Step 3c: Processing delays</h2>
+<p>Kabhi payment ghanton leti hai: high-risk flag → manual review, ya 3D Secure jaisa extra authentication. Handling:</p>
+<ul>
+ <li>PSP ke webhook ka wait, ya webhook na ho to polling.</li>
+ <li>User ko "pending" status + status page; complete hone pe email.</li>
+</ul>
+
+<h2 id="comm">Step 3d: Internal communication — sync vs async</h2>
+<p>Sync (HTTP) chhote scale pe theek, lekin: long call chain = low performance, poor failure isolation (PSP down = user ko response nahi), tight coupling, traffic spike ke liye buffer nahi.</p>
+<figure class="diagram"><img src="../img/26/single-receiver.png" alt="single receiver" loading="lazy"><figcaption>Upar: queue mein m1-m4, Service A aur Service B dono subscribed. Neeche: m1 sirf Service A ko, m2 sirf Service B ko — har message <strong>ek hi</strong> receiver process karta hai (work queue / competing consumers).</figcaption></figure>
+<figure class="diagram"><img src="../img/26/multiple-receiver.png" alt="multiple receiver" loading="lazy"><figcaption>Events → queue (m1-m4) → m1 teen jagah: Payment System, Analytics, Billing. Har message <strong>sab</strong> subscribers ko (pub-sub). Payment ke multiple side effects ke liye yahi model.</figcaption></figure>
+<p>Sync simple hai lekin services autonomous nahi; async simplicity aur immediate consistency ke badle scalability + resilience deta hai.</p>
+<div class="callout realworld">🌍 <strong>Kafka for payments (Ch19 se jodo):</strong> topic <code>payment-events</code>, key = <code>checkout_id</code> ya <code>payment_order_id</code> taaki ek payment ke events ordered rahein. Producer side: DB write + event publish ka dual-write problem → <strong>Transactional Outbox</strong> (same DB txn mein outbox row, Debezium CDC se Kafka). Consumer side (ledger, wallet, notification groups): at-least-once + idempotent consumer (processed_event table). Kafka EOS (transactions) sirf Kafka-to-Kafka hai; PSP call ya ledger DB write ke liye "effectively-once" = idempotency. Config: <code>acks=all</code>, <code>min.insync.replicas=2</code>, RF=3, <code>enable.idempotence=true</code>.</div>
+
+<h2 id="failures">Step 3e: Failed payments</h2>
+<ul>
+ <li><strong>State tracking</strong> — fail pe state dekh ke retry ya refund decide.</li>
+ <li><strong>Retry queue</strong> — retryable failures.</li>
+ <li><strong>Dead-letter queue</strong> — terminal failures, debug/inspect ke liye.</li>
+</ul>
+<figure class="diagram"><img src="../img/26/failed-payments.png" alt="failed payments" loading="lazy"><figcaption>Failure → diamond "Retryable?" — (1a) Yes → Retry Queue → (2) Payment System → phir fail hua to dobara "Retryable?" — (3a) Yes → wapas Retry Queue, (3b) No → Dead Letter Queue. Pehli baar hi (1b) No → Database mein failed record.</figcaption></figure>
+<table class="cmp">
+<tr><th>Retryable</th><th>Non-retryable (terminal)</th></tr>
+<tr><td>Timeout, 5xx, 429 (rate limit), connection reset, PSP maintenance</td><td>Card declined, insufficient funds, invalid card, fraud block, 4xx validation</td></tr>
+</table>
+<div class="callout warn">⚠️ <strong>Decline ko retry karna bug hai</strong> — card networks excessive retries pe merchant ko penalise kar sakte hain aur customer ke statement pe multiple auth holds dikhte hain. Decline codes ko map karo: soft decline (thodi der baad retry allowed, e.g. issuer unavailable) vs hard decline (kabhi nahi).</div>
+
+<h2 id="exactly-once">Step 3f: Exactly-once — at-least-once + at-most-once</h2>
+<p>Exactly-once = <strong>at-least-once</strong> (retry) + <strong>at-most-once</strong> (idempotency) saath mein.</p>
+<figure class="diagram"><img src="../img/26/retry-mechanism.png" alt="retry mechanism" loading="lazy"><figcaption>Client "Pay $10" → Payment failed (X); Retry → failed; Retry → failed; Retry → Payment succeeded ✓. At-least-once ka matlab: success milne tak (ya limit tak) retry.</figcaption></figure>
+<p>Retry strategies: immediate, fixed interval, incremental, <strong>exponential backoff</strong> (default), cancel (terminal error/limit). Server <code>Retry-After</code> header se interval suggest kare. Jitter add karo taaki saare clients ek saath retry na karein (thundering herd).</p>
+<p>Retry ka khatra — double processing:</p>
+<ul>
+ <li>User ne "Pay" do baar click kiya.</li>
+ <li>PSP ne charge kar diya, lekin downstream (ledger/wallet) fail; retry ne PSP ko phir charge karwa diya.</li>
+</ul>
+<figure class="diagram"><img src="../img/26/idempotency-example.png" alt="idempotency example" loading="lazy"><figcaption>Upar: Client first request <code>POST {idempotency-key: UUID}</code> → "Charge succeeded". Retry (neeche): same key ke saath POST → Payment System "Server has already seen the idempotency key. Do not process the request again" → "Return previous message". Dusri baar charge nahi, pehla response replay.</figcaption></figure>
+<p>Implementation: unique key constraint — insert try karo, violation pe existing object return karo. PSP side bhi same nonce/idempotency key pe duplicate process nahi karta.</p>
+<pre><code>// Spring Boot: idempotent POST /v1/payments
+@Transactional
+public PaymentResponse pay(String idemKey, PaymentRequest req) {
+    String hash = sha256(canonicalJson(req));
+    Optional&lt;IdemRecord&gt; existing = idemRepo.findForUpdate(idemKey); // row lock
+    if (existing.isPresent()) {
+        IdemRecord r = existing.get();
+        if (!r.requestHash().equals(hash)) throw new IdempotencyConflict(); // 422: same key, different body
+        if (r.status() == IN_PROGRESS)       throw new RetryLater();         // 409 + Retry-After
+        return r.storedResponse();                                          // replay
+    }
+    idemRepo.insert(idemKey, hash, IN_PROGRESS);   // UNIQUE(idem_key) guards races
+    PaymentOrder po = orders.create(req);          // NOT_STARTED
+    // PSP call ideally outside this DB txn (don't hold locks during network I/O):
+    // publish via outbox -&gt; executor calls PSP with po.id as PSP idempotency key
+    return idemRepo.complete(idemKey, PaymentResponse.accepted(po.id()));
+}</code></pre>
+<div class="callout realworld">🌍 <strong>Idempotency keys — kahan kahan:</strong> (1) Client → Payment API (header, Stripe-style; Stripe keys ~24h baad expire ho sakte hain, isliye apni retention policy bhi define karo). (2) Payment executor → PSP (payment_order_id). (3) Kafka consumers (event_id). (4) Ledger (journal.idempotency_key UNIQUE) — taaki retry pe double posting na ho. Har hop ka apna key, aur key <em>business operation</em> identify kare, HTTP request nahi.</div>
+
+<h2 id="consistency">Step 3g: Consistency</h2>
+<p>Stateful services: PSP, ledger, wallet, payment service. Koi bhi do ke beech call fail ho sakti hai → <strong>exactly-once processing + reconciliation</strong> se eventual consistency.</p>
+<p>Replication lag (primary vs replica) se user inconsistent data dekh sakta hai. Mitigation: reads + writes primary se, replicas sirf redundancy/failover ke liye; ya consensus (Paxos/Raft) se replicas in-sync; ya consensus-based distributed DB — YugabyteDB, CockroachDB.</p>
+<div class="callout tip">💡 Ledger/wallet update ko <code>ledger_updated</code>, <code>wallet_updated</code> flags ke saath track karna ek <strong>orchestrated saga</strong> hai. Better: ek hi "PSP success" event se ledger aur wallet dono idempotently update; aur ledger-wallet internal recon (wallet balance == Σledger postings for merchant account) daily chalao.</div>
+
+<h2 id="security">Step 3h: Payment security</h2>
+<table class="cmp">
+<tr><th>Threat</th><th>Mitigation</th></tr>
+<tr><td>Eavesdropping</td><td>HTTPS everywhere (mTLS internally)</td></tr>
+<tr><td>Data tampering</td><td>Encryption + integrity monitoring</td></tr>
+<tr><td>MITM</td><td>SSL/TLS with certificate pinning (mobile)</td></tr>
+<tr><td>Data loss</td><td>Multi-region replication + snapshots</td></tr>
+<tr><td>DDoS</td><td>Rate limiting + firewall/WAF</td></tr>
+<tr><td>Card theft</td><td>Tokenisation — real PAN store nahi</td></tr>
+<tr><td>PCI compliance</td><td>PCI DSS — branded cards handle karne walon ke liye standard</td></tr>
+<tr><td>Fraud</td><td>Address verification (AVS), CVV, user behaviour analysis, velocity checks</td></tr>
+</table>
+
+<h2 id="wrapup">Step 4: Wrap up</h2>
+<ul>
+ <li>Monitoring &amp; alerting (payment success rate, PSP error rates, stuck-in-UNKNOWN count, recon break count).</li>
+ <li>Debugging tools — payment kyun fail hua, ek click mein timeline.</li>
+ <li><strong>Currency exchange</strong> — international ke liye zaroori.</li>
+ <li>Geography — har region ke alag payment methods.</li>
+ <li>Cash payments — India, Brazil mein common.</li>
+ <li>Google/Apple Pay integration.</li>
+</ul>
+<div class="callout realworld">🌍 <strong>FX/cross-border add-on (aapka strength — interview mein khud offer karo):</strong> Quote service (rate + margin, <code>quote_id</code>, expiry e.g. 30s-15min); payment request quote_id reference kare, server expiry + rate verify kare (client rate pe trust nahi). Rate source + timestamp ledger journal pe store (audit). Settlement currency vs presentment currency alag ho sakti hai. Sanctions/AML screening (OFAC lists) pay-out se pehle. Corridor-wise payout partners (local rails: UPI, SEPA Instant, FedNow) aur har partner ka apna recon file.</div>
+
+<div class="callout interview">🎤 <strong>Interview mein kaise bolein (45 min):</strong>
+<ol>
+<li><strong>0-5</strong>: Scope — PSP use, card data nahi, 10 TPS, pay-in + pay-out + recon. Opening line (upar) bolo.</li>
+<li><strong>5-15</strong>: Pay-in diagram (service, executor, PSP, ledger, wallet), API (string/BigDecimal amount, payment_order_id as idempotency key), tables.</li>
+<li><strong>15-25</strong>: Hosted page + webhook flow, state machine incl. UNKNOWN.</li>
+<li><strong>25-35</strong>: Exactly-once = retry + idempotency (har hop pe), retry vs DLQ classification, Kafka + outbox.</li>
+<li><strong>35-42</strong>: Double-entry ledger example with fees, reconciliation (three-way, break buckets).</li>
+<li><strong>42-45</strong>: Security/PCI, FX, monitoring.</li>
+</ol>
+Real incident story ready rakho: "PSP timeout ke baad duplicate charge" ya "settlement file late" — aapne kaise detect aur fix kiya.</div>
+
+<h2 id="faq">Follow-up questions</h2>
+<dl>
+<dt>Q: PSP ne charge kar diya lekin hamara service crash ho gaya response save karne se pehle?</dt><dd>Order EXECUTING/UNKNOWN mein atka; poller same idempotency key se PSP status query karega ya webhook aayega; nightly recon last safety net. User ko naya charge kabhi nahi.</dd>
+<dt>Q: Refund flow?</dt><dd>Naya refund order (apna idempotency key), PSP refund API, ledger mein reversal-style entries (Dr Merchant_Payable / Cr PSP_Receivable), partial refunds sum ≤ captured amount guarded update se.</dd>
+<dt>Q: Auth vs capture?</dt><dd>Auth = funds hold (order place pe), capture = actual charge (ship hone pe). Auth expire hota hai (card network rules, typically days), isliye capture scheduler + expiry monitoring.</dd>
+<dt>Q: Ledger DB scale kaise?</dt><dd>10 TPS pe single Postgres. Bade scale pe shard by account, hot accounts (platform fee account) ke liye sub-accounts/batching; ya TigerBeetle jaise purpose-built ledger DB.</dd>
+<dt>Q: Chargeback?</dt><dd>PSP webhook (dispute.created) → ledger entry (funds held/debited from merchant payable), evidence submission workflow, outcome pe reversal.</dd>
+</dl>
+
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul>
+<li>Payments = correctness problem, scale nahi (10 TPS).</li>
+<li>Money: string on wire, BigDecimal/minor-units in code, currency-specific decimals, explicit rounding.</li>
+<li>Hosted payment page + token + webhook = PCI scope minimum; redirect URL pe trust nahi, webhook/API se verify.</li>
+<li>State machine mein UNKNOWN state; timeout pe naya charge nahi, same key se status check.</li>
+<li>Exactly-once = retries (exponential backoff + jitter) + idempotency keys har hop pe + DLQ for terminal.</li>
+<li>Double-entry, immutable, append-only ledger; balances derived; reversals for corrections.</li>
+<li>Reconciliation (PSP settlement + bank statement + internal) last line of defence; breaks classify karo.</li>
+<li>Async via Kafka + outbox; consumers idempotent.</li>
+</ul></div>
+   <div class="chapter-nav"><a class="prev" href="25-gaming-leaderboard.html">← Prev: Real-time Gaming Leaderboard</a><a class="next" href="27-digital-wallet.html">Next: Digital Wallet →</a></div>
+  </main>
+  <aside class="toc">
+   <p class="toc-title">On this page</p>
+    <a href="#intro">Introduction</a>
+    <a href="#step1">Step 1: Requirements aur scope</a>
+    <a href="#step2">Step 2: High-level design</a>
+    <a href="#ledger">Step 2b: Double-entry ledger</a>
+    <a href="#psp">Step 3a: PSP integration</a>
+    <a href="#recon">Step 3b: Reconciliation</a>
+    <a href="#delays">Step 3c: Processing delays</a>
+    <a href="#comm">Step 3d: Internal communication — sync vs async</a>
+    <a href="#failures">Step 3e: Failed payments</a>
+    <a href="#exactly-once">Step 3f: Exactly-once — at-least-once + at-most-once</a>
+    <a href="#consistency">Step 3g: Consistency</a>
+    <a href="#security">Step 3h: Payment security</a>
+    <a href="#wrapup">Step 4: Wrap up</a>
+    <a href="#faq">Follow-up questions</a>
+    <a href="#takeaways">Key Takeaways</a>
+  </aside>
+ </div>
+ <script src="../assets/app.js"></script>
+</body>
+</html>

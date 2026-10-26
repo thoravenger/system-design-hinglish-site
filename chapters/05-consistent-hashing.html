@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 05: Design Consistent Hashing · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{if(localStorage.getItem('sd-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><div class="toplinks"><a href="../index.html#chapters">Chapters</a><a href="../index.html#how">Kaise padhein</a><a href="../links.html">URL Guide</a></div><button class="theme-toggle" aria-label="theme">◐</button></header>
+<div class="layout">
+<nav class="sidebar">
+<div class="group">Foundations</div><ul>
+<li><a href="01-scaling.html"><span class="num">01</span> Scale from Zero to Millions of Users</a></li>
+<li><a href="02-back-of-envelope.html"><span class="num">02</span> Back-of-the-Envelope Estimation</a></li>
+<li><a href="03-framework.html"><span class="num">03</span> A Framework for System Design Interviews</a></li>
+<li><a href="04-rate-limiter.html"><span class="num">04</span> Design a Rate Limiter</a></li>
+<li><a class="active" href="05-consistent-hashing.html"><span class="num">05</span> Design Consistent Hashing</a></li>
+<li><a href="06-key-value-store.html"><span class="num">06</span> Design a Key-Value Store</a></li>
+<li><a href="07-unique-id-generator.html"><span class="num">07</span> Design a Unique ID Generator</a></li>
+</ul>
+<div class="group">Classic Designs</div><ul>
+<li><a href="08-url-shortener.html"><span class="num">08</span> Design a URL Shortener</a></li>
+<li><a href="09-web-crawler.html"><span class="num">09</span> Design a Web Crawler</a></li>
+<li><a href="10-notification-system.html"><span class="num">10</span> Design a Notification System</a></li>
+<li><a href="11-news-feed.html"><span class="num">11</span> Design a News Feed System</a></li>
+<li><a href="12-chat-system.html"><span class="num">12</span> Design a Chat System</a></li>
+<li><a href="13-search-autocomplete.html"><span class="num">13</span> Design a Search Autocomplete System</a></li>
+<li><a href="14-youtube.html"><span class="num">14</span> Design YouTube</a></li>
+</ul>
+<div class="group">Vol 2 · Part 1</div><ul>
+<li><a href="15-google-drive.html"><span class="num">15</span> Design Google Drive</a></li>
+<li><a href="16-proximity-service.html"><span class="num">16</span> Design a Proximity Service</a></li>
+<li><a href="17-nearby-friends.html"><span class="num">17</span> Design Nearby Friends</a></li>
+<li><a href="18-google-maps.html"><span class="num">18</span> Design Google Maps</a></li>
+<li><a href="19-message-queue.html"><span class="num">19</span> Design a Distributed Message Queue</a></li>
+<li><a href="20-metrics-monitoring.html"><span class="num">20</span> Metrics Monitoring and Alerting System</a></li>
+<li><a href="21-ad-click-aggregation.html"><span class="num">21</span> Ad Click Event Aggregation</a></li>
+<li><a href="22-hotel-reservation.html"><span class="num">22</span> Hotel Reservation System</a></li>
+</ul>
+<div class="group">Vol 2 · Part 2</div><ul>
+<li><a href="23-email-service.html"><span class="num">23</span> Distributed Email Service</a></li>
+<li><a href="24-s3-object-storage.html"><span class="num">24</span> S3-like Object Storage</a></li>
+<li><a href="25-gaming-leaderboard.html"><span class="num">25</span> Real-time Gaming Leaderboard</a></li>
+<li><a href="26-payment-system.html"><span class="num">26</span> Design a Payment System</a></li>
+<li><a href="27-digital-wallet.html"><span class="num">27</span> Design a Digital Wallet</a></li>
+<li><a href="28-stock-exchange.html"><span class="num">28</span> Design a Stock Exchange</a></li>
+</ul>
+<div class="group">Extras</div><ul>
+<li><a href="../index.html">🏠 Home / Kaise padhein</a></li><li><a href="../links.html">🔗 Notes ke URLs ka guide</a></li></ul>
+</nav>
+<main class="content">
+<div class="chapter-hero"><span class="chapter-num">Chapter 05</span><h1>Design Consistent Hashing</h1><p class="lead">Server add/remove pe saari keys shuffle hone se kaise bachein — hash ring, clockwise lookup aur virtual nodes ka pura logic.</p><div class="tags"><span class="tag">Hash Ring</span><span class="tag">Virtual Nodes</span><span class="tag">Partitioning</span><span class="tag">Dynamo</span><span class="tag">Cassandra</span></div></div>
+
+<h2 id="intro">Introduction</h2>
+<p>Horizontal scaling ke liye requests/data ko servers mein <em>efficiently aur evenly</em> baantna zaroori hai. <strong>Consistent hashing</strong> isi ka standard technique hai. Isse samajhne ke liye pehle wo problem dekho jo ye solve karta hai.</p>
+
+<h2 id="rehashing">The rehashing problem</h2>
+<p>N cache servers hain to common tarika: <code>serverIndex = hash(key) % N</code>. Example: 4 servers, 8 keys.</p>
+<figure class="diagram"><img src="../img/05/server-hashing.png" alt="hash % 4 distribution" loading="lazy"><figcaption><b>Kaise padhein:</b> Formula <code>serverIndex = hash % 4</code>. Har column ek server (index 0–3) aur uske neeche jo keys map hui. Server 0 → key1, key3; Server 1 → key0, key4; Server 2 → key2, key6; Server 3 → key5, key7. Server pool fixed ho to distribution achha hai.</figcaption></figure>
+<p>Ye tab tak theek hai jab tak server pool ka size fixed hai. Ab server 1 offline ho gaya → N = 3. Hash same rahega, lekin <code>% 3</code> ka result badal jaayega:</p>
+<figure class="diagram"><img src="../img/05/server-hashing-miss.png" alt="hash % 3 after server removal" loading="lazy"><figcaption><b>Kaise padhein:</b> Ab <code>serverIndex = hash % 3</code>. Server 1 grey (offline). <b>Red keys</b> (key0, key5, key7, key4, key3) wo hain jo apne purane server se <b>hat gayi</b> — sirf server 1 ki keys nahi, balki doosre servers ki keys bhi shuffle ho gayi. Result: cache misses ka storm.</figcaption></figure>
+<p>Matlab ek server gaya aur <strong>most keys redistribute</strong> ho gayi — sirf us server ki keys nahi. Clients galat servers se data maangenge → massive cache misses → DB pe load spike.</p>
+<div class="callout warn"><strong>Math intuition</strong><code>% N</code> se <code>% (N±1)</code> pe jaate hi roughly <em>(N−1)/N</em> keys move hoti hain — 100 servers mein ~99% keys! Consistent hashing mein average sirf <em>k/n</em> keys move hoti hain (k = total keys, n = slots/servers).</div>
+
+<h2 id="ring">Consistent hashing: hash space aur hash ring</h2>
+<p>Definition (Wikipedia ke words mein): consistent hashing ek special hashing hai jisme hash table resize hone pe average sirf <strong>k/n</strong> keys remap hoti hain. Traditional hashing mein lagbhag saari.</p>
+<figure class="diagram"><img src="../img/05/hash-ring.png" alt="Hash space to hash ring" loading="lazy"><figcaption><b>Kaise padhein:</b> Upar: hash space ek seedhi line hai x0 se xn tak. SHA-1 ka output space <b>0 se 2<sup>160</sup>−1</b> hai, to x0 = 0 aur xn = 2<sup>160</sup>−1. Neeche: line ke dono ends jod do → <b>ring</b>. Ab xn ke baad seedha x0 aata hai (wrap-around).</figcaption></figure>
+<h3>Servers ko ring pe rakhna</h3>
+<p>Same hash function <code>f</code> se server ka IP ya naam hash karke ring pe place karo.</p>
+<figure class="diagram"><img src="../img/05/server-ring.png" alt="Servers on the ring" loading="lazy"><figcaption><b>Kaise padhein:</b> 4 servers (s0–s3, colour-coded legend left mein) ko <code>f(server)</code> se ring pe jagah mili. Arrow dikhata hai <code>f(server 0)</code> ne s0 ki position decide ki. Servers ring pe evenly spaced hona zaroori nahi.</figcaption></figure>
+<h3 id="lookup">Server lookup</h3>
+<p>Key ko bhi same function se ring pe hash karo (yahan modular operation nahi hai!). Key ka server = key ki position se <strong>clockwise</strong> chalo, pehla server jo mile.</p>
+<figure class="diagram"><img src="../img/05/server-lookup.png" alt="Clockwise server lookup" loading="lazy"><figcaption><b>Kaise padhein:</b> Black circles = keys (k0–k3), coloured dots = servers. Har arrow clockwise direction mein key se nearest server tak: k0 → s0, k1 → s1, k2 → s2, k3 → s3.</figcaption></figure>
+
+<h2 id="add-remove">Server add ya remove karna</h2>
+<h3>Add</h3>
+<figure class="diagram"><img src="../img/05/adding-server.png" alt="Adding server s4" loading="lazy"><figcaption><b>Kaise padhein:</b> Naya <b>s4</b> (green) k0 aur s0 ke beech add hua. Pehle k0 clockwise chal ke s0 pe jaati thi (dashed arrow, red ✗ — ab nahi). Ab k0 ko pehle s4 milta hai (solid arrow). <b>Sirf k0 move hui</b> — k1, k2, k3 apni jagah.</figcaption></figure>
+<p>Server add karne pe sirf ek fraction of keys redistribute hoti hain.</p>
+<h3>Remove</h3>
+<figure class="diagram"><img src="../img/05/removing-server.png" alt="Removing server s1" loading="lazy"><figcaption><b>Kaise padhein:</b> <b>s1</b> pe red ✗ — server remove ho gaya. k1 ab clockwise chal ke agla server <b>s2</b> pakadti hai (bada curved arrow). Baaki keys (k0, k2, k3) unaffected.</figcaption></figure>
+
+<h2 id="issues">Basic approach ke do issues</h2>
+<p>Basic algorithm (MIT ke Karger et al. ne introduce kiya): servers aur keys ko uniformly distributed hash function se ring pe map karo; key ka server = clockwise pehla server. Lekin:</p>
+<ol>
+<li><strong>Uneven partition sizes:</strong> partition = do adjacent servers ke beech ka hash space. Server add/remove ke baad ek server ka partition bahut chhota aur doosre ka bahut bada ho sakta hai (e.g. s1 hata to s2 ka partition s0 aur s3 se double).</li>
+<li><strong>Non-uniform key distribution:</strong> servers ring ke ek hisse mein cluster ho jaayein to most keys ek hi server pe aa sakti hain.</li>
+</ol>
+
+<h2 id="virtual-nodes">Solution: Virtual nodes (replicas)</h2>
+<p>Har real server ring pe <strong>multiple virtual nodes</strong> se represent hota hai. Server ke multiple partitions ho jaate hain.</p>
+<figure class="diagram"><img src="../img/05/virtual-nodes.png" alt="Virtual nodes" loading="lazy"><figcaption><b>Kaise padhein:</b> Do real servers: server 0 (purple) aur server 1 (blue). Har ek ke 3 virtual nodes — s0_0, s0_1, s0_2 aur s1_0, s1_1, s1_2 — ring pe alternate positions pe. Bahar ke coloured arcs dikhate hain ki har segment kis server ka hai (s0 ya s1). Key clockwise pehla <i>virtual</i> node dhoondti hai, aur wo jis real server ka hai wahan store hoti hai.</figcaption></figure>
+<ul>
+<li>Virtual nodes badhao → key distribution zyada balanced, kyunki <strong>standard deviation</strong> chhota hota jata hai. Book ke referenced experiment mein 100–200 virtual nodes pe std deviation mean ka ~10% se ~5% tak aa jaata hai.</li>
+<li><strong>Trade-off:</strong> zyada virtual nodes → ring metadata store karne ke liye zyada memory. Business requirement ke hisaab se tune karo.</li>
+<li><strong>Bonus:</strong> heterogeneous hardware — powerful server ko zyada virtual nodes do, wo proportionally zyada load lega.</li>
+</ul>
+
+<h2 id="affected-keys">Affected keys kaise dhoondein</h2>
+<h3>Server add hua</h3>
+<figure class="diagram"><img src="../img/05/server-addition.png" alt="Affected range when s4 is added" loading="lazy"><figcaption><b>Kaise padhein:</b> s4 add hua. Affected range = s4 se <b>anticlockwise</b> chalo jab tak pichla server (s3) na mile. s3 aur s4 ke beech ki keys (yahan k0) ab s4 pe redistribute hongi. Baaki ring untouched.</figcaption></figure>
+<h3>Server remove hua</h3>
+<figure class="diagram"><img src="../img/05/server-removed.png" alt="Affected range when s1 is removed" loading="lazy"><figcaption><b>Kaise padhein:</b> s1 remove hua (red ✗). Affected range = s1 se anticlockwise chalo jab tak s0 na mile. s0 aur s1 ke beech ki keys (yahan k1) ab clockwise agle server <b>s2</b> pe chali jaayengi.</figcaption></figure>
+
+<h2 id="implementation">Implementation sketch (Java)</h2>
+<pre><code>class ConsistentHash&lt;T&gt; {
+  private final TreeMap&lt;Long, T&gt; ring = new TreeMap&lt;&gt;();
+  private final int vnodes;
+  void add(T server) { for (int i = 0; i &lt; vnodes; i++) ring.put(hash(server + "#" + i), server); }
+  void remove(T server) { for (int i = 0; i &lt; vnodes; i++) ring.remove(hash(server + "#" + i)); }
+  T get(String key) {
+    Map.Entry&lt;Long, T&gt; e = ring.ceilingEntry(hash(key));   // clockwise next
+    return (e != null ? e : ring.firstEntry()).getValue();   // wrap-around
+  }
+}</code></pre>
+<p><code>TreeMap.ceilingEntry</code> O(log n) mein "clockwise pehla node" deta hai — interview mein ye ek line bahut impress karti hai.</p>
+
+<h2 id="benefits">Benefits aur real-world use</h2>
+<ul>
+<li>Server add/remove pe <strong>minimum keys redistribute</strong>.</li>
+<li><strong>Horizontal scaling</strong> easy, kyunki data evenly distributed.</li>
+<li><strong>Hotspot mitigation:</strong> ek shard pe excessive access (celebrity problem, Chapter 01) — consistent hashing data ko evenly spread karke isko kam karta hai.</li>
+</ul>
+<p>Notes ke real-world examples: Amazon Dynamo ka partitioning component, Apache Cassandra ka data partitioning, Discord chat application, Akamai CDN, Google Maglev network load balancer.</p>
+<div class="callout realworld"><strong>Real world</strong>Cassandra mein har node ke multiple tokens hote hain (<code>num_tokens</code> setting = virtual nodes). Isse node add karne pe data bahut saare existing nodes se thoda-thoda stream hota hai, kisi ek pe bojh nahi. Contrast: Redis Cluster consistent hashing nahi, balki fixed <strong>16384 hash slots</strong> use karta hai jo nodes ko assign hote hain — idea similar (minimum movement), mechanism alag.</div>
+<div class="callout realworld"><strong>Real world (Kafka)</strong>Kafka ka default partitioner <code>murmur2(key) % numPartitions</code> karta hai — yaani <em>modulo</em> hashing. Isliye topic ke partitions badhane pe same key ka partition badal jaata hai aur per-key ordering toot sakti hai. Ye exactly rehashing problem hai!</div>
+
+<div class="callout interview"><strong>Interview mein kaise bolein</strong>
+<ol>
+<li>Pehle problem: "<code>hash % N</code> mein N badalte hi ~saari keys move → cache miss storm."</li>
+<li>Ring draw karo: 0 se 2<sup>160</sup>−1, servers aur keys same hash se, clockwise lookup.</li>
+<li>Add/remove ka affected range dikhao (anticlockwise till previous server).</li>
+<li>Do issues + virtual nodes; memory vs balance trade-off bolo.</li>
+<li>Real systems naam lo (Dynamo, Cassandra) aur Chapter 06 (KV store) se jodo — replication ke liye ring pe agle N distinct servers.</li>
+</ol></div>
+
+<h2 id="followups">Common follow-up questions</h2>
+<details><summary>Lookup ka time complexity?</summary><p>Sorted structure (TreeMap / sorted array + binary search) mein O(log V), V = total virtual nodes.</p></details>
+<details><summary>Replication kaise karoge ring pe?</summary><p>Key ke clockwise pehle N <em>distinct physical</em> servers pe copies (virtual nodes skip karo jo same physical server ke hain). Chapter 06 mein detail.</p></details>
+<details><summary>Hot key (ek hi key pe bahut traffic) consistent hashing solve karta hai?</summary><p>Nahi — wo ek hi key ek hi server pe jaayegi. Iske liye key ko replicate/salt karo (key#1..key#k) ya local cache lagao.</p></details>
+<details><summary>Kitne virtual nodes?</summary><p>Commonly 100–200 per server range discuss hoti hai; zyada = better balance, zyada metadata. Measure karke tune karo.</p></details>
+
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul>
+<li><code>hash % N</code> server count badalne pe lagbhag saari keys shuffle kar deta hai.</li>
+<li>Consistent hashing: servers + keys ek ring pe, key → clockwise next server; sirf ~k/n keys move.</li>
+<li>Affected range = naye/hate server se anticlockwise previous server tak.</li>
+<li><strong>Virtual nodes</strong> uneven partitions aur skew fix karte hain; zyada vnodes = kam std deviation, zyada memory.</li>
+<li>Dynamo, Cassandra, Discord, Akamai, Maglev — sab isko use karte hain.</li>
+</ul></div>
+
+<div class="chapter-nav"><a class="prev" href="04-rate-limiter.html">← Prev: 04. Design a Rate Limiter</a><a class="next" href="06-key-value-store.html">Next: 06. Design a Key-Value Store →</a></div>
+</main>
+<aside class="toc"></aside>
+</div>
+<script src="../assets/app.js"></script>
+</body>
+</html>

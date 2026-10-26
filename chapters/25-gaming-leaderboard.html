@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 25: Real-time Gaming Leaderboard · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+ <header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><button class="theme-toggle" aria-label="theme">◐</button></header>
+ <div class="layout">
+  <nav class="sidebar">
+   <div class="nav-group"><p class="nav-group-title">Foundations</p>
+    <a href="01-scaling.html"><span class="num">01</span> Scaling 0 to Millions</a>
+    <a href="02-back-of-envelope.html"><span class="num">02</span> Back-of-the-Envelope Estimation</a>
+    <a href="03-framework.html"><span class="num">03</span> System Design Interview Framework</a>
+    <a href="04-rate-limiter.html"><span class="num">04</span> Rate Limiter</a>
+    <a href="05-consistent-hashing.html"><span class="num">05</span> Consistent Hashing</a>
+    <a href="06-key-value-store.html"><span class="num">06</span> Key-Value Store</a>
+    <a href="07-unique-id-generator.html"><span class="num">07</span> Unique ID Generator</a>
+   </div>
+   <div class="nav-group"><p class="nav-group-title">Classic Designs</p>
+    <a href="08-url-shortener.html"><span class="num">08</span> URL Shortener</a>
+    <a href="09-web-crawler.html"><span class="num">09</span> Web Crawler</a>
+    <a href="10-notification-system.html"><span class="num">10</span> Notification System</a>
+    <a href="11-news-feed.html"><span class="num">11</span> News Feed System</a>
+    <a href="12-chat-system.html"><span class="num">12</span> Chat System</a>
+    <a href="13-search-autocomplete.html"><span class="num">13</span> Search Autocomplete</a>
+    <a href="14-youtube.html"><span class="num">14</span> YouTube</a>
+   </div>
+   <div class="nav-group"><p class="nav-group-title">Vol 2 · Part 1</p>
+    <a href="15-google-drive.html"><span class="num">15</span> Google Drive</a>
+    <a href="16-proximity-service.html"><span class="num">16</span> Proximity Service</a>
+    <a href="17-nearby-friends.html"><span class="num">17</span> Nearby Friends</a>
+    <a href="18-google-maps.html"><span class="num">18</span> Google Maps</a>
+    <a href="19-message-queue.html"><span class="num">19</span> Distributed Message Queue</a>
+    <a href="20-metrics-monitoring.html"><span class="num">20</span> Metrics Monitoring & Alerting</a>
+    <a href="21-ad-click-aggregation.html"><span class="num">21</span> Ad Click Event Aggregation</a>
+    <a href="22-hotel-reservation.html"><span class="num">22</span> Hotel Reservation System</a>
+   </div>
+   <div class="nav-group"><p class="nav-group-title">Vol 2 · Part 2</p>
+    <a href="23-email-service.html"><span class="num">23</span> Distributed Email Service</a>
+    <a href="24-s3-object-storage.html"><span class="num">24</span> S3-like Object Storage</a>
+    <a href="25-gaming-leaderboard.html" class="active" aria-current="page"><span class="num">25</span> Real-time Gaming Leaderboard</a>
+    <a href="26-payment-system.html"><span class="num">26</span> Payment System</a>
+    <a href="27-digital-wallet.html"><span class="num">27</span> Digital Wallet</a>
+    <a href="28-stock-exchange.html"><span class="num">28</span> Stock Exchange</a>
+   </div>
+  </nav>
+  <main class="content">
+   <div class="chapter-hero"><span class="chapter-num">Chapter 25</span><h1>Real-time Gaming Leaderboard</h1><p class="lead">Mobile game ka monthly real-time leaderboard — top 10, kisi user ka rank, aur uske aas-paas ke players. Redis sorted set (skip list) ka magic, sharding strategies (range vs hash), serverless option aur DynamoDB write-sharding.</p><div class="tags"><span class="tag">Redis</span><span class="tag">Sorted Set</span><span class="tag">Skip List</span><span class="tag">Sharding</span><span class="tag">DynamoDB</span><span class="tag">Serverless</span></div></div>
+<h2 id="intro">Introduction</h2>
+<figure class="diagram"><img src="../img/25/leaderboard.png" alt="leaderboard" loading="lazy"><figcaption>Typical leaderboard UI: Rank, Player, Points columns. 1 Aquaboys 976, 2 B team 956, 3 Berlin's Angels 890, 4 GrendelTeam 878 — top 3 ke saath coloured stars. Hamein yahi real-time banana hai.</figcaption></figure>
+
+<h2 id="step1">Step 1: Requirements aur scope</h2>
+<ul>
+ <li>Score: match jeeto → +1 point.</li>
+ <li>Saare players leaderboard mein.</li>
+ <li>Har mahine naya tournament = naya leaderboard.</li>
+ <li>Top 10 dikhana + specific user ka rank; bonus: user ke 4 upar aur 4 neeche.</li>
+ <li>5M DAU, 25M MAU; har player ~10 matches/day.</li>
+ <li>Same score = same rank (tie-breaking bonus).</li>
+ <li><strong>Real-time</strong> — batched history nahi chalega.</li>
+</ul>
+<h3>Back-of-the-envelope</h3>
+<ul>
+ <li>5M DAU / 10^5 sec ≈ <strong>50 users/sec</strong> avg; uneven distribution → peak ~<strong>250 users/sec</strong>. (Notes ek jagah "50mil DAU" likhte hain, lekin 50 users/sec ka math 5M DAU se hi aata hai.)</li>
+ <li>Score updates: 50 × 10 = <strong>500 QPS</strong>, peak <strong>2,500 QPS</strong>.</li>
+ <li>Top-10 fetch: ~1 baar/user/day → <strong>~50 QPS</strong>.</li>
+</ul>
+
+<h2 id="step2">Step 2: API aur high-level design</h2>
+<pre><code>POST /v1/scores            // { user_id, points } — SIRF game servers ke liye, clients nahi
+GET  /v1/scores            // top 10
+  -&gt; { "data": [ {"user_id":"user_id1","user_name":"alice","rank":1,"score":12543},
+                 {"user_id":"user_id2","user_name":"bob","rank":2,"score":11500} ], ..., "total": 10 }
+GET  /v1/scores/{user_id}
+  -&gt; { "user_info": { "user_id":"user5", "score":1000, "rank":6 } }</code></pre>
+<figure class="diagram"><img src="../img/25/high-level-architecture.png" alt="high level architecture" loading="lazy"><figcaption>① Player game jeet-ta hai → Game service (win validate). ② Game service → Leaderboard service "Update score". ③ Leaderboard service → Leaderboard Store update. ④ Player seedha Leaderboard service se (a) leaderboard aur (b) apna rank leta hai.</figcaption></figure>
+<figure class="diagram"><img src="../img/25/alternative-design.png" alt="alternative design" loading="lazy"><figcaption>Left "Current Option": client → Game service → Leaderboard service (score server decide karta hai). Right "Alternative Option": client khud "Set score" karke seedha Leaderboard service update karta hai — insecure: proxy laga ke koi bhi apna score badal dega (MITM).</figcaption></figure>
+<div class="callout warn">⚠️ <strong>Rule: client ko kabhi authoritative mat banao.</strong> Payments mein bhi same — amount, FX rate, fee client se aaye to server pe recompute/verify karo. Server-authoritative games mein server khud win record karta hai, client call bhi nahi karta.</div>
+<figure class="diagram"><img src="../img/25/message-queue-based-comm.png" alt="message queue based comm" loading="lazy"><figcaption>Optional: Game service → Kafka → teen consumers: Leaderboard service, Analytic service, Push Notification service. Agar game results ke multiple consumers hon to useful — lekin abhi requirement nahi, isliye design mein nahi daala (YAGNI, aur interviewer ko yeh reasoning batao).</figcaption></figure>
+<h3>Data model option 1: Relational DB</h3>
+<figure class="diagram"><img src="../img/25/leaderboard-table.png" alt="leaderboard table" loading="lazy"><figcaption>Simple table: leaderboard(user_id varchar, score int). Har mahine ka alag table (notes ka personal note: ek <code>month</code> column add karna zyada sensible hai).</figcaption></figure>
+<figure class="diagram"><img src="../img/25/user-wins-point.png" alt="user wins point" loading="lazy"><figcaption>Leaderboard service → "Insert or update DB" → database. Naya user = INSERT, purana = score+1 UPDATE.</figcaption></figure>
+<pre><code>INSERT INTO leaderboard (user_id, score) VALUES ('mary1934', 1);
+UPDATE leaderboard SET score = score + 1 WHERE user_id = 'mary1934';
+-- (MySQL mein ek hi statement: INSERT ... ON DUPLICATE KEY UPDATE score = score + 1)</code></pre>
+<figure class="diagram"><img src="../img/25/find-leaderboard-position.png" alt="find leaderboard position" loading="lazy"><figcaption>Leaderboard service → "Fetch from DB, sorted by rank" → DB. Har read pe sorting — yahi problem hai.</figcaption></figure>
+<pre><code>SELECT (@rownum := @rownum + 1) AS rank, user_id, score
+FROM leaderboard ORDER BY score DESC;            -- full table scan + sort
+
+SELECT (@rownum := @rownum + 1) AS rank, user_id, score
+FROM leaderboard ORDER BY score DESC LIMIT 10;   -- index on score: top 10 fast
+
+-- lekin kisi user ka rank:
+SELECT *, (SELECT COUNT(*) FROM leaderboard lb2 WHERE lb2.score &gt;= lb1.score) RANK
+FROM leaderboard lb1 WHERE lb1.user_id = {:user_id};   -- O(N) count, millions pe slow</code></pre>
+<p>Top 10 index se theek ho jaata hai, lekin <strong>rank of arbitrary user</strong> = O(N) count. Millions users + real-time = nahi chalega.</p>
+
+<h2 id="redis">Step 2b: Redis sorted set</h2>
+<p>Sorted set = hash map (member → score) + <strong>skip list</strong> (score order mein members).</p>
+<figure class="diagram"><img src="../img/25/sorted-set.png" alt="sorted set" loading="lazy"><figcaption>Key <code>leaderboard_feb_2021</code> ek sorted set ko point karta hai: (99, user10), (97, user20), (94, user105) … (72, user309) — hamesha score se sorted. Insert/update pe order khud maintain hota hai.</figcaption></figure>
+<figure class="diagram"><img src="../img/25/skip-list.png" alt="skip list" loading="lazy"><figcaption>Teen stages. Base list: 1 → 4 → 8 → 10 → 15 → 26 → 36 → 45 → 60 → 68 (sorted linked list, 45 dhoondhna = ek-ek karke chalna). Level 1 index: har doosra node upar (1, 8, 15, 36, 60) — bold arrows pe chalo, 36 pe neeche utro, 45 mil gaya. Level 2 index: 1, 15, 60 — aur kam hops. Multi-level express lanes = O(log N).</figcaption></figure>
+<figure class="diagram"><img src="../img/25/skip-list-performance.png" alt="skip list performance" loading="lazy"><figcaption>64 nodes ka bada example: neeche base list, upar multiple index levels. Red target tak base list mein 62 nodes traverse karne padte, skip list mein sirf ~11.</figcaption></figure>
+<table class="cmp">
+<tr><th>Command</th><th>Kaam</th><th>Complexity</th></tr>
+<tr><td><code>ZADD</code></td><td>Insert ya score set</td><td>O(log N)</td></tr>
+<tr><td><code>ZINCRBY</code></td><td>Score increment (nahi hai to 0 se)</td><td>O(log N)</td></tr>
+<tr><td><code>ZRANGE / ZREVRANGE</code></td><td>Range by rank (asc/desc), offset + count</td><td>O(log N + M)</td></tr>
+<tr><td><code>ZRANK / ZREVRANK</code></td><td>User ka rank</td><td>O(log N)</td></tr>
+</table>
+<pre><code>ZINCRBY  leaderboard_feb_2021 1 'mary1934'        # point scored
+ZREVRANGE leaderboard_feb_2021 0 9 WITHSCORES     # top 10
+  -&gt; [(user2,score2),(user1,score1),(user5,score5)...]
+ZREVRANK  leaderboard_feb_2021 'mary1934'         # my rank (0-based)
+ZREVRANGE leaderboard_feb_2021 357 365            # 4 above + me + 4 below (rank 361 ke liye)</code></pre>
+<figure class="diagram"><img src="../img/25/leaderboard-position-of-user.png" alt="leaderboard position of user" loading="lazy"><figcaption>User Mallow007 (green, rank 361, 785 points) ke upar 4 (357-360 range: Aquaboys…GrendelTeam) aur neeche 4 (Woo78 362 … Mailso_91_ 365). Pehle ZREVRANK se 361, phir ZREVRANGE 357 365.</figcaption></figure>
+<h3>Sizing</h3>
+<ul>
+ <li>Worst case 25M MAU sab khelein: 24-char ID + 16-bit score ≈ 26 bytes × 25M ≈ <strong>650 MB</strong>; skip list overhead se double bhi ho to ek Redis node mein aaram se.</li>
+ <li>2,500 updates/sec — single Redis ke liye kuch bhi nahi (single node lakh+ simple ops/sec karta hai).</li>
+</ul>
+<ul>
+ <li>Redis replica + persistence (AOF/RDB) crash ke liye.</li>
+ <li>MySQL mein do tables: user profile, aur <strong>point history</strong> (kab kaun jeeta) — Redis gaya to isse leaderboard rebuild.</li>
+ <li>Top 10 users ki profile details cache karo.</li>
+</ul>
+<div class="callout realworld">🌍 <strong>Source of truth ka sawaal:</strong> Redis yahan <em>derived view</em> hai, truth MySQL ki points table hai — exactly event sourcing ka "projection". Payments mein bhi "available balance" Redis mein cache ho sakta hai, lekin ledger DB truth hai; Redis down → ledger replay se rebuild. Dual write (MySQL + Redis) ka race avoid karne ke liye: MySQL commit → outbox/CDC → Redis ZINCRBY (idempotency ke liye event_id track karo, warna replay pe double count).</div>
+
+<h2 id="cloud">Step 3a: Cloud provider ya khud manage?</h2>
+<figure class="diagram"><img src="../img/25/manage-services-ourselves.png" alt="manage services ourselves" loading="lazy"><figcaption>Khud manage: Client → Load balancer → Web servers → teen stores: Redis (Leaderboard sorted set), MySQL (User profile + User points), aur ek aur Redis (User profile cache for top 10).</figcaption></figure>
+<figure class="diagram"><img src="../img/25/api-gateway-mapping.png" alt="api gateway mapping" loading="lazy"><figcaption>AWS API Gateway → Lambda mapping: GET /v1/scores → LeaderboardFetchTop10; GET /v1/scores/{user_id} → LeaderboardFetchPlayerRank; POST /v1/scores → LeaderboardUpdateScore.</figcaption></figure>
+<figure class="diagram"><img src="../img/25/user-scoring-point-lambda.png" alt="user scoring point lambda" loading="lazy"><figcaption>Score flow: Leaderboard service "Win game" → AWS API Gateway → AWS Lambda → (a) Redis pe ZINCRBY, (b) MySQL Point table mein insert.</figcaption></figure>
+<figure class="diagram"><img src="../img/25/user-retrieve-leaderboard.png" alt="user retrieve leaderboard" loading="lazy"><figcaption>Read flow: "Get leaderboard" → API Gateway → Lambda → ① Redis ZREVRANGE (top players) ② MySQL se user details fetch → merge karke response.</figcaption></figure>
+<p>Lambda = serverless: provisioning/scaling khud hoti hai. Author: naya game ground-up bana rahe ho to yeh approach.</p>
+<div class="callout tip">💡 Serverless ka trade-off bhi bolo: cold starts (JVM/Spring Boot pe khaas — SnapStart/GraalVM native help karte hain), Redis/MySQL connection management (RDS Proxy), vendor lock-in. Real-time leaderboard ke p99 ke liye cold start matter karta hai.</div>
+
+<h2 id="scaling">Step 3b: Redis scaling</h2>
+<p>5M DAU pe ek instance kaafi. 10× growth (500M DAU) → ~65 GB, 250k QPS → sharding.</p>
+<h3>Option A: Range (fixed) partitions by score</h3>
+<figure class="diagram"><img src="../img/25/range-partition.png" alt="range partition" loading="lazy"><figcaption>Sorted sets score ranges mein: [1,100], [101,200], [201,300] … [901,1000]. Har range ek shard. Top 10 = sirf [901,1000] wala shard. User ka shard user_id → shard mapping (MySQL/cache) se.</figcaption></figure>
+<ul>
+ <li>Top 10: highest shard se.</li>
+ <li>User rank = apne shard mein rank + upar ke saare shards ke counts (<code>ZCARD</code> — O(1); notes "info keyspace" bolte hain).</li>
+ <li>Score badha aur range cross ki → user ko shard move karna padega (remove + add).</li>
+ <li>Distribution uneven ho sakti hai — ranges data dekh ke tune karo.</li>
+</ul>
+<h3>Option B: Hash partitions (Redis Cluster)</h3>
+<figure class="diagram"><img src="../img/25/hash-partition.png" alt="hash partition" loading="lazy"><figcaption>Client → Proxy: Slot = CRC16(key) % 16384. Slots [0,5500] → Shard 1, [5501,11000] → Shard 2, [11001,16383] → Shard 3 (diagram mein typo "Shard 2"). Har shard ka ek Primary + do Replicas, sab ek Redis Cluster mein.</figcaption></figure>
+<figure class="diagram"><img src="../img/25/top-10-players-calculation.png" alt="top 10 players calculation" loading="lazy"><figcaption>Scatter-gather: shard 0, 1, 2 se har ek ka top 10 (e.g. shard 0: user10 99, user7 90…), sab merge karke global top 10 (user10 99, user20 97, user105 94 … user309 72).</figcaption></figure>
+<ul>
+ <li>Top K bada ho to sab shards se bahut data → latency.</li>
+ <li>Partitions badhe → latency badhe.</li>
+ <li>User rank nikaalne ka seedha tarika nahi.</li>
+</ul>
+<p>Isliye author <strong>fixed (range) partitions</strong> prefer karte hain.</p>
+<div class="callout realworld">🌍 Redis tips: write-heavy nodes pe required se ~2× memory rakho (RDB snapshot ke time fork + copy-on-write), <code>redis-benchmark</code> se capacity data-driven decide karo. Aur Redis Cluster mein ek sorted set ek hi slot pe hota hai — ek bada key cluster ka fayda nahi uthata; sharding application-level karni padti hai.</div>
+
+<h2 id="nosql">Step 3c: Alternative — NoSQL (DynamoDB)</h2>
+<p>Chahiye: heavy writes + partition ke andar score se sort. DynamoDB/Cassandra/MongoDB fit. Author DynamoDB lete hain (managed, GSI support).</p>
+<figure class="diagram"><img src="../img/25/dynamo-db.png" alt="dynamo db" loading="lazy"><figcaption>Leaderboard service → AWS API Gateway → AWS Lambda → AWS DynamoDB. Redis ki jagah fully-managed NoSQL.</figcaption></figure>
+<figure class="diagram"><img src="../img/25/chess-game-leaderboard-table-1.png" alt="chess game leaderboard table 1" loading="lazy"><figcaption>Pehla table: Primary key user_id; attributes score, email, profile_pic, leaderboard_name (chess#2020-02 etc). User lookup easy, lekin score se query/sort nahi ho sakta.</figcaption></figure>
+<figure class="diagram"><img src="../img/25/chess-game-leaderboard-table-2.png" alt="chess game leaderboard table 2" loading="lazy"><figcaption>GSI: Partition key = leaderboard_name (chess#2020-02), Sort key = score. Ab ek mahine ke andar score se sorted query possible. Problem: current month ka saara traffic ek partition pe → hotspot.</figcaption></figure>
+<figure class="diagram"><img src="../img/25/chess-game-leaderboard-table-3.png" alt="chess game leaderboard table 3" loading="lazy"><figcaption>Write sharding: partition key ab chess#2020-02#p0, #p1, #p2 (<code>user_id % num_partitions</code> suffix). Writes 3 partitions mein bikhar gaye; sort key score same.</figcaption></figure>
+<ul>
+ <li>Zyada partitions = better write scale, lekin reads ko sab partitions query karne padte hain.</li>
+</ul>
+<figure class="diagram"><img src="../img/25/scatter-gather-2.png" alt="scatter gather 2" loading="lazy"><figcaption>Har partition (p0, p1, p2) se "top 10 (scatter)", phir "gather" karke right side ka global Top 10 leaderboard (lovelove 309, i_love_tofu 209, pizza_or_bread 203 …). Partitions jitne zyada, gather utna mehenga.</figcaption></figure>
+<p>Partitions ka number benchmarking se. Bada downside: exact rank mushkil → bade scale pe <strong>percentile</strong> dikhao. Cron score distribution nikaale:</p>
+<pre><code>10th percentile = score &lt; 100
+20th percentile = score &lt; 500
+...
+90th percentile = score &lt; 6500</code></pre>
+
+<h2 id="wrapup">Step 4: Wrap up</h2>
+<ul>
+ <li><strong>Faster retrieval</strong>: user objects Redis hash mein (<code>user_id → user object</code>).</li>
+ <li><strong>Tie-breaking</strong>: same score pe pehle jisne score achieve kiya ya last played time.</li>
+ <li><strong>Failure recovery</strong>: bada Redis outage → MySQL WAL/point table se script se rebuild.</li>
+</ul>
+<div class="callout tip">💡 <strong>Tie-break trick:</strong> Redis same score wale members ko lexicographically sort karta hai — jo fair nahi. Composite score banao: <code>score * 10^10 + (MAX_TS - achievedAtEpochSec)</code> (double ke 53-bit precision ke andar raho). Ab higher score pehle, aur same score mein jisne pehle achieve kiya woh upar.</div>
+
+<div class="callout interview">🎤 <strong>Interview mein kaise bolein:</strong>
+<ol>
+<li>Requirements + numbers (2,500 peak writes, 50 reads/s) — "scale chhota hai, problem <em>rank query</em> ki hai".</li>
+<li>Server-authoritative score update (security point).</li>
+<li>RDBMS try karo → rank query O(N) dikhao → Redis sorted set (skip list explain, commands with complexity).</li>
+<li>Sizing: 650 MB → single node; persistence + MySQL as source of truth.</li>
+<li>10× scale: range vs hash sharding trade-off; DynamoDB write sharding + percentile.</li>
+<li>Bonus: ties, rebuild, monthly key rotation (<code>leaderboard_mar_2021</code>, purane archive).</li>
+</ol></div>
+
+<h2 id="faq">Follow-up questions</h2>
+<dl>
+<dt>Q: Duplicate score event (game server retry) se double point?</dt><dd>Match ID pe idempotency: MySQL mein <code>UNIQUE(match_id, user_id)</code>; insert successful ho tabhi ZINCRBY.</dd>
+<dt>Q: Friends-only leaderboard?</dt><dd>Chhoti friend list ke liye on-demand: friends ke scores <code>ZMSCORE</code> se laao aur app mein sort.</dd>
+<dt>Q: Month end pe reset?</dt><dd>Naya key per month; purana key snapshot karke archive storage mein, phir delete/expire.</dd>
+<dt>Q: Redis down ho gaya live tournament mein?</dt><dd>Replica promote (Sentinel/Cluster failover); worst case MySQL points se rebuild; rebuild ke dauraan stale read ya "updating" banner.</dd>
+</dl>
+
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul>
+<li>Score updates server-authoritative hon; client se kabhi direct nahi.</li>
+<li>RDBMS mein arbitrary rank O(N); Redis sorted set (hash + skip list) se O(log N).</li>
+<li>ZINCRBY, ZREVRANGE, ZREVRANK — teen commands mein poora leaderboard.</li>
+<li>25M users ≈ 650 MB — single Redis; MySQL point history = source of truth / rebuild.</li>
+<li>Scale: range partition (rank easy) vs hash partition (scatter-gather, rank mushkil).</li>
+<li>NoSQL: write sharding + scatter-gather; exact rank ki jagah percentile.</li>
+</ul></div>
+   <div class="chapter-nav"><a class="prev" href="24-s3-object-storage.html">← Prev: S3-like Object Storage</a><a class="next" href="26-payment-system.html">Next: Payment System →</a></div>
+  </main>
+  <aside class="toc">
+   <p class="toc-title">On this page</p>
+    <a href="#intro">Introduction</a>
+    <a href="#step1">Step 1: Requirements aur scope</a>
+    <a href="#step2">Step 2: API aur high-level design</a>
+    <a href="#redis">Step 2b: Redis sorted set</a>
+    <a href="#cloud">Step 3a: Cloud provider ya khud manage?</a>
+    <a href="#scaling">Step 3b: Redis scaling</a>
+    <a href="#nosql">Step 3c: Alternative — NoSQL (DynamoDB)</a>
+    <a href="#wrapup">Step 4: Wrap up</a>
+    <a href="#faq">Follow-up questions</a>
+    <a href="#takeaways">Key Takeaways</a>
+  </aside>
+ </div>
+ <script src="../assets/app.js"></script>
+</body>
+</html>

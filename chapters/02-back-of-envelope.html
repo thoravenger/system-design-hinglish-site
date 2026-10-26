@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 02: Back-of-the-Envelope Estimation · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{if(localStorage.getItem('sd-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><div class="toplinks"><a href="../index.html#chapters">Chapters</a><a href="../index.html#how">Kaise padhein</a><a href="../links.html">URL Guide</a></div><button class="theme-toggle" aria-label="theme">◐</button></header>
+<div class="layout">
+<nav class="sidebar">
+<div class="group">Foundations</div><ul>
+<li><a href="01-scaling.html"><span class="num">01</span> Scale from Zero to Millions of Users</a></li>
+<li><a class="active" href="02-back-of-envelope.html"><span class="num">02</span> Back-of-the-Envelope Estimation</a></li>
+<li><a href="03-framework.html"><span class="num">03</span> A Framework for System Design Interviews</a></li>
+<li><a href="04-rate-limiter.html"><span class="num">04</span> Design a Rate Limiter</a></li>
+<li><a href="05-consistent-hashing.html"><span class="num">05</span> Design Consistent Hashing</a></li>
+<li><a href="06-key-value-store.html"><span class="num">06</span> Design a Key-Value Store</a></li>
+<li><a href="07-unique-id-generator.html"><span class="num">07</span> Design a Unique ID Generator</a></li>
+</ul>
+<div class="group">Classic Designs</div><ul>
+<li><a href="08-url-shortener.html"><span class="num">08</span> Design a URL Shortener</a></li>
+<li><a href="09-web-crawler.html"><span class="num">09</span> Design a Web Crawler</a></li>
+<li><a href="10-notification-system.html"><span class="num">10</span> Design a Notification System</a></li>
+<li><a href="11-news-feed.html"><span class="num">11</span> Design a News Feed System</a></li>
+<li><a href="12-chat-system.html"><span class="num">12</span> Design a Chat System</a></li>
+<li><a href="13-search-autocomplete.html"><span class="num">13</span> Design a Search Autocomplete System</a></li>
+<li><a href="14-youtube.html"><span class="num">14</span> Design YouTube</a></li>
+</ul>
+<div class="group">Vol 2 · Part 1</div><ul>
+<li><a href="15-google-drive.html"><span class="num">15</span> Design Google Drive</a></li>
+<li><a href="16-proximity-service.html"><span class="num">16</span> Design a Proximity Service</a></li>
+<li><a href="17-nearby-friends.html"><span class="num">17</span> Design Nearby Friends</a></li>
+<li><a href="18-google-maps.html"><span class="num">18</span> Design Google Maps</a></li>
+<li><a href="19-message-queue.html"><span class="num">19</span> Design a Distributed Message Queue</a></li>
+<li><a href="20-metrics-monitoring.html"><span class="num">20</span> Metrics Monitoring and Alerting System</a></li>
+<li><a href="21-ad-click-aggregation.html"><span class="num">21</span> Ad Click Event Aggregation</a></li>
+<li><a href="22-hotel-reservation.html"><span class="num">22</span> Hotel Reservation System</a></li>
+</ul>
+<div class="group">Vol 2 · Part 2</div><ul>
+<li><a href="23-email-service.html"><span class="num">23</span> Distributed Email Service</a></li>
+<li><a href="24-s3-object-storage.html"><span class="num">24</span> S3-like Object Storage</a></li>
+<li><a href="25-gaming-leaderboard.html"><span class="num">25</span> Real-time Gaming Leaderboard</a></li>
+<li><a href="26-payment-system.html"><span class="num">26</span> Design a Payment System</a></li>
+<li><a href="27-digital-wallet.html"><span class="num">27</span> Design a Digital Wallet</a></li>
+<li><a href="28-stock-exchange.html"><span class="num">28</span> Design a Stock Exchange</a></li>
+</ul>
+<div class="group">Extras</div><ul>
+<li><a href="../index.html">🏠 Home / Kaise padhein</a></li><li><a href="../links.html">🔗 Notes ke URLs ka guide</a></li></ul>
+</nav>
+<main class="content">
+<div class="chapter-hero"><span class="chapter-num">Chapter 02</span><h1>Back-of-the-Envelope Estimation</h1><p class="lead">Napkin math jo interview mein design ko justify karta hai: power of two, latency numbers, nines of availability aur QPS/storage ka formula.</p><div class="tags"><span class="tag">Estimation</span><span class="tag">QPS</span><span class="tag">Storage</span><span class="tag">Latency</span><span class="tag">Availability</span></div></div>
+
+<h2 id="intro">Introduction: estimation kyun?</h2>
+<p>Back-of-the-envelope estimation matlab napkin pe quick, rough calculation — "kya ye design scale requirement meet karega?" Jeff Dean (Google Senior Fellow) ke words mein ye <em>thought experiments aur common performance numbers</em> ka use karke design ko evaluate karna hai. Interviewer exact number nahi dekh raha — wo dekh raha hai ki tum <strong>assumptions → formula → order of magnitude</strong> clearly nikal sakte ho, aur us number se design decision lete ho (kitne servers, kitna cache, SQL ya NoSQL, sharding chahiye ya nahi).</p>
+
+<h2 id="power-of-two">Power of Two</h2>
+<p>Distributed systems mein data volume bahut bada ho jata hai, lekin calculation basic hi rehti hai. Ek byte = 8 bits; ASCII character = 1 byte. Units yaad rakho:</p>
+<figure class="diagram"><img src="../img/02/power-of-two.png" alt="Power of two table" loading="lazy"><figcaption><b>Kaise padhein:</b> Har row 2 ki power ko approximate decimal value se jodti hai — 2<sup>10</sup> ≈ 1 Thousand = 1 KB, 2<sup>20</sup> ≈ 1 Million = 1 MB, 2<sup>30</sup> ≈ 1 Billion = 1 GB, 2<sup>40</sup> ≈ 1 Trillion = 1 TB, 2<sup>50</sup> ≈ 1 Quadrillion = 1 PB. Trick: <b>har 10 power = 1000x</b>. Toh '1 billion users × 1 KB' seedha = 1 TB.</figcaption></figure>
+<div class="callout tip"><strong>Shortcut</strong>Million × KB = GB, Million × MB = TB, Billion × KB = TB, Billion × MB = PB. Ye 4 conversions 80% estimation questions solve kar dete hain.</div>
+
+<h2 id="latency">Latency Numbers Every Programmer Should Know</h2>
+<p>Ye numbers (notes ka 2020 version) <em>relative</em> speed ka sense dete hain — exact value nahi, order of magnitude yaad rakho:</p>
+<table class="cmp"><thead><tr><th>Operation</th><th>Latency</th><th>Kya samjhein</th></tr></thead><tbody>
+<tr><td>L1 cache access</td><td>0.5 ns</td><td>CPU ke andar, sabse fast</td></tr>
+<tr><td>L2 cache access</td><td>7 ns</td><td>L1 se ~14x slow</td></tr>
+<tr><td>Main memory access</td><td>100 ns</td><td>RAM — Redis/in-process cache yahan rehta hai</td></tr>
+<tr><td>SSD random read</td><td>150 µs</td><td>RAM se ~1500x slow</td></tr>
+<tr><td>Round-trip within same data center</td><td>500 µs</td><td>Service-to-service call ka floor ~0.5 ms</td></tr>
+<tr><td>HDD random seek</td><td>10 ms</td><td>Disk seek bahut mehenga — sequential I/O prefer karo</td></tr>
+<tr><td>Inter-region (e.g. US ↔ Europe) round trip</td><td>150 ms</td><td>Cross-region sync replication har write ko slow karega</td></tr>
+</tbody></table>
+<h3>Insights</h3>
+<ul>
+<li><strong>Memory fast, disk slow.</strong> Hot data RAM/cache mein rakho.</li>
+<li><strong>Disk seeks avoid karo</strong> — isliye Kafka, Cassandra (LSM tree / commit log) sequential appends karte hain.</li>
+<li>Simple compression algorithms fast hote hain — internet pe bhejne se pehle <strong>compress</strong> karo.</li>
+<li>Data centers aam taur pe alag regions mein hote hain, aur unke beech data bhejne mein time lagta hai.</li>
+</ul>
+<div class="callout realworld"><strong>Real world</strong>Isi wajah se microservice chain mein har extra synchronous hop ~1ms+ add karta hai (serialization + network). 10-hop call chain = latency budget ka bada hissa. Spring Boot services mein N+1 remote calls ko batch karna isi number se justify hota hai.</div>
+
+<h2 id="availability">Availability Numbers</h2>
+<p>High availability = system kitni der continuously operational rehta hai, percentage mein. 100% matlab zero downtime; zyada tar services 99%–100% ke beech. <strong>SLA</strong> (Service Level Agreement) provider aur customer ke beech uptime ka formal promise hai. Amazon, Google, Microsoft apne cloud SLAs 99.9% ya usse upar rakhte hain.</p>
+<table class="cmp"><thead><tr><th>Availability</th><th>Naam</th><th>Downtime / year (approx)</th></tr></thead><tbody>
+<tr><td>99%</td><td>Two nines</td><td>~3.65 days</td></tr>
+<tr><td>99.9%</td><td>Three nines</td><td>~8.8 hours</td></tr>
+<tr><td>99.99%</td><td>Four nines</td><td>~52 minutes</td></tr>
+<tr><td>99.999%</td><td>Five nines</td><td>~5.3 minutes</td></tr>
+<tr><td>99.9999%</td><td>Six nines</td><td>~31.56 seconds</td></tr>
+</tbody></table>
+<div class="callout warn"><strong>Hidden math</strong>Serial dependencies ki availability multiply hoti hai: agar request 3 services se guzarti hai jo har ek 99.9% hai, to overall ≈ 99.9%³ ≈ 99.7%. Redundant (parallel) replicas availability badhate hain. Isliye "har tier pe redundancy" (Chapter 01) zaroori hai.</div>
+
+<h2 id="twitter-example">Example: Twitter QPS aur storage estimate</h2>
+<p>Note: ye numbers sirf exercise ke liye hain, Twitter ke real numbers nahi.</p>
+<h3>Assumptions (pehle likho!)</h3>
+<ul><li>300 million MAU</li><li>50% users daily use karte hain → DAU</li><li>Average user 2 tweets/day post karta hai</li><li>10% tweets mein media hai</li><li>Data 5 saal store hota hai</li></ul>
+<h3>QPS</h3>
+<pre><code>DAU          = 300M × 50%                  = 150M
+Tweets QPS   = 150M × 2 / 24 hr / 3600 s   ≈ 3,500
+Peak QPS     = 2 × QPS                     ≈ 7,000</code></pre>
+<p>Tip: ek din mein ~86,400 seconds hote hain — round karke <strong>~10<sup>5</sup></strong> le lo. To 300M/day ÷ 10<sup>5</sup> ≈ 3,000/s. Mental math 5 second mein.</p>
+<h3>Media storage</h3>
+<pre><code>Average tweet size:
+  tweet_id  64 bytes
+  text      140 bytes
+  media     1 MB
+
+Media storage/day = 150M × 2 × 10% × 1 MB = 30 TB/day
+5-year storage    = 30 TB × 365 × 5       ≈ 55 PB</code></pre>
+<p>Is number se design decision nikalta hai: 55 PB ek DB mein nahi jaayega → <strong>object storage</strong> (S3 jaisa, Chapter 24) media ke liye, aur metadata alag DB mein. Text+id per tweet ~200 bytes hai: 300M tweets/day × 200B ≈ 60 GB/day — metadata manageable hai.</p>
+<div class="callout tip"><strong>Extra step jo log bhool jaate hain</strong>Read QPS bhi estimate karo. Agar har DAU din mein ~50 timeline reads karta hai: 150M × 50 / 10<sup>5</sup> ≈ 75,000 read QPS — writes se ~20x. Ye ratio batata hai ki cache + read replicas prioritize karne hain.</div>
+
+<h2 id="tips">Tips for effective estimation</h2>
+<ol>
+<li><strong>Rounding & approximation:</strong> "99987 / 9.1" ko "100,000 / 10 = 10,000" bana do. Precision nahi, process matter karta hai.</li>
+<li><strong>Assumptions likh lo</strong> — baad mein refer karne aur interviewer ko dikhane ke liye.</li>
+<li><strong>Units label karo:</strong> "5" ka matlab 5 KB hai ya 5 MB? Hamesha "5 MB" likho.</li>
+<li><strong>Common estimates practice karo:</strong> QPS, peak QPS, storage, cache size, number of servers.</li>
+</ol>
+<h3>Ek generic template</h3>
+<pre><code>1. DAU                           = MAU × daily%
+2. Write QPS                     = DAU × writes_per_user / 10^5
+3. Read QPS                      = DAU × reads_per_user / 10^5
+4. Peak                          = 2–3 × average
+5. Storage/day                   = writes/day × object_size
+6. Total storage                 = storage/day × 365 × years  (× replication factor, e.g. 3)
+7. Cache (80/20 rule)            = 20% × daily read data
+8. Servers                       = peak QPS / QPS_per_server  (e.g. ~ a few thousand per app server, assume & state)</code></pre>
+
+<div class="callout interview"><strong>Interview mein kaise bolein</strong>Estimation pe 3–5 minute se zyada mat lagao. Bolo: "Main kuch assumptions le raha hoon — aap correct kar dena." Phir 4 numbers nikaalo: read QPS, write QPS, storage (5 yr), cache. Har number ke baad ek "so what" bolo: "7K write QPS ek MySQL master handle kar sakta hai, lekin 55 PB media ke liye object store chahiye."</div>
+<div class="callout realworld"><strong>Real world</strong>Capacity planning teams exactly yahi karti hain — Kafka cluster sizing mein (messages/sec × avg size × retention days × replication factor) se disk nikalta hai; yahi formula upar ke storage template jaisa hai.</div>
+
+<h2 id="followups">Common follow-up questions</h2>
+<details><summary>Peak QPS 2x hi kyun?</summary><p>Ye ek common assumption hai. Real traffic diurnal hota hai; events (cricket match, sale) mein 5–10x bhi ho sakta hai. Interviewer se confirm karo ya bolo "assume 2x, flash sale ho to queue/autoscale".</p></details>
+<details><summary>Replication factor storage mein jodna chahiye?</summary><p>Haan — 3 replicas to raw storage 3x. Erasure coding (Chapter 24) se overhead ~1.5x tak aa sakta hai.</p></details>
+<details><summary>Cache size kaise nikalein?</summary><p>80/20 rule: 20% data 80% traffic serve karta hai. Daily read volume ka 20% cache karo, phir check karo kitne Redis nodes (e.g. ~100 GB per node assumption) lagenge.</p></details>
+
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul>
+<li>2<sup>10</sup>/2<sup>20</sup>/2<sup>30</sup>/2<sup>40</sup>/2<sup>50</sup> = KB/MB/GB/TB/PB — har step 1000x.</li>
+<li>Memory ~100ns, SSD ~150µs, DC round-trip ~0.5ms, HDD seek ~10ms, cross-region ~150ms.</li>
+<li>Nines: 99.9% ≈ 8.8 h/year, 99.99% ≈ 52 min/year downtime.</li>
+<li>1 din ≈ 10<sup>5</sup> seconds — QPS mental math ka shortcut.</li>
+<li>Assumptions likho, units likho, round karo — aur har number se ek design decision nikaalo.</li>
+</ul></div>
+
+<div class="chapter-nav"><a class="prev" href="01-scaling.html">← Prev: 01. Scale from Zero to Millions of Users</a><a class="next" href="03-framework.html">Next: 03. A Framework for System Design Interviews →</a></div>
+</main>
+<aside class="toc"></aside>
+</div>
+<script src="../assets/app.js"></script>
+</body>
+</html>

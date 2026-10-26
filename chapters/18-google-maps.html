@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 18: Design Google Maps · SystemDesign.hinglish</title>
+<meta name="description" content="1 billion DAU ke liye Google Maps ka simple version: location updates, navigation + ETA, aur map rendering. Map projections, geohash tiles, routing tiles, CDN, Kafka, Cassandra aur adaptive rerouting — sab Hinglish mein.">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+ <header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><button class="theme-toggle" aria-label="theme">◐</button></header>
+ <div class="layout">
+<nav class="sidebar">
+  <div class="nav-group"><div class="nav-group-title">Foundations</div><ul>
+    <li><a href="01-scaling.html"><span class="n">01</span> Scaling from Zero to Millions</a></li>
+    <li><a href="02-back-of-envelope.html"><span class="n">02</span> Back-of-the-Envelope Estimation</a></li>
+    <li><a href="03-framework.html"><span class="n">03</span> System Design Interview Framework</a></li>
+    <li><a href="04-rate-limiter.html"><span class="n">04</span> Design a Rate Limiter</a></li>
+    <li><a href="05-consistent-hashing.html"><span class="n">05</span> Consistent Hashing</a></li>
+    <li><a href="06-key-value-store.html"><span class="n">06</span> Design a Key-Value Store</a></li>
+    <li><a href="07-unique-id-generator.html"><span class="n">07</span> Unique ID Generator</a></li>
+  </ul></div>
+  <div class="nav-group"><div class="nav-group-title">Classic Designs</div><ul>
+    <li><a href="08-url-shortener.html"><span class="n">08</span> Design a URL Shortener</a></li>
+    <li><a href="09-web-crawler.html"><span class="n">09</span> Design a Web Crawler</a></li>
+    <li><a href="10-notification-system.html"><span class="n">10</span> Design a Notification System</a></li>
+    <li><a href="11-news-feed.html"><span class="n">11</span> Design a News Feed System</a></li>
+    <li><a href="12-chat-system.html"><span class="n">12</span> Design a Chat System</a></li>
+    <li><a href="13-search-autocomplete.html"><span class="n">13</span> Design Search Autocomplete</a></li>
+    <li><a href="14-youtube.html"><span class="n">14</span> Design YouTube</a></li>
+  </ul></div>
+  <div class="nav-group"><div class="nav-group-title">Vol 2 · Part 1</div><ul>
+    <li><a href="15-google-drive.html"><span class="n">15</span> Design Google Drive</a></li>
+    <li><a href="16-proximity-service.html"><span class="n">16</span> Design a Proximity Service</a></li>
+    <li><a href="17-nearby-friends.html"><span class="n">17</span> Design Nearby Friends</a></li>
+    <li><a class="active" aria-current="page" href="18-google-maps.html"><span class="n">18</span> Design Google Maps</a></li>
+    <li><a href="19-message-queue.html"><span class="n">19</span> Distributed Message Queue</a></li>
+    <li><a href="20-metrics-monitoring.html"><span class="n">20</span> Metrics Monitoring &amp; Alerting</a></li>
+    <li><a href="21-ad-click-aggregation.html"><span class="n">21</span> Ad Click Event Aggregation</a></li>
+    <li><a href="22-hotel-reservation.html"><span class="n">22</span> Hotel Reservation System</a></li>
+  </ul></div>
+  <div class="nav-group"><div class="nav-group-title">Vol 2 · Part 2</div><ul>
+    <li><a href="23-email-service.html"><span class="n">23</span> Distributed Email Service</a></li>
+    <li><a href="24-s3-object-storage.html"><span class="n">24</span> S3-like Object Storage</a></li>
+    <li><a href="25-gaming-leaderboard.html"><span class="n">25</span> Real-time Gaming Leaderboard</a></li>
+    <li><a href="26-payment-system.html"><span class="n">26</span> Payment System</a></li>
+    <li><a href="27-digital-wallet.html"><span class="n">27</span> Digital Wallet</a></li>
+    <li><a href="28-stock-exchange.html"><span class="n">28</span> Stock Exchange</a></li>
+  </ul></div>
+  <div class="nav-group"><ul><li><a href="../index.html">🏠 Home</a></li><li><a href="../links.html">🔗 Links guide</a></li></ul></div>
+</nav>
+  <main class="content">
+   <div class="chapter-hero"><span class="chapter-num">Chapter 18</span><h1>Design Google Maps</h1><p class="lead">1 billion DAU ke liye Google Maps ka simple version: location updates, navigation + ETA, aur map rendering. Map projections, geohash tiles, routing tiles, CDN, Kafka, Cassandra aur adaptive rerouting — sab Hinglish mein.</p><div class="tags"><span class="tag">Map tiles</span><span class="tag">CDN</span><span class="tag">Routing tiles</span><span class="tag">A*</span><span class="tag">Kafka</span><span class="tag">Cassandra</span><span class="tag">Geocoding</span><span class="tag">WebSocket</span></div></div>
+<h2 id="intro">Introduction</h2>
+<p>Hum <b>Google Maps</b> ka ek simple version design karenge. Kuch facts (notes se):</p>
+<ul>
+<li>2005 mein shuru hua.</li>
+<li>Services: satellite imagery, street maps, real-time traffic, route planning.</li>
+<li>2021 tak: <b>1 billion DAU</b>, duniya ka <b>99% coverage</b>, roz <b>25 million updates</b> real-time location info ke.</li>
+</ul>
+<p>Ye book ke sabse complex chapters mein se hai, kyunki isme ek saath teen alag tarah ki problems hain: write-heavy ingestion (location), compute-heavy graph search (navigation), aur bandwidth-heavy static content (map tiles).</p>
+
+<h2 id="step1">Step 1: Problem aur scope</h2>
+<table class="cmp">
+<tr><th>Candidate</th><th>Interviewer</th></tr>
+<tr><td>Kitne DAU?</td><td>1 billion</td></tr>
+<tr><td>Kaunse features?</td><td>Location update, navigation, ETA, map rendering</td></tr>
+<tr><td>Road data kitna bada? Access hai?</td><td>Alag sources se mila hai — TBs ka raw data</td></tr>
+<tr><td>Traffic conditions consider karein?</td><td>Haan — accurate ETA ke liye</td></tr>
+<tr><td>Travel modes — walking, biking, driving?</td><td>Haan, support karne hain</td></tr>
+<tr><td>Multi-stop directions?</td><td>Is interview ke scope mein nahi</td></tr>
+<tr><td>Business places aur photos?</td><td>Achha sawaal, lekin consider nahi karna</td></tr>
+</table>
+<p>Focus: teen features — <b>user location update</b>, <b>navigation service (with ETA)</b>, <b>map rendering</b>.</p>
+<h3>Non-functional requirements</h3>
+<ul>
+<li><b>Accuracy</b>: user ko galat directions nahi milni chahiye.</li>
+<li><b>Smooth navigation</b>: map rendering smooth ho.</li>
+<li><b>Data aur battery usage</b>: client jitna kam data aur battery use kare utna achha — mobile pe bahut important.</li>
+<li>General availability + scalability.</li>
+</ul>
+
+<h2 id="map101">Map 101: basic concepts</h2>
+<h3>Positioning system</h3>
+<p>Duniya ek sphere hai jo apni axis pe ghoomti hai. Position do numbers se: <b>latitude</b> (kitna north/south) aur <b>longitude</b> (kitna east/west).</p>
+<figure class="diagram"><img src="../img/18/partitioning-system.png" alt="Latitude and longitude on a sphere" loading="lazy"><figcaption>Globe ka ek hissa kaat ke andar dikhaya gaya hai: centre se do angles naape ja rahe hain — <b>70°E Long</b> (horizontal angle, prime meridian se east kitna ghoome) aur <b>40°N Lat</b> (equator se upar kitna, orange line surface pe black dot tak). Red line equator hai. Kisi bhi point ko in do angles se uniquely bata sakte hain.</figcaption></figure>
+<h3>3D se 2D: map projection</h3>
+<p>Sphere ke points ko flat plane pe le jaana = <b>map projection</b>. Har tareeke ke pros/cons hain, aur lagbhag sab actual geometry ko <b>distort</b> karte hain.</p>
+<figure class="diagram"><img src="../img/18/map-projections.png" alt="Different map projections" loading="lazy"><figcaption>Chaar projections ek hi duniya ke: <b>Mercator</b> (top-left — grid seedhi, lekin poles ke paas Greenland/Antarctica bahut bade dikhte hain), <b>Peirce quincuncial</b> (top-right — north pole beech mein, continents square ke kono mein phaile), <b>Gall–Peters</b> (bottom-left — area sahi, lekin shapes kheenche hue), <b>Winkel tripel</b> (bottom-right — oval shape, overall kam distortion). Message: har projection kuch na kuch bigaadta hai.</figcaption></figure>
+<p>Google Maps ne Mercator ka modified version <b>Web Mercator</b> choose kiya. (Web Mercator mein grid ke right angles bane rehte hain — isliye square tiles banana aur zoom karna aasaan hai.)</p>
+<h3>Geocoding</h3>
+<p><b>Geocoding</b> = address → geographic coordinates. Jaise "1600 Amphitheatre Parkway, Mountain View, CA" → (lat 37.423021, lng -122.083739). Ulta (coordinates → human-readable address) = <b>reverse geocoding</b>. Ek tareeka: <b>interpolation</b> — GIS (Geographic Information Systems) jaise sources ke data use karna jahan street network geo coordinate space pe mapped hai.</p>
+<h3>Geohashing</h3>
+<p>Geohash ek encoding system hai jo geographic area ko letters+digits ki string mein encode karta hai. Duniya ko flat surface maan ke recursively chaar quadrants mein todta hai (Chapter 16 mein detail).</p>
+<figure class="diagram"><img src="../img/18/geohashing.png" alt="Recursive geohash subdivision" loading="lazy"><figcaption>Teen levels upar se neeche: (1) duniya 4 quadrants — <b>01, 11, 00, 10</b>; (2) bold box wala <b>01</b> quadrant zoom hoke 4 mein — <b>01 01, 01 11, 01 00, 01 10</b> (aur baaki quadrants bhi 4-4 mein); (3) ek aur level neeche 6-bit codes (jaise <b>11 10 01</b>) — arrow dikhata hai ki ek cell (North America wala <b>11 10</b>) agle level pe kaise 4 chhote cells mein toot-ta hai. Har level pe code 2 bits lamba aur cell 4× chhota.</figcaption></figure>
+<h3>Map rendering: tiling</h3>
+<p>Poore map ko ek bada image banake render nahi karte — duniya ko chhote <b>tiles</b> mein todte hain. Client sirf relevant tiles download karke mosaic ki tarah jodta hai. Har <b>zoom level</b> ke alag tiles; client apne zoom level ke hisaab se tiles choose karta hai. Example: poori duniya zoom-out pe sirf <b>ek 256×256 tile</b>.</p>
+<h3>Road data processing for navigation</h3>
+<p>Zyada tar routing algorithms mein <b>intersections = nodes</b>, <b>roads = edges</b> — ek graph.</p>
+<figure class="diagram"><img src="../img/18/road-representation.png" alt="Roads as a graph" loading="lazy"><figcaption>Map ke ek chhote rectangle mein red dots (<b>nodes</b> = intersections) aur black lines (<b>edges</b> = road segments) — asli streets (Miller Avenue, Grand Ave ke aaspaas) ko graph mein convert kiya gaya hai. Routing algorithm isi graph pe chalta hai.</figcaption></figure>
+<p>Navigation algorithms Dijkstra ya A* ke modified versions use karte hain. Pathfinding ki performance graph size pe bahut sensitive hai — poori duniya ko ek graph banake algorithm chalana memory aur time dono mein impossible. Solution: tiling jaisa — duniya ko chhote graphs (<b>routing tiles</b>) mein baanto.</p>
+<figure class="diagram"><img src="../img/18/routing-tiles.png" alt="Routing tiles" loading="lazy"><figcaption>Map teen rectangles mein — <b>Routing tile 1, Routing tile 2, Routing tile 3</b>. Har tile ke andar apna chhota road graph (red nodes + black edges), aur kuch edges tile boundary cross karke bagal wale tile ke nodes se judte hain. Yahi references algorithm ko ek tile se dusre tile mein "stitch" karne dete hain.</figcaption></figure>
+<p>Har routing tile apne neighbouring tiles ke references rakhta hai; algorithm traverse karte hue tiles ko jodta jaata hai. Isse memory kam lagti hai aur sirf source/destination ke liye zaroori tiles load hote hain.</p>
+<h3>Hierarchical routing tiles</h3>
+<p>Lambe routes (e.g. ek state se dusre state) ke liye chhote detailed tiles jodna bhi slow/memory-heavy hai. Isliye <b>alag levels of detail</b> ke routing tiles:</p>
+<ul>
+<li><b>Local</b> (sabse detailed): chhote tiles, local roads.</li>
+<li><b>Arterial</b>: medium tiles, district ko jodne wali badi sadkein.</li>
+<li><b>Highway</b>: bade tiles, sirf highways jo cities/states ko jodte hain.</li>
+</ul>
+<figure class="diagram"><img src="../img/18/map-routing-hierarchical.png" alt="Hierarchical routing tiles" loading="lazy"><figcaption>New York (Manhattan ke east, Bronx/Queens area) ke map pe teen overlapping grids: bade <b>blue</b> tiles (highway level — kam detail, bada area), medium <b>teal/green</b> tiles (arterial), aur bahut chhote <b>yellow-green</b> grid cells (local — sabse detailed). Algorithm source/destination ke paas detailed tiles aur beech ke lambe hisse ke liye bade highway tiles use karta hai.</figcaption></figure>
+<p>Har level ke tiles ke beech connecting edges bhi hote hain — jaise local street se freeway entrance.</p>
+
+<h2 id="estimation">Back-of-the-envelope estimation</h2>
+<h3>Storage</h3>
+<ul>
+<li><b>Map of the world</b>: zoom level 21 tak har level pe tiles 4× badhte hain — zoom 21 pe ~4.4 trillion tiles; har tile ~100 KB maano to ~440 PB. Lekin duniya ka bahut bada hissa (ocean, desert) almost identical tiles hain jo bahut compress hote hain — notes ka estimate: <b>~70 PB</b> (sab zoom levels milake, compression ke baad).</li>
+<li><b>Metadata</b>: har tile ka metadata negligible — skip.</li>
+<li><b>Road info</b>: TBs ka raw data → routing tiles mein transform; size raw data jitna hi order.</li>
+</ul>
+<h3>Server throughput (navigation/location QPS)</h3>
+<ul>
+<li>1B DAU × 35 min/week → ~5B minutes/day navigation usage.</li>
+<li>Har second GPS update bheje to: 5B × 60 / 86,400 ≈ ~3M QPS — bahut zyada.</li>
+<li>Har second bhejna zaroori nahi: client 15s ke updates <b>batch</b> kare → ~3M / 15 ≈ <b>~200k QPS</b>; peak (~5×) ≈ <b>~1M QPS</b> (notes ke numbers).</li>
+</ul>
+<div class="callout tip">💡 <b>Pro tip:</b> Batching ek line ka optimization hai jo QPS 15× kam kar deta hai aur battery bhi bachata hai — NFR (battery/data usage) ko seedha design decision se jodna strong signal hai.</div>
+
+<h2 id="step2">Step 2: High-level design</h2>
+<figure class="diagram"><img src="../img/18/high-level-design.png" alt="High-level design" loading="lazy"><figcaption><b>Mobile User</b> do raaston se: (a) <b>Load Balancer</b> → <b>Navigation Service</b> (jo <b>Geocoding DB</b> aur <b>Routing Tiles (Object storage)</b> use karta hai) aur <b>Location Service</b> (jo <b>User Location DB</b> mein likhta hai); (b) seedha <b>CDN</b> se map tiles, jiske peeche <b>Precomputed Map Images (Origin)</b> hai. Teen features = teen alag paths.</figcaption></figure>
+<h3>Location service</h3>
+<figure class="diagram"><img src="../img/18/location-service.png" alt="Location service" loading="lazy"><figcaption>Seedha flow: <b>Mobile User</b> → <b>Load Balancer</b> → <b>Location Service</b> → <b>User Location DB</b>. Har t seconds pe user ki location record hoti hai.</figcaption></figure>
+<p>Location service user ki location record karta hai — har <b>t seconds</b> pe update. Is data stream ke kai fayde: ETA zyada accurate, live traffic monitor karna, nayi/band sadkein detect karna, user behaviour analyze karna (personalization).</p>
+<p>Har second server ko bhejne ke bajaye client-side <b>batching</b>:</p>
+<figure class="diagram"><img src="../img/18/location-update-batches.png" alt="Client-side location batching" loading="lazy"><figcaption><b>Client</b> box mein teen batches right se left time order mein: <b>Batch 1</b> (loc 1, loc 2, …, loc 15), <b>Batch 2</b> (loc 16 … loc 30), <b>Batch 3</b> (loc 31 … loc 45). Har batch ke neeche <b>15s</b> — client har second location record karta hai lekin server ko har 15 second mein ek batch bhejta hai.</figcaption></figure>
+<p>Is optimization ke baad bhi Google Maps scale pe load bahut hai — isliye <b>write-heavy optimized DB</b> jaise <b>Cassandra</b>. Aur location updates ko aage analysis ke liye <b>Kafka</b> pe stream karte hain.</p>
+<pre><code>POST /v1/locations
+Parameters
+  locs: JSON encoded array of (latitude, longitude, timestamp) tuples.</code></pre>
+<h3>Navigation service</h3>
+<p>A se B ka reasonably fast route dhoondhna. Thodi latency chalegi; route ka <b>sabse fastest hona zaroori nahi, lekin accurate hona zaroori hai</b>.</p>
+<pre><code>GET /v1/nav?origin=1355+market+street,SF&amp;destination=Disneyland</code></pre>
+<p>Example response (notes se):</p>
+<pre><code>{
+  "distance": {"text":"0.2 mi", "value": 259},
+  "duration": {"text": "1 min", "value": 83},
+  "end_location": {"lat": 37.4038943, "Ing": -121.9410454},
+  "html_instructions": "Head &lt;b&gt;northeast&lt;/b&gt; on &lt;b&gt;Brandon St&lt;/b&gt; toward &lt;b&gt;Lumin Way&lt;/b&gt;&lt;div style=\"font-size:0.9em\"&gt;Restricted usage road&lt;/div&gt;",
+  "polyline": {"points": "_fhcFjbhgVuAwDsCal"},
+  "start_location": {"lat": 37.4027165, "lng": -121.9435809},
+  "geocoded_waypoints": [
+    { "geocoder_status": "OK", "partial_match": true,
+      "place_id": "ChIJwZNMti1fawwRO2aVVVX2yKg", "types": ["locality", "political"] },
+    { "geocoder_status": "OK", "partial_match": true,
+      "place_id": "ChIJ3aPgQGtXawwRLYeiBMUi7bM", "types": ["locality", "political"] }
+  ],
+  "travel_mode": "DRIVING"
+}</code></pre>
+<p><b>Response kaise padhein</b>: <code>distance.value</code> meters mein (259 m) aur <code>duration.value</code> seconds mein (83 s) — <code>text</code> fields sirf display ke liye. <code>start_location</code>/<code>end_location</code> lat/lng hain (notes mein <code>"Ing"</code> typo hai — asal mein <code>"lng"</code>). <code>html_instructions</code> turn-by-turn instruction hai jo UI mein seedha render hoti hai. <code>polyline.points</code> ek <b>encoded polyline</b> hai — route ke saare points ek compact string mein (bandwidth bachane ke liye). <code>geocoded_waypoints</code> batata hai ki origin/destination text ko geocoder ne kaise resolve kiya (<code>place_id</code>, <code>partial_match</code>).</p>
+<p>Traffic changes aur reroute abhi consider nahi — deep dive mein.</p>
+
+<h3>Map rendering</h3>
+<p>Saare map tiles client pe rakhna impossible — <b>petabytes</b>. Server se <b>on-demand</b> fetch, client ki location aur zoom level ke hisaab se. Kab fetch karein? User zoom in/out kare, aur navigation ke dauran jab user naye tile ki taraf badhe.</p>
+<p>Tiles client tak kaise pahunchein?</p>
+<ul>
+<li><b>Option 1</b>: dynamically build karo (client location + zoom pe) — server pe <b>huge load</b>, aur dynamic content ko <b>cache karna mushkil</b>.</li>
+<li><b>Option 2 (chosen)</b>: har zoom level ke pre-generated tiles, <b>geohash</b> se identify — <b>static files</b>, <b>CDN</b> se serve.</li>
+</ul>
+<figure class="diagram"><img src="../img/18/static-map-tiles.png" alt="Static map tiles via CDN" loading="lazy"><figcaption><b>Mobile User</b> → <b>CDN</b> ← <b>Precomputed Map Images (Origin)</b>. Client tile CDN se maangta hai; CDN ke paas na ho to origin se laake cache kar leta hai.</figcaption></figure>
+<figure class="diagram"><img src="../img/18/cdn-vs-no-cdn.png" alt="Latency with and without CDN" loading="lazy"><figcaption>Upar "<b>Without CDN</b>": ek door ka server user ko <b>300 ms</b> mein data deta hai. Neeche "<b>With CDN</b>": <b>Origin Server</b> dashed lines se kai <b>POP</b> (Point of Presence) servers se juda hai, aur user apne sabse nazdeek POP se <b>10 ms</b> mein tile le leta hai.</figcaption></figure>
+<p>CDN users ko sabse nazdeek <b>POP</b> se tiles deta hai — latency kam. Static tiles ka ek aur fayda: <b>highly cacheable</b> — popular areas ke tiles CDN mein hamesha garam.</p>
+<h3>Tile URL kaun calculate kare?</h3>
+<ul>
+<li><b>Client side</b>: client khud lat/long + zoom se geohash → tile URL bana le. Lekin ye algorithm client mein hardcode ho jaata hai — mobile apps ko update karwana slow aur risky hai, to is scheme ko <b>long term commit</b> karna padega.</li>
+<li><b>Server side (map tile service)</b>: ek simple API jo client ki jagah tile URLs calculate kare — ek extra API call ka cost, lekin operational flexibility bahut zyada (scheme badalna server pe).</li>
+</ul>
+<figure class="diagram"><img src="../img/18/map-tile-url-calculation.png" alt="Map tile service" loading="lazy"><figcaption><b>①</b> Mobile user "Fetch URLs of tiles" → <b>Load Balancer</b> → <b>②</b> "Forward Request" → <b>Map Tile Service</b> <b>③</b> "Construct URLs of tiles" (location + zoom se 9 tiles — current + 8 neighbours) → response ke baad <b>④</b> client un URLs se <b>CDN</b> se "Download tiles".</figcaption></figure>
+
+<h2 id="step3">Step 3: Design deep dive</h2>
+<h3>Data model</h3>
+<h3>1. Routing tiles</h3>
+<p>Initial road dataset alag sources/authorities se aata hai, aur user location data se time ke saath improve hota hai. Raw data <b>unstructured</b> hai, isliye ek <b>periodic offline processing pipeline</b> (routing tile processing service) use graph-based routing tiles mein transform karti hai.</p>
+<p>Tiles ko <b>database mein nahi</b>, <b>S3 jaisi object storage</b> mein rakho — koi DB feature chahiye hi nahi; aggressively <b>cache</b> karo shortest-path service ke paas. Adjacency lists ko libraries se efficient <b>binary files</b> mein serialize/compress kar sakte ho. Tiles ko geohash se organize karo — lat/long se tile fast locate.</p>
+<h3>2. User location data</h3>
+<p>Traffic update, nayi sadkein detect, routing tiles update, ETA — sab ke liye kaam ka. Write-heavy → <b>Cassandra</b>.</p>
+<figure class="diagram"><img src="../img/18/user-location-data-torw.png" alt="User location data row" loading="lazy"><figcaption>Ek row: <b>user_id</b> 101, <b>timestamp</b> 1635740977 (Unix epoch seconds), <b>user_mode</b> active, <b>driving_mode</b> driving, <b>location</b> (20.0, 30.5) — yani lat/long tuple.</figcaption></figure>
+<h3>3. Geocoding database</h3>
+<p>Places/addresses aur unke lat/long pairs ka key-value store. Reads frequent, writes rare → <b>Redis</b> (fast reads). Navigation service origin/destination ko lat/long mein badalne ke liye isi ko use karta hai.</p>
+<h3>4. Precomputed world map images</h3>
+<p>Map tiling images precompute karke CDN pe — jaisa upar discuss kiya.</p>
+<figure class="diagram"><img src="../img/18/precomputed-map-tile-image.png" alt="A precomputed map tile" loading="lazy"><figcaption>Ek single tile ka sample: residential area ki streets (Crestwood Dr), buildings ke grey footprints aur green spaces. Aise lakhon-crores tiles har zoom level ke liye pehle se render karke CDN pe rakhe jaate hain.</figcaption></figure>
+
+<h3>Location service (deep dive)</h3>
+<figure class="diagram"><img src="../img/18/location-service-diagram.png" alt="Location service storage" loading="lazy"><figcaption><b>Mobile User</b> → <b>Load Balancer</b> → <b>Location Service</b> → <b>User Location DB</b>. Is baar focus DB design pe hai: kaunsa DB aur row ka structure kya.</figcaption></figure>
+<p>Har second millions updates → <b>NoSQL key-value / wide-column</b> DB. User ki location baar-baar badalti hai aur nayi aate hi purani stale ho jaati hai — isliye CAP mein <b>availability ko consistency se upar</b> rakhte hain. <b>Cassandra</b> fit hai.</p>
+<figure class="diagram"><img src="../img/18/user-location-row-example.png" alt="Cassandra row with keys" loading="lazy"><figcaption>Columns: <b>key (user_id)</b> 51, <b>timestamp</b> 132053000, <b>lat</b> 21.9, <b>long</b> 89.8, <b>user_mode</b> active, <b>navigation_mode</b> driving. Yahan user_id partition key aur timestamp clustering key hai.</figcaption></figure>
+<ul>
+<li><code>user_id</code> = <b>partition key</b> — ek user ki saari location updates ek partition mein, fast access.</li>
+<li><code>timestamp</code> = <b>clustering key</b> — partition ke andar data time ke hisaab se sorted, to "user ki last N locations" ya time range query efficient.</li>
+</ul>
+<pre><code>CREATE TABLE user_location (
+  user_id        bigint,
+  ts             timestamp,
+  lat            double,
+  long           double,
+  user_mode      text,
+  navigation_mode text,
+  PRIMARY KEY ((user_id), ts)
+) WITH CLUSTERING ORDER BY (ts DESC);</code></pre>
+<h3>Location data ka aur istemaal: Kafka</h3>
+<figure class="diagram"><img src="../img/18/location-update-streaming.png" alt="Streaming location updates through Kafka" loading="lazy"><figcaption><b>Mobile User → Load Balancer → Location Service</b>; location service <b>User Location DB</b> mein likhta hai aur saath hi <b>Kafka</b> mein publish. Kafka se dashed box mein chaar consumers: <b>Traffic Update Service</b> → Traffic DB, <b>Machine Learning Service for Personalization</b> → Personalization DB, <b>Routing Tile Processing Service</b> → Routing Tiles (Object storage), <b>Analytics</b> → Analytics DB.</figcaption></figure>
+<div class="callout realworld">🌍 <b>Real world:</b> Ye classic Kafka fan-out pattern hai — ek topic (<code>user-location</code>), har downstream service ka apna consumer group, har ek apni speed pe padhta hai. Java stack mein Spring Kafka / Kafka Streams consumers, aur Cassandra ke liye DataStax Java driver ya Spring Data Cassandra common hain. Partition key user_id rakho taaki ek user ke updates order mein process hon.</div>
+
+<h3>Rendering map (deep dive)</h3>
+<p><b>Precomputed tiles</b>: har zoom level pe tiles ka set. Google Maps 21 zoom levels use karta hai (book). Level 0 pe poori duniya ek 256×256 tile; har agle level pe tiles ki sankhya <b>4×</b> (rows aur columns dono double).</p>
+<figure class="diagram"><img src="../img/18/zoom-level-increases.png" alt="Tiles quadruple with each zoom level" loading="lazy"><figcaption><b>Zoom level 0</b>: 4 quadrants ka ek map, height <b>256px</b>. <b>Zoom level 1</b>: 16 cells (4×4, codes jaise 01 01 … 10 10), height <b>512px</b>. <b>Zoom level 2</b>: 64 cells (6-bit codes), height <b>1024px</b>. Har level pe resolution double aur tiles 4×; codes geohash jaisa prefix pattern follow karte hain.</figcaption></figure>
+<h3>Optimization: vector tiles</h3>
+<p>WebGL ke saath ek option: images (raster) bhejne ke bajaye <b>vector information</b> (paths aur polygons) bhejo, aur client dynamically render kare. Fayde:</p>
+<ul>
+<li>Vector data images se <b>kahin better compress</b> hota hai → bandwidth bachat.</li>
+<li><b>Smooth zooming</b>: raster image zoom karne pe pixelated/stretched lagti hai; vectors har zoom pe crisp, client next level ke tiles aane tak bhi smoothly scale kar sakta hai.</li>
+</ul>
+
+<h3>Navigation service (deep dive)</h3>
+<figure class="diagram"><img src="../img/18/navigation-service.png" alt="Navigation service components" loading="lazy"><figcaption><b>Mobile User</b> → <b>Navigation Service</b>. Navigation service pehle <b>Geocoding Service</b> (→ <b>Geocoding DB</b>) se address ko lat/long mein badalta hai, phir <b>Route Planer Service</b> ko call karta hai. Route planner teen services use karta hai: <b>Ranker</b> (→ <b>Filter Service</b> — avoid tolls, …), <b>Shortest Path Service</b> (→ <b>Routing Tiles (Object storage)</b>), aur <b>ETA Service</b> (→ <b>Traffic DB</b>). Neeche <b>Update Traffic Service</b> <b>Location DB</b> se data padhke Traffic DB update karta hai.</figcaption></figure>
+<h3>Geocoding service</h3>
+<p>Address ko lat/long mein resolve karta hai. Example request (notes mein Google Geocoding API ka URL):</p>
+<p><a href="https://maps.googleapis.com/maps/api/geocode/json?address=1600+Amphitheatre+Parkway,+Mountain+View,+CA" target="_blank" rel="noopener">https://maps.googleapis.com/maps/api/geocode/json?address=1600+Amphitheatre+Parkway,+Mountain+View,+CA</a> — <i>Google Maps Platform ka real Geocoding API endpoint; <code>address</code> param (spaces = <code>+</code>) ko lat/lng mein badalta hai. Note: humne check kiya — bina API key ke open karoge to <code>"status": "REQUEST_DENIED"</code> aur "You must use an API key…" message aata hai; asli use ke liye URL mein <code>&amp;key=YOUR_API_KEY</code> chahiye (Google Cloud account se). Neeche notes ka sample response hai jo key ke saath milta hai.</i></p>
+<pre><code>{
+  "results": [{
+    "formatted_address": "1600 Amphitheatre Parkway, Mountain View, CA 94043, USA",
+    "geometry": {
+      "location": { "lat": 37.4224764, "lng": -122.0842499 },
+      "location_type": "ROOFTOP",
+      "viewport": {
+        "northeast": { "lat": 37.4238253802915, "lng": -122.0829009197085 },
+        "southwest": { "lat": 37.4211274197085, "lng": -122.0855988802915 }
+      }
+    },
+    "place_id": "ChIJ2eUgeAK6j4ARbn5u_wAGqWA",
+    "plus_code": {
+      "compound_code": "CWC8+W5 Mountain View, California, United States",
+      "global_code": "849VCWC8+W5"
+    },
+    "types": ["street_address"]
+  }],
+  "status": "OK"
+}</code></pre>
+<p><b>Response kaise padhein</b>: <code>status: "OK"</code> = success. <code>formatted_address</code> = cleaned-up full address. <code>geometry.location</code> = asli answer (lat/lng). <code>location_type: "ROOFTOP"</code> = precise building-level match (approximate matches ke liye <code>RANGE_INTERPOLATED</code>, <code>GEOMETRIC_CENTER</code>, <code>APPROXIMATE</code> jaisi values aati hain). <code>viewport</code> = is result ko dikhane ke liye recommended map box (NE/SW corners). <code>place_id</code> = Google ka stable place identifier. <code>plus_code</code> = Open Location Code — address ke bina location batane ka short code. <code>types</code> = result kis tarah ka hai (yahan street address).</p>
+<div class="callout tip">🔗 Is URL aur response fields ka detailed guide (API key kaise lagti hai, reverse geocoding ka format) — <a href="../links.html#ch18">Links guide → Chapter 18</a>.</div>
+<h3>Route planner service</h3>
+<p>Current traffic aur road conditions ke hisaab se travel time ke liye optimized route suggest karta hai. Ye neeche ki services ke saath baat karta hai.</p>
+<h3>Shortest-path service</h3>
+<p>Origin/destination lat/long pair leke top-k shortest paths lautata hai — <b>traffic ya current conditions consider kiye bina</b>; sirf road structure pe depend karta hai. Road network rarely badalta hai, isliye results <b>cache</b> karna faydemand.</p>
+<ul>
+<li>Lat/long pairs se <b>geohash</b> nikaal ke start/end <b>routing tiles</b> load karta hai.</li>
+<li>Origin tile se shuru karke graph traverse (A* variation), zaroorat pe object storage (ya cache) se neighbouring tiles hydrate karta hai — aur lambe routes ke liye higher-level (arterial/highway) tiles pe jump.</li>
+<li>Jab tak destination tile tak "good enough" path na mil jaaye.</li>
+</ul>
+<figure class="diagram"><img src="../img/18/shortest-path-service.png" alt="Shortest path across routing tiles" loading="lazy"><figcaption>Map pe <b>Start</b> (bottom-left) se <b>End</b> (top-right) tak mota black route. Peeche green grid = bade (higher-level) routing tiles; start aur end ke aaspaas red/blue chhote (detailed) tiles. Route start/end ke paas detailed local tiles use karta hai aur beech mein bade tiles pe chalta hai.</figcaption></figure>
+<h3>ETA service</h3>
+<p>Route planner ko possible shortest paths milne ke baad wo har route ke liye ETA service se time estimate leta hai. ETA service <b>machine learning</b> se current traffic + historical data ke basis pe predict karti hai. Challenge: sirf abhi ka traffic nahi, <b>agle 10–20 minute</b> mein traffic kaisa hoga ye bhi predict karna.</p>
+<h3>Ranker service</h3>
+<p>ETA milne ke baad routes ko user ke <b>filters</b> (toll roads avoid, freeways avoid) apply karke rank karta hai — fastest se slowest — aur top-k navigation service ko.</p>
+<h3>Updater services</h3>
+<p>Kafka location stream padhke async important DBs update karti hain: <b>traffic update service</b> (live traffic DB), <b>routing tile processing service</b> (nayi sadkein, band sadkein → routing tiles improve).</p>
+
+<h3>Improvement: adaptive ETA aur rerouting</h3>
+<p>Abhi ka design traffic badalne pe in-flight routes adapt nahi karta. Do sawaal: <b>actively navigating users ko kaise track karein?</b> aur <b>data kaise store karein</b> taaki lakhon routes mein se affected users fast milein?</p>
+<p>Naive: har navigating user ke route ke saare routing tiles store karo:</p>
+<pre><code>user_1: r_1, r_2, r_3, …, r_k
+user_2: r_4, r_6, r_9, …, r_n
+user_3: r_2, r_8, r_9, …, r_m
+...
+user_n: r_2, r_10, r21, ..., r_l</code></pre>
+<p>Kisi tile (jaise r_2) mein accident hua → saari rows scan karke dekho kiske route mein r_2 hai → unhe reroute. Problem: n users × har route ki length m = <b>O(n × m)</b> — slow.</p>
+<p>Better: har user ke liye <b>origin routing tile</b> aur uske upar alag resolution levels ke tiles store karo, jab tak destination bhi us tile mein na aa jaaye:</p>
+<pre><code>user_1, r_1, super(r_1), super(super(r_1)), ...</code></pre>
+<figure class="diagram"><img src="../img/18/adaptive-eta-data-storage.png" alt="Hierarchical tiles for adaptive ETA" loading="lazy"><figcaption>Teen dashed rows upar se neeche: (1) "<b>Routing tile</b>" — chhota tile jisme sirf pink <b>Origin</b> hai ("This routing tile only contains origin"); (2) "<b>Level 1 Routing tile</b>" — 4× bada tile jiske ek quarter mein origin hai; (3) "<b>Level 2 Routing tile</b>" — aur bada tile jisme origin bhi hai aur green <b>Destination</b> bhi ("This routing tile contains both origin and destination"). User ke liye sirf ye chhoti chain store hoti hai.</figcaption></figure>
+<p>Ab check: kya user ka <b>last (sabse bada) tile</b> accident wale tile ko contain karta hai? Nahi → user affected nahi, skip. Haan → us user ka route detail mein check karke reroute. Isse zyada tar users jaldi filter ho jaate hain. Saath hi navigating user ke saare possible routes track karke — traffic clear hone pe — "faster route available" notify bhi kar sakte ho.</p>
+
+<h3>Delivery protocols: server se client ko push</h3>
+<table class="cmp">
+<tr><th>Option</th><th>Verdict</th></tr>
+<tr><td>Mobile push notification</td><td>❌ Payload size bahut limited (iOS pe ~4 KB), aur web apps pe nahi chalta</td></tr>
+<tr><td>Long polling</td><td>Chalega, lekin server pe compute footprint zyada</td></tr>
+<tr><td>Server-Sent Events (SSE)</td><td>Viable — one-way server→client</td></tr>
+<tr><td><b>WebSocket</b></td><td>✅ Kam server footprint, aur <b>bidirectional</b> — future features (jaise last-mile delivery) ke liye kaam ka</td></tr>
+</table>
+<div class="callout warn">⚠️ <b>Failure mode:</b> Navigation ke beech network chala gaya (tunnel). Client ke paas already downloaded route + tiles hone chahiye taaki navigation chalti rahe; reconnect pe client apni latest location bhej ke server se updated ETA/route le. Isliye route response mein poora polyline aur instructions ek saath bhejte hain.</div>
+
+<h2 id="wrapup">Step 4: Wrap-up — final design</h2>
+<figure class="diagram"><img src="../img/18/final-design.png" alt="Final design" loading="lazy"><figcaption>Navigation path pura dikhaya gaya hai: <b>Mobile User → Navigation Service</b>; navigation service <b>Geocoding Service</b> (→ Geocoding DB) aur <b>Route Planer Service</b> ko call karta hai; route planner → <b>Ranker</b> (→ Filter Service: avoid tolls…), <b>Shortest Path Service</b> (→ Routing Tiles in object storage), <b>ETA Service</b> (→ Traffic DB). <b>Update Traffic Service</b> Location DB se Traffic DB update karta hai. Naya pink box <b>Adaptive ETA and Rerouting</b> navigation service se juda hai, <b>Traffic DB</b> padhta hai aur <b>Active Users</b> DB (kaun abhi navigate kar raha hai, unki tile chains) maintain karta hai.</figcaption></figure>
+<p>Humne teen features — location update, ETA/navigation, map rendering — ke saath Google Maps ka simplified version design kiya. Extra feature idea: <b>multi-stop navigation</b> — Uber, Lyft, delivery companies jaise enterprise customers ko bech sakte ho (stops ka optimal order — classic traveling-salesman-style optimization).</p>
+
+<h2 id="interview">Interview mein kaise bolein</h2>
+<div class="callout interview">🎤 <b>45-min plan:</b>
+<ol>
+<li><b>(5 min)</b> Scope: 1B DAU; location update, navigation + ETA, map rendering; travel modes; no multi-stop/places. NFRs: accuracy, smooth rendering, data/battery.</li>
+<li><b>(7 min)</b> Map 101 quickly: lat/long, projection (Web Mercator), geocoding, geohash, tiles, road graph, hierarchical routing tiles.</li>
+<li><b>(5 min)</b> Estimation: ~70 PB tiles; 5B min/day → ~3M QPS → batching 15s → ~200k QPS, peak ~1M.</li>
+<li><b>(10 min)</b> HLD: location service (batch + Cassandra + Kafka), navigation service (API + response), map rendering (static tiles on CDN, tile URL service vs client calc).</li>
+<li><b>(15 min)</b> Deep dive: data model (S3 routing tiles, Cassandra keys, Redis geocoding), vector tiles, navigation pipeline (geocoding → route planner → shortest path/ETA/ranker → updaters), adaptive ETA with hierarchical tile chains, WebSocket delivery.</li>
+<li><b>(3 min)</b> Final diagram + multi-stop extension.</li>
+</ol>
+Key line: <i>"Teen bilkul alag workloads hain — location ingestion write-heavy (Cassandra + Kafka), map tiles bandwidth-heavy (static + CDN), aur routing compute-heavy (hierarchical routing tiles + A*). Main inhe alag services mein rakhta hoon taaki har ek apne bottleneck ke hisaab se scale ho."</i></div>
+<div class="callout realworld">🌍 <b>Real world:</b> OpenStreetMap ka open data aur open-source routers (OSRM, GraphHopper, Valhalla) isi tarah road graph ko preprocess karke fast routing dete hain — Valhalla to explicitly hierarchical tiled routing graph (local/arterial/highway levels) use karta hai. Ye sab self-study ke liye achhe references hain.</div>
+
+<h2 id="followups">Common follow-up questions</h2>
+<p><b>Q: Tiles dynamically kyun nahi banate?</b><br>A: Server load bahut, aur dynamic content cache nahi hota. Static precomputed tiles + CDN = cheap aur fast.</p>
+<p><b>Q: Location update har second kyun nahi bhejte?</b><br>A: ~3M QPS aur battery drain. 15s batching se ~200k QPS, data accuracy pe zyada asar nahi.</p>
+<p><b>Q: Cassandra mein partition/clustering key kya?</b><br>A: user_id partition key, timestamp clustering key (DESC) — ek user ki recent locations fast.</p>
+<p><b>Q: Routing tiles DB mein kyun nahi?</b><br>A: DB features (queries, transactions) chahiye hi nahi; binary adjacency files object storage (S3) mein + aggressive caching sasta aur simple.</p>
+<p><b>Q: Accident hua, kaunse users reroute karein?</b><br>A: Har active user ka origin tile + super tiles chain store; sirf un users ko detail mein check karo jinke top-level tile mein accident tile aata hai.</p>
+<p><b>Q: Server se client ko reroute kaise bhejoge?</b><br>A: WebSocket — push notification payload limited aur web pe nahi; long polling heavy; SSE one-way.</p>
+
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul>
+<li>Map 101: lat/long, map projection (Google = Web Mercator), geocoding/reverse geocoding, geohash, tiling.</li>
+<li>Roads = graph (intersections nodes, roads edges); poori duniya ek graph nahi — routing tiles, aur lambe routes ke liye hierarchical (local/arterial/highway) tiles.</li>
+<li>Estimation: ~70 PB map tiles; ~200k QPS location updates (15s batching), peak ~1M.</li>
+<li>Location service: client batching → Cassandra (user_id partition, timestamp clustering) + Kafka fan-out (traffic, ML, routing tiles, analytics).</li>
+<li>Map rendering: precomputed static tiles per zoom level (4× per level) on CDN; vector tiles se bandwidth bachat aur smooth zoom.</li>
+<li>Navigation: geocoding (Redis) → route planner → shortest path (A* on routing tiles in S3) + ML ETA + ranker (filters); updater services async.</li>
+<li>Adaptive ETA: active users ki hierarchical tile chain se affected users fast filter; WebSocket se push.</li>
+<li>Google Geocoding API URL real hai lekin API key ke bina REQUEST_DENIED deta hai.</li>
+</ul></div>
+   <div class="chapter-nav"><a class="prev" href="17-nearby-friends.html">← Prev: Design Nearby Friends</a><a class="next" href="19-message-queue.html">Next: Distributed Message Queue →</a></div>
+  </main>
+  <aside class="toc"><div class="toc-title">On this page</div><ul>
+    <li><a href="#intro">Introduction</a></li>
+    <li><a href="#step1">Step 1: Problem aur scope</a></li>
+    <li><a href="#map101">Map 101: basic concepts</a></li>
+    <li><a href="#estimation">Back-of-the-envelope estimation</a></li>
+    <li><a href="#step2">Step 2: High-level design</a></li>
+    <li><a href="#step3">Step 3: Design deep dive</a></li>
+    <li><a href="#wrapup">Step 4: Wrap-up — final design</a></li>
+    <li><a href="#interview">Interview mein kaise bolein</a></li>
+    <li><a href="#followups">Common follow-up questions</a></li>
+    <li><a href="#takeaways">Key Takeaways</a></li>
+  </ul></aside>
+ </div>
+ <script src="../assets/app.js"></script>
+</body>
+</html>

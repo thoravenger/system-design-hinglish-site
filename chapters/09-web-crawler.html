@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 09: Design a Web Crawler · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{if(localStorage.getItem('sd-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><div class="toplinks"><a href="../index.html#chapters">Chapters</a><a href="../index.html#how">Kaise padhein</a><a href="../links.html">URL Guide</a></div><button class="theme-toggle" aria-label="theme">◐</button></header>
+<div class="layout">
+<nav class="sidebar">
+<div class="group">Foundations</div><ul>
+<li><a href="01-scaling.html"><span class="num">01</span> Scale from Zero to Millions of Users</a></li>
+<li><a href="02-back-of-envelope.html"><span class="num">02</span> Back-of-the-Envelope Estimation</a></li>
+<li><a href="03-framework.html"><span class="num">03</span> A Framework for System Design Interviews</a></li>
+<li><a href="04-rate-limiter.html"><span class="num">04</span> Design a Rate Limiter</a></li>
+<li><a href="05-consistent-hashing.html"><span class="num">05</span> Design Consistent Hashing</a></li>
+<li><a href="06-key-value-store.html"><span class="num">06</span> Design a Key-Value Store</a></li>
+<li><a href="07-unique-id-generator.html"><span class="num">07</span> Design a Unique ID Generator</a></li>
+</ul>
+<div class="group">Classic Designs</div><ul>
+<li><a href="08-url-shortener.html"><span class="num">08</span> Design a URL Shortener</a></li>
+<li><a class="active" href="09-web-crawler.html"><span class="num">09</span> Design a Web Crawler</a></li>
+<li><a href="10-notification-system.html"><span class="num">10</span> Design a Notification System</a></li>
+<li><a href="11-news-feed.html"><span class="num">11</span> Design a News Feed System</a></li>
+<li><a href="12-chat-system.html"><span class="num">12</span> Design a Chat System</a></li>
+<li><a href="13-search-autocomplete.html"><span class="num">13</span> Design a Search Autocomplete System</a></li>
+<li><a href="14-youtube.html"><span class="num">14</span> Design YouTube</a></li>
+</ul>
+<div class="group">Vol 2 · Part 1</div><ul>
+<li><a href="15-google-drive.html"><span class="num">15</span> Design Google Drive</a></li>
+<li><a href="16-proximity-service.html"><span class="num">16</span> Design a Proximity Service</a></li>
+<li><a href="17-nearby-friends.html"><span class="num">17</span> Design Nearby Friends</a></li>
+<li><a href="18-google-maps.html"><span class="num">18</span> Design Google Maps</a></li>
+<li><a href="19-message-queue.html"><span class="num">19</span> Design a Distributed Message Queue</a></li>
+<li><a href="20-metrics-monitoring.html"><span class="num">20</span> Metrics Monitoring and Alerting System</a></li>
+<li><a href="21-ad-click-aggregation.html"><span class="num">21</span> Ad Click Event Aggregation</a></li>
+<li><a href="22-hotel-reservation.html"><span class="num">22</span> Hotel Reservation System</a></li>
+</ul>
+<div class="group">Vol 2 · Part 2</div><ul>
+<li><a href="23-email-service.html"><span class="num">23</span> Distributed Email Service</a></li>
+<li><a href="24-s3-object-storage.html"><span class="num">24</span> S3-like Object Storage</a></li>
+<li><a href="25-gaming-leaderboard.html"><span class="num">25</span> Real-time Gaming Leaderboard</a></li>
+<li><a href="26-payment-system.html"><span class="num">26</span> Design a Payment System</a></li>
+<li><a href="27-digital-wallet.html"><span class="num">27</span> Design a Digital Wallet</a></li>
+<li><a href="28-stock-exchange.html"><span class="num">28</span> Design a Stock Exchange</a></li>
+</ul>
+<div class="group">Extras</div><ul>
+<li><a href="../index.html">🏠 Home / Kaise padhein</a></li><li><a href="../links.html">🔗 Notes ke URLs ka guide</a></li></ul>
+</nav>
+<main class="content">
+<div class="chapter-hero"><span class="chapter-num">Chapter 09</span><h1>Design a Web Crawler</h1><p class="lead">Search-engine scale crawler: BFS pipeline, URL frontier ki priority + politeness queues, dedup, robots.txt aur spider traps.</p><div class="tags"><span class="tag">BFS</span><span class="tag">URL Frontier</span><span class="tag">Politeness</span><span class="tag">Bloom Filter</span><span class="tag">robots.txt</span></div></div>
+
+<h2 id="intro">Introduction</h2>
+<p><strong>Web crawler</strong> (robot / spider) search engines ka core hai — naya ya updated content (web pages, images, videos, PDFs) discover karna. Crawler kuch pages se start karta hai, unke links follow karke naya content collect karta hai.</p>
+<h3>Crawler kis kaam aata hai</h3>
+<ul>
+<li><strong>Search engine indexing:</strong> sabse common — pages collect karke local index (Googlebot).</li>
+<li><strong>Web archiving:</strong> future ke liye web data preserve (e.g. US Library of Congress, EU web archive).</li>
+<li><strong>Web mining:</strong> internet se knowledge nikalna — e.g. financial firms shareholder meetings/annual reports crawl karke key initiatives samajhti hain.</li>
+<li><strong>Web monitoring:</strong> copyright / trademark infringement detect karna (e.g. Digimarc pirated works dhoondta hai).</li>
+</ul>
+<p>Complexity scale pe depend: chhota school project kuch ghante mein; search-engine scale crawler ek dedicated engineering team ka saalon ka kaam.</p>
+
+<h2 id="step1">Step 1: Problem aur scope</h2>
+<h3>Basic algorithm</h3>
+<ol><li>URLs ka set diya hai → saare pages download.</li><li>Pages se URLs extract.</li><li>Naye URLs download list mein add. Repeat 1–3.</li></ol>
+<h3>Clarification se mili requirements</h3>
+<ul>
+<li>Purpose: <strong>search engine indexing</strong>.</li>
+<li><strong>1 billion pages/month</strong>.</li>
+<li>Content type: <strong>sirf HTML</strong>.</li>
+<li>Naye aur edited pages bhi consider karne hain.</li>
+<li>HTML pages <strong>5 saal tak store</strong>.</li>
+<li><strong>Duplicate content</strong> ignore.</li>
+</ul>
+<h3>Achhe crawler ki characteristics</h3>
+<table class="cmp"><thead><tr><th>Property</th><th>Matlab</th></tr></thead><tbody>
+<tr><td>Scalability</td><td>Web bahut bada — billions of pages. Parallelization se efficient crawl.</td></tr>
+<tr><td>Robustness</td><td>Web traps se bhara hai: bad HTML, unresponsive servers, crashes, malicious links. Crawler ko ye sab handle karna hai.</td></tr>
+<tr><td>Politeness</td><td>Ek website pe short time mein bahut requests nahi bhejni.</td></tr>
+<tr><td>Extensibility</td><td>Naye content types (e.g. images) support karne ke liye poora system redesign na karna pade.</td></tr>
+</tbody></table>
+<h3>Back-of-the-envelope estimation</h3>
+<pre><code>Pages/month  : 1 billion
+QPS          : 1B / 30 days / 24 h / 3600 s   ≈ 400 pages/sec
+Peak QPS     : 2 × 400                         = 800
+Avg page     : 500 KB (assume)
+Storage/month: 1B × 500 KB                     = 500 TB
+5 years      : 500 TB × 12 × 5                 = 30 PB</code></pre>
+
+<h2 id="step2">Step 2: High-level design</h2>
+<figure class="diagram"><img src="../img/09/web-crawler-architecture.png" alt="Web crawler high-level architecture" loading="lazy"><figcaption><b>Kaise padhein (left se right, phir loop):</b> <b>seed URLs</b> → <b>URL Frontier</b> → <b>HTML Downloader</b> (upar <b>DNS Resolver</b> se IP leta hai) → <b>Content Parser</b> → <b>Content Seen?</b> (Content Storage se compare/store) → <b>Link Extractor</b> → <b>URL Filter</b> → <b>URL Seen?</b> (URL Storage check). Naye URLs ka arrow wapas <b>URL Frontier</b> mein — yahi crawl loop hai.</figcaption></figure>
+<h3>Components</h3>
+<ol>
+<li><strong>Seed URLs:</strong> starting point. Achhe seeds wo jinse crawler zyada se zyada links traverse kar sake. Strategy: URL space ko <em>locality</em> (har country ki popular websites alag) ya <em>topics</em> (shopping, sports, healthcare) se divide karna. Seed selection open-ended hai — koi perfect answer nahi.</li>
+<li><strong>URL Frontier:</strong> download hone wale URLs ka store. Simple version mein <strong>FIFO queue</strong>. (Deep dive mein politeness + priority ke saath.) Modern crawlers state ko "to be downloaded" aur "already downloaded" mein baant'te hain.</li>
+<li><strong>HTML Downloader:</strong> Frontier se diye URLs ke pages internet se download.</li>
+<li><strong>DNS Resolver:</strong> URL ko IP mein translate (e.g. <code>www.wikipedia.org</code> → IP).</li>
+<li><strong>Content Parser:</strong> download ke baad page parse + validate — malformed pages problem create karte hain aur storage waste. Crawl servers ko slow na kare isliye alag component.</li>
+<li><strong>Content Seen?:</strong> research ke mutabik ~29% web pages duplicate content hain. Same content multiple baar store na ho. Character-by-character compare slow hai (billions of pages), isliye do pages ke <strong>hash values compare</strong> karo.</li>
+<li><strong>Content Storage:</strong> HTML content store. Data type, size, access frequency, life span pe depend. Zyada data <strong>disk</strong> pe (data set bada hai), popular content <strong>memory</strong> mein latency kam karne ke liye.</li>
+<li><strong>URL Extractor (Link Extractor):</strong> HTML se links parse; relative paths ko absolute banata hai (e.g. <code>/wiki/Cong</code> → <code>https://en.wikipedia.org/wiki/Cong</code>).</li>
+<li><strong>URL Filter:</strong> kuch content types, file extensions, error links aur blacklisted sites ke URLs exclude.</li>
+<li><strong>URL Seen?:</strong> track karta hai ki URL pehle visit hua ya Frontier mein hai. Same URL baar-baar add hone se server load aur infinite loops ka risk. <strong>Bloom filter</strong> aur hash table common techniques.</li>
+<li><strong>URL Storage:</strong> already visited URLs store.</li>
+</ol>
+<h3>Workflow</h3>
+<ol>
+<li>Seed URLs → URL Frontier.</li>
+<li>HTML Downloader Frontier se URLs ki list fetch karta hai.</li>
+<li>Downloader DNS resolver se IP leke download start karta hai.</li>
+<li>Content Parser HTML parse karke check karta hai page malformed to nahi.</li>
+<li>Parsed + validated content "Content Seen?" ko.</li>
+<li>Content Seen? check karta hai HTML storage mein already hai: haan → discard; nahi → Link Extractor ko.</li>
+<li>Link Extractor links nikaalta hai.</li>
+<li>Links URL Filter ko.</li>
+<li>Filtered links "URL Seen?" ko.</li>
+<li>URL storage mein already hai → kuch nahi karna (already processed).</li>
+<li>Nahi hai → URL Frontier mein add.</li>
+</ol>
+
+<h2 id="step3">Step 3: Design deep dive</h2>
+<h3 id="bfs">DFS vs BFS</h3>
+<p>Web ko <strong>directed graph</strong> socho: pages = nodes, hyperlinks (URLs) = edges. Crawl = graph traversal. DFS achha choice nahi kyunki depth bahut gehri ho sakti hai. Isliye <strong>BFS</strong> (FIFO queue) common hai. Lekin standard BFS ki do problems:</p>
+<ol>
+<li><strong>Impolite:</strong> ek page ke zyada links usi host ke hote hain (e.g. Wikipedia ke internal links). Parallel crawl karne pe us host pe requests ka flood — "impolite", DoS jaisa lag sakta hai.</li>
+<li><strong>Priority nahi:</strong> standard BFS URL ki priority nahi dekhta. Saare pages ki quality/importance same nahi — PageRank, web traffic, update frequency se prioritize karna chahiye.</li>
+</ol>
+
+<h3 id="frontier">URL Frontier (deep)</h3>
+<p>Frontier ek data structure hai jo to-be-downloaded URLs store karta hai, aur <strong>politeness, priority, freshness</strong> ensure karta hai.</p>
+<h4>Politeness</h4>
+<p>General idea: ek host ka <em>ek time pe ek</em> page download, aur do download tasks ke beech delay. Implementation: <strong>hostname → download (worker) thread</strong> mapping. Har downloader thread ki alag FIFO queue, aur wo sirf us queue ke URLs download karta hai.</p>
+<figure class="diagram"><img src="../img/09/politeness.png" alt="Politeness: back queues per host" loading="lazy"><figcaption><b>Kaise padhein (upar se neeche):</b> <b>Queue router</b> har URL ko <b>Mapping Table</b> (host → queue) dekh ke sahi queue <b>b1, b2, … bn</b> mein daalta hai — har queue mein sirf ek host ke URLs. <b>Queue selector</b> har worker thread ko ek queue map karta hai. <b>Worker thread 1…N</b> apni queue se ek-ek URL sequentially download karte hain, beech mein delay ke saath.</figcaption></figure>
+<ul>
+<li><strong>Queue router:</strong> ensure karta hai ki har queue (b1…bn) mein same host ke URLs hon.</li>
+<li><strong>Mapping table:</strong> host → queue. e.g. <code>wikipedia.com → b1</code>, <code>apple.com → b2</code>, <code>nike.com → bn</code>.</li>
+<li><strong>FIFO queues b1…bn:</strong> har queue ek host ke URLs.</li>
+<li><strong>Queue selector:</strong> har worker thread ek FIFO queue pe mapped; selection logic yahan.</li>
+<li><strong>Worker thread 1…N:</strong> same host se sequentially download; do tasks ke beech delay.</li>
+</ul>
+<h4>Priority</h4>
+<p>Apple products ke random forum post ka weight Apple homepage se bahut kam hai, dono mein "Apple" keyword ho to bhi. URLs ko usefulness ke hisaab se prioritize karo — PageRank, website traffic, update frequency.</p>
+<figure class="diagram"><img src="../img/09/prioritizer.png" alt="Full URL frontier: front queues for priority, back queues for politeness" loading="lazy"><figcaption><b>Kaise padhein (upar se neeche):</b> <b>input URLs</b> → <b>Prioritizer</b> priority compute karke URLs ko <b>front queues f1…fn</b> mein daalta hai (har queue ki ek priority). <b>Front queue selector</b> high-priority queues ko zyada probability se pick karta hai (biased random) → <b>output URLs</b>. Phir neeche wahi politeness design: <b>Back queue router</b> + <b>Mapping Table</b> → <b>back queues b1…bn</b> (per host) → <b>Back queue selector</b> → <b>Worker threads</b>. Upar ka half = <i>priority</i>, neeche ka half = <i>politeness</i>.</figcaption></figure>
+<ul>
+<li><strong>Prioritizer:</strong> URLs input leke priorities compute.</li>
+<li><strong>Queue f1…fn:</strong> har queue ki assigned priority; high priority queues zyada probability se select.</li>
+<li><strong>Queue selector:</strong> randomly queue choose, high-priority ki taraf bias.</li>
+<li><strong>Front queues</strong> = prioritization; <strong>Back queues</strong> = politeness.</li>
+</ul>
+<h4>Freshness</h4>
+<p>Web pages lagataar add/delete/edit hote hain. Freshness ke liye downloaded pages periodically <strong>recrawl</strong> karo. Sab recrawl karna time + resource heavy hai. Strategies: (1) page ki <strong>update history</strong> ke basis pe recrawl, (2) important pages ko prioritize karke zyada frequently recrawl.</p>
+<h4>Frontier ka storage</h4>
+<p>Real-world crawler ki frontier mein <strong>hundreds of millions</strong> URLs ho sakte hain. Sab memory mein — durable nahi, scalable nahi. Sab disk pe — slow, bottleneck. <strong>Hybrid:</strong> majority URLs disk pe; enqueue/dequeue ke liye memory buffers; buffer ka data periodically disk pe likho.</p>
+
+<h3 id="downloader">HTML Downloader</h3>
+<h4>Robots.txt</h4>
+<p><strong>Robots Exclusion Protocol</strong> — websites crawlers ke saath isse communicate karti hain: kaun se pages download allowed hain. Crawl se pehle <code>robots.txt</code> check karo aur rules follow karo. Baar-baar download na karna pade isliye results cache karo, periodically refresh. Example (amazon.com ke robots.txt ka hissa, book se):</p>
+<pre><code>User-agent: Googlebot
+Disallow: /creatorhub/*
+Disallow: /rss/people/*/reviews
+Disallow: /gp/pdp/rss/*/reviews
+Disallow: /gp/cdp/member-reviews/
+Disallow: /gp/aw/cr/</code></pre>
+<h4>Performance optimization</h4>
+<ol>
+<li><strong>Distributed crawl:</strong> crawl jobs multiple servers pe; har server multiple threads. URL space chhote pieces mein partition, har downloader ek subset ka zimmedar.</li>
+<li><strong>DNS cache:</strong> DNS resolver bottleneck hai — many DNS interfaces synchronous hain, response 10ms–200ms le sakta hai. Ek thread DNS call kare to baaki block. Domain → IP mapping cache karo, cron job se periodically update.</li>
+<li><strong>Locality:</strong> crawl servers geographically distribute karo. Server website host ke paas → download fast. Crawl servers, cache, queue, storage sab pe locality applicable.</li>
+<li><strong>Short timeout:</strong> kuch servers slow ya respond hi nahi karte. Max wait time set karo; host time limit mein respond na kare to crawler job chhod ke doosre pages crawl kare.</li>
+</ol>
+
+<h3 id="robustness">Robustness</h3>
+<ul>
+<li><strong>Consistent hashing:</strong> downloaders mein load distribute; downloader servers add/remove easy (<a href="05-consistent-hashing.html">Chapter 05</a>).</li>
+<li><strong>Crawl states save karo:</strong> failures se bachne ke liye crawl states aur data storage system mein likho. Disrupted crawl ko saved states aur data load karke easily restart.</li>
+<li><strong>Exception handling:</strong> large-scale system mein errors inevitable. Crawler bina crash hue gracefully handle kare.</li>
+<li><strong>Data validation:</strong> system errors rokne ka important measure.</li>
+</ul>
+
+<h3 id="extensibility">Extensibility</h3>
+<p>Almost har system evolve hota hai, isliye design flexible ho ki naye content types support kar sake. Naye modules plug-in kar sako:</p>
+<figure class="diagram"><img src="../img/09/extensibility.png" alt="Extension modules" loading="lazy"><figcaption><b>Kaise padhein:</b> Same main pipeline (seed URLs → URL Frontier → HTML Downloader → Content Parser → Content Seen?), lekin Content Seen? ke neeche grey <b>Extension Module</b> box mein teen plug-ins: <b>PNG Downloader</b> (PNG files download karne ke liye naya module), <b>Link Extractor</b> (existing), aur <b>Web Monitor</b> (copyright/trademark infringement detect karne ke liye). Baaki pipeline (URL Filter → URL Seen? → Frontier) unchanged.</figcaption></figure>
+<div class="callout realworld"><strong>Real world</strong>Ye "pipeline + pluggable stages" pattern Spring mein interface + multiple <code>@Component</code> implementations (e.g. <code>List&lt;ContentProcessor&gt;</code> inject) jaisa hai, aur Kafka-based architectures mein naya consumer group add karke same topic se naya processing — bina existing consumers ko chhuye.</div>
+
+<h3 id="problematic">Problematic content detect aur avoid karna</h3>
+<ol>
+<li><strong>Redundant content:</strong> ~30% pages duplicates hain. Hashes ya checksums se detect.</li>
+<li><strong>Spider traps:</strong> aisa page jo crawler ko infinite loop mein daal de — e.g. infinite deep directory structure: <code>www.spidertrapexample.com/foo/bar/foo/bar/foo/bar/…</code>. Max URL length set karke kuch had tak avoid. Lekin sab traps ke liye generic solution nahi; traps identify karna easy hai (unusually large number of pages) — automatic algorithm mushkil, isliye manually verify karke trap websites ko exclude ya URL filter patterns lagao.</li>
+<li><strong>Data noise:</strong> kuch content ki koi value nahi — ads, code snippets, spam URLs. Useful nahi, exclude karo.</li>
+</ol>
+
+<h2 id="wrapup">Step 4: Wrap-up</h2>
+<p>Achhe crawler ki characteristics: scalability, politeness, extensibility, robustness. Time ho to discuss karo:</p>
+<ul>
+<li><strong>Server-side rendering:</strong> bahut websites JavaScript/AJAX se links on-the-fly generate karti hain. Directly download+parse karne pe wo links miss ho jaayenge. Parse karne se pehle server-side rendering (dynamic rendering) karo.</li>
+<li><strong>Unwanted pages filter:</strong> limited storage aur crawl resources — anti-spam component se low-quality aur spam pages filter.</li>
+<li><strong>Database replication aur sharding:</strong> data layer availability, scalability, reliability.</li>
+<li><strong>Horizontal scaling:</strong> large-scale crawl ke liye hundreds/thousands servers. Key: servers stateless rakho.</li>
+<li><strong>Availability, consistency, reliability</strong> — Chapter 01.</li>
+<li><strong>Analytics:</strong> data collect + analyze karke system fine-tune.</li>
+</ul>
+
+<div class="callout interview"><strong>Interview mein kaise bolein</strong>
+<ol>
+<li>Purpose pucho (indexing? archiving?), scale (1B pages/month), HTML-only, freshness, dedup, retention.</li>
+<li>Estimate: ~400 QPS, peak 800, 500KB/page → 500TB/month → 30PB/5yr.</li>
+<li>Pipeline draw karo aur 11-step workflow bolo — har component ek line.</li>
+<li>Deep dive ka sabse strong area: <strong>URL frontier</strong> = front queues (priority) + back queues (politeness) + disk/memory hybrid. Phir robots.txt, DNS cache, timeouts, spider traps.</li>
+<li>Wrap-up: JS rendering, spam filter, horizontal scaling with consistent hashing.</li>
+</ol></div>
+
+<h2 id="followups">Common follow-up questions</h2>
+<details><summary>"URL Seen?" billions URLs ke saath memory mein kaise?</summary><p>Bloom filter — ~10 bits per URL se ~1% false positive (kuch naye URLs galti se "seen" maan liye jaayenge, crawl skip — acceptable). Exact check chahiye to sharded key-value store.</p></details>
+<details><summary>Near-duplicate pages (thoda sa alag) kaise pakdein?</summary><p>Exact hash sirf exact duplicates pakadta hai. Near-duplicates ke liye SimHash/MinHash jaise similarity fingerprints use hote hain.</p></details>
+<details><summary>Ek host bahut slow hai — poora crawler slow?</summary><p>Nahi — politeness design mein har host ki apni back queue/thread hai, aur short timeout. Slow host sirf apni queue slow karega.</p></details>
+<details><summary>Kitne crawl servers?</summary><p>Peak 800 pages/s; agar ek server (async I/O) ~100 pages/s comfortably kare (assumption), to ~8–10 servers + headroom. Assumption bolke calculate karo.</p></details>
+
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul>
+<li>Crawler = BFS on web graph, lekin politeness + priority ke saath.</li>
+<li>1B pages/month → ~400 QPS (peak 800), ~30 PB / 5 years.</li>
+<li><strong>URL Frontier:</strong> front queues = priority, back queues = politeness (ek host → ek queue → ek worker, delay ke saath); freshness ke liye recrawl.</li>
+<li>Content Seen? (hash) aur URL Seen? (Bloom filter/hash table) duplicates rokte hain.</li>
+<li>robots.txt respect, DNS cache, locality, short timeouts.</li>
+<li>Robustness: consistent hashing, saved crawl state, exception handling; spider traps aur data noise se bacho.</li>
+</ul></div>
+
+<div class="chapter-nav"><a class="prev" href="08-url-shortener.html">← Prev: 08. Design a URL Shortener</a><a class="next" href="10-notification-system.html">Next: 10. Design a Notification System →</a></div>
+</main>
+<aside class="toc"></aside>
+</div>
+<script src="../assets/app.js"></script>
+</body>
+</html>

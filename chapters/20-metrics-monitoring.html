@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 20: Metrics Monitoring &amp; Alerting System · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+ <header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><button class="theme-toggle" aria-label="theme">◐</button></header>
+ <div class="layout">
+  <nav class="sidebar">
+   <div class="nav-group"><p class="nav-group-title">Foundations</p>
+    <a href="01-scaling.html"><span class="num">01</span> Scaling 0 to Millions</a>
+    <a href="02-back-of-envelope.html"><span class="num">02</span> Back-of-the-Envelope Estimation</a>
+    <a href="03-framework.html"><span class="num">03</span> System Design Interview Framework</a>
+    <a href="04-rate-limiter.html"><span class="num">04</span> Rate Limiter</a>
+    <a href="05-consistent-hashing.html"><span class="num">05</span> Consistent Hashing</a>
+    <a href="06-key-value-store.html"><span class="num">06</span> Key-Value Store</a>
+    <a href="07-unique-id-generator.html"><span class="num">07</span> Unique ID Generator</a>
+   </div>
+   <div class="nav-group"><p class="nav-group-title">Classic Designs</p>
+    <a href="08-url-shortener.html"><span class="num">08</span> URL Shortener</a>
+    <a href="09-web-crawler.html"><span class="num">09</span> Web Crawler</a>
+    <a href="10-notification-system.html"><span class="num">10</span> Notification System</a>
+    <a href="11-news-feed.html"><span class="num">11</span> News Feed System</a>
+    <a href="12-chat-system.html"><span class="num">12</span> Chat System</a>
+    <a href="13-search-autocomplete.html"><span class="num">13</span> Search Autocomplete</a>
+    <a href="14-youtube.html"><span class="num">14</span> YouTube</a>
+   </div>
+   <div class="nav-group"><p class="nav-group-title">Vol 2 · Part 1</p>
+    <a href="15-google-drive.html"><span class="num">15</span> Google Drive</a>
+    <a href="16-proximity-service.html"><span class="num">16</span> Proximity Service</a>
+    <a href="17-nearby-friends.html"><span class="num">17</span> Nearby Friends</a>
+    <a href="18-google-maps.html"><span class="num">18</span> Google Maps</a>
+    <a href="19-message-queue.html"><span class="num">19</span> Distributed Message Queue</a>
+    <a href="20-metrics-monitoring.html" class="active" aria-current="page"><span class="num">20</span> Metrics Monitoring & Alerting</a>
+    <a href="21-ad-click-aggregation.html"><span class="num">21</span> Ad Click Event Aggregation</a>
+    <a href="22-hotel-reservation.html"><span class="num">22</span> Hotel Reservation System</a>
+   </div>
+   <div class="nav-group"><p class="nav-group-title">Vol 2 · Part 2</p>
+    <a href="23-email-service.html"><span class="num">23</span> Distributed Email Service</a>
+    <a href="24-s3-object-storage.html"><span class="num">24</span> S3-like Object Storage</a>
+    <a href="25-gaming-leaderboard.html"><span class="num">25</span> Real-time Gaming Leaderboard</a>
+    <a href="26-payment-system.html"><span class="num">26</span> Payment System</a>
+    <a href="27-digital-wallet.html"><span class="num">27</span> Digital Wallet</a>
+    <a href="28-stock-exchange.html"><span class="num">28</span> Stock Exchange</a>
+   </div>
+  </nav>
+  <main class="content">
+   <div class="chapter-hero"><span class="chapter-num">Chapter 20</span><h1>Metrics Monitoring &amp; Alerting System</h1><p class="lead">Datadog/Prometheus jaisa internal monitoring system — ~1 crore metrics collect karna, time-series DB mein store karna, downsample karna, aur bina miss kiye alert bhejna. Spring Boot Actuator + Micrometer wale engineer ke liye yeh "andar se kaise kaam karta hai" wala chapter hai.</p><div class="tags"><span class="tag">Time-series DB</span><span class="tag">Prometheus</span><span class="tag">Pull vs Push</span><span class="tag">Kafka</span><span class="tag">Downsampling</span><span class="tag">Alerting</span></div></div>
+<h2 id="intro">Introduction</h2>
+<p>Monitoring system high availability ka "aankh aur kaan" hai. Payment gateway ka p99 latency badha, ya Kafka consumer lag badh raha hai — pehle monitoring ko pata chalna chahiye, customer ko nahi. Is chapter mein hum <strong>infra metrics</strong> (CPU, memory, disk, QPS) ka system design karte hain — logs (ELK) aur tracing (Jaeger/Zipkin) scope ke bahar hain.</p>
+
+<h2 id="step1">Step 1: Requirements aur scope</h2>
+<p>"Monitoring" ka matlab bahut kuch ho sakta hai, to pehle clarify karo:</p>
+<ul>
+ <li><strong>Kiske liye?</strong> Internal use (DataDog jaisa SaaS nahi — multi-tenancy, billing scope bahar).</li>
+ <li><strong>Kaunse metrics?</strong> Operational: CPU load, memory, disk, requests/sec. Business metrics out of scope.</li>
+ <li><strong>Scale:</strong> 100M DAU, 1000 server pools × 100 machines × ~100 metrics/machine = <strong>~1 crore (10M) metrics</strong>.</li>
+ <li><strong>Retention:</strong> 1 year. Raw 7 din, phir 1-minute resolution 30 din tak, phir 1-hour resolution 1 saal tak.</li>
+ <li><strong>Alert channels:</strong> Email, phone, PagerDuty, webhooks.</li>
+ <li>Logs aur distributed tracing — <strong>nahi</strong>.</li>
+</ul>
+<h3>Non-functional requirements</h3>
+<ul>
+ <li><strong>Scalability</strong> — naye metrics/alerts aate rahenge</li>
+ <li><strong>Low latency</strong> — dashboards aur alerts ke queries fast</li>
+ <li><strong>Reliability</strong> — critical alert miss nahi hona chahiye</li>
+ <li><strong>Flexibility</strong> — naye technologies plug ho sakein</li>
+</ul>
+<div class="callout tip">💡 <strong>Quick math:</strong> 10M series, agar har 10 sec pe ek point → 1M points/sec writes. Ek point ~16 bytes raw (8B timestamp + 8B float) → ~16 MB/s, ~1.4 TB/din raw. Isliye compression aur downsampling optional nahi, <em>zaroori</em> hain. (Interval assumption apna bolo — notes interval specify nahi karte.)</div>
+
+<h2 id="step2">Step 2: High-level design</h2>
+<figure class="diagram"><img src="../img/20/metrics-monitoring-core-components.png" alt="metrics monitoring core components" loading="lazy"><figcaption>Mind-map: beech mein "Metrics monitoring and alerting system", aur paanch branches — 1. Data collection, 2. Data transmission, 3. Data storage, 4. Alerting, 5. Visualization. Pura chapter inhi 5 boxes ka deep dive hai.</figcaption></figure>
+<h3>Data model — time series</h3>
+<p>Metric data = <strong>time series</strong>: ek naam + optional labels/tags + (timestamp, value) pairs ki list.</p>
+<figure class="diagram"><img src="../img/20/metrics-example-1.png" alt="metrics example 1" loading="lazy"><figcaption>Example 1 ka graph: "avg of cpu.load.i631" — X-axis time (18:00 se 00:30), Y-axis CPU percent. 20:00 pe highlighted point 0.29. Sawaal tha: "production server i631 ka CPU load 20:00 pe kitna tha?" — answer graph ka ek point hai.</figcaption></figure>
+<figure class="diagram"><img src="../img/20/metrics-example-1-data.png" alt="metrics example 1 data" loading="lazy"><figcaption>Wahi point table form mein: metric_name = cpu.load, labels = host:i631, env:prod, timestamp = 1613707265 (Unix epoch seconds), value = 0.29. Name + labels milke series identify karte hain, timestamp + value ek data point.</figcaption></figure>
+<p>Example 2 — "us-west ke saare web servers ka last 10 min ka average CPU": line protocol mein data aisa dikhta hai:</p>
+<pre><code>CPU.load host=webserver01,region=us-west 1613707265 50
+CPU.load host=webserver01,region=us-west 1613707265 62
+CPU.load host=webserver02,region=us-west 1613707265 43
+CPU.load host=webserver02,region=us-west 1613707265 53
+...
+CPU.load host=webserver01,region=us-west 1613707265 76
+CPU.load host=webserver01,region=us-west 1613707265 83</code></pre>
+<p>Average = last column ka average. Yeh "line protocol" format Prometheus, OpenTSDB jaise tools mein common hai.</p>
+<figure class="diagram"><img src="../img/20/time-series-data-example.png" alt="time series data example" loading="lazy"><figcaption>Har time series ke teen parts: metric name (String), tags/labels (List of key:value pairs), aur values with timestamps (Array of &lt;value, timestamp&gt; pairs).</figcaption></figure>
+<figure class="diagram"><img src="../img/20/time-series-data-viz.png" alt="time series data viz" loading="lazy"><figcaption>Grid ki tarah socho: X-axis = Time (t1…t9), Y-axis = har row ek series (name + labels). Har dot = ek data point. Neeche ki do rows <code>http_error_count{servicepool:s1, method:GET, machinename:m1/m2}</code> hain. Orange rectangle query hai: "servicepool=s1 aur method=GET ke errors, saari machines, t4 se t7" — yaani labels se rows filter, time se columns slice, phir aggregate.</figcaption></figure>
+<p><strong>Access pattern</strong>: write-heavy (constant stream) aur reads spiky — normally kam, incident ke time ek dum burst.</p>
+<h3>Storage choice</h3>
+<ul>
+ <li>General-purpose RDBMS: expert tuning ke bina is scale pe nahi chalega.</li>
+ <li>Generic NoSQL: possible, lekin efficient time-series schema banana mushkil.</li>
+ <li>Purpose-built TSDB: OpenTSDB (Hadoop/HBase pe — woh infra na ho to mushkil), Twitter MetricsDB, Amazon Timestream, aur sabse popular <strong>InfluxDB</strong> aur <strong>Prometheus</strong> — dono in-memory cache + on-disk storage.</li>
+</ul>
+<figure class="diagram"><img src="../img/20/influxdb-scale.png" alt="influxdb scale" loading="lazy"><figcaption>InfluxDB hardware sizing table: 2-4 cores / 2-4 GB → &lt;5,000 writes/sec; 4-6 cores / 8-32 GB → &lt;250,000 writes/sec; 8+ cores / 32+ GB / 1000+ IOPS → &gt;250,000 writes/sec aur &gt;1M unique series. Last column "Unique series" dhyan se dekho — cardinality hi asli limit hai.</figcaption></figure>
+<div class="callout warn">⚠️ <strong>Cardinality bomb:</strong> TSDB har label combination ke liye alag series + index banata hai. Agar Spring Boot mein Micrometer tag mein <code>userId</code>, <code>transactionId</code> ya full URL with IDs daal diya, to series ki ginti crore mein jaayegi aur TSDB memory se mar jaayega. Rule: labels bounded hone chahiye (region, service, status code, method). High-cardinality data logs/traces mein jaata hai, metrics mein nahi.</div>
+<h3>High-level design</h3>
+<figure class="diagram"><img src="../img/20/high-level-design.png" alt="high level design" loading="lazy"><figcaption>Left se right: Metrics Source → Metrics Collector → Time series DB. DB ke right mein Query Service, jisse upar Alerting System aur neeche Visualization System "Send Queries" karte hain. Alerting System se 4 arrows: Email, Text Message, PagerDuty, HTTPS Endpoints.</figcaption></figure>
+<ul>
+ <li><strong>Metrics source</strong>: app servers, DBs, queues…</li>
+ <li><strong>Collector</strong>: data gather karke TSDB mein likhta hai</li>
+ <li><strong>TSDB</strong>: store + custom query interface</li>
+ <li><strong>Query service</strong>: DB ke upar abstraction (DB powerful ho to skip)</li>
+ <li><strong>Alerting</strong> aur <strong>Visualization</strong></li>
+</ul>
+
+<h2 id="collection">Step 3a: Metrics collection — pull vs push</h2>
+<p>Metrics mein thoda data loss chalta hai — clients fire-and-forget kar sakte hain. (Payments ke ledger se bilkul ulta mindset!)</p>
+<figure class="diagram"><img src="../img/20/metrics-collection.png" alt="metrics collection" loading="lazy"><figcaption>Same high-level design, lekin dashed box ab Metrics Source + Metrics Collector ko highlight kar raha hai — yaani ab hum collection part zoom karenge.</figcaption></figure>
+<h3>Pull model</h3>
+<figure class="diagram"><img src="../img/20/pull-model-example.png" alt="pull model example" loading="lazy"><figcaption>Metrics Collector khud Web Servers, DB Clusters, Queue Clusters, Cache Clusters se "Pull metrics" karta hai (arrows collector se sources ki taraf). Upar Service Discovery (etcd / ZooKeeper) se collector ko pata chalta hai ki kis-kis ko pull karna hai.</figcaption></figure>
+<figure class="diagram"><img src="../img/20/service-discovery-example.png" alt="service discovery example" loading="lazy"><figcaption>Service Discovery (etcd, ZooKeeper) ke paas config entries — stacked cards jaise "region: us-east, type: mysql, host: 10.10.11.1". Yeh rules batate hain kab aur kahan se metrics lene hain.</figcaption></figure>
+<figure class="diagram"><img src="../img/20/metrics-collection-flow.png" alt="metrics collection flow" loading="lazy"><figcaption>Do step: ① Collector Service Discovery se "Discover Targets" (pull interval, IPs, timeout, retry params) leta hai. ② Web Servers ke <code>/metrics</code> endpoint pe HTTP request karke data pull karta hai. Endpoint changes ke liye collector change notifications register kar sakta hai ya periodic poll.</figcaption></figure>
+<p>Is scale pe ek collector kaafi nahi; multiple collectors chahiye, lekin do collectors same server ko double pull na karein. Solution: <strong>consistent hash ring</strong>.</p>
+<figure class="diagram"><img src="../img/20/consistent-hash-ring.png" alt="consistent hash ring" loading="lazy"><figcaption>Ring pe 4 Collectors aur 6 Servers (S1-S6). Grey highlighted arc: Collector 1 ke baad aur Collector 2 tak ke servers (S1, S5) ka zimmedaar Collector 2 hai ("Collector 2 is responsible for servers in this range"). Collector add/remove hone pe sirf padosi range ke servers move hote hain.</figcaption></figure>
+<h3>Push model</h3>
+<figure class="diagram"><img src="../img/20/push-model-example.png" alt="push model example" loading="lazy"><figcaption>Ulta direction: Web Servers, DB/Queue/Cache Clusters khud "Push metrics" Metrics Collector ko bhejte hain. Collector ko targets ki list nahi chahiye.</figcaption></figure>
+<figure class="diagram"><img src="../img/20/metrics-collector-agent.png" alt="metrics collector agent" loading="lazy"><figcaption>Metrics Source box ke andar Web Servers ke saath ek <strong>Collection Agent</strong> (Metrics 1/2/3) baitha hai. Agent "Push Messages" → Load Balancer → multiple Metrics Collectors (stacked). Agent local aggregation kar sakta hai, aur LB + autoscaling collector overload se bachata hai.</figcaption></figure>
+<table class="cmp">
+<tr><th></th><th>Pull</th><th>Push</th></tr>
+<tr><td>Easy debugging</td><td>✅ <code>/metrics</code> endpoint kabhi bhi laptop se dekh lo</td><td>Data nahi aaya to network issue ho sakta hai</td></tr>
+<tr><td>Health check</td><td>✅ Pull fail = server down, turant pata</td><td>Data nahi aaya — server down ya network? clear nahi</td></tr>
+<tr><td>Short-lived jobs</td><td>Batch job pull se pehle khatam (fix: push gateway)</td><td>✅ Job khud push kar deta hai</td></tr>
+<tr><td>Firewall / multi-DC</td><td>Saare endpoints reachable hone chahiye</td><td>✅ LB + autoscaling, kahin se bhi data aa sakta hai</td></tr>
+<tr><td>Performance</td><td>Usually TCP</td><td>Usually UDP, lower latency (lekin TCP setup cost payload ke saamne chhota)</td></tr>
+<tr><td>Data authenticity</td><td>✅ Targets config mein pre-defined</td><td>Koi bhi push kar sakta hai → whitelist/auth chahiye</td></tr>
+</table>
+<p>Clear winner nahi hai. Prometheus = pull, CloudWatch &amp; Graphite = push. Badi company ko dono chahiye.</p>
+<div class="callout realworld">🌍 <strong>Spring Boot reality:</strong> <code>spring-boot-starter-actuator</code> + <code>micrometer-registry-prometheus</code> lagao, aur <code>/actuator/prometheus</code> endpoint ban jaata hai — exactly book ka "pull model /metrics endpoint". Kubernetes pe Prometheus service discovery pods ko annotations/ServiceMonitor se dhundhta hai. Short-lived Spring Batch jobs ke liye Prometheus Pushgateway. Aur OpenTelemetry Collector push (OTLP) style ka modern example hai.</div>
+
+<h2 id="pipeline">Step 3b: Transmission pipeline ko scale karna</h2>
+<figure class="diagram"><img src="../img/20/metrics-transmission-pipeline.png" alt="metrics transmission pipeline" loading="lazy"><figcaption>Dashed box ab Metrics Collector → Time series DB path ko highlight karta hai — yahi pipeline scale karni hai. Collector chahe push ho ya pull, autoscaling group mein hota hai.</figcaption></figure>
+<p>Problem: TSDB down hua to collectors ka data kahan jaayega? → beech mein <strong>Kafka</strong>.</p>
+<figure class="diagram"><img src="../img/20/queuing-mechanism.png" alt="queuing mechanism" loading="lazy"><figcaption>Naya flow: Metrics Source → Metrics Collector → <strong>Kafka</strong> → Consumers → Time series DB (dashed box). Consumers Storm/Flink/Spark jaise stream processors ho sakte hain. Baaki (Query Service, Alerting, Visualization) same.</figcaption></figure>
+<ul>
+ <li>Kafka reliable, scalable buffer hai; collection aur processing decouple.</li>
+ <li>TSDB down → data Kafka mein retain, baad mein replay. Data loss se bachav.</li>
+</ul>
+<figure class="diagram"><img src="../img/20/metrics-collection-kafka.png" alt="metrics collection kafka" loading="lazy"><figcaption>Metrics Collector → Kafka, jismein Partition 0 (metric 1), Partition 1 (metric 2), Partition 2 (metric 3)… — har metric name ka apna partition, taaki consumer ek metric ko ek jagah aggregate kar sake. Scale ke liye aur tags/labels se bhi partition karo aur important metrics prioritize karo.</figcaption></figure>
+<p>Downside: Kafka ka operational overhead. Alternative: Facebook ka <a href="https://www.vldb.org/pvldb/vol8/p1816-teller.pdf" target="_blank" rel="noopener">Gorilla paper (VLDB 2015)</a> — <em>Facebook ka in-memory TSDB; isme timestamps ke liye delta-of-delta aur values ke liye XOR compression se ek data point average ~1.37 bytes mein store hota hai, aur paper hi "85% queries last 26 hours ke data pe" wala observation deta hai. Kaise padhein: Section 4 (compression) pe focus karo. Full guide: <a href="../links.html#ch20">links page</a>.</em></p>
+<div class="callout realworld">🌍 Kafka key choice yahan bhi wahi lesson hai jo Ch19 mein tha: key = metric name → ek hot metric (e.g. <code>http_requests_total</code>) ek partition ko hot bana dega. Isliye notes bolte hain "further partition by tags". Kafka Streams/Flink ke saath windowed aggregation karke pre-aggregate karna common hai.</div>
+<h3>Aggregation kahan karein?</h3>
+<table class="cmp">
+<tr><th>Jagah</th><th>Fayda</th><th>Nuksan</th></tr>
+<tr><td>Collection agent</td><td>Data volume source pe hi kam</td><td>Sirf simple logic (e.g. 1 min counter)</td></tr>
+<tr><td>Ingestion pipeline (Flink)</td><td>DB writes bahut kam</td><td>Raw data gaya → precision loss, late events handle karne padte hain</td></tr>
+<tr><td>Query side</td><td>Koi data loss nahi</td><td>Query slow — bahut data process</td></tr>
+</table>
+
+<h2 id="query">Step 3c: Query service</h2>
+<figure class="diagram"><img src="../img/20/cache-layer-query-service.png" alt="cache layer query service" loading="lazy"><figcaption>Full pipeline (Source → Collector → Kafka → Consumers → TSDB) aur right side dashed box mein Query Service ke neeche <strong>Cache</strong>. Alerting System aur Visualization System dono Query Service ko queries bhejte hain; repeated dashboard queries cache se serve hoti hain.</figcaption></figure>
+<p>Alag query service DB ko clients se decouple karta hai (DB badalna aasaan). Lekin Grafana jaise tools ke paas already TSDB plugins hain, aur achhe TSDB ka apna cache hota hai — to yeh layer optional hai.</p>
+<p>TSDBs SQL support kyun nahi karte? Kyunki time-series ops SQL mein ugly hain. Exponential moving average SQL mein:</p>
+<pre><code>select id, temp,
+       avg(temp) over (partition by group_nr order by time_read) as rolling_avg
+from (
+  select id, temp, time_read, interval_group,
+         id - row_number() over (partition by interval_group order by time_read) as group_nr
+  from (
+    select id, time_read,
+      "epoch"::timestamp + "900 seconds"::interval * (extract(epoch from time_read)::int4 / 900) as interval_group,
+      temp
+    from readings
+  ) t1
+) t2
+order by time_read;</code></pre>
+<p>Wahi cheez Flux (InfluxDB) mein:</p>
+<pre><code>from(db:"telegraf")
+  |> range(start:-1h)
+  |> filter(fn: (r) => r._measurement == "foo")
+  |> exponentialMovingAverage(size:-10s)</code></pre>
+
+<h2 id="storage">Step 3d: Storage layer</h2>
+<p>Facebook ki research (Gorilla paper): operational store ki ~85% queries last 26 ghante ke data ke liye thi. Matlab recent data hot, purana cold — DB ko is property ka fayda uthana chahiye (recent in memory).</p>
+<h3>Encoding &amp; compression</h3>
+<figure class="diagram"><img src="../img/20/double-delta-encoding.png" alt="double delta encoding" loading="lazy"><figcaption>Timeline pe 5 timestamps: 1610087371, …381, …391, …400, …411. Full 10-digit timestamps store karne ke bajaye deltas (triangle circles) store karo: 10, 10, 9, 11. Double-delta (delta-of-delta) ek step aage jaata hai: deltas ka delta 0, -1, +2 — mostly 0, jo sirf 1 bit mein fit hota hai.</figcaption></figure>
+<h3>Downsampling</h3>
+<p>Rules: 7 din raw, 30 din tak 1-min, 1 saal tak 1-hour. Example — 10-second data:</p>
+<table class="cmp">
+<tr><th>metric</th><th>timestamp</th><th>hostname</th><th>value</th></tr>
+<tr><td>cpu</td><td>19:00:00</td><td>host-a</td><td>10</td></tr>
+<tr><td>cpu</td><td>19:00:10</td><td>host-a</td><td>16</td></tr>
+<tr><td>cpu</td><td>19:00:20</td><td>host-a</td><td>20</td></tr>
+<tr><td>cpu</td><td>19:00:30</td><td>host-a</td><td>30</td></tr>
+<tr><td>cpu</td><td>19:00:40</td><td>host-a</td><td>20</td></tr>
+<tr><td>cpu</td><td>19:00:50</td><td>host-a</td><td>30</td></tr>
+</table>
+<p>30-second resolution (avg): 19:00:00 → <strong>(10+16+20)/3 ≈ 15.3</strong>, 19:00:30 → <strong>(30+20+30)/3 ≈ 26.7</strong>. (Notes mein 19 aur 25 likha hai — exact arithmetic se 15.3 aur 26.7 aata hai; concept same hai.)</p>
+<div class="callout warn">⚠️ <strong>Downsampling trap:</strong> Sirf <code>avg</code> rakhoge to spikes chhup jaayenge — 1-hour avg CPU 40% dikhega jabki 2 minute 100% tha. Isliye rollups mein <code>min/max/sum/count</code> sab rakho. Aur percentiles (p99) ko average nahi kar sakte — histograms (buckets) store karo aur unhe merge karo.</div>
+<p>Bahut purana, rarely used data → <strong>cold storage</strong> (sasta).</p>
+
+<h2 id="alerting">Step 3e: Alerting system</h2>
+<figure class="diagram"><img src="../img/20/alerting-system.png" alt="alerting system" loading="lazy"><figcaption>Numbered flow: (1) Rule config files → Cache. (2) Alert Manager cache se rules leta hai. (3) Alert Manager interval pe Query Service ko query karta hai. (4) Alert state Alert store (KV DB) mein. (5) Triggered alert → Kafka. (6) Alert Consumer Kafka se padhta hai. (7) Email, Text Message, PagerDuty, HTTPS Endpoints pe notification.</figcaption></figure>
+<p>Rules YAML mein:</p>
+<pre><code>- name: instance_down
+  rules:
+  # Alert for any instance that is unreachable for >5 minutes.
+  - alert: instance_down
+    expr: up == 0
+    for: 5m
+    labels:
+      severity: page</code></pre>
+<p>Alert manager ke kaam:</p>
+<ul>
+ <li><strong>Filter, merge, dedupe</strong> — ek instance ka alert baar-baar trigger ho to ek hi event.</li>
+ <li><strong>Access control</strong> — alert management sirf authorised logon ke paas.</li>
+ <li><strong>Retry</strong> — notification at-least-once.</li>
+</ul>
+<p>Alert store (Cassandra jaisa KV) har alert ka state rakhta hai (inactive → pending → firing → resolved). Fire hone pe Kafka pe publish, consumers channels pe bhejte hain.</p>
+<div class="callout realworld">🌍 Prometheus ecosystem mein yahi split hai: Prometheus server rules evaluate karta hai (<code>for: 5m</code> = pending state), aur <strong>Alertmanager</strong> grouping, inhibition, silencing, dedup aur routing (PagerDuty/Slack/webhook) karta hai. Book bhi bolti hai — real world mein khud ka alerting system banana justify karna mushkil hai. Payments ops mein: alert sirf "CPU high" pe nahi, <em>symptoms</em> pe lagao — payment success rate drop, PSP error rate, settlement file late — SLO-based burn-rate alerts.</div>
+
+<h2 id="viz">Step 3f: Visualization</h2>
+<figure class="diagram"><img src="../img/20/grafana-dashboard.png" alt="grafana dashboard" loading="lazy"><figcaption>Grafana Play dashboard (dark theme): server requests (stacked area per web_server), Memory/CPU (dual axis), client side full page load (percentile bars upper_25 se upper_95), logins (aaj vs 1 hour pehle comparison), aur Traffic In/Out. Har panel ek query hai jo Query Service/TSDB se time range ke liye data laata hai.</figcaption></figure>
+<p>High-quality visualization banana bahut mushkil — Grafana jaise off-the-shelf tool use karo.</p>
+
+<h2 id="wrapup">Step 4: Wrap up — final design</h2>
+<figure class="diagram"><img src="../img/20/final-design.png" alt="final design" loading="lazy"><figcaption>Final: Metrics Source → Metrics Collector → Kafka → Consumers → Time series DB → Query Service (+ Cache). Alerting System aur Visualization System Query Service se query karte hain; alerts Email/Text/PagerDuty/HTTPS endpoints tak jaate hain.</figcaption></figure>
+
+<div class="callout interview">🎤 <strong>Interview mein kaise bolein:</strong>
+<ol>
+<li>Scope lock karo: infra metrics only, no logs/tracing, internal. Numbers: 10M series, 1y retention with rollups.</li>
+<li>5 components ka diagram draw karo (collection, transmission, storage, alerting, viz).</li>
+<li>Data model + "metrics = time series, TSDB use karunga (Influx/Prometheus), RDBMS nahi kyunki…" — cardinality mention karo.</li>
+<li>Pull vs push table — "dono support karenge" with reasoning.</li>
+<li>Kafka buffer + consistent hashing for collectors.</li>
+<li>Storage: delta-of-delta, downsampling, hot/cold. Alerting: dedupe, at-least-once, Kafka fan-out.</li>
+<li>Bolo ki Grafana/Alertmanager buy karenge, build nahi — pragmatism senior signal hai.</li>
+</ol></div>
+
+<h2 id="faq">Follow-up questions</h2>
+<dl>
+<dt>Q: Monitoring system khud down ho gaya to kaun monitor karega?</dt><dd>Meta-monitoring: alag, simple, independent stack (dusre region mein) jo main system ka heartbeat ("dead man's switch" alert) check kare.</dd>
+<dt>Q: Alert storm (1000 alerts ek saath) kaise handle?</dt><dd>Grouping by service/cluster, inhibition (upstream down hai to downstream alerts suppress), rate limits per channel.</dd>
+<dt>Q: Late-arriving data downsampling ko kaise affect karta hai?</dt><dd>Rollup job watermark ke baad chalao, ya rollup ko recompute-able rakho (raw 7 din available hai).</dd>
+<dt>Q: Multi-region mein metrics kaise?</dt><dd>Per-region collection + TSDB (Prometheus per cluster), global query layer (Thanos/Cortex/Mimir style) jo federate kare aur long-term object storage mein rakhe.</dd>
+</dl>
+
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul>
+<li>Metrics = time series (name + labels + (ts, value)); write-heavy, spiky reads.</li>
+<li>Purpose-built TSDB use karo; <strong>label cardinality</strong> low rakho.</li>
+<li>Pull (Prometheus) vs push (CloudWatch) — dono ke trade-offs; badi org dono support kare.</li>
+<li>Collectors ko consistent hashing se shard karo; Kafka buffer data loss se bachata hai.</li>
+<li>Delta-of-delta + XOR compression, downsampling (min/max/sum/count rakho), cold storage.</li>
+<li>Alerting: rules + dedupe + at-least-once + channel fan-out; alerting/visualization buy karo, build nahi.</li>
+</ul></div>
+   <div class="chapter-nav"><a class="prev" href="19-message-queue.html">← Prev: Distributed Message Queue</a><a class="next" href="21-ad-click-aggregation.html">Next: Ad Click Event Aggregation →</a></div>
+  </main>
+  <aside class="toc">
+   <p class="toc-title">On this page</p>
+    <a href="#intro">Introduction</a>
+    <a href="#step1">Step 1: Requirements aur scope</a>
+    <a href="#step2">Step 2: High-level design</a>
+    <a href="#collection">Step 3a: Metrics collection — pull vs push</a>
+    <a href="#pipeline">Step 3b: Transmission pipeline ko scale karna</a>
+    <a href="#query">Step 3c: Query service</a>
+    <a href="#storage">Step 3d: Storage layer</a>
+    <a href="#alerting">Step 3e: Alerting system</a>
+    <a href="#viz">Step 3f: Visualization</a>
+    <a href="#wrapup">Step 4: Wrap up — final design</a>
+    <a href="#faq">Follow-up questions</a>
+    <a href="#takeaways">Key Takeaways</a>
+  </aside>
+ </div>
+ <script src="../assets/app.js"></script>
+</body>
+</html>

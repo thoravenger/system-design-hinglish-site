@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 21: Ad Click Event Aggregation · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+ <header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><button class="theme-toggle" aria-label="theme">◐</button></header>
+ <div class="layout">
+  <nav class="sidebar">
+   <div class="nav-group"><p class="nav-group-title">Foundations</p>
+    <a href="01-scaling.html"><span class="num">01</span> Scaling 0 to Millions</a>
+    <a href="02-back-of-envelope.html"><span class="num">02</span> Back-of-the-Envelope Estimation</a>
+    <a href="03-framework.html"><span class="num">03</span> System Design Interview Framework</a>
+    <a href="04-rate-limiter.html"><span class="num">04</span> Rate Limiter</a>
+    <a href="05-consistent-hashing.html"><span class="num">05</span> Consistent Hashing</a>
+    <a href="06-key-value-store.html"><span class="num">06</span> Key-Value Store</a>
+    <a href="07-unique-id-generator.html"><span class="num">07</span> Unique ID Generator</a>
+   </div>
+   <div class="nav-group"><p class="nav-group-title">Classic Designs</p>
+    <a href="08-url-shortener.html"><span class="num">08</span> URL Shortener</a>
+    <a href="09-web-crawler.html"><span class="num">09</span> Web Crawler</a>
+    <a href="10-notification-system.html"><span class="num">10</span> Notification System</a>
+    <a href="11-news-feed.html"><span class="num">11</span> News Feed System</a>
+    <a href="12-chat-system.html"><span class="num">12</span> Chat System</a>
+    <a href="13-search-autocomplete.html"><span class="num">13</span> Search Autocomplete</a>
+    <a href="14-youtube.html"><span class="num">14</span> YouTube</a>
+   </div>
+   <div class="nav-group"><p class="nav-group-title">Vol 2 · Part 1</p>
+    <a href="15-google-drive.html"><span class="num">15</span> Google Drive</a>
+    <a href="16-proximity-service.html"><span class="num">16</span> Proximity Service</a>
+    <a href="17-nearby-friends.html"><span class="num">17</span> Nearby Friends</a>
+    <a href="18-google-maps.html"><span class="num">18</span> Google Maps</a>
+    <a href="19-message-queue.html"><span class="num">19</span> Distributed Message Queue</a>
+    <a href="20-metrics-monitoring.html"><span class="num">20</span> Metrics Monitoring & Alerting</a>
+    <a href="21-ad-click-aggregation.html" class="active" aria-current="page"><span class="num">21</span> Ad Click Event Aggregation</a>
+    <a href="22-hotel-reservation.html"><span class="num">22</span> Hotel Reservation System</a>
+   </div>
+   <div class="nav-group"><p class="nav-group-title">Vol 2 · Part 2</p>
+    <a href="23-email-service.html"><span class="num">23</span> Distributed Email Service</a>
+    <a href="24-s3-object-storage.html"><span class="num">24</span> S3-like Object Storage</a>
+    <a href="25-gaming-leaderboard.html"><span class="num">25</span> Real-time Gaming Leaderboard</a>
+    <a href="26-payment-system.html"><span class="num">26</span> Payment System</a>
+    <a href="27-digital-wallet.html"><span class="num">27</span> Digital Wallet</a>
+    <a href="28-stock-exchange.html"><span class="num">28</span> Stock Exchange</a>
+   </div>
+  </nav>
+  <main class="content">
+   <div class="chapter-hero"><span class="chapter-num">Chapter 21</span><h1>Ad Click Event Aggregation</h1><p class="lead">Facebook/Google scale pe roz 1 billion ad clicks ko har minute aggregate karna — billing-grade accuracy ke saath. Stream processing, event time vs processing time, watermarks, windows, exactly-once aur end-of-day reconciliation — payments wale reconciliation mindset ka big-data version.</p><div class="tags"><span class="tag">Stream Processing</span><span class="tag">Kafka</span><span class="tag">Flink</span><span class="tag">Watermark</span><span class="tag">Exactly-once</span><span class="tag">Reconciliation</span></div></div>
+<h2 id="intro">Introduction: RTB aur kyun accuracy = paisa</h2>
+<p>Digital advertising mein <strong>real-time bidding (RTB)</strong> hoti hai — ad inventory ek second se kam mein kharidi-bechi jaati hai. Clicks ka aggregated data billing (advertiser kitna pay karega) aur targeting decisions dono mein jaata hai. Matlab: 1% galti = crore ka dispute.</p>
+<figure class="diagram"><img src="../img/21/digital-advertising-example.png" alt="digital advertising example" loading="lazy"><figcaption>Left "Demand Side": Advertiser → DSP (Demand Side Platform). Right "Supply Side": Publisher → SSP (Supply Side Platform). Dono beech mein <strong>Ad Exchange</strong> pe milte hain jahan auction hota hai. Advertiser ka paisa DSP se, publisher ki inventory SSP se — exchange match karta hai.</figcaption></figure>
+
+<h2 id="step1">Step 1: Requirements aur scope</h2>
+<ul>
+ <li>Input: 1B ad clicks/day, 2M ads total, 30% YoY growth.</li>
+ <li>Queries: (1) ad X ke last Y minutes ke clicks, (2) last 1 min ke top 100 ads (dono params configurable, aggregation har minute), (3) <code>ip</code>, <code>user_id</code>, <code>country</code> se filtering.</li>
+ <li>Edge cases (candidate ne khud bataye — good signal!): late events, duplicate events, partial failures/recovery.</li>
+ <li>Latency: aggregation ke liye few minutes e2e theek hai (billing/reporting). RTB khud &lt;1 sec, lekin woh is system ka scope nahi.</li>
+</ul>
+<h3>Non-functional</h3>
+<ul>
+ <li><strong>Correctness</strong> sabse upar — billing aur RTB isi pe chalte hain</li>
+ <li>Delayed aur duplicate events properly handle</li>
+ <li>Robust — partial failures se recover</li>
+ <li>Latency: max few minutes</li>
+</ul>
+<h3>Back-of-the-envelope</h3>
+<table class="cmp">
+<tr><th>Quantity</th><th>Value</th><th>Kaise</th></tr>
+<tr><td>DAU</td><td>1B</td><td>assumption</td></tr>
+<tr><td>Clicks/day</td><td>1B</td><td>1 click/user/day</td></tr>
+<tr><td>Avg QPS</td><td>~10,000</td><td>10^9 / 10^5 sec</td></tr>
+<tr><td>Peak QPS</td><td>50,000</td><td>5× avg</td></tr>
+<tr><td>Storage/day</td><td>100 GB</td><td>0.1 KB × 1B</td></tr>
+<tr><td>Storage/month</td><td>~3 TB</td><td>100 GB × 30</td></tr>
+</table>
+
+<h2 id="step2">Step 2: API, data model, high-level design</h2>
+<h3>Query API</h3>
+<pre><code>GET /v1/ads/{ad_id}/aggregated_count?from=&lt;minute&gt;&amp;to=&lt;minute&gt;&amp;filter=&lt;filter_id&gt;
+  from   : start minute (default now-1min)
+  to     : end minute (default now)
+  filter : e.g. 001 = "non-US clicks"
+  -&gt; { "ad_id": "ad001", "count": 125 }
+
+GET /v1/ads/popular_ads?count=100&amp;window=1&amp;filter=&lt;filter_id&gt;
+  count  : top N
+  window : aggregation window in minutes (M)
+  -&gt; { "ad_ids": ["ad3","ad1", ...] }</code></pre>
+<h3>Data model — raw vs aggregated</h3>
+<p>Raw event: <code>[AdClickEvent] ad001, 2021-01-01 00:00:01, user 1, 207.148.22.22, USA</code></p>
+<table class="cmp">
+<tr><th>ad_id</th><th>click_timestamp</th><th>user</th><th>ip</th><th>country</th></tr>
+<tr><td>ad001</td><td>2021-01-01 00:00:01</td><td>user1</td><td>207.148.22.22</td><td>USA</td></tr>
+<tr><td>ad001</td><td>2021-01-01 00:00:02</td><td>user1</td><td>207.148.22.22</td><td>USA</td></tr>
+<tr><td>ad002</td><td>2021-01-01 00:00:02</td><td>user2</td><td>209.153.56.11</td><td>USA</td></tr>
+</table>
+<p>Aggregated (per minute, per filter):</p>
+<table class="cmp">
+<tr><th>ad_id</th><th>click_minute</th><th>filter_id</th><th>count</th></tr>
+<tr><td>ad001</td><td>202101010000</td><td>0012</td><td>2</td></tr>
+<tr><td>ad001</td><td>202101010000</td><td>0023</td><td>3</td></tr>
+<tr><td>ad001</td><td>202101010001</td><td>0012</td><td>1</td></tr>
+<tr><td>ad001</td><td>202101010001</td><td>0023</td><td>6</td></tr>
+</table>
+<p><code>filter_id</code> table: <code>0012 → region=US, IP=*, user=*</code>; <code>0013 → region=*, IP=123.1.2.3, user=*</code>. Top-N ke liye <code>most_clicked_ads(window_size int, update_time_minute timestamp, most_clicked_ads array/JSON)</code>.</p>
+<table class="cmp">
+<tr><th></th><th>Raw data</th><th>Aggregated data</th></tr>
+<tr><td>Pros</td><td>Full dataset, filtering aur recalculation possible</td><td>Chhota dataset, fast query</td></tr>
+<tr><td>Cons</td><td>Bada storage, slow query</td><td>Derived data → info loss</td></tr>
+</table>
+<p><strong>Decision: dono rakho.</strong> Raw = debugging/backfill/reconciliation ka source of truth (cold storage mein), aggregated = fast dashboards.</p>
+<div class="callout realworld">🌍 <strong>Payments analogy:</strong> Yeh exactly ledger vs balance jaisa hai. Raw clicks = immutable journal entries; aggregated counts = derived balances. Balance mein bug mila? Journal se replay karke recompute. Isliye raw kabhi delete mat karo jab tak reconciliation window band na ho.</div>
+<h3>Database choice</h3>
+<p>Raw: 10k avg / 50k peak writes, reads rare → write-heavy. RDBMS writes scale karna mushkil; <strong>Cassandra</strong> (ya InfluxDB) heavy writes natively handle karte hain. S3 + Parquet/ORC/Avro bhi option hai (aaj ke data lakes yahi karte hain). Aggregated: har minute writes + dashboards ke reads → read + write heavy → yahan bhi Cassandra.</p>
+<h3>High-level design</h3>
+<figure class="diagram"><img src="../img/21/high-level-design-1.png" alt="high level design 1" loading="lazy"><figcaption>Chaar vertical zones: Input (Log Watcher) → Process (Data Aggregation Service, "Push data") → Output (Database: ad count aur top 100 ads, dono "aggregate every min") → Display (Query Service jo DB ko query karta hai). Simple, lekin synchronous — aggregation service crash = poora pipeline ruk jaata hai.</figcaption></figure>
+<p>Input aur output dono unbounded streams hain. Sync sink ki jagah <strong>Kafka</strong> se async decoupling:</p>
+<figure class="diagram"><img src="../img/21/high-level-design-2.png" alt="high level design 2" loading="lazy"><figcaption>Ab do Message Queues. Log Watcher → MQ1 → (a) Database Writer → Raw data database, aur (b) Data Aggregation Service → MQ2 (ad count + top 100, har minute). MQ2 se Database Writer "pull aggregation results" karke Aggregation database mein likhta hai; Query Service (Dashboard) wahan se padhta hai.</figcaption></figure>
+<p>MQ1 schema: <code>ad_id, click_timestamp, user_id, ip, country</code>. MQ2: <code>ad_id, click_minute, count</code> aur <code>update_time_minute, most_clicked_ads</code>.</p>
+<figure class="diagram"><img src="../img/21/atomic-commit.png" alt="atomic commit" loading="lazy"><figcaption>Dashed "Atomic commit" box: MQ1 → Data Aggregation Service → MQ2. Matlab "MQ1 se offset consume" aur "MQ2 mein result produce" ek atomic unit hai — dono ho ya koi nahi. Yahi second queue ka asli reason hai: Kafka transactions se end-to-end exactly-once.</figcaption></figure>
+<div class="callout realworld">🌍 <strong>Kafka transactions = yeh "atomic commit" box:</strong> Consume (MQ1) → aggregate → produce (MQ2) + <code>sendOffsetsToTransaction</code> ek hi Kafka transaction mein. Flink mein yahi <code>TwoPhaseCommitSinkFunction</code>/KafkaSink with <code>EXACTLY_ONCE</code> karta hai, checkpoint ke saath transaction commit. Downstream DB writer ko phir bhi idempotent upsert karna chahiye: key = <code>(ad_id, click_minute, filter_id)</code>, value overwrite — replay safe.</div>
+<h3>Aggregation service — MapReduce DAG</h3>
+<figure class="diagram"><img src="../img/21/ad-count-map-reduce.png" alt="ad count map reduce" loading="lazy"><figcaption>"Aggregate every minute" box: Data Input → Map → do Aggregate nodes → har ek "Ad count" output. Map data ko ad_id se baant-ta hai, Aggregate nodes count karte hain.</figcaption></figure>
+<figure class="diagram"><img src="../img/21/top-100-map-reduce.png" alt="top 100 map reduce" loading="lazy"><figcaption>Top 100 ke liye ek extra stage: Map → do Aggregate → <strong>Reduce</strong> → "Top 100 Ads". Har aggregate node local top-N nikaalta hai, reduce unhe merge karke global top-N.</figcaption></figure>
+<figure class="diagram"><img src="../img/21/map-node.png" alt="map node" loading="lazy"><figcaption>Map node routing: Data Input → Map → <code>ad_id % 2 = 0</code> to Aggregate Node 1, <code>ad_id % 2 = 1</code> to Aggregate Node 2. Same ad ke saare events same node pe — tabhi count sahi hoga.</figcaption></figure>
+<p>Seedha Kafka partitions se kyun nahi? Kar sakte ho (consumer group), lekin map node data <strong>sanitize/transform</strong> kar sakta hai, aur agar producer pe control nahi to same ad_id alag partitions mein ho sakta hai — map node re-key karta hai (Kafka Streams ka "repartition topic" yahi hai).</p>
+<figure class="diagram"><img src="../img/21/reduce-node.png" alt="reduce node" loading="lazy"><figcaption>Task: top 3. Teen aggregate nodes ke local top-3 lists (ad1:12, ad3:5, ad2:3 / ad7:9, ad10:4, ad8:3 / ad13:8, ad11:4, ad15:3) Reduce mein merge → ad1:12, ad7:9, ad13:8. Output: "last minute ke top 3 = ad1, ad7, ad13". Kaam karta hai kyunki har ad sirf ek aggregate node pe hai.</figcaption></figure>
+<p>DAG mein intermediate data memory mein, nodes TCP/shared memory se baat karte hain.</p>
+<figure class="diagram"><img src="../img/21/use-case-1.png" alt="use case 1" loading="lazy"><figcaption>Use case 1 (click count): All Events → Map (diamond = ad_id 3, circle = ad_id 1, square = ad_id 2) → teen aggregate buckets (shape-wise grouped) → Outputs: ad3 4 baar, ad1 3 baar, ad2 5 baar in past 1 minute. Partitioning <code>ad_id % 3</code>.</figcaption></figure>
+<figure class="diagram"><img src="../img/21/use-case-2.png" alt="use case 2" loading="lazy"><figcaption>Use case 2 (top 3): All Events teen Map groups mein (ad3,6,9,12,15 / ad1,4,7,10,13 / ad2,5,8,11,14). Har Aggregate node apna top 3 rakhta hai (strike-through = top 3 se bahar). Reduce sab merge karke final: ad3:12, ad1:9, ad2:8. Har node heap use karta hai for fast top-N.</figcaption></figure>
+<h3>Use case 3: filtering → star schema</h3>
+<table class="cmp">
+<tr><th>ad_id</th><th>click_minute</th><th>country</th><th>count</th></tr>
+<tr><td>ad001</td><td>202101010001</td><td>USA</td><td>100</td></tr>
+<tr><td>ad001</td><td>202101010001</td><td>GPB</td><td>200</td></tr>
+<tr><td>ad001</td><td>202101010001</td><td>others</td><td>3000</td></tr>
+<tr><td>ad002</td><td>202101010001</td><td>USA</td><td>10</td></tr>
+<tr><td>ad002</td><td>202101010001</td><td>GPB</td><td>25</td></tr>
+<tr><td>ad002</td><td>202101010001</td><td>others</td><td>12</td></tr>
+</table>
+<p>Filter fields = <strong>dimensions</strong>; pre-aggregate per dimension = <strong>star schema</strong> (data warehouse classic). Simple, existing service reuse, fast reads. Limitation: dimensions badhne pe buckets explode (combinatorial).</p>
+
+<h2 id="stream-batch">Step 3a: Streaming vs batching, Lambda vs Kappa</h2>
+<table class="cmp">
+<tr><th></th><th>Online services</th><th>Batch (offline)</th><th>Streaming (near real-time)</th></tr>
+<tr><td>Responsiveness</td><td>Client ko jaldi response</td><td>Response nahi chahiye</td><td>Response nahi chahiye</td></tr>
+<tr><td>Input</td><td>User requests</td><td>Bounded, bada data</td><td>Unbounded (infinite streams)</td></tr>
+<tr><td>Output</td><td>Responses</td><td>Materialized views, aggregates</td><td>Materialized views, aggregates</td></tr>
+<tr><td>Measure</td><td>Availability, latency</td><td>Throughput</td><td>Throughput, latency</td></tr>
+<tr><td>Example</td><td>Online shopping</td><td>MapReduce</td><td>Flink</td></tr>
+</table>
+<figure class="diagram"><img src="../img/21/lambda-architecture.png" alt="lambda architecture" loading="lazy"><figcaption>Lambda: source → queue → do raaste: <strong>Batch Layer</strong> (Batch Engine) aur <strong>Streaming Layer</strong> (Real-time Engine), dono Serving Backend mein merge, jahan Query aati hai. Neeche Data Storage (Raw Data, Results). Problem: same logic do codebases mein.</figcaption></figure>
+<figure class="diagram"><img src="../img/21/kappa-architecture.png" alt="kappa architecture" loading="lazy"><figcaption>Kappa: sirf ek <strong>Streaming Layer</strong> (Real-time Engine) → Serving Layer → Query. Reprocessing bhi isi engine se — raw data replay karke. Ek codebase.</figcaption></figure>
+<p>Humara design <strong>Kappa</strong> hai: historical reprocessing bhi aggregation service se hi.</p>
+<figure class="diagram"><img src="../img/21/recalculation-example.png" alt="recalculation example" loading="lazy"><figcaption>Pink "Recalculation Service": (1) Raw data database se data padhta hai (batch job), (2) ek <em>dedicated</em> Data Aggregation Service (Recalculation only, dashed) ko bhejta hai taaki live pipeline pe asar na ho, (3) result wahi second Message Queue mein → Database Writer → Aggregation database update.</figcaption></figure>
+
+<h2 id="time">Step 3b: Time — event time vs processing time, watermark</h2>
+<table class="cmp">
+<tr><th></th><th>Pros</th><th>Cons</th></tr>
+<tr><td>Event time</td><td>Results zyada accurate</td><td>Client ki ghadi galat ho sakti hai / malicious timestamp</td></tr>
+<tr><td>Processing time</td><td>Server timestamp reliable</td><td>Late event galat window mein</td></tr>
+</table>
+<p>Accuracy priority hai → <strong>event time</strong>. Ab late events ka kya?</p>
+<figure class="diagram"><img src="../img/21/watermark-technique.png" alt="watermark technique" loading="lazy"><figcaption>Upar Event Time line, neeche Processing Time line (seconds 0-180). Event 2 ka event time ~45s (Window 1 = 0-60) lekin processing ~65s pe hua — Window 1 band ho chuki thi, isliye 2 kisi window mein nahi gina gaya. Same event 5 ke saath. Windows mein sirf 1, 3, 4 dikh rahe hain.</figcaption></figure>
+<figure class="diagram"><img src="../img/21/watermark-2.png" alt="watermark 2" loading="lazy"><figcaption>Watermark ke saath: har window ke end pe pink extension (watermark). Window 1 ab thoda der tak khuli rehti hai aur late event 2 pakad leti hai; Window 3 event 5 pakad leti hai. Price: result itni der baad emit hota hai.</figcaption></figure>
+<ul>
+ <li>Chhota watermark → kam latency, zyada missed events</li>
+ <li>Lamba watermark → kam missed, zyada latency</li>
+ <li>Kuch events phir bhi miss honge — unke liye low-probability optimisation mat karo, <strong>end-of-day reconciliation</strong> karo.</li>
+</ul>
+<div class="callout realworld">🌍 <strong>Flink mein:</strong> <code>WatermarkStrategy.forBoundedOutOfOrderness(Duration.ofSeconds(15))</code> + <code>allowedLateness(...)</code> + <code>sideOutputLateData(tag)</code> — bahut late events side output mein jaate hain jahan unhe correction ke liye store kar sakte ho. Cross-border payments mein bhi same problem: partner bank ka settlement file "value date" (event time) pe hota hai, processing kal hoti hai — isliye reports value date pe aur late items correction run mein.</div>
+<h3>Aggregation windows</h3>
+<p>Chaar types: tumbling (fixed), hopping, sliding, session.</p>
+<figure class="diagram"><img src="../img/21/tumbling-window.png" alt="tumbling window" loading="lazy"><figcaption>Tumbling (1 minute): minute 1-2, 2-3, 3-4, 4-5 — non-overlapping boxes, har box mein "Aggregate click count". Har event exactly ek window mein. Per-minute ad count ke liye perfect.</figcaption></figure>
+<figure class="diagram"><img src="../img/21/sliding-window.png" alt="sliding window" loading="lazy"><figcaption>Sliding (3 minute window, har minute run): pehla box minute 1-4 "Top ads from last 3 minutes", doosra 2-5. Windows overlap karti hain — ek event multiple windows mein. Top N in last M minutes ke liye use.</figcaption></figure>
+
+<h2 id="delivery">Step 3c: Delivery guarantees aur dedup</h2>
+<p>Normally at-least-once kaafi hai, lekin yahan "thode percent ka farak = millions of dollars" → <strong>exactly-once</strong> chahiye.</p>
+<p>Duplicates kahan se aate hain: client resend (malicious ho to risk engine ka kaam), ya server outage — aggregation node mid-way gira aur upstream ko ack nahi mila.</p>
+<figure class="diagram"><img src="../img/21/data-duplication-example.png" alt="data duplication example" loading="lazy"><figcaption>Sequence: (1) Aggregator Kafka se poll, (2) offset 100 se consume, (3) events 100-110 aggregate, (4) result downstream Kafka ko, (5) downstream ack, (6) upstream ko "offset 110" ack — lekin step 6 pe X (fail). Restart pe phir offset 100 se → result downstream mein <strong>dobara</strong>. Classic at-least-once duplicate.</figcaption></figure>
+<figure class="diagram"><img src="../img/21/data-duplication-example-2.png" alt="data duplication example 2" loading="lazy"><figcaption>Fix attempt: offset HDFS/S3 mein. (3.1) offset verify, (3) aggregate, (3.2, red) result bhejne se <em>pehle</em> offset save — "Can cause potential message loss": agar 3.2 ke baad aur step 4 se pehle crash hua, to offset aage badh gaya lekin result kabhi downstream gaya hi nahi.</figcaption></figure>
+<figure class="diagram"><img src="../img/21/data-duplication-example-3.png" alt="data duplication example 3" loading="lazy"><figcaption>Sahi fix: red dashed "Distributed transaction" box mein (4) aggregated result downstream bhejna, (5) offset save, (6) ack back — teeno atomic. Phir (7) upstream ko new offset 110. Ya sab hua ya kuch nahi.</figcaption></figure>
+<div class="callout tip">💡 <strong>Notes ka side-note, aur production ka asli answer:</strong> distributed transaction (2PC) mehenga hai. Agar downstream <strong>idempotent</strong> hai — result ka deterministic key <code>(ad_id, minute)</code> hai aur write = upsert/overwrite — to duplicate result harmless hai. "Make the sink idempotent" almost hamesha 2PC se sasta aur robust hai. Payments mein bhi yahi: idempotency key &gt; distributed transaction.</div>
+
+<h2 id="scale">Step 3d: Scaling</h2>
+<p>Teen decoupled components — MQ, aggregation service, DB — alag-alag scale.</p>
+<h3>Message queue</h3>
+<ul>
+ <li>Producers unlimited; consumers consumer group mein add karo.</li>
+ <li>Partitions <strong>pehle se</strong> enough banao (baad mein badhana = ordering/key mapping issue).</li>
+ <li>Hazaron consumers ka rebalance slow — off-peak karo.</li>
+ <li>Geography se topics: <code>topic_na</code>, <code>topic_eu</code>…</li>
+</ul>
+<figure class="diagram"><img src="../img/21/scale-consumers.png" alt="scale consumers" loading="lazy"><figcaption>Left: Topic ke 4 partitions, 2 consumers (P0,P1 → Consumer 0; P2,P3 → Consumer 1). "Rebalance" ke baad right: 4 consumers, har partition ka ek (Consumer 2, 3 pink = naye). Partitions = max parallelism.</figcaption></figure>
+<h3>Aggregation service</h3>
+<figure class="diagram"><img src="../img/21/aggregation-service-scaling.png" alt="aggregation service scaling" loading="lazy"><figcaption>Teen Kafka sources → teen Aggregation Servers (Map process → map outputs) → shuffle (criss-cross arrows) → teen Aggregation Servers ke Reduce process → reduce output. Map aur reduce dono horizontally scale.</figcaption></figure>
+<figure class="diagram"><img src="../img/21/multi-threading-example.png" alt="multi threading example" loading="lazy"><figcaption>Kafka "All Events" → do Aggregation Service Nodes: Node 1 ad_id 1-3 handle karta hai, Node 2 ad_id 4-6. Har node ke andar per-ad thread (thread_id 1 → ad_id 1, etc.). Option 1 = multi-threading (easy); option 2 = YARN jaise resource manager se multi-processing (practice mein zyada common, zyada scalable).</figcaption></figure>
+<h3>Database</h3>
+<figure class="diagram"><img src="../img/21/cassandra-scalability.png" alt="cassandra scalability" loading="lazy"><figcaption>Upar: ring without virtual nodes — 6 tokens A-F, har node 3 ranges (replicas). Neeche: ring with virtual nodes — bahut saare chhote tokens (A-P), har node pe kaafi alag-alag ranges. Naya node aaye to load sab nodes se thoda-thoda shift hota hai, ek node pe bojh nahi. Manual resharding nahi.</figcaption></figure>
+<h3>Hotspot</h3>
+<figure class="diagram"><img src="../img/21/hotspot-issue.png" alt="hotspot issue" loading="lazy"><figcaption>Map → ad1 ke 300 events ek Aggregate node pe. (1) Node Resource Manager se extra resources maangta hai, (2) 3 extra aggregate nodes milte hain, (3) events split — har ek ko 100 events, (4) unka reduced result wapas original node pe, phir final Reduce → Aggregated Output.</figcaption></figure>
+<p>Advanced alternatives: <strong>Global-Local aggregation</strong> (pehle local pre-aggregate, phir global) aur <strong>Split Distinct aggregation</strong> — Flink SQL mein dono built-in optimizations hain.</p>
+
+<h2 id="fault">Step 3e: Fault tolerance</h2>
+<p>Aggregation in-memory hai; node gira to state gaya. Kafka offset se restart possible, lekin top-N in M minutes jaisa <em>intermediate state</em> bhi chahiye → snapshots.</p>
+<figure class="diagram"><img src="../img/21/fault-tolerance-example.png" alt="fault tolerance example" loading="lazy"><figcaption>"Snapshot for top 3 most clicked ads from last 5 minutes": MQ → Data Aggregation Service → snapshot mein ad1:12, ad3:5, ad2:3 aur har ad ka per-minute array (ad1: 1,3,2,3,3 over minutes 1-5). Yeh state + offset milke recover karne ke liye kaafi hai.</figcaption></figure>
+<figure class="diagram"><img src="../img/21/fault-tolerance-recovery-example.png" alt="fault tolerance recovery example" loading="lazy"><figcaption>Primary aggregation node "Incremental Snapshot" Snapshot Storage mein likhta hai. External Nodes se primary ka link toota (red X). New aggregation node snapshot storage se state load karta hai aur External Nodes se (last committed offset se) data lena shuru karta hai.</figcaption></figure>
+<div class="callout realworld">🌍 Yeh exactly <strong>Flink checkpointing</strong> hai: Chandy-Lamport style barriers, state backend (RocksDB) ke incremental snapshots S3 pe, aur Kafka source offsets usi checkpoint mein. Recovery = last checkpoint ka state + offsets → replay. Kafka Streams mein state stores ka changelog topic yahi kaam karta hai.</div>
+
+<h2 id="monitoring">Step 3f: Monitoring aur reconciliation</h2>
+<ul>
+ <li><strong>Latency</strong>: har stage pe timestamps → e2e latency.</li>
+ <li><strong>Queue size</strong>: Kafka commit log hai, to queue size nahi, <strong>records-lag</strong> monitor karo.</li>
+ <li><strong>Resources</strong>: CPU, disk, JVM (GC pauses!).</li>
+</ul>
+<figure class="diagram"><img src="../img/21/reconciliation-flow.png" alt="reconciliation flow" loading="lazy"><figcaption>Upar live pipeline + recalculation path. Neeche pink <strong>Reconciliation</strong> box: end-of-day batch job jo Raw data database se dobara aggregate karta hai aur Aggregation database ke results se compare karta hai. Mismatch = bug/late events → correction.</figcaption></figure>
+<div class="callout realworld">🌍 <strong>Aapke payments background se jodo:</strong> Yeh wahi pattern hai jo PSP/bank settlement mein hota hai — internal ledger vs bank statement (MT940/camt.053) ka daily recon. Teen buckets: matched, mismatched amount, missing on one side. Ad-click recon mein bhi same: per (ad, day) raw count vs aggregated count. Tolerance threshold rakho, breaks ko ops queue mein, aur corrected aggregates ko versioned likho taaki billing audit trail rahe.</div>
+
+<h2 id="alternative">Alternative design (off-the-shelf)</h2>
+<figure class="diagram"><img src="../img/21/alternative-design.png" alt="alternative design" loading="lazy"><figcaption>Log Watcher → Message Queue → Risk Control Engine (fraud/bots hatao) → do raste: Hive (raw store) + ElasticSearch (fast search, Data Scientist Queries) aur ClickHouse (OLAP aggregation, Merchant Facing Analytics). Generic design ke bajaye specialised tools.</figcaption></figure>
+<p>Generalist interview mein tool internals expected nahi; thought process + trade-offs zyada important hain. Practice mein: Hive + Elasticsearch, aur aggregation ke liye ClickHouse/Druid jaise OLAP stores.</p>
+
+<h2 id="wrapup">Step 4: Wrap up</h2>
+<p>Cover kiya: data model &amp; API, MapReduce aggregation, MQ/service/DB scaling, hotspot, monitoring, reconciliation, fault tolerance. Kafka, Spark, Flink ka background ho to yeh design bahut natural lagta hai.</p>
+
+<div class="callout interview">🎤 <strong>Interview mein kaise bolein:</strong>
+<ol>
+<li>Numbers: 1B/day → 10k QPS avg, 50k peak, 100 GB/day.</li>
+<li>Dono APIs + raw vs aggregated (dono rakhenge — reason: backfill/recon).</li>
+<li>Kafka → aggregation (map/aggregate/reduce) → Kafka → DB. Second queue = atomic commit.</li>
+<li>Deep dive priority: <strong>event time + watermark</strong>, <strong>exactly-once/dedup</strong>, <strong>reconciliation</strong> — yeh teen "billing correctness" ke pillars hain.</li>
+<li>Phir scaling (partitions, hotspot) aur fault tolerance (snapshots).</li>
+</ol>
+Line jo yaad rakhni hai: "Streaming gives speed, reconciliation gives truth."</div>
+
+<h2 id="faq">Follow-up questions</h2>
+<dl>
+<dt>Q: Click fraud / bot clicks?</dt><dd>Ingestion pe risk engine (rate per IP/user, device fingerprint); filtered clicks alag store, billing se exclude, lekin audit ke liye retain.</dd>
+<dt>Q: Top-N exact chahiye ya approximate chalega?</dt><dd>Billing ke liye counts exact; trending dashboards ke liye Count-Min Sketch / heavy hitters approximate chal sakta hai — memory bahut kam.</dd>
+<dt>Q: Reconciliation mein mismatch mila to?</dt><dd>Raw se recompute (Kappa replay), corrected aggregates overwrite with version, billing adjustment generate — kabhi silently edit nahi.</dd>
+<dt>Q: Kafka partition key kya rakhoge?</dt><dd><code>ad_id</code> — lekin hot ads ke liye salting (<code>ad_id#n</code>) + two-stage aggregation.</dd>
+</dl>
+
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul>
+<li>Raw (truth, cold storage) + aggregated (fast) dono store karo.</li>
+<li>Kafka → MapReduce-style DAG → Kafka; second queue end-to-end exactly-once ke liye.</li>
+<li>Event time + watermark; jo phir bhi miss ho, reconciliation pakdega.</li>
+<li>Tumbling window for counts, sliding for top-N; star schema for filters.</li>
+<li>Exactly-once = atomic (offset + output) ya idempotent sink — idempotent sink usually better.</li>
+<li>Kappa architecture: ek engine, replay se recalculation.</li>
+<li>Hotspots: resource manager se split, global-local aggregation.</li>
+<li>Snapshots + offsets = stateful recovery (Flink checkpoints).</li>
+</ul></div>
+   <div class="chapter-nav"><a class="prev" href="20-metrics-monitoring.html">← Prev: Metrics Monitoring & Alerting</a><a class="next" href="22-hotel-reservation.html">Next: Hotel Reservation System →</a></div>
+  </main>
+  <aside class="toc">
+   <p class="toc-title">On this page</p>
+    <a href="#intro">Introduction: RTB aur kyun accuracy = paisa</a>
+    <a href="#step1">Step 1: Requirements aur scope</a>
+    <a href="#step2">Step 2: API, data model, high-level design</a>
+    <a href="#stream-batch">Step 3a: Streaming vs batching, Lambda vs Kappa</a>
+    <a href="#time">Step 3b: Time — event time vs processing time, watermark</a>
+    <a href="#delivery">Step 3c: Delivery guarantees aur dedup</a>
+    <a href="#scale">Step 3d: Scaling</a>
+    <a href="#fault">Step 3e: Fault tolerance</a>
+    <a href="#monitoring">Step 3f: Monitoring aur reconciliation</a>
+    <a href="#alternative">Alternative design (off-the-shelf)</a>
+    <a href="#wrapup">Step 4: Wrap up</a>
+    <a href="#faq">Follow-up questions</a>
+    <a href="#takeaways">Key Takeaways</a>
+  </aside>
+ </div>
+ <script src="../assets/app.js"></script>
+</body>
+</html>

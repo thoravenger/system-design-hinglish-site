@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 17: Design Nearby Friends · SystemDesign.hinglish</title>
+<meta name="description" content="Proximity service mein businesses ek jagah tikte hain; yahan friends har 30 second mein hil rahe hain. 334k location updates/sec ko WebSocket + Redis location cache + Redis Pub/Sub se friends tak kaise pahunchate hain — poora design.">
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+ <header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><button class="theme-toggle" aria-label="theme">◐</button></header>
+ <div class="layout">
+<nav class="sidebar">
+  <div class="nav-group"><div class="nav-group-title">Foundations</div><ul>
+    <li><a href="01-scaling.html"><span class="n">01</span> Scaling from Zero to Millions</a></li>
+    <li><a href="02-back-of-envelope.html"><span class="n">02</span> Back-of-the-Envelope Estimation</a></li>
+    <li><a href="03-framework.html"><span class="n">03</span> System Design Interview Framework</a></li>
+    <li><a href="04-rate-limiter.html"><span class="n">04</span> Design a Rate Limiter</a></li>
+    <li><a href="05-consistent-hashing.html"><span class="n">05</span> Consistent Hashing</a></li>
+    <li><a href="06-key-value-store.html"><span class="n">06</span> Design a Key-Value Store</a></li>
+    <li><a href="07-unique-id-generator.html"><span class="n">07</span> Unique ID Generator</a></li>
+  </ul></div>
+  <div class="nav-group"><div class="nav-group-title">Classic Designs</div><ul>
+    <li><a href="08-url-shortener.html"><span class="n">08</span> Design a URL Shortener</a></li>
+    <li><a href="09-web-crawler.html"><span class="n">09</span> Design a Web Crawler</a></li>
+    <li><a href="10-notification-system.html"><span class="n">10</span> Design a Notification System</a></li>
+    <li><a href="11-news-feed.html"><span class="n">11</span> Design a News Feed System</a></li>
+    <li><a href="12-chat-system.html"><span class="n">12</span> Design a Chat System</a></li>
+    <li><a href="13-search-autocomplete.html"><span class="n">13</span> Design Search Autocomplete</a></li>
+    <li><a href="14-youtube.html"><span class="n">14</span> Design YouTube</a></li>
+  </ul></div>
+  <div class="nav-group"><div class="nav-group-title">Vol 2 · Part 1</div><ul>
+    <li><a href="15-google-drive.html"><span class="n">15</span> Design Google Drive</a></li>
+    <li><a href="16-proximity-service.html"><span class="n">16</span> Design a Proximity Service</a></li>
+    <li><a class="active" aria-current="page" href="17-nearby-friends.html"><span class="n">17</span> Design Nearby Friends</a></li>
+    <li><a href="18-google-maps.html"><span class="n">18</span> Design Google Maps</a></li>
+    <li><a href="19-message-queue.html"><span class="n">19</span> Distributed Message Queue</a></li>
+    <li><a href="20-metrics-monitoring.html"><span class="n">20</span> Metrics Monitoring &amp; Alerting</a></li>
+    <li><a href="21-ad-click-aggregation.html"><span class="n">21</span> Ad Click Event Aggregation</a></li>
+    <li><a href="22-hotel-reservation.html"><span class="n">22</span> Hotel Reservation System</a></li>
+  </ul></div>
+  <div class="nav-group"><div class="nav-group-title">Vol 2 · Part 2</div><ul>
+    <li><a href="23-email-service.html"><span class="n">23</span> Distributed Email Service</a></li>
+    <li><a href="24-s3-object-storage.html"><span class="n">24</span> S3-like Object Storage</a></li>
+    <li><a href="25-gaming-leaderboard.html"><span class="n">25</span> Real-time Gaming Leaderboard</a></li>
+    <li><a href="26-payment-system.html"><span class="n">26</span> Payment System</a></li>
+    <li><a href="27-digital-wallet.html"><span class="n">27</span> Digital Wallet</a></li>
+    <li><a href="28-stock-exchange.html"><span class="n">28</span> Stock Exchange</a></li>
+  </ul></div>
+  <div class="nav-group"><ul><li><a href="../index.html">🏠 Home</a></li><li><a href="../links.html">🔗 Links guide</a></li></ul></div>
+</nav>
+  <main class="content">
+   <div class="chapter-hero"><span class="chapter-num">Chapter 17</span><h1>Design Nearby Friends</h1><p class="lead">Proximity service mein businesses ek jagah tikte hain; yahan friends har 30 second mein hil rahe hain. 334k location updates/sec ko WebSocket + Redis location cache + Redis Pub/Sub se friends tak kaise pahunchate hain — poora design.</p><div class="tags"><span class="tag">WebSocket</span><span class="tag">Redis Pub/Sub</span><span class="tag">Location cache (TTL)</span><span class="tag">Cassandra</span><span class="tag">Consistent hashing</span><span class="tag">Geohash</span></div></div>
+<h2 id="intro">Introduction</h2>
+<p>Is chapter mein ek mobile app ka scalable backend banayenge jahan user apni location share karta hai aur <b>nearby friends</b> dekh sakta hai (Facebook ka "Nearby Friends" feature jaisa). Pichhle chapter (Proximity Service) se <b>sabse bada farak</b>: wahan business addresses lagbhag static the, yahan <b>locations lagaatar badal rahi hain</b>. Isliye ye "search" problem kam aur "real-time fan-out" problem zyada hai.</p>
+
+<h2 id="step1">Step 1: Problem aur scope</h2>
+<h3>Clarifying questions (candidate ↔ interviewer)</h3>
+<table class="cmp">
+<tr><th>Candidate ka sawaal</th><th>Interviewer ka jawab</th></tr>
+<tr><td>"Nearby" kitna door tak?</td><td>5 miles — configurable hona chahiye</td></tr>
+<tr><td>Distance straight-line hai ya beech ki river jaisi cheezein bhi count?</td><td>Straight-line maan lo, reasonable assumption</td></tr>
+<tr><td>Kitne users?</td><td>1 billion users, unme 10% nearby friends use karte hain</td></tr>
+<tr><td>Location history store karni hai?</td><td>Haan — machine learning jaisi cheezon ke liye valuable</td></tr>
+<tr><td>Inactive friend 10 min mein list se gayab?</td><td>Haan</td></tr>
+<tr><td>GDPR etc.?</td><td>Simplicity ke liye nahi</td></tr>
+</table>
+<h3>Functional requirements</h3>
+<ul>
+<li>Users mobile app pe nearby friends dekh sakein — har friend ke saath <b>distance</b> aur <b>timestamp</b> (location kab update hui).</li>
+<li>Nearby friends list <b>har kuch seconds</b> mein update ho.</li>
+</ul>
+<h3>Non-functional requirements</h3>
+<ul>
+<li><b>Low latency</b>: friends ki location updates bina zyada delay ke milein.</li>
+<li><b>Reliability</b>: system generally available ho; kabhi-kabhi ek data point miss ho jaye to <b>acceptable</b>.</li>
+<li><b>Eventual consistency</b>: location store ko strong consistency nahi chahiye; replicas mein kuch seconds ka delay chalega.</li>
+</ul>
+<h3>Back-of-the-envelope</h3>
+<ul>
+<li>Nearby = 5 mile radius.</li>
+<li>Location refresh interval <b>30s</b> — insaan ki walking speed slow hai (~3–4 mph), 30s mein location bahut nahi badalti.</li>
+<li>Roz 100M users feature use karte hain; concurrent users 10% = <b>10M</b>.</li>
+<li>Average user ke <b>400 friends</b>, sab feature use karte hain.</li>
+<li>App ek page pe 20 nearby friends dikhata hai.</li>
+<li><b>Location update QPS</b> = 10M / 30 ≈ <b>~334k updates/sec</b>.</li>
+</ul>
+<div class="callout tip">💡 <b>Pro tip:</b> 334k <b>writes</b>/sec bolte hi interviewer samajh jaata hai ki aap jaante ho ye write-heavy system hai — har update ko DB mein "query karke nearby nikaalna" kaam nahi karega; push-based fan-out chahiye.</div>
+
+<h2 id="step2">Step 2: High-level design</h2>
+<h3>Fan-out backend</h3>
+<p>Theory mein peers seedha ek dusre ko location bhej sakte hain (peer-to-peer), lekin mobile pe connections flaky hain aur battery/power constraints tight — practical nahi. Practical approach: <b>shared backend</b> jo fan-out karta hai.</p>
+<figure class="diagram"><img src="../img/17/fan-out-backend.png" alt="Backend as fan-out" loading="lazy"><figcaption>Left mein <b>User</b> apni location <b>Backend</b> (cloud) ko bhejta hai, aur backend use <b>Friend A, Friend B, Friend C</b> — sab active friends — tak forward karta hai. Users ek dusre se direct baat nahi karte.</figcaption></figure>
+<p>Backend kya karta hai:</p>
+<ul>
+<li>Saare active users se location updates receive karta hai.</li>
+<li>Har update ke liye, un saare active friends ko dhoondhta hai jinhe ye milna chahiye, aur forward karta hai.</li>
+<li>Agar dono friends ka distance threshold (5 miles) se zyada hai, to <b>forward nahi karta</b>.</li>
+</ul>
+<p>Simple lagta hai — challenge hai is scale pe banana.</p>
+
+<h3>Simple high-level design</h3>
+<figure class="diagram"><img src="../img/17/simple-high-level-design.png" alt="Simple high-level design" loading="lazy"><figcaption>Upar <b>Mobile Users</b> do protocols se <b>Load Balancer</b> se baat karte hain: <b>WebSocket (WS)</b> aur <b>http</b>. LB WS traffic ko <b>WebSocket Servers</b> (bi-directional location info) aur http ko <b>API Servers</b> (user management, friendship management, auth) pe bhejta hai. WebSocket servers ke neeche chaar components: <b>Redis Pub/Sub</b> (arrow wapas WebSocket servers tak — loop), <b>Location Cache</b>, <b>Location History Database</b>, aur <b>User Database</b> (user profile, friendship) — jise API servers bhi use karte hain.</figcaption></figure>
+<ul>
+<li><b>Load balancer</b>: RESTful API servers aur stateful bidirectional WebSocket servers ke beech traffic distribute.</li>
+<li><b>RESTful API servers</b>: stateless — friends add/remove, profile update jaise auxiliary kaam.</li>
+<li><b>WebSocket servers</b>: stateful cluster jo friends ki location changes near real-time handle karta hai. Har client ek server se persistent connection rakhta hai. Saath hi mobile client ko <b>initialization</b> pe nearby friends ki locations seed karta hai.</li>
+<li><b>Redis location cache</b>: har active user ki <b>most recent location</b>. Har entry pe <b>TTL</b> — TTL expire = user inactive, data cache se hat jaata hai.</li>
+<li><b>User database</b>: user aur friendship data — relational ya NoSQL dono chalega.</li>
+<li><b>Location history database</b>: user locations ka history — nearby friends feature directly use nahi karta, analytics/ML ke liye.</li>
+<li><b>Redis Pub/Sub</b>: bahut lightweight message bus; channels sasti hain — har user ka ek channel.</li>
+</ul>
+<figure class="diagram"><img src="../img/17/redis-pubsub-usage.png" alt="Redis Pub/Sub usage" loading="lazy"><figcaption>Teen columns: left "<b>Users publish location update</b>" — <b>Publisher 1, Publisher 2</b>; beech "<b>Redis Pub/Sub</b>" — <b>User 1's channel</b>, <b>User 2's channel</b>; right "<b>Friends</b>" — <b>Subscriber 1</b> (User 1's channel pe), <b>Subscriber 2</b> aur <b>Subscriber 3</b> (User 2's channel pe). Har user apne channel pe publish karta hai, aur uske online friends (unke WebSocket server ke through) subscribe karte hain.</figcaption></figure>
+<p>Practically: WebSocket server apne connected har user ke saare <b>friends ke channels subscribe</b> karta hai. Friend ki update aati hai to server uska distance calculate karke apne user ko forward karta hai.</p>
+<div class="callout realworld">🌍 <b>Real world:</b> Redis Pub/Sub "fire-and-forget" hai — subscriber us waqt connected nahi tha to message gaya, koi persistence nahi. Yahan ye bilkul theek hai kyunki ek missed location update ki jagah 30s mein nayi aa jaayegi. Agar har message zaroori hota (payments, orders) to Kafka ya Redis Streams better choice hote.</div>
+
+<h3>Periodic location update flow</h3>
+<figure class="diagram"><img src="../img/17/periodic-location-update.png" alt="Periodic location update" loading="lazy"><figcaption>Same diagram, numbered: <b>①</b> mobile client WebSocket pe location update bhejta hai → <b>②</b> Load Balancer use client ke persistent WebSocket server connection pe forward karta hai → <b>③</b> WS server <b>Location History Database</b> mein save → <b>④</b> <b>Location Cache</b> update (TTL refresh) → <b>⑤</b> <b>Redis Pub/Sub</b> mein user ke channel pe publish → <b>⑥</b> Pub/Sub broadcast karta hai subscribers (friends ke WS servers) ko → <b>⑦</b> receiving WS server distance calculate karke decide karta hai ki friend ko bhejna hai ya nahi.</figcaption></figure>
+<ol>
+<li>Mobile client location update load balancer ko bhejta hai.</li>
+<li>LB use us client ke WebSocket server connection pe forward karta hai.</li>
+<li>WS server location history DB mein save karta hai.</li>
+<li>Location cache update hota hai (TTL refresh). WS server user ki location apne connection handler ke variable mein bhi rakhta hai — aage distance calculations ke liye.</li>
+<li>WS server Redis Pub/Sub mein user ke channel pe publish karta hai (3–5 parallel ho sakte hain).</li>
+<li>Pub/Sub saare subscribers (user ke online friends ke WS connection handlers) ko broadcast karta hai.</li>
+<li>Har subscriber WS server: naya distance calculate karta hai (publisher ki nayi location vs subscriber ki stored location). Radius ke andar → nayi location + timestamp subscriber ke client ko bhejo; bahar → drop.</li>
+</ol>
+<figure class="diagram"><img src="../img/17/detailed-periodic-location-update.png" alt="Detailed location update fan-out" loading="lazy"><figcaption>Upar <b>User 1</b> aur <b>User 5</b>. <b>①</b> User 1 ki location uske <b>WS connection</b> pe aati hai → <b>②</b> wo <b>User 1's channel</b> (Redis Pub/Sub) mein <b>Publish</b> → <b>③</b> is channel ko <b>User 2, User 3, User 4</b> ke WS connections ne <b>Subscribe</b> kiya hai → <b>④</b> "Friends' location update" un users ke phones tak. Saath hi User 5 apne channel pe publish karta hai jise <b>User 4</b> aur <b>User 6</b> subscribe karte hain. Note: User 4 dono (User 1 aur User 5) ka friend hai, isliye do channels subscribe kiye hain.</figcaption></figure>
+<p>Average pe ek update ke ~<b>40 forwards</b> hain — 400 friends × 10% online. To total pushes ≈ 334k × 40 ≈ <b>~14M location pushes/sec</b>. Ye number deep dive mein Redis cluster size decide karega.</p>
+
+<h3>API design</h3>
+<p><b>WebSocket routines</b> (bidirectional):</p>
+<table class="cmp">
+<tr><th>Routine</th><th>Direction</th><th>Payload</th></tr>
+<tr><td>Periodic location update</td><td>Client → server</td><td>latitude, longitude, timestamp</td></tr>
+<tr><td>Client receives location update</td><td>Server → client</td><td>friend ki location data + timestamp</td></tr>
+<tr><td>WebSocket initialization</td><td>Client → server, phir response</td><td>Client: apni location. Server: friends ki locations ki list</td></tr>
+<tr><td>Subscribe to a new friend</td><td>Server → client</td><td>friend ID (e.g. friend pehli baar online aaya)</td></tr>
+<tr><td>Unsubscribe a friend</td><td>Server → client</td><td>friend ID (e.g. friend offline ho gaya / dosti khatam)</td></tr>
+</table>
+<p><b>HTTP API</b>: traditional request/response — friends add/remove, profile update etc.</p>
+<h3>Data model</h3>
+<ul>
+<li><b>Location cache</b>: <code>user_id → {latitude, longitude, timestamp}</code>. Redis best choice — humein sirf <b>current</b> location chahiye, super-fast reads/writes chahiye, aur built-in <b>TTL</b> eviction (inactive users auto-remove). Durability zaroori nahi — Redis instance gaya to naya empty instance lagao, 30s mein data wapas bhar jaayega.</li>
+<li><b>Location history</b>: <code>user_id, latitude, longitude, timestamp</code> — same chaar columns. Heavy write workload + horizontal scale → <b>Cassandra</b> achha fit. (Relational bhi chal sakta hai, lekin itne data ko user_id se shard karna padega.)</li>
+</ul>
+
+<h2 id="step3">Step 3: Design deep dive</h2>
+<h3>Har component kitna achha scale karta hai?</h3>
+<ul>
+<li><b>API servers</b>: stateless — autoscaling groups se easy (CPU, load, I/O pe).</li>
+<li><b>WebSocket servers</b>: scale out easy, lekin stateful hain — server hatane se pehle existing connections <b>gracefully drain</b> karo: LB mein server ko "draining" mark karo, naye connections mat bhejo, aur kaafi time baad (jab connections close ho jaayein) pool se hatao. Naya app version release karte waqt bhi yahi.</li>
+<li><b>Client initialization</b>: client pehli baar connect hota hai to WS server: (1) user ki location apne connection handler mein update + cache mein save; (2) user DB se saare friends fetch; (3) location cache se friends ki locations batch mein fetch (TTL ki wajah se inactive friends cache mein hain hi nahi); (4) har friend ke liye distance calculate — radius ke andar ho to profile, location, timestamp client ko; (5) har friend ke Redis channel ko <b>subscribe</b> (active ho ya inactive — inactive channel memory nahi leta, aage dekho); (6) user ki location uske apne channel pe publish.</li>
+<li><b>User database</b>: user_id se shard. Is scale pe user/friendship data ko ek dedicated team ki dedicated service + API ke peeche rakhna bhi samajhdaari hai.</li>
+<li><b>Location cache</b>: 10M active users × ~100 bytes = ~1 GB — memory ek server mein fit, lekin <b>334k writes/sec</b> ek Redis server ke liye bahut zyada. Har user ka data independent hai, to <b>user_id se multiple Redis nodes pe shard</b> karna easy hai. TTL max memory ko bhi bound karta hai. Availability ke liye har shard ka standby replica.</li>
+<li><b>Redis Pub/Sub</b>: channel banana bahut sasta hai — jo channel exist karta hai lekin koi subscriber nahi, wo memory almost nahi leta. Isliye feature use karne wale <b>saare users ke liye channels pre-allocate</b> karo — user online aaye tab naya channel banake active WS servers ko notify karne ki complexity bachao.</li>
+</ul>
+
+<h3>Redis Pub/Sub ka scaling deep dive</h3>
+<p><b>Memory</b>: har user ka ek channel, aur channel ek hash table + linked list mein subscribers track karta hai. Book ka estimate: 100M users × ~100 friends subscribers × ~20 bytes pointer ≈ <b>~200 GB</b> → ~2 Redis servers (100 GB each) — memory bottleneck nahi hai.</p>
+<p><b>CPU</b>: ~<b>14M pushes/sec</b>. Agar ek Redis server ~100k pushes/sec handle kare (conservative assumption), to 14M / 100k = <b>~140 Redis servers</b>. <b>Bottleneck CPU hai, memory nahi</b> — isliye <b>distributed Redis Pub/Sub cluster</b> chahiye.</p>
+<div class="callout warn">⚠️ <b>Important nuance:</b> Ye 100k pushes/sec per server ek assumption hai, real number payload size aur hardware pe depend karega. Interview mein "maan lo" bolke derive karo aur kaho ki load test se validate karenge — fake precision mat dikhao.</div>
+<h3>Distributed Redis Pub/Sub cluster</h3>
+<p>Channels ek dusre se independent hain, to publisher ke user_id pe shard karke multiple servers pe baant sakte hain. Kaunse servers alive hain aur kaunsa channel kahan hai — iske liye <b>service discovery</b> (<b>etcd</b>, <b>ZooKeeper</b>):</p>
+<ul>
+<li>Servers ki list service discovery mein rakhna + simple API to update/subscribe changes.</li>
+<li>Key: <code>/config/pub_sub_ring</code>, value: <code>["p_1", "p_2", "p_3", "p_4"]</code> — ek <b>hash ring</b>.</li>
+</ul>
+<figure class="diagram"><img src="../img/17/channel-distribution-data.png" alt="Hash ring for channel distribution" loading="lazy"><figcaption>Circle = <b>hash ring</b>. Bade circles <b>p_1, p_2, p_3, p_4</b> = Redis Pub/Sub servers (legend: p_x = Redis Pub/Sub server X). Chhote circles channel names ke hash positions hain — jaise <b>hash(channel_name1)</b> aur <b>hash(channel_name2)</b>. Grey arc p_4 se p_1 tak highlighted hai: "Redis Pub/Sub server 1 is responsible for hash values in this range" — dashed arrows dikhate hain ki dono channels clockwise next server <b>p_1</b> pe jaate hain.</figcaption></figure>
+<p>WebSocket server channel ke liye sahi Pub/Sub server is hash ring se nikalta hai. Efficiency ke liye hash ring har WS server pe <b>in-memory cache</b> ki jaati hai aur service discovery ke changes pe update hoti hai. Location update publish karna ho ya friend ka channel subscribe — dono mein: hash ring check → sahi server → publish/subscribe.</p>
+
+<h3>Redis Pub/Sub cluster scale up/down</h3>
+<p>Pub/Sub servers ko <b>stateful</b> maano: channel messages persist nahi hote, lekin <b>subscribers ki list</b> state hai — channel move hua to purane subscribers ko naye server pe re-subscribe karna padega. Isliye stateless servers ki tarah "jab chahe add/remove" nahi kar sakte. Practical tareeke:</p>
+<ul>
+<li>Historical traffic ke basis pe <b>daily job</b> se cluster size adjust.</li>
+<li>Spikes ke liye thoda <b>overprovision</b>.</li>
+</ul>
+<p>Resize ke time problems:</p>
+<ul>
+<li>Bahut saare channels move hote hain → WS servers se <b>re-subscription requests ka toofan</b>.</li>
+<li>Kuch location updates miss ho sakti hain — is problem ke liye acceptable, lekin minimize karo: <b>din ke sabse kam traffic time</b> pe karo.</li>
+<li><b>Consistent hashing</b> se server add/remove pe minimum channels move hote hain.</li>
+</ul>
+<figure class="diagram"><img src="../img/17/consistent-hashing.png" alt="Replacing a node on the hash ring" loading="lazy"><figcaption>Do panels: left mein ring pe <b>p_1, p_2, p_3, p_4</b>; <b>hash(channel_name2)</b> grey range mein hai aur <b>p_1</b> pe map hota hai. Bada arrow → right panel mein p_1 ki jagah <b>p_1_new</b> aa gaya (failed node replace). Sirf p_1 ki range ke channels naye node pe jaate hain; p_2, p_3, p_4 ke channels ko kuch nahi hota.</figcaption></figure>
+<h3>Operational: Pub/Sub server down</h3>
+<p>Monitoring software on-call ko alert kare; on-call service discovery mein hash ring update karke dead node ko naye standby node se replace kare. WS servers ko update ka notification milta hai, har WS connection handler ko pata chalta hai ki kuch channels naye server pe hain, aur wo un channels ko naye server pe re-subscribe kar leta hai. Sirf dead server ke channels affect hote hain.</p>
+
+<h3>Friends add/remove</h3>
+<p>Friend add hua → user ke WS connection handler ko naye friend ke Pub/Sub channel ko subscribe karna hai; remove hua → unsubscribe. "Nearby friends" ek bade app ka hissa hai, to mobile client pe ek callback register kar sakte hain jo friend add/remove event pe WS server ko message bheje, aur server subscribe/unsubscribe kare (aur friend active ho to uski location bhi bheje).</p>
+<h3>Bahut zyada friends wale users ("whales")</h3>
+<p>Friends ki ek max limit rakho — jaise Facebook pe max <b>5,000 friends</b>. Friendships bidirectional hain (followers model nahi), to whale ke subscribers bhi limited. "Whale" user ka WS server thoda zyada load lega, lekin whales WS servers pe spread hain aur hamare paas 200+ WS servers jitna cluster hai, to ye manageable hai. (Followers jaisa one-way model — celebrity ke crores followers — alag problem hai.)</p>
+
+<h3>Nearby random person (extension)</h3>
+<p>Interviewer pooche: "kabhi-kabhi map pe random nazdeeki logon ko bhi dikhao jo opt-in karein". Idea: <b>geohash ke basis pe Pub/Sub channels ka pool</b>.</p>
+<figure class="diagram"><img src="../img/17/geohash-pubsub.png" alt="Geohash-based pub/sub channels" loading="lazy"><figcaption>Left: San Francisco ka map 4 geohash cells mein — <b>9q8zn6, 9q8znd, 9q8znf, 9q8zn3</b>; green dots users hain (jaise <b>user1, user2, user3</b> cell 9q8znd mein). Arrow → right: <b>Redis Pub/Sub</b> box mein har geohash ka apna channel — "Geohash: 9q8zn6", "Geohash: 9q8znd", "Geohash: 9q8znf", "Geohash: 9q8zn3". Matlab channel ab user ka nahi, <b>area</b> ka hai.</figcaption></figure>
+<figure class="diagram"><img src="../img/17/location-updates-geohash.png" alt="Location updates via geohash channel" loading="lazy"><figcaption><b>①</b> User 2 (WebSocket connection) ka "Location update" uske geohash ke channel <b>Geohash: 9q8znd</b> pe publish hota hai → <b>②</b> "Subscribe": us geohash ke saare users (right box "Users in geohash: 9q8znd" — <b>User 1, User 2, User 3</b>) us channel ke subscribers hain, to User 1 aur User 3 ko User 2 ki location mil jaati hai (User 2 khud ko ignore karega).</figcaption></figure>
+<p>Geohash grid mein har koi uske channel ko subscribe karta hai. Border ke paas wale log ke liye — jo bagal ke cell mein hai lekin bahut paas — client <b>apna geohash + 8 neighbours</b> (total 9 channels) subscribe kare:</p>
+<figure class="diagram"><img src="../img/17/geohash-borders.png" alt="Subscribing to neighbouring geohashes" loading="lazy"><figcaption>3×3 shaded block: beech mein <b>9q8zn9</b> aur uske aath neighbours <b>9q8zn6, 9q8znd, 9q8znf, 9q8zn3, 9q8znc, 9q8zn2, 9q8zn8, 9q8znb</b>. Green dots users hain, kuch beech ke cell mein aur kuch border ke paas (jaise 9q8zn2 mein). User 9q8zn9 mein hai lekin 9 channels subscribe karke border ke paar wale nazdeek logon ko bhi dekh sakta hai.</figcaption></figure>
+
+<h3>Redis Pub/Sub ka alternative: Erlang</h3>
+<p><b>Erlang</b> (aur Elixir) highly distributed, concurrent applications ke liye bana language + runtime (BEAM VM) hai. Erlang processes bahut lightweight hain — ek server pe <b>millions</b> spawn kar sakte ho. Design: har user ek Erlang process; WebSocket connection aur pub/sub dono ek distributed Erlang application ke andar — friend ke process ki location updates subscribe karna natural. Challenge: Erlang <b>niche language</b> hai — strong Erlang developers hire karna mushkil. Team ke paas expertise hai to great option.</p>
+<div class="callout realworld">🌍 <b>Real world:</b> WhatsApp apne backend ke liye Erlang use karne ke liye famous hai, aur Discord Elixir (jo BEAM VM pe chalti hai) use karta hai — millions concurrent connections ke liye exactly isi strength ki wajah se.</div>
+
+<h2 id="wrapup">Step 4: Wrap-up</h2>
+<p>Core components:</p>
+<ul>
+<li><b>WebSocket</b>: client ↔ server real-time communication.</li>
+<li><b>Redis</b>: location data ke fast reads/writes (cache + TTL) aur <b>Pub/Sub</b> channels.</li>
+</ul>
+<p>Humne RESTful API servers, WebSocket servers, data layer, location cache aur Redis Pub/Sub ka scaling dekha, Erlang alternative, aur "random nearby person" extension.</p>
+<table class="cmp">
+<tr><th></th><th>Proximity Service (Ch16)</th><th>Nearby Friends (Ch17)</th></tr>
+<tr><td>Data movement</td><td>Static businesses</td><td>Har 30s update</td></tr>
+<tr><td>Load type</td><td>Read-heavy (~5k QPS)</td><td>Write/fan-out heavy (334k updates/s, ~14M pushes/s)</td></tr>
+<tr><td>Core mechanism</td><td>Geospatial index + cache</td><td>WebSocket + Pub/Sub fan-out</td></tr>
+<tr><td>Consistency</td><td>Next-day updates OK</td><td>Eventual, data point loss OK</td></tr>
+</table>
+
+<h2 id="interview">Interview mein kaise bolein</h2>
+<div class="callout interview">🎤 <b>45-min plan:</b>
+<ol>
+<li><b>(5 min)</b> Clarify: 5 miles, straight-line, 1B users/10%, history, 10-min inactivity. Math: 10M concurrent / 30s → 334k updates/s; 400 friends × 10% → 40 forwards → ~14M pushes/s.</li>
+<li><b>(10 min)</b> Fan-out backend idea (P2P kyun nahi), simple HLD: LB, API servers, WS servers, Redis location cache (TTL), user DB, location history (Cassandra), Redis Pub/Sub.</li>
+<li><b>(8 min)</b> Periodic update flow 1–7, API (WS routines), data model.</li>
+<li><b>(15 min)</b> Scaling: WS draining, client init, cache sharding, Pub/Sub memory (~200 GB) vs CPU (~140 servers), hash ring in etcd/ZooKeeper, consistent hashing, resize at low traffic.</li>
+<li><b>(5 min)</b> Extensions: friends add/remove, whales (5,000 cap), random nearby person via geohash channels, Erlang alternative.</li>
+</ol>
+Key line: <i>"Yahan bottleneck storage nahi, fan-out hai — 14M pushes/sec. Isliye Pub/Sub cluster CPU ke hisaab se size karunga, memory ke hisaab se nahi."</i></div>
+
+<h2 id="followups">Common follow-up questions</h2>
+<p><b>Q: Distance calculation kahan hota hai — publisher side ya subscriber side?</b><br>A: Subscriber ke WS server pe — usi ke paas subscriber ki latest location memory mein hai; publisher bas channel pe publish karta hai.</p>
+<p><b>Q: Friend 5 miles se bahar hai, phir bhi uske channel ko subscribe kyun?</b><br>A: Kyunki wo kabhi bhi andar aa sakta hai; subscribe rakhte hain aur har update pe distance filter. Inactive channels memory nahi lete.</p>
+<p><b>Q: Location cache Redis crash ho gaya?</b><br>A: Durability zaroori nahi — naya empty instance; har active user 30s mein update bhejega to cache khud bhar jaayega. Replica se failover aur bhi tez.</p>
+<p><b>Q: Ek location update miss ho gaya?</b><br>A: Requirements ke hisaab se acceptable — agla update 30s mein. Isliye fire-and-forget Redis Pub/Sub chal jaata hai.</p>
+<p><b>Q: WebSocket server deploy kaise karein bina users ko disconnect kiye?</b><br>A: Draining — LB naye connections band karta hai, existing gracefully close/reconnect, phir server remove.</p>
+<p><b>Q: Location history 334k writes/sec — kaunsa DB?</b><br>A: Cassandra (write-optimized, horizontally scalable); ya Kafka mein stream karke batch mein data lake.</p>
+
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul>
+<li>Moving locations → push-based fan-out, query-based search nahi.</li>
+<li>Numbers: 10M concurrent, 30s interval → ~334k updates/s; ×40 online friends → ~14M pushes/s.</li>
+<li>WebSocket servers (stateful, drain on deploy) + Redis location cache (TTL = active users) + Cassandra history + Redis Pub/Sub (channel per user).</li>
+<li>Update flow: WS server → history DB + cache → publish → friends' WS servers distance filter karke forward.</li>
+<li>Pub/Sub: memory ~200 GB (chhota), CPU ~140 servers (bottleneck); hash ring in etcd/ZooKeeper + consistent hashing; resize low-traffic time pe.</li>
+<li>Friends cap (5,000) se whales manageable; geohash-based channels + 8 neighbours se "random nearby person".</li>
+<li>Erlang/Elixir ek powerful alternative hai, lekin hiring challenge.</li>
+</ul></div>
+   <div class="chapter-nav"><a class="prev" href="16-proximity-service.html">← Prev: Design a Proximity Service</a><a class="next" href="18-google-maps.html">Next: Design Google Maps →</a></div>
+  </main>
+  <aside class="toc"><div class="toc-title">On this page</div><ul>
+    <li><a href="#intro">Introduction</a></li>
+    <li><a href="#step1">Step 1: Problem aur scope</a></li>
+    <li><a href="#step2">Step 2: High-level design</a></li>
+    <li><a href="#step3">Step 3: Design deep dive</a></li>
+    <li><a href="#wrapup">Step 4: Wrap-up</a></li>
+    <li><a href="#interview">Interview mein kaise bolein</a></li>
+    <li><a href="#followups">Common follow-up questions</a></li>
+    <li><a href="#takeaways">Key Takeaways</a></li>
+  </ul></aside>
+ </div>
+ <script src="../assets/app.js"></script>
+</body>
+</html>

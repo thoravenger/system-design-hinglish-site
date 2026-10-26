@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 06: Design a Key-Value Store · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{if(localStorage.getItem('sd-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><div class="toplinks"><a href="../index.html#chapters">Chapters</a><a href="../index.html#how">Kaise padhein</a><a href="../links.html">URL Guide</a></div><button class="theme-toggle" aria-label="theme">◐</button></header>
+<div class="layout">
+<nav class="sidebar">
+<div class="group">Foundations</div><ul>
+<li><a href="01-scaling.html"><span class="num">01</span> Scale from Zero to Millions of Users</a></li>
+<li><a href="02-back-of-envelope.html"><span class="num">02</span> Back-of-the-Envelope Estimation</a></li>
+<li><a href="03-framework.html"><span class="num">03</span> A Framework for System Design Interviews</a></li>
+<li><a href="04-rate-limiter.html"><span class="num">04</span> Design a Rate Limiter</a></li>
+<li><a href="05-consistent-hashing.html"><span class="num">05</span> Design Consistent Hashing</a></li>
+<li><a class="active" href="06-key-value-store.html"><span class="num">06</span> Design a Key-Value Store</a></li>
+<li><a href="07-unique-id-generator.html"><span class="num">07</span> Design a Unique ID Generator</a></li>
+</ul>
+<div class="group">Classic Designs</div><ul>
+<li><a href="08-url-shortener.html"><span class="num">08</span> Design a URL Shortener</a></li>
+<li><a href="09-web-crawler.html"><span class="num">09</span> Design a Web Crawler</a></li>
+<li><a href="10-notification-system.html"><span class="num">10</span> Design a Notification System</a></li>
+<li><a href="11-news-feed.html"><span class="num">11</span> Design a News Feed System</a></li>
+<li><a href="12-chat-system.html"><span class="num">12</span> Design a Chat System</a></li>
+<li><a href="13-search-autocomplete.html"><span class="num">13</span> Design a Search Autocomplete System</a></li>
+<li><a href="14-youtube.html"><span class="num">14</span> Design YouTube</a></li>
+</ul>
+<div class="group">Vol 2 · Part 1</div><ul>
+<li><a href="15-google-drive.html"><span class="num">15</span> Design Google Drive</a></li>
+<li><a href="16-proximity-service.html"><span class="num">16</span> Design a Proximity Service</a></li>
+<li><a href="17-nearby-friends.html"><span class="num">17</span> Design Nearby Friends</a></li>
+<li><a href="18-google-maps.html"><span class="num">18</span> Design Google Maps</a></li>
+<li><a href="19-message-queue.html"><span class="num">19</span> Design a Distributed Message Queue</a></li>
+<li><a href="20-metrics-monitoring.html"><span class="num">20</span> Metrics Monitoring and Alerting System</a></li>
+<li><a href="21-ad-click-aggregation.html"><span class="num">21</span> Ad Click Event Aggregation</a></li>
+<li><a href="22-hotel-reservation.html"><span class="num">22</span> Hotel Reservation System</a></li>
+</ul>
+<div class="group">Vol 2 · Part 2</div><ul>
+<li><a href="23-email-service.html"><span class="num">23</span> Distributed Email Service</a></li>
+<li><a href="24-s3-object-storage.html"><span class="num">24</span> S3-like Object Storage</a></li>
+<li><a href="25-gaming-leaderboard.html"><span class="num">25</span> Real-time Gaming Leaderboard</a></li>
+<li><a href="26-payment-system.html"><span class="num">26</span> Design a Payment System</a></li>
+<li><a href="27-digital-wallet.html"><span class="num">27</span> Design a Digital Wallet</a></li>
+<li><a href="28-stock-exchange.html"><span class="num">28</span> Design a Stock Exchange</a></li>
+</ul>
+<div class="group">Extras</div><ul>
+<li><a href="../index.html">🏠 Home / Kaise padhein</a></li><li><a href="../links.html">🔗 Notes ke URLs ka guide</a></li></ul>
+</nav>
+<main class="content">
+<div class="chapter-hero"><span class="chapter-num">Chapter 06</span><h1>Design a Key-Value Store</h1><p class="lead">Dynamo/Cassandra jaisa distributed KV store — CAP trade-off, quorum, vector clocks, gossip, hinted handoff, Merkle trees aur LSM storage engine.</p><div class="tags"><span class="tag">CAP</span><span class="tag">Quorum</span><span class="tag">Vector Clock</span><span class="tag">Gossip</span><span class="tag">Merkle Tree</span><span class="tag">SSTable</span></div></div>
+
+<h2 id="intro">Introduction</h2>
+<p><strong>Key-value store</strong> ek non-relational DB hai jahan har unique key ke saath ek value store hoti hai. Key plain text (<code>"last_logged_in_at"</code>) ya hashed (<code>253DDEC4</code>) ho sakti hai; value string, list, object — kuch bhi, opaque. Popular examples: Amazon DynamoDB, Memcached, Redis. Hum aisa KV store design karenge jo do operations support kare:</p>
+<pre><code>put(key, value)   // key ke saath value insert
+get(key)          // key ki value lao</code></pre>
+
+<h2 id="step1">Step 1: Problem aur scope</h2>
+<p>Perfect design nahi hota — har design read/write/memory usage aur consistency/availability ke beech trade-off hai. Notes ke characteristics:</p>
+<ul>
+<li>Key-value pair chhota: <strong>&lt; 10 KB</strong>.</li>
+<li>Big data store kar sake.</li>
+<li><strong>High availability</strong> — failures ke dauran bhi jaldi respond kare.</li>
+<li><strong>High scalability</strong> — bade data set ke liye scale ho.</li>
+<li><strong>Automatic scaling</strong> — traffic ke hisaab se servers add/delete automatic.</li>
+<li><strong>Tunable consistency</strong>.</li>
+<li><strong>Low latency</strong>.</li>
+</ul>
+
+<h2 id="single-server">Single server key-value store</h2>
+<p>Simple: poora data in-memory <strong>hash table</strong> mein. Memory access fast hai, lekin memory limited. Optimizations:</p>
+<ul><li>Data <strong>compression</strong>.</li><li>Sirf frequently used data memory mein, baaki <strong>disk</strong> pe.</li></ul>
+<p>Phir bhi ek server jaldi capacity hit karega → <strong>distributed KV store</strong> (aka distributed hash table) chahiye.</p>
+
+<h2 id="cap">CAP theorem</h2>
+<p>Distributed system design karte waqt CAP samajhna zaroori hai. CAP theorem kehta hai ki distributed system ek saath in teeno mein se <strong>do se zyada guarantees nahi de sakta</strong>:</p>
+<ul>
+<li><strong>Consistency:</strong> saare clients ek hi time pe same data dekhein, chahe kisi bhi node se connect hon.</li>
+<li><strong>Availability:</strong> har request ko response mile, chahe kuch nodes down hon.</li>
+<li><strong>Partition tolerance:</strong> partition = do nodes ke beech communication break. System network partition ke bawajood chalta rahe.</li>
+</ul>
+<figure class="diagram"><img src="../img/06/cap.png" alt="CAP theorem Venn diagram" loading="lazy"><figcaption><b>Kaise padhein:</b> Teen circles — Consistency (upar), Availability (left), Partition Tolerance (right). Do-do circles ke overlap pe system types: <b>CA</b> (C ∩ A), <b>CP</b> (C ∩ P), <b>AP</b> (A ∩ P). Beech mein teeno ka common area nahi likha — kyunki teeno ek saath possible nahi.</figcaption></figure>
+<table class="cmp"><thead><tr><th>Type</th><th>Kya choose kiya</th><th>Kya chhoda</th><th>Example</th></tr></thead><tbody>
+<tr><td>CP</td><td>Consistency + Partition tolerance</td><td>Availability</td><td>Bank balance — galat balance dikhane se better error dikhana</td></tr>
+<tr><td>AP</td><td>Availability + Partition tolerance</td><td>Consistency (eventual)</td><td>Shopping cart, social feed — stale data chal jaata hai</td></tr>
+<tr><td>CA</td><td>Consistency + Availability</td><td>Partition tolerance</td><td>Real distributed world mein exist nahi kar sakta</td></tr>
+</tbody></table>
+<p><strong>Kyun CA exist nahi karta?</strong> Network failure unavoidable hai, to distributed system ko partition tolerate karna hi padega. Real choice sirf ye hai: partition hone pe <em>C ya A</em>.</p>
+<h3>Real-world example</h3>
+<figure class="diagram"><img src="../img/06/server-down.png" alt="Three replicas, n3 down" loading="lazy"><figcaption><b>Kaise padhein:</b> Teen replica nodes n1, n2, n3 triangle mein jude hain (lines = replication links). <b>n3 pe red ✗</b> — wo n1/n2 se communicate nahi kar pa raha (partition). Ab n1/n2 pe likha data n3 tak nahi jaayega, aur agar n3 pe kuch likha gaya jo propagate nahi hua to n1/n2 stale hain.</figcaption></figure>
+<ul>
+<li><strong>CP choose kiya:</strong> n1 aur n2 pe saare writes block karo taaki inconsistency na ho → system unavailable. Bank systems yahi karte hain.</li>
+<li><strong>AP choose kiya:</strong> reads chalte rahenge (stale ho sakte hain), n1/n2 writes accept karte rahenge, partition theek hone pe data n3 ko sync.</li>
+</ul>
+<div class="callout tip"><strong>Pro tip</strong>CAP ko "pick 2 of 3" ki jagah aise bolo: "Partition ke time pe main C aur A mein se kya sacrifice karunga, aur normal time pe latency vs consistency (PACELC) kaise tune karunga." Ye senior-level answer lagta hai.</div>
+
+<h2 id="components">System components</h2>
+<p>Ye design Dynamo, Cassandra aur BigTable jaise popular systems pe based hai. Core components: data partition, replication, consistency, inconsistency resolution, failures handle karna, system architecture, write path, read path.</p>
+
+<h3 id="partition">1. Data partition</h3>
+<p>Bade application mein poora data ek server pe nahi aata. Do challenges: data <em>evenly</em> baantna, aur nodes add/remove pe <em>minimum movement</em>. Solution: <strong>consistent hashing</strong> (<a href="05-consistent-hashing.html">Chapter 05</a>).</p>
+<ul>
+<li><strong>Automatic scaling:</strong> load ke hisaab se servers add/remove.</li>
+<li><strong>Heterogeneity:</strong> server ke virtual nodes uski capacity ke proportional — bada server, zyada vnodes.</li>
+</ul>
+
+<h3 id="replication">2. Data replication</h3>
+<p>High availability aur reliability ke liye data <strong>N</strong> servers pe asynchronously replicate. N tunable parameter hai. Key ki position se ring pe clockwise chalo aur pehle N servers pe copies rakho.</p>
+<figure class="diagram"><img src="../img/06/data-replication.png" alt="Replication on the ring with N=3" loading="lazy"><figcaption><b>Kaise padhein:</b> Ring pe 8 servers s0–s7. Dark dot = <b>key0</b> (s0 aur s1 ke beech). N = 3 → clockwise pehle teen servers <b>s1, s2, s3</b> (green) pe key0 ki copies.</figcaption></figure>
+<p>Virtual nodes ke saath dhyan: pehle N nodes kam physical servers ke ho sakte hain. Isliye clockwise walk mein sirf <strong>unique physical servers</strong> choose karo. Aur power outage, network issue, natural disaster se bachne ke liye replicas <strong>alag data centers</strong> mein rakho (high-speed network se connected).</p>
+
+<h3 id="consistency">3. Consistency: Quorum consensus</h3>
+<ul>
+<li><strong>N</strong> = replicas ki count.</li>
+<li><strong>W</strong> = write quorum — write tab successful jab W replicas ack karein.</li>
+<li><strong>R</strong> = read quorum — read tab successful jab kam se kam R replicas respond karein.</li>
+</ul>
+<figure class="diagram"><img src="../img/06/quorum-consensus.png" alt="Quorum consensus with N=3" loading="lazy"><figcaption><b>Kaise padhein:</b> Client aur nodes ke beech <b>coordinator</b> proxy hai. Coordinator <code>put(key1, val1)</code> teen replicas s0, s1, s2 ko bhejta hai (solid arrows) aur har ek ACK wapas bhejta hai (dashed). W = 1 ho to coordinator pehla ACK milte hi client ko success bol dega; baaki ACKs ka wait nahi.</figcaption></figure>
+<p>W = 1 ka matlab ye nahi ki data ek hi server pe likha gaya — matlab coordinator ko sirf ek ack ka wait karna hai. W, R, N ka config <strong>latency vs consistency</strong> ka classic trade-off hai: W ya R = 1 → fast (coordinator sirf sabse fast replica ka wait karta hai); W ya R &gt; 1 → better consistency, lekin sabse slow replica ka wait.</p>
+<table class="cmp"><thead><tr><th>Config</th><th>Matlab</th></tr></thead><tbody>
+<tr><td>R = 1, W = N</td><td>Fast reads ke liye optimized</td></tr>
+<tr><td>W = 1, R = N</td><td>Fast writes ke liye optimized</td></tr>
+<tr><td>W + R &gt; N</td><td>Strong consistency guaranteed (usually N = 3, W = R = 2) — read aur write sets mein kam se kam ek overlapping node jiske paas latest data hai</td></tr>
+<tr><td>W + R ≤ N</td><td>Strong consistency guaranteed nahi</td></tr>
+</tbody></table>
+<h3>Consistency models</h3>
+<ul>
+<li><strong>Strong:</strong> har read sabse latest write ki value return kare. Client kabhi out-of-date data nahi dekhta. Usually replicas ko naye reads/writes se rok ke achieve hota hai — highly available systems ke liye ideal nahi.</li>
+<li><strong>Weak:</strong> subsequent reads latest value na bhi dekhein.</li>
+<li><strong>Eventual:</strong> weak ka specific form — kaafi time milne pe saare updates propagate ho jaate hain aur replicas consistent. Dynamo aur Cassandra eventual consistency adopt karte hain; concurrent writes se aayi inconsistent values client reconcile karta hai.</li>
+</ul>
+<div class="callout realworld"><strong>Real world</strong>Cassandra mein per-query consistency level set hota hai: <code>ONE</code>, <code>QUORUM</code>, <code>ALL</code>, <code>LOCAL_QUORUM</code>. RF=3 ke saath write <code>QUORUM</code> + read <code>QUORUM</code> = 2 + 2 &gt; 3 → strong read-your-writes. Ye exactly W + R &gt; N formula hai.</div>
+
+<h3 id="inconsistency">4. Inconsistency resolution: Versioning aur vector clocks</h3>
+<p>Replication availability deta hai lekin replicas ke beech inconsistency laata hai. <strong>Versioning</strong> = har modification ek naya immutable version. Pehle conflict kaise banta hai dekho:</p>
+<figure class="diagram"><img src="../img/06/consistent-server.png" alt="Both replicas consistent" loading="lazy"><figcaption><b>Kaise padhein:</b> n1 aur n2 dono pe <code>name: john</code>. Server 1 aur Server 2 dono <code>get(&quot;name&quot;)</code> karte hain aur dono ko same value &quot;john&quot; milti hai — consistent state.</figcaption></figure>
+<figure class="diagram"><img src="../img/06/inconsistent-server.png" alt="Concurrent conflicting writes" loading="lazy"><figcaption><b>Kaise padhein:</b> Ab simultaneously Server 1 n1 pe <code>put(&quot;name&quot;, &quot;johnSanFrancisco&quot;)</code> aur Server 2 n2 pe <code>put(&quot;name&quot;, &quot;johnNewYork&quot;)</code> karta hai (red values). Do conflicting versions v1 aur v2 ban gaye — kaun sahi? Original value 'john' ko dono ne overwrite kiya, isliye purani ignore ho sakti hai, lekin in dono ke beech koi clear winner nahi.</figcaption></figure>
+<p>Is conflict ko detect aur resolve karne ke liye <strong>vector clock</strong>.</p>
+<h4>Vector clock kaise kaam karta hai</h4>
+<p>Vector clock ek <code>[server, version]</code> pairs ki list hai jo data item ke saath attached hai: <code>D([S1, v1], [S2, v2], …, [Sn, vn])</code>. Data item D server Si pe likha gaya to:</p>
+<ul><li>Agar <code>[Si, vi]</code> exist karta hai → <code>vi</code> increment.</li><li>Warna naya entry <code>[Si, 1]</code> banao.</li></ul>
+<figure class="diagram"><img src="../img/06/vector-clock.png" alt="Vector clock example" loading="lazy"><figcaption><b>Kaise padhein (numbered steps):</b> ① Client ne D1 likha, server Sx ne handle kiya → <code>D1([Sx,1])</code>. ② Doosra client D1 padh ke update karta hai, phir Sx → <code>D2([Sx,2])</code> (D2 ne D1 ko overwrite kiya). ③ Ek client D2 update karta hai, Sy handle → <code>D3([Sx,2],[Sy,1])</code>. ④ Doosra client bhi D2 update karta hai, Sz handle → <code>D4([Sx,2],[Sz,1])</code>. D3 aur D4 <b>conflict</b> mein hain. ⑤ Client dono padh ke reconcile karta hai, Sx likhta hai → <code>D5([Sx,3],[Sy,1],[Sz,1])</code>.</figcaption></figure>
+<ul>
+<li><strong>Ancestor (no conflict):</strong> X, Y ka ancestor hai agar X ke saare counters Y ke counters se ≤ hain. e.g. <code>D([s0,1],[s1,1])</code> is ancestor of <code>D([s0,1],[s1,2])</code>.</li>
+<li><strong>Siblings (conflict):</strong> agar Y mein koi counter X se kam hai aur X mein koi counter Y se kam — e.g. <code>D([s0,1],[s1,2])</code> vs <code>D([s0,2],[s1,1])</code>.</li>
+<li>Conflict detect hone pe resolution <strong>application/client logic</strong> karta hai (e.g. shopping cart ko merge kar do).</li>
+</ul>
+<p><strong>Downsides:</strong> (1) client ke liye complexity — conflict resolution logic likhna padta hai. (2) <code>[server, version]</code> pairs tezi se badh sakte hain → threshold set karo, purane pairs hatao. Isse descendant relationship sahi detect na ho to inefficiency, lekin Dynamo paper ke mutabik production mein Amazon ko ye problem nahi aayi.</p>
+<div class="callout realworld"><strong>Real world</strong>Cassandra vector clocks nahi use karta — wo <strong>last-write-wins</strong> (cell-level timestamps) use karta hai: simpler, lekin concurrent writes mein ek silently lost ho sakta hai. Riak ne vector clocks / dotted version vectors use kiye. Interview mein ye contrast batana depth dikhata hai.</div>
+
+<h3 id="failures">5. Failures handle karna</h3>
+<h4>a. Failure detection: Gossip protocol</h4>
+<p>Sirf isliye kisi server ko down maan lena kaafi nahi ki ek doosre server ne bola. Usually <strong>kam se kam do independent sources</strong> chahiye. All-to-all multicasting simple hai lekin bahut servers pe inefficient. Better: decentralized <strong>gossip protocol</strong>:</p>
+<ul>
+<li>Har node ek <strong>membership list</strong> rakhta hai: member IDs + heartbeat counters.</li>
+<li>Har node periodically apna heartbeat counter badhata hai.</li>
+<li>Har node periodically random nodes ko heartbeats bhejta hai, jo aage aur nodes ko propagate karte hain.</li>
+<li>Heartbeat milne pe membership list latest info se update.</li>
+<li>Kisi member ka heartbeat predefined period se zyada nahi badha → offline.</li>
+</ul>
+<figure class="diagram"><img src="../img/06/gossip-protocol.png" alt="Gossip protocol" loading="lazy"><figcaption><b>Kaise padhein:</b> Left table = <b>s0 ki membership list</b> (Member ID, Heartbeat counter, Time). Member 2 ka counter 9908 aur time 11:58:02 (red) — baaki sab 12:00:xx pe update hue, sirf member 2 ka bahut der se nahi badha. Right ring: s0 notice karta hai '<b>detected s2 is down</b>' aur ye info heartbeats ke saath random nodes (s1, s3, s4, s5) ko bhejta hai. Jab doosre nodes bhi confirm karein, s2 offline mark hota hai.</figcaption></figure>
+
+<h4>b. Temporary failures: Sloppy quorum + hinted handoff</h4>
+<p>Strict quorum mein reads/writes block ho sakte hain. Availability ke liye <strong>sloppy quorum</strong>: quorum enforce karne ki jagah, ring pe <em>pehle W healthy servers</em> writes ke liye aur <em>pehle R healthy</em> reads ke liye. Offline servers ignore.</p>
+<figure class="diagram"><img src="../img/06/sloppy-quorum.png" alt="Sloppy quorum" loading="lazy"><figcaption><b>Kaise padhein:</b> Coordinator <code>put(key1, val1)</code> s0, s1 ko bhejta hai — ACKs aate hain. s2 tak ka dashed arrow red ✗ pe ruk gaya (s2 unavailable). Isliye <b>s3</b> temporarily s2 ki jagah reads/writes handle karega.</figcaption></figure>
+<p><strong>Hinted handoff:</strong> s3 data ke saath ek "hint" rakhta hai ki ye s2 ka hai. s2 wapas aane pe s3 changes s2 ko push kar deta hai → consistency restore.</p>
+
+<h4>c. Permanent failures: Anti-entropy with Merkle trees</h4>
+<p>Replica permanently unavailable ho to <strong>anti-entropy protocol</strong> se replicas sync karo — replicas ka data compare karke har replica ko latest version pe laana. Inconsistency detect karne aur kam data transfer karne ke liye <strong>Merkle tree</strong> (hash tree): har non-leaf node children ke hashes ka hash; leaf = data block ka hash. Bade data structures ka verification efficient aur secure.</p>
+<p>Example: key space 1 se 12. Highlighted (red) boxes inconsistency dikhate hain.</p>
+<figure class="diagram"><img src="../img/06/key-bucket.png" alt="Step 1: divide key space into buckets" loading="lazy"><figcaption><b>Step 1 — Kaise padhein:</b> Server 1 aur Server 2 dono pe keys 1–12 ko <b>4 buckets</b> mein baanta (1-3, 4-6, 7-9, 10-12). Server 1 ke bucket 3 mein key 8 red hai aur Server 2 pe key 8 ki jagah red blank — yahi inconsistency hai jo dhoondni hai.</figcaption></figure>
+<figure class="diagram"><img src="../img/06/hash-key-bucket.png" alt="Step 2: hash each key" loading="lazy"><figcaption><b>Step 2 — Kaise padhein:</b> Har key ko uniform hashing se hash kiya: <code>1 → 2343</code>, <code>2 → 1456</code>... Server 1 pe <code>8 → 1356</code> (red), Server 2 pe key 8 ka hash missing/different (red bar). Baaki sab hashes same.</figcaption></figure>
+<figure class="diagram"><img src="../img/06/hash-bucket.png" alt="Step 3: one hash per bucket" loading="lazy"><figcaption><b>Step 3 — Kaise padhein:</b> Har bucket ke upar ek single hash node: 6901, 6773, <b>8601</b> (server 1, red) / <b>7975</b> (server 2, red), 7812. Teesre bucket ka hash dono servers pe alag hai — mismatch yahin hai.</figcaption></figure>
+<figure class="diagram"><img src="../img/06/merkel-tree.png" alt="Step 4: build the Merkle tree" loading="lazy"><figcaption><b>Step 4 — Kaise padhein:</b> Bucket hashes ko upar combine karke tree banaya, root tak. Server 1 root <b>5357</b>, Server 2 root <b>9213</b> — alag (red). Root se neeche compare karo: left child 3545 dono pe same → left subtree skip. Right child 4603 vs 2980 alag → neeche jao → 8601 vs 7975 alag, 7812 same → sirf <b>bucket 7-9</b> sync karna hai.</figcaption></figure>
+<p><strong>Sync:</strong> root hashes compare karo. Same → replicas consistent. Alag → left child, phir right child compare karo, recursively, jab tak inconsistent buckets na mil jaayein. Sirf un buckets ko sync karo. Transfer data differences ke proportional hai, total data ke nahi. Real system mein bucket size bada hota hai — e.g. 1 million buckets per 1 billion keys, to har bucket mein ~1000 keys.</p>
+
+<h3 id="dc-outage">6. Data center outage</h3>
+<p>Power outage, network outage, natural disaster se poora DC ja sakta hai. Data ko <strong>multiple data centers</strong> mein replicate karo — ek DC poora down ho to bhi users doosre DC se access kar sakein.</p>
+
+<h2 id="architecture">System architecture</h2>
+<figure class="diagram"><img src="../img/06/final-architecture.png" alt="Final KV store architecture" loading="lazy"><figcaption><b>Kaise padhein:</b> Client <b>read/write</b> request bhejta hai node <b>n6</b> ko, jo is request ke liye <b>coordinator</b> hai. Ring pe 8 nodes (n0–n7). Coordinator key ki replicas — <b>n0, n1, n2</b> (blue) — ko request forward karta hai (solid arrows) aur unke responses (dashed) collect karke client ko response deta hai.</figcaption></figure>
+<ul>
+<li>Client simple APIs se baat karte hain: <code>get(key)</code>, <code>put(key, value)</code>.</li>
+<li><strong>Coordinator</strong> client aur KV store ke beech proxy node hai.</li>
+<li>Nodes consistent hashing se ring pe distributed.</li>
+<li>System <strong>completely decentralized</strong> — nodes add/move automatic.</li>
+<li>Data multiple nodes pe replicated.</li>
+<li><strong>No SPOF</strong> — har node ki same responsibilities (client API, failure detection, conflict resolution, failure repair, replication, storage engine).</li>
+</ul>
+
+<h2 id="write-path">Write path (Cassandra-based)</h2>
+<figure class="diagram"><img src="../img/06/write-path.png" alt="Write path" loading="lazy"><figcaption><b>Kaise padhein (numbered):</b> Client 'Write' bhejta hai. ① Write pehle disk pe <b>Commit log</b> mein persist (durability — crash ho to replay). ② Phir <b>Memory cache</b> (memtable) mein save. ③ Memory cache full ya threshold pe → disk pe <b>SSTables</b> mein <b>Flush</b>.</figcaption></figure>
+<p><strong>SSTable</strong> (Sorted-String Table) = sorted <code>&lt;key, value&gt;</code> pairs ki list. Commit log append-only aur SSTable flush sequential hai — isliye writes bahut fast (Chapter 02: disk seeks avoid karo!). Ye LSM-tree design hai.</p>
+
+<h2 id="read-path">Read path</h2>
+<figure class="diagram"><img src="../img/06/read-path.png" alt="Read path: data in memory" loading="lazy"><figcaption><b>Kaise padhein:</b> ① Client ki read request directly <b>Memory cache</b> tak jaati hai; data mil gaya → dashed arrow se result return. Disk (SSTables, Bloom filter) touch hi nahi hua — fastest path.</figcaption></figure>
+<figure class="diagram"><img src="../img/06/read-path-without-cache.png" alt="Read path: data not in memory" loading="lazy"><figcaption><b>Kaise padhein:</b> ① Read request → Memory cache. ② Wahan nahi mila → <b>Bloom filter</b> check. ③ Bloom filter batata hai kaun se <b>SSTables</b> mein key ho sakti hai. ④ Un SSTables se <b>Result data</b> nikla. ⑤ Client ko result return.</figcaption></figure>
+<p><strong>Bloom filter</strong> probabilistic structure hai: "definitely not present" ya "maybe present". False negative kabhi nahi, false positive thode — isse har SSTable scan karne se bach jaate hain.</p>
+
+<table class="cmp"><thead><tr><th>Goal / Problem</th><th>Technique</th></tr></thead><tbody>
+<tr><td>Big data store karna</td><td>Consistent hashing se load servers mein spread</td></tr>
+<tr><td>High availability reads</td><td>Data replication, multi-DC setup</td></tr>
+<tr><td>Highly available writes</td><td>Versioning + vector clocks se conflict resolution</td></tr>
+<tr><td>Dataset partition</td><td>Consistent hashing</td></tr>
+<tr><td>Incremental scalability</td><td>Consistent hashing</td></tr>
+<tr><td>Heterogeneity</td><td>Consistent hashing (virtual nodes)</td></tr>
+<tr><td>Tunable consistency</td><td>Quorum consensus (N, W, R)</td></tr>
+<tr><td>Temporary failures</td><td>Sloppy quorum + hinted handoff</td></tr>
+<tr><td>Permanent failures</td><td>Merkle tree (anti-entropy)</td></tr>
+<tr><td>Data center outage</td><td>Cross-DC replication</td></tr>
+</tbody></table>
+
+<div class="callout interview"><strong>Interview mein kaise bolein</strong>
+<ol>
+<li>Scope: value size (&lt;10KB), read/write ratio, consistency tunable chahiye ya strong.</li>
+<li>Single server hash table → limit → distributed. CAP bolo aur decide karo: "AP with tunable consistency, Dynamo jaisa."</li>
+<li>Upar wali table ko spine bana ke chalo: partition → replication → quorum → conflicts → failures → storage engine.</li>
+<li>Har technique ke saath ek failure scenario: "s2 down → sloppy quorum + hinted handoff; disk gaya → Merkle tree se re-sync."</li>
+<li>Storage engine pe 1 minute: commit log + memtable + SSTable + Bloom filter.</li>
+</ol></div>
+
+<h2 id="followups">Common follow-up questions</h2>
+<details><summary>N=3, W=1, R=1 kab theek hai?</summary><p>Jab latency sabse important aur stale reads acceptable (e.g. session cache, counters jo approximate chal jaate hain). Strong consistency nahi milegi.</p></details>
+<details><summary>Coordinator kaun banta hai?</summary><p>Koi bhi node — client-side partition-aware driver seedha key ke primary replica ko hit kar sakta hai, ya load balancer kisi bhi node ko; wo node coordinator ban ke replicas ko forward karta hai.</p></details>
+<details><summary>Vector clock vs last-write-wins?</summary><p>LWW simple aur small metadata, lekin concurrent writes mein data loss. Vector clocks conflicts preserve karte hain, client ko merge karna padta hai.</p></details>
+<details><summary>Deletes kaise propagate hote hain?</summary><p>Tombstones — delete marker likha jaata hai taaki stale replica purani value ko "resurrect" na kare; compaction ke time (grace period ke baad) hataya jaata hai.</p></details>
+
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul>
+<li>Partition ke time C ya A chunna padta hai; CA real distributed systems mein nahi hota.</li>
+<li>Consistent hashing → partitioning + incremental scaling + heterogeneity.</li>
+<li>Replication: ring pe clockwise N unique physical servers, alag DCs mein.</li>
+<li><strong>W + R &gt; N</strong> → strong consistency; W/R ke saath latency trade-off.</li>
+<li>Vector clocks conflicts detect karte hain; resolution client karta hai.</li>
+<li>Gossip (detection), sloppy quorum + hinted handoff (temporary), Merkle trees (permanent).</li>
+<li>Write: commit log → memtable → SSTable. Read: memtable → Bloom filter → SSTables.</li>
+</ul></div>
+
+<div class="chapter-nav"><a class="prev" href="05-consistent-hashing.html">← Prev: 05. Design Consistent Hashing</a><a class="next" href="07-unique-id-generator.html">Next: 07. Design a Unique ID Generator →</a></div>
+</main>
+<aside class="toc"></aside>
+</div>
+<script src="../assets/app.js"></script>
+</body>
+</html>

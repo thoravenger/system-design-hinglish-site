@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 19: Distributed Message Queue · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+ <header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><button class="theme-toggle" aria-label="theme">◐</button></header>
+ <div class="layout">
+  <nav class="sidebar">
+   <div class="nav-group"><p class="nav-group-title">Foundations</p>
+    <a href="01-scaling.html"><span class="num">01</span> Scaling 0 to Millions</a>
+    <a href="02-back-of-envelope.html"><span class="num">02</span> Back-of-the-Envelope Estimation</a>
+    <a href="03-framework.html"><span class="num">03</span> System Design Interview Framework</a>
+    <a href="04-rate-limiter.html"><span class="num">04</span> Rate Limiter</a>
+    <a href="05-consistent-hashing.html"><span class="num">05</span> Consistent Hashing</a>
+    <a href="06-key-value-store.html"><span class="num">06</span> Key-Value Store</a>
+    <a href="07-unique-id-generator.html"><span class="num">07</span> Unique ID Generator</a>
+   </div>
+   <div class="nav-group"><p class="nav-group-title">Classic Designs</p>
+    <a href="08-url-shortener.html"><span class="num">08</span> URL Shortener</a>
+    <a href="09-web-crawler.html"><span class="num">09</span> Web Crawler</a>
+    <a href="10-notification-system.html"><span class="num">10</span> Notification System</a>
+    <a href="11-news-feed.html"><span class="num">11</span> News Feed System</a>
+    <a href="12-chat-system.html"><span class="num">12</span> Chat System</a>
+    <a href="13-search-autocomplete.html"><span class="num">13</span> Search Autocomplete</a>
+    <a href="14-youtube.html"><span class="num">14</span> YouTube</a>
+   </div>
+   <div class="nav-group"><p class="nav-group-title">Vol 2 · Part 1</p>
+    <a href="15-google-drive.html"><span class="num">15</span> Google Drive</a>
+    <a href="16-proximity-service.html"><span class="num">16</span> Proximity Service</a>
+    <a href="17-nearby-friends.html"><span class="num">17</span> Nearby Friends</a>
+    <a href="18-google-maps.html"><span class="num">18</span> Google Maps</a>
+    <a href="19-message-queue.html" class="active" aria-current="page"><span class="num">19</span> Distributed Message Queue</a>
+    <a href="20-metrics-monitoring.html"><span class="num">20</span> Metrics Monitoring & Alerting</a>
+    <a href="21-ad-click-aggregation.html"><span class="num">21</span> Ad Click Event Aggregation</a>
+    <a href="22-hotel-reservation.html"><span class="num">22</span> Hotel Reservation System</a>
+   </div>
+   <div class="nav-group"><p class="nav-group-title">Vol 2 · Part 2</p>
+    <a href="23-email-service.html"><span class="num">23</span> Distributed Email Service</a>
+    <a href="24-s3-object-storage.html"><span class="num">24</span> S3-like Object Storage</a>
+    <a href="25-gaming-leaderboard.html"><span class="num">25</span> Real-time Gaming Leaderboard</a>
+    <a href="26-payment-system.html"><span class="num">26</span> Payment System</a>
+    <a href="27-digital-wallet.html"><span class="num">27</span> Digital Wallet</a>
+    <a href="28-stock-exchange.html"><span class="num">28</span> Stock Exchange</a>
+   </div>
+  </nav>
+  <main class="content">
+   <div class="chapter-hero"><span class="chapter-num">Chapter 19</span><h1>Distributed Message Queue</h1><p class="lead">Kafka jaisa distributed message queue design karna — topics, partitions, WAL-based storage, consumer groups, ISR replication aur delivery semantics (at-most / at-least / exactly-once). Payments engineer ke liye yeh chapter "bread and butter" hai.</p><div class="tags"><span class="tag">Kafka</span><span class="tag">Partitions</span><span class="tag">Consumer Groups</span><span class="tag">ISR</span><span class="tag">Exactly-once</span><span class="tag">WAL</span></div></div>
+<h2 id="intro">Introduction: queue kyun chahiye?</h2>
+<p>Message queue ka basic kaam simple hai — <strong>producer</strong> message daalta hai, <strong>consumer</strong> nikaalta hai. Lekin iske fayde bahut bade hain:</p>
+<ul>
+ <li><strong>Decoupling</strong> — producer ko consumer ka pata hi nahi hona chahiye. Payment service ko nahi pata ki "notification service" ya "fraud service" kitne hain; woh bas event publish karta hai.</li>
+ <li><strong>Independent scaling</strong> — Black Friday pe producers 10x ho gaye? Consumers ko alag se scale karo, queue beech mein buffer ka kaam karega.</li>
+ <li><strong>Availability</strong> — downstream service down hai to bhi upstream chalta rahega; messages queue mein wait karenge.</li>
+ <li><strong>Performance</strong> — producer "fire and continue" kar sakta hai, consumer ke confirmation ka wait nahi.</li>
+</ul>
+<p>Popular options: Kafka, RabbitMQ, RocketMQ, Apache Pulsar, ActiveMQ, ZeroMQ. Strictly bolein to Kafka aur Pulsar <em>event streaming platforms</em> hain (data retain karte hain, replay possible), RabbitMQ classic queue hai (ack hote hi message gaya). Lekin features converge ho rahe hain — RabbitMQ Streams aa gaye, Kafka mein queue-like share groups (KIP-932) aa rahe hain. Is chapter mein hum <strong>Kafka-style</strong> design banayenge: long retention, repeated consumption, ordering.</p>
+
+<h2 id="step1">Step 1: Requirements aur scope</h2>
+<p>Interview mein pehle yeh sawaal poochho (notes ke dialogue ka gist):</p>
+<table class="cmp">
+<tr><th>Sawaal</th><th>Jawab (interviewer)</th><th>Design pe asar</th></tr>
+<tr><td>Message format/size?</td><td>Text, few KBs</td><td>Batching zaroori, small-message overhead amortize karna padega</td></tr>
+<tr><td>Repeated consumption?</td><td>Haan, alag consumers dobara padh sakein</td><td>Delete-on-ack nahi chalega → log + offsets</td></tr>
+<tr><td>Ordering?</td><td>Haan, preserve karo</td><td>Per-partition ordering + partition key</td></tr>
+<tr><td>Retention?</td><td>2 weeks</td><td>Disk-heavy storage, segment-based truncation</td></tr>
+<tr><td>Delivery semantics?</td><td>At-least-once must, ideally configurable</td><td>acks + offset-commit order configurable</td></tr>
+<tr><td>Throughput/latency?</td><td>Log aggregation ke liye high throughput, traditional use ke liye low latency</td><td>Batch size tunable</td></tr>
+</table>
+<h3>Functional requirements</h3>
+<ul>
+ <li>Producers messages bhejte hain, consumers consume karte hain</li>
+ <li>Messages ek baar ya baar-baar consume ho sakein</li>
+ <li>Purana data truncate ho sake (retention)</li>
+ <li>Message size KB range mein</li>
+ <li>Order preserve ho</li>
+ <li>Delivery semantics configurable: at-most-once / at-least-once / exactly-once</li>
+</ul>
+<h3>Non-functional requirements</h3>
+<ul>
+ <li><strong>High throughput ya low latency</strong> — use case ke hisaab se configurable</li>
+ <li><strong>Scalable</strong> — distributed, sudden surge handle kare</li>
+ <li><strong>Persistent &amp; durable</strong> — disk pe likha ho aur multiple nodes pe replicated</li>
+</ul>
+<div class="callout tip">💡 <strong>Pro tip:</strong> Traditional queues (RabbitMQ classic) retention aur strict ordering support nahi karte — isliye unka design simple hai. Interview mein yeh line bolna ki "retention + ordering add karte hi humara design log-structured ban jaata hai" — instantly dikhata hai ki aapko <em>why</em> pata hai.</div>
+
+<h2 id="step2">Step 2: High-level design</h2>
+<figure class="diagram"><img src="../img/19/message-queue-components.png" alt="message queue components" loading="lazy"><figcaption>Sabse basic picture: left mein <strong>Producer</strong> "a. produce" se message queue mein daalta hai. Right mein <strong>Consumer</strong> pehle "b1. subscribe" karta hai (dashed arrow = control request) aur phir "b2. consume" se messages leta hai. Producer aur consumer dono <em>clients</em> hain, queue <em>server</em> hai.</figcaption></figure>
+<h3>Messaging models</h3>
+<p><strong>Point-to-point</strong>: ek message sirf ek consumer ko milta hai. Ack hua to queue se delete. Classic work-queue (job distribution).</p>
+<figure class="diagram"><img src="../img/19/point-to-point-model.png" alt="point to point model" loading="lazy"><figcaption>Point-to-point: Producer ne "Message A" bheja, queue mein gaya, aur do consumers mein se <em>sirf ek</em> (Consumer 1) ko mila — upar wala arrow pe hi Message A hai, neeche Consumer 2 ki arrow khaali hai. Matlab multiple consumers = load sharing, duplication nahi.</figcaption></figure>
+<p><strong>Publish-subscribe</strong>: message ek <em>topic</em> pe jaata hai aur us topic ke <em>har</em> subscriber ko milta hai.</p>
+<figure class="diagram"><img src="../img/19/publish-subscribe-model.png" alt="publish subscribe model" loading="lazy"><figcaption>Pub-sub: wahi Message A, lekin ab dono arrows pe Message A hai — Consumer 1 aur Consumer 2 dono ko copy milti hai. Event streaming (Kafka) ka default mental model yahi hai.</figcaption></figure>
+<div class="callout realworld">🌍 <strong>Real world (Kafka):</strong> Kafka dono models ek hi abstraction se deta hai — <em>consumer group</em>. Ek group ke andar = point-to-point (ek partition ek hi consumer ko). Alag-alag groups = pub-sub (har group ko poora stream). Payments mein: <code>payment-events</code> topic ko ledger-service group, notification group, fraud group — teeno independently padhte hain, apne offsets ke saath.</div>
+
+<h3>Topics, partitions, brokers</h3>
+<figure class="diagram"><img src="../img/19/partitions.png" alt="partitions" loading="lazy"><figcaption>Left: ek single Topic-A jismein saare messages ek line mein. Right: wahi topic do <strong>partitions</strong> (Partition-1, Partition-2) mein split — yeh sharding hai. Har partition apne aap mein ek ordered FIFO log hai; topic-level global order nahi hota.</figcaption></figure>
+<ul>
+ <li>Partitions ko host karne wale servers = <strong>brokers</strong>.</li>
+ <li>Partition ke andar message ki position = <strong>offset</strong> (monotonically increasing long).</li>
+ <li><strong>Partition key</strong> decide karti hai message kis partition mein jaayega — default <code>hash(key) % numPartitions</code>. Same <code>user_id</code> = same partition = us user ke events ka order guaranteed.</li>
+</ul>
+<div class="callout warn">⚠️ <strong>Failure mode:</strong> Agar aap partition count badhaate ho (2 → 3), to <code>hash(key) % N</code> badal jaata hai — same account ke naye events naye partition mein jaa sakte hain jabki purane events abhi purane partition mein unconsumed pade hain. Result: <strong>per-key ordering temporarily toot sakti hai</strong>. Isliye payments topics ke partitions shuru mein hi generously plan karo (e.g. expected peak consumers × 2-3).</div>
+
+<h3>Consumer groups</h3>
+<figure class="diagram"><img src="../img/19/consumer-groups.png" alt="consumer groups" loading="lazy"><figcaption>Topic-A ke do partitions aur Topic-B ka ek partition. <strong>Consumer group-1</strong> (Consumer-1, Consumer-2) Topic-A padhta hai — Partition-1 → Consumer-1, Partition-2 → Consumer-2. <strong>Consumer group-2</strong> (Consumer-3, Consumer-4) Topic-A aur Topic-B dono subscribe karta hai. Dekho, Topic-A ke dono partitions <em>dono groups</em> ko jaa rahe hain (pub-sub across groups), lekin ek group ke andar ek partition sirf ek consumer ko (ordering safe).</figcaption></figure>
+<ul>
+ <li>Har consumer group apna <strong>offset</strong> maintain karta hai.</li>
+ <li>Parallel reading throughput badhata hai, lekin agar ek partition do consumers padhein to ordering toot jaati hai → rule: <strong>ek partition, group mein max ek consumer</strong>.</li>
+ <li>Consequence: group mein consumers &gt; partitions ho gaye to extra consumers idle baithenge.</li>
+</ul>
+
+<h3>High-level architecture</h3>
+<figure class="diagram"><img src="../img/19/high-level-architecture.png" alt="high level architecture" loading="lazy"><figcaption>Left se right padho: <strong>Producers</strong> → <strong>Brokers</strong> (stacked boxes = multiple brokers; har broker mein <em>Data storage</em> = partitions ke messages, aur <em>State storage</em> = consumer offsets) → <strong>Consumers (consumer groups)</strong>. Upar <em>Metadata storage</em> (topic config, partitions, replica plan) aur <em>Coordination service</em> (kaun broker zinda hai, leader kaun) — dono brokers se double-arrow se jude hain.</figcaption></figure>
+<ul>
+ <li><strong>Data storage</strong>: partitions ke messages</li>
+ <li><strong>State storage</strong>: consumer offsets / assignments</li>
+ <li><strong>Metadata storage</strong>: topic config, retention, replica distribution</li>
+ <li><strong>Coordination service</strong>: service discovery + leader election (ZooKeeper / KRaft)</li>
+</ul>
+
+<h2 id="storage">Step 3a: Data storage — WAL aur segments</h2>
+<p>Teen bade design choices jo throughput laate hain:</p>
+<ol>
+ <li><strong>On-disk structure</strong> jo sequential I/O aur OS page cache ka fayda uthaye.</li>
+ <li><strong>Immutable messages</strong> — producer → broker → consumer same binary format, extra copy/transform nahi.</li>
+ <li><strong>Batching everywhere</strong> — small I/O throughput ka dushman hai.</li>
+</ol>
+<p>Access pattern dekho: write-heavy <em>aur</em> read-heavy, koi update/delete nahi, almost poora sequential. Database (B-tree, random I/O, row locks) is pattern ke liye overkill aur slow hai. Answer: <strong>Write-Ahead Log (WAL)</strong> — append-only file.</p>
+<figure class="diagram"><img src="../img/19/wal-example.png" alt="wal example" loading="lazy"><figcaption>Topic-A Partition-1 ka log: left mein "1st record" offset 0, right mein dashed box 15 = "Next record written" (naya message hamesha end pe append). Neeche bracket dikhate hain ki log <strong>segments</strong> mein bata hai — segment-1 (0-9) read-only ho chuka, segment-2 (10 se aage) active segment hai jismein writes ho rahe hain. Retention = puraane segment files delete karna, row-by-row delete nahi.</figcaption></figure>
+<div class="callout realworld">🌍 <strong>Kafka internals:</strong> Kafka mein har partition ek directory hai (e.g. <code>payments-3/</code>), jismein segment files: <code>00000000000000000000.log</code> (data), <code>.index</code> (offset → file position, sparse), <code>.timeindex</code> (timestamp → offset). Filename = segment ka base offset. Offset lookup = segment pe binary search + sparse index scan. Reads mein Kafka <code>sendfile()</code> (zero-copy) use karta hai — page cache se seedha socket, JVM heap mein copy nahi. Isliye Kafka broker ko bada heap nahi, bada <em>OS page cache</em> chahiye.</div>
+<p>"HDD slow hai" myth hai — <strong>random</strong> I/O slow hai. Sequential reads/writes pe HDD bhi achha throughput deta hai, aur OS aggressively page cache karta hai, to recent data (jo consumers padhte hain) mostly memory se serve hota hai.</p>
+
+<h3>Message data structure</h3>
+<figure class="diagram"><img src="../img/19/message-structure.png" alt="message structure" loading="lazy"><figcaption>Message schema table: <code>key</code> aur <code>value</code> (dono byte[] — bold, kyunki yahi user data hai), phir metadata: topic (string), partition (integer), offset (long), timestamp (long), size (integer), crc (integer, integrity check). Location = (topic, partition, offset) ka tuple.</figcaption></figure>
+<ul>
+ <li><strong>key</strong>: partition decide karta hai; unique hona zaroori nahi, null bhi ho sakta hai (null key → round-robin/sticky partitioning).</li>
+ <li><strong>value</strong>: payload — plaintext ya compressed binary.</li>
+ <li><strong>CRC</strong>: corruption detect karne ke liye (disk bit-rot, network).</li>
+</ul>
+<div class="callout tip">💡 Payments mein key choice critical hai: <code>key = accountId</code> rakho to ek account ke debit/credit events strictly ordered. <code>key = transactionId</code> rakho to load evenly spread hoga lekin account-level ordering nahi milegi. Ordering aur hot-partition ka trade-off hai — ek merchant jo 30% traffic laata hai, uska partition hot ho jaayega.</div>
+
+<h3>Batching</h3>
+<p>Batching producer, broker aur consumer — teeno jagah. Network round trip amortize hota hai aur disk pe bade sequential writes jaate hain. Trade-off classic hai: <strong>bada batch = high throughput + high latency</strong>; chhota batch = low latency + kam throughput. Throughput mode mein per-partition disk throughput limit ho to partitions badhao.</p>
+
+<h2 id="producer">Step 3b: Producer flow</h2>
+<p>Producer ko kaise pata ki kis broker ko bhejna hai? Option 1: ek alag <strong>routing layer</strong>.</p>
+<figure class="diagram"><img src="../img/19/routing-layer.png" alt="routing layer" loading="lazy"><figcaption>Producer → Routing (beech ka wide box) → Broker-1 jahan Topic-A Partition-1 ka <strong>leader</strong> (green) hai. Broker-2 pe us partition ka follower (white) hai, jo leader se data <em>pull</em> karta hai (upar ka curved arrow), aur dashed arrows ack ka return path dikhate hain: follower sync → leader commit → routing → producer.</figcaption></figure>
+<p>Problem: extra network hop, aur routing layer batching ko naturally support nahi karta. Fix: routing ko <strong>producer ke andar</strong> embed karo (client library).</p>
+<figure class="diagram"><img src="../img/19/routing-layer-producer.png" alt="routing layer producer" loading="lazy"><figcaption>Ab Producer box ke andar hi do dashed components hain: <strong>Buffer</strong> (messages batch hote hain) → <strong>Routing</strong> (metadata se leader broker pata). Producer seedha Broker-1 ke leader partition se baat karta hai; replication flow wahi hai. Ek hop kam aur batching free mein.</figcaption></figure>
+<div class="callout realworld">🌍 <strong>Kafka producer = exactly yahi:</strong> <code>KafkaProducer</code> ke andar <code>RecordAccumulator</code> (per-partition batches — buffer) aur ek background <code>Sender</code> thread hai. Metadata request se leader pata chalta hai aur client cache karta hai. <code>batch.size</code> aur <code>linger.ms</code> se batching tune hoti hai, <code>compression.type</code> (lz4/zstd) batch-level compression deta hai — bade batch = better compression ratio.</div>
+<figure class="diagram"><img src="../img/19/batch-size-throughput-vs-latency.png" alt="batch size throughput vs latency" loading="lazy"><figcaption>Graph: X-axis Throughput (low → high), Y-axis Latency (low → high). Dashed diagonal arrow "Batch size" — batch size badhao to aap graph pe upar-right jaate ho: throughput badhta hai, latency bhi badhti hai. Free lunch nahi hai.</figcaption></figure>
+
+<h2 id="consumer">Step 3c: Consumer flow — push vs pull</h2>
+<figure class="diagram"><img src="../img/19/consumer-example.png" alt="consumer example" loading="lazy"><figcaption>Ek partition (offsets 0-15). Consumer 1 ka last consumed offset = 6 (left bracket "Consumer 1 consumed"), Consumer 2 ka = 13. Do alag groups/consumers same log ko apni-apni speed se padh rahe hain — data delete nahi hua, sirf pointer (offset) alag hai. Yahi "repeated consumption" ka magic hai.</figcaption></figure>
+<table class="cmp">
+<tr><th></th><th>Push</th><th>Pull</th></tr>
+<tr><td>Latency</td><td>Low — broker turant bhejta hai</td><td>Thodi zyada, long-polling se kam hoti hai</td></tr>
+<tr><td>Backpressure</td><td>Mushkil — slow consumer overwhelm ho jaata hai</td><td>Natural — consumer apni speed se fetch karta hai</td></tr>
+<tr><td>Batching</td><td>Broker ko consumer capacity nahi pata</td><td>Consumer bade batches aggressively fetch karta hai</td></tr>
+<tr><td>Empty polls</td><td>N/A</td><td>Wasted calls → long polling (Kafka: <code>fetch.max.wait.ms</code>, <code>fetch.min.bytes</code>)</td></tr>
+</table>
+<p>Isliye Kafka aur hum <strong>pull model</strong> choose karte hain.</p>
+<figure class="diagram"><img src="../img/19/consumer-flow.png" alt="consumer flow" loading="lazy"><figcaption>Numbered flow padho: (1) Consumer "join consumer group-1 &amp; subscribe topic-A" request bhejta hai Broker-1 ko, jo <strong>group-1 ka coordinator</strong> hai (yellow). (2) Coordinator "partition-2 dispatched" bolta hai. (3) Consumer Broker-2 se Topic-A Partition-2 ke messages <strong>fetch</strong> karta hai. (4) "process data &amp; commit offset". Note: coordinator aur data broker alag ho sakte hain.</figcaption></figure>
+<ul>
+ <li>Coordinator broker kaise milta hai? <code>hash(groupName)</code> se — ek group ke saare consumers same coordinator se baat karte hain.</li>
+ <li>Yeh group coordinator ZooKeeper wale coordination service se alag cheez hai.</li>
+ <li>Process → commit ka <strong>order</strong> hi delivery semantic decide karta hai (neeche detail).</li>
+</ul>
+<div class="callout realworld">🌍 <strong>Kafka internals:</strong> Offsets ZooKeeper mein nahi, internal topic <code>__consumer_offsets</code> (default 50 partitions, compacted) mein store hote hain. Group ka coordinator = us broker jo <code>__consumer_offsets</code> ki partition <code>hash(group.id) % 50</code> ka leader hai — exactly book wala "hash the group name" idea.</div>
+
+<h2 id="rebalance">Step 3d: Consumer rebalancing</h2>
+<p>Rebalancing decide karta hai kaunsa consumer kaunsi partition padhega. Trigger: consumer join/leave/crash, ya partitions add/remove.</p>
+<figure class="diagram"><img src="../img/19/consumer-rebalancing.png" alt="consumer rebalancing" loading="lazy"><figcaption>Upar 4 consumers: Consumer-1/2/3 Group-1 ke, Consumer-4 Group-2 ka. Neeche do brokers: Broker-1 = Group-1 ka coordinator (teeno Group-1 consumers usi se jude), Broker-2 = Group-2 ka coordinator. Point: har group ka ek dedicated coordinator broker.</figcaption></figure>
+<p>Flow: coordinator group ka ek <strong>leader consumer</strong> chunta hai → leader partition dispatch plan banata hai → coordinator sabko broadcast karta hai. (Assignment logic client side hai, isliye naye strategies bina broker upgrade ke aa sakti hain.)</p>
+<figure class="diagram"><img src="../img/19/consumer-rebalance-example.png" alt="consumer rebalance example" loading="lazy"><figcaption>Left: 4 consumers aur partitions (left mein stacked logs) ke beech arrows. Consumer-4 gir gaya (heartbeat band) → right side: ab sirf 3 consumers, aur partitions unke beech dobara baant diye gaye. Arrow ka shift hi "rebalance" hai.</figcaption></figure>
+<figure class="diagram"><img src="../img/19/consumer-join-group-usecase.png" alt="consumer join group usecase" loading="lazy"><figcaption>Sequence diagram (upar se neeche time). 1a/1b: A heartbeat bhejta hai, ack milta hai. 2: B "JoinGroup — I want to join" bhejta hai (yellow). 3a/3b: A ki next heartbeat pe coordinator bolta hai "Sorry A, rebalance karo, rejoin" (yellow) — rebalance passively heartbeat response mein signal hota hai. 4a/4b: dono JoinGroup; A follower, B <strong>leader</strong> (members: A, B). 5: B partition dispatch plan SyncGroup mein bhejta hai, A wait karta hai. 6: A ko partitions 1,3, B ko 2,4.</figcaption></figure>
+<figure class="diagram"><img src="../img/19/consumer-leaves-group-usecase.png" alt="consumer leaves group usecase" loading="lazy"><figcaption>Leave flow: 2a — A explicitly "LeaveGroup (I quit)" bhejta hai, 2b goodbye. Phir B ki heartbeat (3a) pe coordinator "rebalance, rejoin" bolta hai (3b), B JoinGroup karta hai aur akela member hone ki wajah se leader banta hai (4b), plan bhejta hai (5), aur use partitions 1,2,3,4 sab milte hain (6).</figcaption></figure>
+<figure class="diagram"><img src="../img/19/consumer-no-heartbeat-usecase.png" alt="consumer no heartbeat usecase" loading="lazy"><figcaption>Crash flow: A ne heartbeat bhejna band kar diya — yellow note "No heartbeat from consumer A. Consumer A seems to be lost. Need to rebalance". Baaki steps leave-flow jaise: B ko rejoin bola jaata hai, woh leader banke saare partitions 1-4 le leta hai. Difference: yahan detection session timeout ke baad hota hai, to beech mein A ki partitions kuch seconds unconsumed rehti hain.</figcaption></figure>
+<div class="callout warn">⚠️ <strong>Production pain — "stop-the-world" rebalance:</strong> Classic (eager) protocol mein rebalance ke dauraan <em>poora group</em> consumption rok deta hai. Spring Boot app mein agar ek message ka processing <code>max.poll.interval.ms</code> (default 5 min) se lamba chala (e.g. slow downstream bank API call), to consumer group se nikaala jaata hai → rebalance → doosra consumer same batch dobara uthata hai → duplicate processing. Fixes: <code>max.poll.records</code> kam karo, <strong>CooperativeStickyAssignor</strong> (incremental rebalance), <strong>static membership</strong> (<code>group.instance.id</code>) taaki rolling deploys pe rebalance na ho, aur Kafka 4.0 ka naya server-side group protocol (KIP-848).</div>
+
+<h2 id="state-metadata">Step 3e: State storage, metadata aur ZooKeeper</h2>
+<figure class="diagram"><img src="../img/19/state-storage.png" alt="state storage" loading="lazy"><figcaption>Topic-A Partition-1 pe do consumer groups: group-1 ka last consumed offset = 6, group-2 ka = 13. Agar group-1 ka consumer crash ho, naya consumer offset 6 ke baad se continue karega. State storage basically yahi mapping rakhta hai: (group, topic, partition) → offset, plus partition → consumer assignment.</figcaption></figure>
+<p>Consumer state ka access pattern: frequent read/write lekin low volume, frequently updated, rarely deleted, random access, <strong>consistency important</strong>. Metadata (partition count, retention, replica plan): rarely changes, small, high consistency. Dono ke liye ZooKeeper jaisa consistent KV store fit hai.</p>
+<figure class="diagram"><img src="../img/19/zookeeper.png" alt="zookeeper" loading="lazy"><figcaption>Refined architecture: ZooKeeper box ke andar ab Metadata Storage, State Storage aur Coordination service teeno aa gaye. Brokers sirf <strong>Data Storage</strong> (messages) rakhte hain. Producers → Brokers → Consumers flow same, brokers ZooKeeper se double-arrow se baat karte hain.</figcaption></figure>
+<div class="callout realworld">🌍 <strong>Update 2025+:</strong> Kafka ne ZooKeeper hata diya — <strong>KRaft</strong> mode mein metadata ek internal Raft-replicated log (<code>__cluster_metadata</code>) mein hai jo controller quorum maintain karta hai. Kafka 4.0 (2025) se ZooKeeper mode completely removed hai. Interview mein bolo: "Book ZooKeeper bolti hai; aaj ke Kafka mein same responsibilities KRaft controllers karte hain — fewer moving parts, faster failover, millions of partitions scale."</div>
+
+<h2 id="replication">Step 3f: Replication aur ISR</h2>
+<figure class="diagram"><img src="../img/19/replication-example.png" alt="replication example" loading="lazy"><figcaption>4 brokers, har partition ke 3 replicas alag-alag brokers pe (dashed horizontal bands ek partition ke replicas ko jodte hain). Green = <strong>leader</strong>: Topic-A Partition-1 ka leader Broker-1, Partition-2 ka Broker-2, Topic-B Partition-1 ka Broker-3. "produce" arrow sirf leader pe aata hai; curved arrows dikhate hain followers leader se copy karte hain. Leaders brokers mein spread hain taaki load balance ho.</figcaption></figure>
+<ul>
+ <li>Producer hamesha <strong>leader</strong> ko likhta hai; followers leader se <strong>pull</strong> karte hain.</li>
+ <li>Enough replicas sync ho jaayein tab leader producer ko ack deta hai.</li>
+ <li>Replica distribution plan metadata store mein save hota hai.</li>
+</ul>
+<h3>In-sync replicas (ISR)</h3>
+<figure class="diagram"><img src="../img/19/in-sync-replicas-example.png" alt="in sync replicas example" loading="lazy"><figcaption>Leader (replica-1) ke paas 10-15, lekin 14,15 yellow = abhi uncommitted. Replica-2 ke paas 14 tak, replica-3 ke paas 13 tak, replica-4 sirf 11 tak ("not caught up" dashed arrow). Committed offset = 13 kyunki ISR {replica-1,2,3} mein sabke paas 13 tak hai. Replica-4 ISR se bahar hai, isliye uska wait nahi kiya jaata. Consumers sirf committed (≤13) data dekhte hain — Kafka isse <em>high watermark</em> bolta hai.</figcaption></figure>
+<p>Book <code>replica.lag.max.messages</code> bolti hai; modern Kafka mein yeh hata ke <code>replica.lag.time.max.ms</code> (time-based lag) use hota hai — kyunki message-count based threshold traffic spike pe healthy replicas ko bhi ISR se nikaal deta tha.</p>
+<h3>ACK settings</h3>
+<figure class="diagram"><img src="../img/19/ack-all.png" alt="ack all" loading="lazy"><figcaption>ack=all: (1) produce leader (Broker-2) ko, (2) replica-1 fetch karta hai, (3) synced, (4) tab ack producer ko. ISR = {replica-1, replica-2}; replica-3 "not caught up" isliye uska wait nahi. Sabse durable, sabse slow.</figcaption></figure>
+<figure class="diagram"><img src="../img/19/ack-1.png" alt="ack 1" loading="lazy"><figcaption>ack=1: (1) produce, (2) leader ne apne log mein likhte hi ack de diya — replica-1 ka fetch/sync baad mein hota hai. Agar leader ack ke turant baad mar gaya aur follower ne copy nahi kiya tha, message <strong>lost</strong>.</figcaption></figure>
+<figure class="diagram"><img src="../img/19/ack-0.png" alt="ack 0" loading="lazy"><figcaption>ack=0: "produce without ack" — producer response ka wait hi nahi karta (koi return arrow nahi). Fastest, lekin producer ko pata hi nahi chalega ki message pahuncha ya nahi. Metrics/logs ke liye theek, money ke liye kabhi nahi.</figcaption></figure>
+<table class="cmp">
+<tr><th>acks</th><th>Latency</th><th>Durability</th><th>Use case</th></tr>
+<tr><td>0</td><td>Lowest</td><td>Lowest (loss possible)</td><td>Metrics, clickstream sampling</td></tr>
+<tr><td>1</td><td>Low</td><td>Medium (leader crash pe loss)</td><td>Logs, non-critical events</td></tr>
+<tr><td>all</td><td>Highest</td><td>Highest</td><td>Payments, ledger events, orders</td></tr>
+</table>
+<div class="callout realworld">🌍 <strong>Payments-grade Kafka config:</strong> <code>replication.factor=3</code>, <code>min.insync.replicas=2</code>, producer <code>acks=all</code>, <code>enable.idempotence=true</code>, <code>unclean.leader.election.enable=false</code>. Meaning: ek broker gir jaaye to bhi writes chalti rahengi (2 ISR baaki); do gir jaayein to producer ko <code>NotEnoughReplicasException</code> milega — <em>unavailable but not lossy</em>. Money systems mein hamesha consistency &gt; availability choose karo. <code>acks=all</code> akela kaafi nahi: agar ISR shrink hoke sirf leader bacha aur <code>min.insync.replicas=1</code> hai to "all" = "1" ho jaata hai.</div>
+<p>Consumers default mein leader se padhte hain (simple, aur ek group mein partition ka ek hi reader hai). Cross-DC consumers ke liye nearest ISR follower se padhna allowed ho sakta hai (Kafka: follower fetching, KIP-392, <code>client.rack</code>).</p>
+
+<h2 id="scalability">Step 3g: Scalability — producer, consumer, broker, partition</h2>
+<p><strong>Producer</strong>: stateless-ish, instances add/remove karo. <strong>Consumer</strong>: groups isolated hain; group ke andar rebalancing scale aur fault tolerance deta hai.</p>
+<h3>Broker failure</h3>
+<figure class="diagram"><img src="../img/19/broker-failure-recovery.png" alt="broker failure recovery" loading="lazy"><figcaption>Teen stages upar se neeche. (1) 4 brokers, green = leaders. (2) Broker-3 crash (red X) — uske paas Topic-A P1, P2 ke replicas aur Topic-B P1 ka <em>leader</em> tha. (3) Broker-3 gayab; Topic-B P1 ka naya leader Broker-4 pe elect hua (green), aur missing replicas naye brokers pe banaye gaye (yellow = abhi catch-up kar rahe, ISR mein nahi). Catch up hone ke baad yellow → normal follower.</figcaption></figure>
+<ul>
+ <li>Replicas hamesha alag brokers pe (ek hi node pe saare replicas = waste). Better: alag racks/AZs.</li>
+ <li>Saare replicas mar gaye to data gaya — cross-DC replication latency bahut badhata hai, isliye workaround <a href="https://cwiki.apache.org/confluence/pages/viewpage.action?pageId=27846330" target="_blank" rel="noopener">data mirroring (Kafka MirrorMaker wiki)</a> — <em>yeh Apache Kafka wiki page batata hai ki MirrorMaker ek cluster ke topics consume karke doosre cluster mein produce karta hai (async cross-DC copy). Full explanation: <a href="../links.html#ch19">links guide</a>.</em></li>
+</ul>
+<div class="callout realworld">🌍 <strong>Cross-border reality:</strong> Western Union/HSBC type setups mein region-wise clusters hote hain (data residency laws), aur MirrorMaker 2 / Confluent Replicator se async replicate karte hain. Async = DR failover pe last few seconds ka data (RPO &gt; 0) missing ho sakta hai, aur offsets clusters mein same nahi hote (MM2 offset translation karta hai). Isliye failover ke baad consumers ko <strong>idempotent</strong> hona hi chahiye.</div>
+<h3>Naya broker add karna</h3>
+<figure class="diagram"><img src="../img/19/broker-replica-redistribution.png" alt="broker replica redistribution" loading="lazy"><figcaption>Stage 1: 3 brokers. Stage 2: Broker-4 add hua; plan hai Partition-2 ko brokers (2,3,4) pe rakhna — temporarily Broker-4 pe extra replica (yellow, catching up) ban gaya, to us waqt replicas configured se zyada hain. Stage 3: Broker-4 catch up kar gaya to Broker-1 se redundant Partition-2 replica hata diya. "Pehle add, phir remove" — kabhi bhi durability kam nahi hoti.</figcaption></figure>
+<h3>Partitions add/remove</h3>
+<figure class="diagram"><img src="../img/19/partition-exmaple.png" alt="partition exmaple" loading="lazy"><figcaption>Partition add: green = persisted (purane) messages, yellow = new messages. Partition-3 add hua; purane messages migrate <em>nahi</em> kiye, sirf naye messages teeno partitions mein jaane lage. Simple aur cheap — lekin key→partition mapping badal gayi (ordering warning yaad rakho).</figcaption></figure>
+<figure class="diagram"><img src="../img/19/partition-decrease.png" alt="partition decrease" loading="lazy"><figcaption>Partition remove: Partition-3 decommission (dashed, grey). Naye (yellow) messages sirf P1, P2 mein jaate hain, lekin P3 ka purana data retention period tak rehta hai taaki consumers use padh lein. Retention expire → truncate → consumer rebalance. (Note: real Kafka partitions <em>decrease</em> support hi nahi karta — naya topic banana padta hai.)</figcaption></figure>
+
+<h2 id="semantics">Step 3h: Delivery semantics (sabse important interview topic)</h2>
+<h3>At-most-once</h3>
+<figure class="diagram"><img src="../img/19/at-most-once.png" alt="at most once" loading="lazy"><figcaption>Producer → Message queue → Consumer, dono arrows pe "may lose msg". Producer retry nahi karta, consumer fetch karte hi offset commit kar deta hai — processing se pehle crash = message gaya, dobara nahi aayega.</figcaption></figure>
+<p>Use: metrics, monitoring jahan thoda loss chalega.</p>
+<h3>At-least-once</h3>
+<figure class="diagram"><img src="../img/19/at-least-once.png" alt="at least once" loading="lazy"><figcaption>Dono hops pe "may have duplicate". Producer acks=1/all ke saath retry karta hai (ack lost hua to same message dobara jaayega); consumer pehle process, phir commit — commit se pehle crash = message dobara aayega.</figcaption></figure>
+<p>Kafka ka practical default. Duplicates <strong>consumer side dedup</strong> se handle karo.</p>
+<h3>Exactly-once</h3>
+<figure class="diagram"><img src="../img/19/exactly-once.png" alt="exactly once" loading="lazy"><figcaption>Dono hops pe "guaranteed once". User ke liye sabse friendly, system ke liye sabse mehenga — producer idempotency, atomic offset commit aur transactional reads sab chahiye.</figcaption></figure>
+<div class="callout realworld">🌍 <strong>Exactly-once — Kafka asal mein kya deta hai (deep dive):</strong>
+<ol>
+<li><strong>Idempotent producer</strong> (<code>enable.idempotence=true</code>, Kafka 3.0+ default): broker har producer ko ek PID deta hai, aur har partition pe har batch ka sequence number check karta hai. Retry se aaya duplicate batch broker silently drop kar deta hai. Yeh sirf <em>ek producer session + ek partition</em> tak duplicate rokta hai.</li>
+<li><strong>Transactions</strong> (<code>transactional.id</code>): multiple partitions pe atomic writes + consumer offsets ko <em>same transaction</em> mein commit (<code>sendOffsetsToTransaction</code>). Consumers <code>isolation.level=read_committed</code> rakhein to aborted data nahi dikhega. Yeh <strong>consume → transform → produce</strong> (Kafka-to-Kafka) loop ko exactly-once banata hai — Kafka Streams <code>processing.guarantee=exactly_once_v2</code> yahi use karta hai.</li>
+<li><strong>Limit:</strong> Jaise hi side-effect Kafka ke bahar hai (DB write, bank API call, SWIFT message, email), Kafka EOS kaam nahi aata. Wahan "effectively-once" = <strong>at-least-once delivery + idempotent consumer</strong>.</li>
+</ol></div>
+<pre><code>// Spring Boot idempotent consumer pattern (payments)
+@KafkaListener(topics = "payment-events", groupId = "ledger")
+@Transactional  // DB transaction
+public void onEvent(PaymentEvent e, Acknowledgment ack) {
+    // UNIQUE constraint on processed_events.event_id
+    if (processedRepo.insertIfAbsent(e.eventId())) {   // same DB txn
+        ledger.post(e);                                // business effect
+    }
+    ack.acknowledge(); // offset commit AFTER DB commit -> at-least-once
+}
+// crash after DB commit but before ack -> redelivery -> insertIfAbsent=false -> skip</code></pre>
+<div class="callout tip">💡 <strong>Producer side ka twin: Transactional Outbox.</strong> "DB mein payment save + Kafka pe event publish" do alag systems hain — dual-write problem. Fix: same DB transaction mein <code>outbox</code> table mein event likho, phir Debezium (CDC) ya poller usse Kafka pe publish kare. At-least-once publish + idempotent consumers = end-to-end safe.</div>
+
+<h2 id="advanced">Step 3i: Advanced features</h2>
+<h3>Message filtering</h3>
+<p>Har subset ke liye alag topic banana = storage waste + producer consumers se coupled. Consumer-side filter = unnecessary traffic. Better: messages pe <strong>tags</strong> lagao (metadata mein, payload decrypt kiye bina), consumer tags subscribe kare, broker filter kare. Payload-based ya scripted filters broker pe heavy aur encrypted payloads ke saath unsafe hain.</p>
+<figure class="diagram"><img src="../img/19/message-filtering.png" alt="message filtering" loading="lazy"><figcaption>Broker ke andar messages 1-8, har message pe coloured tags (red/yellow/green shapes). Consumer "subscribe with tags" se batata hai use kaunse tags chahiye; broker ke "Tag filter" box se sirf matching messages "fetch messages" arrow se consumer tak jaate hain.</figcaption></figure>
+<div class="callout realworld">🌍 RocketMQ native tag filtering deta hai. Kafka broker-side filtering <em>nahi</em> karta (zero-copy design ke saath conflict karta hai) — Kafka mein ya to alag topics, ya consumer-side filter, ya Kafka Streams se filtered topic banao.</div>
+<h3>Delayed / scheduled messages</h3>
+<p>Example notes se: payment submit hua, 30 min baad check karo ki successful hua ya nahi. Delayed messages broker ke <strong>temporary storage</strong> (special internal topics) mein jaate hain aur time aane pe real partition mein move hote hain.</p>
+<figure class="diagram"><img src="../img/19/delayed-message-implementation.png" alt="delayed message implementation" loading="lazy"><figcaption>Producer se do raste: grey "instant messages" seedha partition (green) mein; black "delayed messages" pehle Broker ke andar yellow <strong>Temporary storage</strong> mein, aur "deliver when time's up" arrow se baad mein partition mein. Consumer ko pata hi nahi ki message delayed tha.</figcaption></figure>
+<figure class="diagram"><img src="../img/19/image_2023-02-10-10-00-53.png" alt="image_2023 02 10 10 00 53" loading="lazy"><figcaption>Wahi delayed-message diagram (notes mein duplicate screenshot): instant messages direct partition mein, delayed messages temporary storage mein park, timer fire hone par partition mein deliver. Timer ka efficient implementation = hierarchical timing wheel.</figcaption></figure>
+<p>Timer kaise? Dedicated delay queues (fixed levels, jaise RocketMQ ke delay levels) ya <a href="http://www.cs.columbia.edu/~nahum/w6998/papers/sosp87-timing-wheels.pdf" target="_blank" rel="noopener">Hierarchical Timing Wheels paper (Varghese &amp; Lauck, SOSP '87)</a> — <em>yeh paper dikhata hai ki lakhon timers ko O(1) insert/expire kaise karein: ghadi jaisi circular buckets, aur bade timeouts ke liye "hours/minutes/seconds" jaise multiple wheels. Kafka khud apne delayed produce/fetch requests ("purgatory") ke liye timing wheel use karta hai. Detail: <a href="../links.html#ch19">links guide</a>.</em></p>
+<div class="callout realworld">🌍 <strong>Spring Kafka retries:</strong> Kafka mein native delay nahi, isliye Spring Kafka ka <code>@RetryableTopic</code> retry topics banata hai (<code>orders-retry-0</code>, <code>-retry-1</code>, … <code>-dlt</code>) jahan consumer message ke timestamp + backoff tak partition pause karta hai. Yeh "non-blocking retry" hai — main topic block nahi hota, lekin us key ki ordering toot jaati hai. Payments mein ordering zaroori ho to blocking retry (<code>DefaultErrorHandler</code> + backoff) better.</div>
+
+<h2 id="wrapup">Step 4: Wrap up</h2>
+<ul>
+ <li><strong>Protocol</strong>: saare use cases + high volume + integrity verify — AMQP, Kafka protocol popular.</li>
+ <li><strong>Retry consumption</strong>: turant process nahi hua to dedicated retry topic → baad mein retry → DLQ.</li>
+ <li><strong>Historical archive</strong>: purane messages HDFS/S3 mein (Kafka tiered storage, KIP-405, yahi karta hai — old segments object storage mein).</li>
+</ul>
+
+<div class="callout interview">🎤 <strong>Interview mein kaise bolein (45 min plan):</strong>
+<ol>
+<li><strong>0-5 min</strong>: Requirements — retention? ordering? repeated consumption? semantics? Bolo "Yeh sab haan hai to main Kafka-style log design karunga, RabbitMQ-style delete-on-ack nahi."</li>
+<li><strong>5-15 min</strong>: Topic → partition → broker, consumer groups, high-level diagram (producer, brokers, metadata/coordination).</li>
+<li><strong>15-30 min</strong>: Deep dive — WAL + segments + page cache, producer batching/routing, pull model, rebalancing, ISR + acks.</li>
+<li><strong>30-40 min</strong>: Delivery semantics table + exactly-once ka honest answer (idempotent producer + transactions + idempotent consumer).</li>
+<li><strong>40-45 min</strong>: Scaling partitions (ordering caveat), delayed messages, tiered storage, KRaft.</li>
+</ol>
+Senior signal: har knob ke saath trade-off bolo — "acks=all + min.insync=2 = availability thodi kam, money loss zero".</div>
+
+<h2 id="faq">Follow-up questions (short answers)</h2>
+<dl>
+<dt>Q: Global ordering chahiye poore topic pe to?</dt><dd>1 partition — throughput ek broker tak limited. Usually business ko sirf per-entity ordering chahiye (per account) — wahi partition key se do.</dd>
+<dt>Q: Consumer lag badh raha hai, kya karoge?</dt><dd>Lag metric monitor (Burrow / consumer lag exporter). Pehle processing slow kyun hai dekho (downstream). Partitions ≥ consumers ho to consumers add karo; partitions kam hain to badhao (ordering caveat) ya consumer ke andar per-key parallelism (Confluent parallel-consumer).</dd>
+<dt>Q: Poison message ek partition block kar raha hai?</dt><dd>N retries ke baad DLT/DLQ mein bhejo, alert lagao, offset aage badhao. Payments mein DLQ ko ops dashboard + replay tool chahiye.</dd>
+<dt>Q: Message 10 MB ka ho to?</dt><dd>Claim-check pattern: payload S3 mein, Kafka mein sirf reference. Broker large messages ke liye tuned nahi hai.</dd>
+<dt>Q: Leader aur follower ka data diverge ho gaya (unclean failover)?</dt><dd>Naya leader ke log ko truth maana jaata hai; followers apna log leader epoch ke basis pe truncate karte hain. Unclean election allow ho to committed data lose ho sakta hai — isliye money topics pe disable.</dd>
+<dt>Q: Kafka vs RabbitMQ kab?</dt><dd>Replay, high throughput, event sourcing, stream processing → Kafka. Complex routing, per-message ack/TTL, priority, low-volume task queues → RabbitMQ.</dd>
+</dl>
+
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul>
+<li>Retention + ordering + replay ki requirement design ko <strong>append-only partitioned log</strong> bana deti hai.</li>
+<li>Throughput ke teen pillar: sequential disk I/O + page cache, immutable zero-copy format, batching everywhere.</li>
+<li>Ordering sirf <strong>partition ke andar</strong>; partition key = ordering scope. Partition count badhana key mapping todta hai.</li>
+<li>Consumer group: group ke andar ek partition = ek consumer; groups ke beech pub-sub. Offsets per group.</li>
+<li>Pull model backpressure aur batching ke liye better; long polling se latency fix.</li>
+<li>ISR + acks + min.insync.replicas = durability vs latency knob. Money = acks=all, RF=3, minISR=2.</li>
+<li>Exactly-once Kafka ke andar possible (idempotent producer + transactions); external side-effects ke liye at-least-once + idempotent consumer + outbox.</li>
+<li>ZooKeeper ka role aaj KRaft ne le liya hai — interview mein yeh update bolna plus point hai.</li>
+</ul></div>
+   <div class="chapter-nav"><a class="prev" href="18-google-maps.html">← Prev: Google Maps</a><a class="next" href="20-metrics-monitoring.html">Next: Metrics Monitoring & Alerting →</a></div>
+  </main>
+  <aside class="toc">
+   <p class="toc-title">On this page</p>
+    <a href="#intro">Introduction: queue kyun chahiye?</a>
+    <a href="#step1">Step 1: Requirements aur scope</a>
+    <a href="#step2">Step 2: High-level design</a>
+    <a href="#storage">Step 3a: Data storage — WAL aur segments</a>
+    <a href="#producer">Step 3b: Producer flow</a>
+    <a href="#consumer">Step 3c: Consumer flow — push vs pull</a>
+    <a href="#rebalance">Step 3d: Consumer rebalancing</a>
+    <a href="#state-metadata">Step 3e: State storage, metadata aur ZooKeeper</a>
+    <a href="#replication">Step 3f: Replication aur ISR</a>
+    <a href="#scalability">Step 3g: Scalability — producer, consumer, broker, partition</a>
+    <a href="#semantics">Step 3h: Delivery semantics (sabse important interview topic)</a>
+    <a href="#advanced">Step 3i: Advanced features</a>
+    <a href="#wrapup">Step 4: Wrap up</a>
+    <a href="#faq">Follow-up questions (short answers)</a>
+    <a href="#takeaways">Key Takeaways</a>
+  </aside>
+ </div>
+ <script src="../assets/app.js"></script>
+</body>
+</html>

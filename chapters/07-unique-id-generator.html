@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 07: Design a Unique ID Generator in Distributed Systems · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{if(localStorage.getItem('sd-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><div class="toplinks"><a href="../index.html#chapters">Chapters</a><a href="../index.html#how">Kaise padhein</a><a href="../links.html">URL Guide</a></div><button class="theme-toggle" aria-label="theme">◐</button></header>
+<div class="layout">
+<nav class="sidebar">
+<div class="group">Foundations</div><ul>
+<li><a href="01-scaling.html"><span class="num">01</span> Scale from Zero to Millions of Users</a></li>
+<li><a href="02-back-of-envelope.html"><span class="num">02</span> Back-of-the-Envelope Estimation</a></li>
+<li><a href="03-framework.html"><span class="num">03</span> A Framework for System Design Interviews</a></li>
+<li><a href="04-rate-limiter.html"><span class="num">04</span> Design a Rate Limiter</a></li>
+<li><a href="05-consistent-hashing.html"><span class="num">05</span> Design Consistent Hashing</a></li>
+<li><a href="06-key-value-store.html"><span class="num">06</span> Design a Key-Value Store</a></li>
+<li><a class="active" href="07-unique-id-generator.html"><span class="num">07</span> Design a Unique ID Generator</a></li>
+</ul>
+<div class="group">Classic Designs</div><ul>
+<li><a href="08-url-shortener.html"><span class="num">08</span> Design a URL Shortener</a></li>
+<li><a href="09-web-crawler.html"><span class="num">09</span> Design a Web Crawler</a></li>
+<li><a href="10-notification-system.html"><span class="num">10</span> Design a Notification System</a></li>
+<li><a href="11-news-feed.html"><span class="num">11</span> Design a News Feed System</a></li>
+<li><a href="12-chat-system.html"><span class="num">12</span> Design a Chat System</a></li>
+<li><a href="13-search-autocomplete.html"><span class="num">13</span> Design a Search Autocomplete System</a></li>
+<li><a href="14-youtube.html"><span class="num">14</span> Design YouTube</a></li>
+</ul>
+<div class="group">Vol 2 · Part 1</div><ul>
+<li><a href="15-google-drive.html"><span class="num">15</span> Design Google Drive</a></li>
+<li><a href="16-proximity-service.html"><span class="num">16</span> Design a Proximity Service</a></li>
+<li><a href="17-nearby-friends.html"><span class="num">17</span> Design Nearby Friends</a></li>
+<li><a href="18-google-maps.html"><span class="num">18</span> Design Google Maps</a></li>
+<li><a href="19-message-queue.html"><span class="num">19</span> Design a Distributed Message Queue</a></li>
+<li><a href="20-metrics-monitoring.html"><span class="num">20</span> Metrics Monitoring and Alerting System</a></li>
+<li><a href="21-ad-click-aggregation.html"><span class="num">21</span> Ad Click Event Aggregation</a></li>
+<li><a href="22-hotel-reservation.html"><span class="num">22</span> Hotel Reservation System</a></li>
+</ul>
+<div class="group">Vol 2 · Part 2</div><ul>
+<li><a href="23-email-service.html"><span class="num">23</span> Distributed Email Service</a></li>
+<li><a href="24-s3-object-storage.html"><span class="num">24</span> S3-like Object Storage</a></li>
+<li><a href="25-gaming-leaderboard.html"><span class="num">25</span> Real-time Gaming Leaderboard</a></li>
+<li><a href="26-payment-system.html"><span class="num">26</span> Design a Payment System</a></li>
+<li><a href="27-digital-wallet.html"><span class="num">27</span> Design a Digital Wallet</a></li>
+<li><a href="28-stock-exchange.html"><span class="num">28</span> Design a Stock Exchange</a></li>
+</ul>
+<div class="group">Extras</div><ul>
+<li><a href="../index.html">🏠 Home / Kaise padhein</a></li><li><a href="../links.html">🔗 Notes ke URLs ka guide</a></li></ul>
+</nav>
+<main class="content">
+<div class="chapter-hero"><span class="chapter-num">Chapter 07</span><h1>Design a Unique ID Generator in Distributed Systems</h1><p class="lead">64-bit, time-sortable, unique IDs bina central bottleneck ke — multi-master, UUID, ticket server aur Twitter Snowflake ka comparison.</p><div class="tags"><span class="tag">Snowflake</span><span class="tag">UUID</span><span class="tag">Ticket Server</span><span class="tag">Clock Sync</span><span class="tag">64-bit IDs</span></div></div>
+
+<h2 id="intro">Introduction</h2>
+<p>Pehla instinct: "RDBMS ka <code>auto_increment</code> primary key use kar lo." Single DB pe chalta hai, lekin distributed environment mein ek DB server kaafi bada nahi, aur multiple DBs ke across minimum delay ke saath unique IDs generate karna challenging hai. Is chapter mein hum aisa ID generator design karte hain jo <strong>unique, 64-bit numeric, time-sortable</strong> IDs de — tez aur bina central bottleneck ke.</p>
+
+<h2 id="step1">Step 1: Problem samjho aur scope</h2>
+<p>Clarifying questions se nikli requirements:</p>
+<ul>
+<li>IDs <strong>unique</strong> hone chahiye.</li>
+<li>IDs <strong>sirf numerical</strong> values.</li>
+<li>IDs <strong>64-bit</strong> mein fit hon.</li>
+<li>IDs <strong>date se ordered</strong> — shaam ke IDs subah ke IDs se bade. Lekin har baar exactly +1 zaroori nahi.</li>
+<li>Kam se kam <strong>10,000 IDs per second</strong> generate karne ki capability.</li>
+</ul>
+<div class="callout tip"><strong>Kyun time-sortable?</strong>Agar ID hi time order deta hai to "latest 20 tweets/messages" query ke liye alag <code>created_at</code> index nahi chahiye — primary key pe range scan kaafi. B-tree index mein inserts bhi append-like hote hain (random UUID ke comparison mein kam page splits).</div>
+
+<h2 id="step2">Step 2: High-level design — 4 options</h2>
+
+<h3 id="multi-master">Option 1: Multi-master replication</h3>
+<figure class="diagram"><img src="../img/07/multi-master.png" alt="Multi-master replication" loading="lazy"><figcaption><b>Kaise padhein:</b> Do MySQL servers web servers ko IDs dete hain. Pehla <b>1, 3, 5...</b> deta hai, doosra <b>2, 4, 6...</b> — yaani har DB <code>auto_increment</code> ko 1 ki jagah <b>k</b> (yahan k = 2, DB servers ki count) se badhata hai. Odd/even split se dono unique rehte hain.</figcaption></figure>
+<p>DB ka <code>auto_increment</code> use karo lekin step <strong>k</strong> rakho (k = DB servers ki count). Next ID = same server ka previous ID + k. IDs DB count ke saath scale hote hain.</p>
+<p><strong>Drawbacks:</strong></p>
+<ul>
+<li>Multiple data centers ke saath scale karna mushkil.</li>
+<li>IDs multiple servers ke across <strong>time ke saath increase nahi</strong> karte (server A ka 101 server B ke 98 ke baad bana ho sakta hai).</li>
+<li>Server add/remove karne pe scaling theek se nahi hoti — k badalna = sab IDs ka pattern badalna.</li>
+</ul>
+<pre><code>-- MySQL settings (2 servers ke liye)
+auto_increment_increment = 2
+auto_increment_offset    = 1   -- server A: 1,3,5...
+auto_increment_offset    = 2   -- server B: 2,4,6...</code></pre>
+
+<h3 id="uuid">Option 2: UUID</h3>
+<p>UUID ek 128-bit number hai jo computer systems mein information identify karta hai. Collision probability bahut kam hai — Wikipedia ke mutabik roughly 1 billion UUIDs per second 100 saal tak generate karne ke baad hi ek duplicate ki 50% probability aati hai. Example: <code>09c93e62-50b4-468d-bf8a-c07e1040bfb2</code>.</p>
+<figure class="diagram"><img src="../img/07/uuid.png" alt="UUID generator per web server" loading="lazy"><figcaption><b>Kaise padhein:</b> Har Web Server ke saath uska apna <b>ID gen</b> (dashed box) attached hai. Koi central server ya arrows nahi — har server independently IDs bana leta hai, koi coordination nahi.</figcaption></figure>
+<p><strong>Pros:</strong> simple; servers ke beech coordination nahi → sync issues nahi; scale karna easy — har web server apne IDs ka khud zimmedar, web servers ke saath ID generator bhi scale.</p>
+<p><strong>Cons:</strong> 128 bits — hamari 64-bit requirement fail; IDs time ke saath upar nahi jaate (UUIDv4 random hai); IDs non-numeric ho sakte hain.</p>
+
+<h3 id="ticket-server">Option 3: Ticket server</h3>
+<p>Flickr ne distributed primary keys ke liye ticket servers develop kiye. Idea: ek <strong>centralized</strong> <code>auto_increment</code> feature single DB server (Ticket Server) mein.</p>
+<figure class="diagram"><img src="../img/07/ticket-server.png" alt="Ticket server" loading="lazy"><figcaption><b>Kaise padhein:</b> Chaar Web Servers ki lines ek hi <b>Ticket Server</b> pe converge hoti hain. Har web server ID ke liye isi central server ko call karta hai — simple, lekin sab kuch isi ek box pe depend.</figcaption></figure>
+<p><strong>Pros:</strong> numeric IDs; implement karna easy; small-to-medium scale apps ke liye kaam karta hai.</p>
+<p><strong>Cons:</strong> <strong>Single point of failure</strong>. Ticket server down → saare systems jo IDs pe depend hain, down. Multiple ticket servers lagao to naye challenges — data synchronization.</p>
+<pre><code>-- Flickr-style ticket table (MySQL)
+REPLACE INTO Tickets64 (stub) VALUES ('a');
+SELECT LAST_INSERT_ID();</code></pre>
+
+<h3 id="snowflake">Option 4: Twitter Snowflake approach</h3>
+<p>Twitter ka unique ID generation system "Snowflake" hamari requirements satisfy karta hai. Divide and conquer: ID ko seedha generate karne ki jagah, ID ko <strong>sections</strong> mein baanto.</p>
+<figure class="diagram"><img src="../img/07/twitter-snowflake.png" alt="Snowflake 64-bit layout" loading="lazy"><figcaption><b>Kaise padhein (left se right):</b> <b>1 bit</b> = 0 (sign bit), <b>41 bits</b> = timestamp, <b>5 bits</b> = datacenter ID, <b>5 bits</b> = machine ID, <b>12 bits</b> = sequence number. Total 1+41+5+5+12 = 64 bits.</figcaption></figure>
+<table class="cmp"><thead><tr><th>Section</th><th>Bits</th><th>Kya hai / kyun</th></tr></thead><tbody>
+<tr><td>Sign bit</td><td>1</td><td>Hamesha 0. Future use ke liye reserve — signed/unsigned numbers distinguish karne ke kaam aa sakta hai. (Java <code>long</code> signed hai, to positive IDs milte hain.)</td></tr>
+<tr><td>Timestamp</td><td>41</td><td>Custom epoch se milliseconds. Twitter ka default epoch <code>1288834974657</code> = Nov 04, 2010, 01:42:54 UTC. Timestamp sabse upar ke bits mein hai, isliye IDs time se sortable.</td></tr>
+<tr><td>Datacenter ID</td><td>5</td><td>2<sup>5</sup> = 32 datacenters.</td></tr>
+<tr><td>Machine ID</td><td>5</td><td>Har DC mein 2<sup>5</sup> = 32 machines.</td></tr>
+<tr><td>Sequence number</td><td>12</td><td>Same machine pe same millisecond mein generate hue IDs. Har ID pe +1, har millisecond reset to 0. Max 2<sup>12</sup> = 4096 IDs/ms per machine.</td></tr>
+</tbody></table>
+<p>Datacenter aur machine IDs startup time pe choose hote hain aur generally fixed rehte hain — inhe badalne mein galti se ID conflict ho sakta hai, isliye careful review chahiye. Timestamp aur sequence runtime pe generate hote hain.</p>
+
+<h2 id="deep-dive">Step 3: Deep dive</h2>
+<h3>Timestamp section</h3>
+<p>Timestamp ke saath ID badhta hai, to IDs time se sortable hain. Binary representation ko UTC mein kaise convert karte hain:</p>
+<figure class="diagram"><img src="../img/07/snowflake-id-breakdown.png" alt="Converting snowflake ID to UTC" loading="lazy"><figcaption><b>Kaise padhein (upar se neeche):</b> Ek 64-bit ID — <code>0</code> sign, green = 41-bit timestamp, pink <code>01010</code> = datacenter ID (10), yellow <code>01100</code> = machine ID (12), blue = sequence (0). Green part ko <b>decimal</b> mein convert → <code>297616116568</code>. Usme <b>Twitter epoch 1288834974657</b> jodo → <code>1586451091225</code> ms. Isse UTC time mein convert → <b>Apr 09 2020 16:51:31 UTC</b>. Reverse karke bhi ID se uska creation time nikal sakte ho.</figcaption></figure>
+<p>41 bits = 2<sup>41</sup> − 1 = 2,199,023,255,551 ms ≈ <strong>~69 years</strong>. Matlab custom epoch ke baad 69 saal tak kaam karega. Epoch jitna recent (aaj ke kareeb), utna overflow door. 69 saal baad naya epoch ya ID migration chahiye.</p>
+<pre><code>2^41 ms / (1000 × 3600 × 24 × 365) ≈ 69 years</code></pre>
+<h3>Sequence number section</h3>
+<p>12 bits = 4096 combinations. Ye field 0 hi rehta hai jab tak ek hi server pe ek millisecond mein ek se zyada ID generate na ho. Theoretically ek machine 4096 IDs/ms = ~4 million IDs/sec support kar sakti hai — 10,000/sec ki requirement se bahut zyada.</p>
+<pre><code>// Snowflake generator (simplified Java)
+synchronized long nextId() {
+  long ts = System.currentTimeMillis();
+  if (ts &lt; lastTs) throw new IllegalStateException("clock moved backwards");
+  if (ts == lastTs) {
+    seq = (seq + 1) &amp; 0xFFF;                 // 12 bits
+    if (seq == 0) while ((ts = System.currentTimeMillis()) &lt;= lastTs) {}  // wait next ms
+  } else seq = 0;
+  lastTs = ts;
+  return ((ts - EPOCH) &lt;&lt; 22) | (dcId &lt;&lt; 17) | (machineId &lt;&lt; 12) | seq;
+}</code></pre>
+
+<table class="cmp"><thead><tr><th>Option</th><th>64-bit numeric</th><th>Time-sorted</th><th>No SPOF</th><th>Scales</th></tr></thead><tbody>
+<tr><td>Multi-master</td><td>✅</td><td>❌ (across servers)</td><td>✅</td><td>⚠️ add/remove server mushkil</td></tr>
+<tr><td>UUID</td><td>❌ 128-bit</td><td>❌</td><td>✅</td><td>✅</td></tr>
+<tr><td>Ticket server</td><td>✅</td><td>✅</td><td>❌</td><td>⚠️ central bottleneck</td></tr>
+<tr><td><strong>Snowflake</strong></td><td>✅</td><td>✅ (roughly)</td><td>✅</td><td>✅</td></tr>
+</tbody></table>
+
+<h2 id="wrapup">Step 4: Wrap-up — extra talking points</h2>
+<ul>
+<li><strong>Clock synchronization:</strong> design assume karta hai ki ID generation servers ka clock same hai. Ek server multiple cores pe ya multiple machines pe ho to ye assumption galat ho sakti hai. Solution: <strong>NTP (Network Time Protocol)</strong> — clock drift kam karta hai. Clock <em>peeche</em> chala jaaye (NTP correction) to duplicate/out-of-order IDs ka risk — generator ko detect karke wait ya refuse karna chahiye.</li>
+<li><strong>Section length tuning:</strong> low concurrency, long-term app ke liye sequence bits kam karo aur timestamp bits badhao.</li>
+<li><strong>High availability:</strong> ID generator mission-critical system hai — highly available hona chahiye (multiple instances, har ek ka unique machine ID).</li>
+</ul>
+<div class="callout warn"><strong>Failure mode</strong>Machine ID duplicate assign ho gaya (do pods same config se uthe) → same millisecond mein duplicate IDs. Fix: machine ID ko ZooKeeper/etcd lease, DB row, ya Kubernetes StatefulSet ordinal se allocate karo — config file se manually nahi.</div>
+<div class="callout realworld"><strong>Real world</strong>Discord aur Instagram ne Snowflake-style IDs adopt kiye (Instagram ne PostgreSQL ke andar shard ID + timestamp + sequence bits wala variant banaya). Naye standards jaise UUIDv7 aur ULID bhi timestamp ko leading bits mein rakh ke sortable IDs dete hain — lekin wo 128-bit hain.</div>
+
+<div class="callout interview"><strong>Interview mein kaise bolein</strong>
+<ol>
+<li>Requirements confirm: unique, numeric, 64-bit, time-ordered (+1 nahi), 10K/sec.</li>
+<li>Chaaron options ko upar wali table jaisa 1-1 line mein reject karo — reason requirement se jodo.</li>
+<li>Snowflake layout draw karo: 1 | 41 | 5 | 5 | 12, aur har field ka math (69 years, 32×32 machines, 4096/ms).</li>
+<li>Deep dive: clock skew/backwards, machine ID allocation, sequence overflow (next ms ka wait).</li>
+</ol></div>
+
+<h2 id="followups">Common follow-up questions</h2>
+<details><summary>Snowflake IDs strictly ordered hain?</summary><p>Nahi — "roughly" (k-sorted). Alag machines ke same millisecond ke IDs ka order machine ID pe depend karta hai, aur clocks thode skewed hote hain. Per-machine monotonic hain.</p></details>
+<details><summary>Clock peeche chala gaya to?</summary><p>Generator <code>lastTs</code> yaad rakhta hai; chhota drift ho to wait karo, bada ho to error throw karo aur alert. Kabhi bhi purane timestamp se ID mat do.</p></details>
+<details><summary>32 se zyada DCs ya machines chahiye?</summary><p>Bits re-balance karo: datacenter + machine ko 10-bit worker ID bana do (1024 workers), ya sequence bits kam karo.</p></details>
+<details><summary>Ye IDs public URLs mein expose karna safe hai?</summary><p>Inse creation time aur approximate volume leak hota hai. Sensitive ho to external ke liye alag opaque ID ya encoding use karo.</p></details>
+
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul>
+<li>Distributed systems mein single-DB <code>auto_increment</code> scale nahi karta.</li>
+<li>Multi-master (time-order nahi), UUID (128-bit, unsorted), Ticket server (SPOF) — sab mein kami.</li>
+<li><strong>Snowflake:</strong> 1 sign + 41 timestamp + 5 DC + 5 machine + 12 sequence = 64 bits.</li>
+<li>41 bits ≈ 69 years from custom epoch; 4096 IDs/ms per machine.</li>
+<li>Clock sync (NTP), section tuning aur high availability wrap-up ke key points.</li>
+</ul></div>
+
+<div class="chapter-nav"><a class="prev" href="06-key-value-store.html">← Prev: 06. Design a Key-Value Store</a><a class="next" href="08-url-shortener.html">Next: 08. Design a URL Shortener →</a></div>
+</main>
+<aside class="toc"></aside>
+</div>
+<script src="../assets/app.js"></script>
+</body>
+</html>

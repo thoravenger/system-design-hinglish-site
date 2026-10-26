@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Chapter 28: Stock Exchange · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+ <header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><button class="theme-toggle" aria-label="theme">◐</button></header>
+ <div class="layout">
+  <nav class="sidebar">
+   <div class="nav-group"><p class="nav-group-title">Foundations</p>
+    <a href="01-scaling.html"><span class="num">01</span> Scaling 0 to Millions</a>
+    <a href="02-back-of-envelope.html"><span class="num">02</span> Back-of-the-Envelope Estimation</a>
+    <a href="03-framework.html"><span class="num">03</span> System Design Interview Framework</a>
+    <a href="04-rate-limiter.html"><span class="num">04</span> Rate Limiter</a>
+    <a href="05-consistent-hashing.html"><span class="num">05</span> Consistent Hashing</a>
+    <a href="06-key-value-store.html"><span class="num">06</span> Key-Value Store</a>
+    <a href="07-unique-id-generator.html"><span class="num">07</span> Unique ID Generator</a>
+   </div>
+   <div class="nav-group"><p class="nav-group-title">Classic Designs</p>
+    <a href="08-url-shortener.html"><span class="num">08</span> URL Shortener</a>
+    <a href="09-web-crawler.html"><span class="num">09</span> Web Crawler</a>
+    <a href="10-notification-system.html"><span class="num">10</span> Notification System</a>
+    <a href="11-news-feed.html"><span class="num">11</span> News Feed System</a>
+    <a href="12-chat-system.html"><span class="num">12</span> Chat System</a>
+    <a href="13-search-autocomplete.html"><span class="num">13</span> Search Autocomplete</a>
+    <a href="14-youtube.html"><span class="num">14</span> YouTube</a>
+   </div>
+   <div class="nav-group"><p class="nav-group-title">Vol 2 · Part 1</p>
+    <a href="15-google-drive.html"><span class="num">15</span> Google Drive</a>
+    <a href="16-proximity-service.html"><span class="num">16</span> Proximity Service</a>
+    <a href="17-nearby-friends.html"><span class="num">17</span> Nearby Friends</a>
+    <a href="18-google-maps.html"><span class="num">18</span> Google Maps</a>
+    <a href="19-message-queue.html"><span class="num">19</span> Distributed Message Queue</a>
+    <a href="20-metrics-monitoring.html"><span class="num">20</span> Metrics Monitoring & Alerting</a>
+    <a href="21-ad-click-aggregation.html"><span class="num">21</span> Ad Click Event Aggregation</a>
+    <a href="22-hotel-reservation.html"><span class="num">22</span> Hotel Reservation System</a>
+   </div>
+   <div class="nav-group"><p class="nav-group-title">Vol 2 · Part 2</p>
+    <a href="23-email-service.html"><span class="num">23</span> Distributed Email Service</a>
+    <a href="24-s3-object-storage.html"><span class="num">24</span> S3-like Object Storage</a>
+    <a href="25-gaming-leaderboard.html"><span class="num">25</span> Real-time Gaming Leaderboard</a>
+    <a href="26-payment-system.html"><span class="num">26</span> Payment System</a>
+    <a href="27-digital-wallet.html"><span class="num">27</span> Digital Wallet</a>
+    <a href="28-stock-exchange.html" class="active" aria-current="page"><span class="num">28</span> Stock Exchange</a>
+   </div>
+  </nav>
+  <main class="content">
+   <div class="chapter-hero"><span class="chapter-num">Chapter 28</span><h1>Stock Exchange</h1><p class="lead">Electronic stock exchange — order book, matching engine, sequencer, event sourcing on mmap, single-server microsecond latency, hot/warm failover with Raft, market data fairness (multicast) aur colocation. Wallet chapter ka event-sourcing aur Kafka ka log-thinking yahan apne extreme pe pahunchte hain.</p><div class="tags"><span class="tag">Matching Engine</span><span class="tag">Order Book</span><span class="tag">Sequencer</span><span class="tag">Event Sourcing</span><span class="tag">mmap</span><span class="tag">Raft</span><span class="tag">Low Latency</span></div></div>
+<h2 id="intro">Introduction</h2>
+<p>Exchange ka basic kaam: buyers aur sellers ko <strong>efficiently aur fairly match</strong> karna. NYSE, NASDAQ jaise bade exchanges.</p>
+<figure class="diagram"><img src="../img/28/world-stock-exchanges.png" alt="world stock exchanges" loading="lazy"><figcaption>World map pe exchanges, bubble size = market cap (legend $2T se $20T). North America mein sabse bade green bubbles NYSE aur NASDAQ-US (plus TMX). Europe blue (London, Euronext, Deutsche Boerse, SIX, NASDAQ OMX Nordic). Asia purple (Shanghai, Shenzhen, Japan Exchange Group, Hong Kong, Korea, NSE aur BSE India). Australia orange.</figcaption></figure>
+
+<h2 id="step1">Step 1: Requirements aur scope</h2>
+<ul>
+ <li>Sirf <strong>stocks</strong>.</li>
+ <li>Place + cancel order; sirf <strong>limit orders</strong>.</li>
+ <li>Sirf normal trading hours.</li>
+ <li>Clients orders place/cancel karein, matched trades real-time paayein, order book real-time dekhein.</li>
+ <li>Scale: tens of thousands concurrent users, ~100 symbols, <strong>billions of orders/day</strong>.</li>
+ <li>Risk checks (e.g. ek user din mein max 1M Apple shares).</li>
+ <li>Wallet: order se pehle sufficient funds; pending orders ke funds <strong>withhold</strong> jab tak order final na ho.</li>
+</ul>
+<h3>Non-functional</h3>
+<ul>
+ <li><strong>Availability</strong> ≥ 99.99% — din mein sirf 8.64 sec downtime.</li>
+ <li><strong>Fault tolerance</strong> + fast recovery.</li>
+ <li><strong>Latency</strong>: round-trip ms level, focus <strong>p99</strong> — consistently high p99 kuch users ka experience kharab karta hai.</li>
+ <li><strong>Security</strong>: account management, KYC, public resources pe DDoS protection.</li>
+</ul>
+<h3>Back-of-the-envelope</h3>
+<ul>
+ <li>1B orders/day, trading 09:30-16:00 = 6.5 h.</li>
+ <li>QPS = 1B / (6.5 × 3600) ≈ <strong>43,000</strong>; peak 5× ≈ <strong>215,000</strong> (market open pe volume sabse zyada).</li>
+</ul>
+
+<h2 id="business101">Step 2a: Business knowledge 101</h2>
+<ul>
+ <li><strong>Broker</strong>: users aur exchange ke beech (Robinhood, Fidelity).</li>
+ <li><strong>Institutional clients</strong>: bade volumes, specialised software; e.g. bade order ko split karna taaki market impact kam ho.</li>
+ <li><strong>Limit order</strong>: fixed price pe buy/sell; turant match na ho ya partially match ho sakta hai. <strong>Market order</strong>: price nahi, current market price pe turant.</li>
+ <li><strong>Bid</strong>: buyer ki highest price; <strong>Ask</strong>: seller ki lowest price.</li>
+</ul>
+<figure class="diagram"><img src="../img/28/l1-price.png" alt="l1 price" loading="lazy"><figcaption>L1 market data, APPLE: sirf best ask 100.10 (qty 1800) aur best bid 100.08 (qty 2000, green). Spread = 100.10 − 100.08 = 0.02. Retail apps zyada tar yahi dikhate hain.</figcaption></figure>
+<figure class="diagram"><img src="../img/28/l2-price.png" alt="l2 price" loading="lazy"><figcaption>L2: zyada price levels. Sell book: 100.13 (300), 100.12 (1500), 100.11 (2000), best ask 100.10 (1800). Buy book: best bid 100.08 (2000), 100.07 (800), 100.06 (2000), 100.05 (600) — "depth of ask/bid". Har level pe total quantity.</figcaption></figure>
+<figure class="diagram"><img src="../img/28/l3-price.png" alt="l3 price" loading="lazy"><figcaption>L3: har price level pe <em>individual orders ki queue</em>. E.g. best ask 100.10 pe 200, 400, 1100, 100 — chaar alag orders, FIFO order mein. Best bid 100.08 pe 500, 600, 900. Matching engine ka internal view yahi hai.</figcaption></figure>
+<figure class="diagram"><img src="../img/28/candlestick.png" alt="candlestick" loading="lazy"><figcaption>Candlestick: upar ki line ka top = High, neeche ka bottom = Low (shadows/wicks). Box (Real Body) Open se Close tak. Is picture mein Open upar aur Close neeche hai, yaani interval mein price gira (bearish candle).</figcaption></figure>
+<p><strong>FIX</strong> protocol — securities transactions exchange karne ka industry standard:</p>
+<pre><code>8=FIX.4.2 | 9=176 | 35=8 | 49=PHLX | 56=PERS | 52=20071123-05:30:00.000 | 11=ATOMNOCCC9990900 | 20=3 | 150=E | 39=E | 55=MSFT | 167=CS | 54=1 | 38=15 | 40=2 | 44=15 | 58=PHLX EQUITY TESTING | 59=0 | 47=C | 32=0 | 31=0 | 151=15 | 14=0 | 6=0 | 10=128 |</code></pre>
+<div class="callout tip">💡 <strong>FIX kaise padhein</strong> — <code>tag=value</code> pairs: <code>8</code> BeginString (FIX.4.2), <code>9</code> BodyLength, <code>35=8</code> MsgType = ExecutionReport, <code>49</code>/<code>56</code> Sender/Target CompID (PHLX → PERS), <code>52</code> SendingTime, <code>11</code> ClOrdID (client ka order id — idempotency/correlation), <code>150</code>/<code>39</code> ExecType/OrdStatus (E = Pending Replace), <code>55=MSFT</code> Symbol, <code>167=CS</code> common stock, <code>54=1</code> Buy, <code>38=15</code> OrderQty, <code>40=2</code> Limit, <code>44=15</code> Price, <code>59=0</code> Day order, <code>151</code> LeavesQty 15, <code>14</code> CumQty 0, <code>6</code> AvgPx, <code>10</code> CheckSum. Payments wale ISO 8583 / SWIFT MT ke saath kaam kar chuke ho to yeh bilkul familiar lagega — tag-based financial messaging.</div>
+
+<h2 id="hld">Step 2b: High-level design</h2>
+<figure class="diagram"><img src="../img/28/high-level-design.png" alt="high level design" loading="lazy"><figcaption>Teen flows, legend se: solid numbered = <strong>Critical Path</strong>, M = Market Data Flow, R = Reporting Flow. Trading: ① client → Broker (Robinhood, Goldman Sachs) ② → Client Gateway ③ → Order Manager ④⑤ Aggregated Risk Check ⑥ Wallet check ⑦ → Sequencer ⑧ → Matching Engine ⑨ Order Book match ⑩ fills → Sequencer ⑪ → Order Manager ⑫ → Gateway ⑬ → Broker ⑭ → client. M1 Matching Engine → Market Data Publisher → M2 candlestick/order book → Data Service → M3 Broker. R1 Order Manager → Reporter → R2 DB (orders, executions).</figcaption></figure>
+<p><strong>Trade flow</strong>: client → broker → client gateway (validate, rate limit, auth) → order manager (risk check, wallet funds) → sequencer → matching engine → match pe <strong>do executions (fills)</strong> — buy side aur sell side — sequenced, deterministic → wapas client.</p>
+<p><strong>Market data (M1-M3)</strong>: executions stream → market data publisher (candlesticks, order book) → data service → brokers.</p>
+<p><strong>Reporter (R1-R2)</strong>: orders + executions se reporting fields (client_id, price, quantity, order_type, filled_quantity, remaining_quantity) DB mein.</p>
+<p>Trading flow critical path pe hai; baaki nahi — isliye latency requirements alag.</p>
+<h3>Matching engine (cross engine)</h3>
+<ul>
+ <li>Har symbol ka order book maintain.</li>
+ <li>Buy/sell match → do fills. Fast aur accurate.</li>
+ <li>Execution stream ko market data ke roop mein distribute.</li>
+ <li>Matches <strong>deterministic order</strong> mein — high availability ki neenv.</li>
+</ul>
+<h3>Sequencer</h3>
+<figure class="diagram"><img src="../img/28/sequencer.png" alt="sequencer" loading="lazy"><figcaption>Order Manager → <strong>Inbound Sequencer</strong> (queue) → Match Engine; Match Engine → <strong>Outbound Sequencer</strong> → Order Manager. Har inbound order aur har outbound fill pe sequence ID stamp hota hai.</figcaption></figure>
+<p>Kyun stamp: timeliness &amp; fairness, fast recovery/replay, exactly-once guarantee. Conceptually Kafka (inbound + outbound queue) jaisa, lekin latency ke liye khud implement.</p>
+<div class="callout realworld">🌍 <strong>Kafka se compare karo (aapke liye easiest mental model):</strong> Sequencer = ek single-partition Kafka topic jahan offset hi sequence number hai. Single partition = total order = determinism. Kafka mein bhi "ek partition, ek writer, consumers offset se replay" — exactly yahi guarantees. Farak latency ka hai: Kafka ka produce → replicate → fetch path milliseconds leta hai (network + batching + fsync), exchange ko microseconds chahiye. Isliye in-process ring buffer + mmap. Same reason se consumer offset ≈ "nextSequence" check (pseudo-code mein OUT_OF_ORDER) — gap detect karke replay maango.</div>
+<h3>Order manager</h3>
+<ul>
+ <li>Risk check bhejta hai (e.g. daily volume &lt; 1M).</li>
+ <li>Wallet se funds verify (aur <strong>hold</strong>).</li>
+ <li>Sequencer → matching engine; bandwidth ke liye sirf zaroori fields.</li>
+ <li>Fills sequencer se leke gateway ke through brokers ko.</li>
+ <li>Main challenge: <strong>state transitions</strong> (new → partially filled → filled / cancelled) → event sourcing.</li>
+</ul>
+<div class="callout realworld">🌍 <strong>Funds withholding = wallet chapter ka TC/C "Try":</strong> Buy 100 @ $10 → <code>available -= 1000, held += 1000</code>. Partial fill 40 → <code>held -= 400</code>, cash ledger mein debit. Cancel remaining → <code>held -= 600, available += 600</code>. Har transition ek event, ledger double-entry mein — user beech ki state kharch nahi kar sakta.</div>
+<h3>Client gateway</h3>
+<figure class="diagram"><img src="../img/28/client-gateway.png" alt="client gateway" loading="lazy"><figcaption>Gateway ke paanch kaam: Auth, Validation, Rate Limit, Normalization (alag protocols ko internal format mein), FIXT Support. Critical path pe hai — halka rakho, koi heavy logic nahi.</figcaption></figure>
+<figure class="diagram"><img src="../img/28/client-gateways.png" alt="client gateways" loading="lazy"><figcaption>Exchange ke andar multiple gateways: Exchange Website/App → HTTP → App/Web Gateway; Broker/Dealer aur Other API Users → API Gateway (FIX/Non-FIX); Broker/Dealer → <strong>Colo Engine</strong> (broker ka server exchange ke data center mein). Sab Sharded Services tak.</figcaption></figure>
+<h3>Market data flow</h3>
+<figure class="diagram"><img src="../img/28/market-data.png" alt="market data" loading="lazy"><figcaption>Matching Engine "Orders, matched results" → MDP (Market Data Publisher) jismein per-symbol Order books aur Candlestick Charts → Persistence → Data Service. MDP execution stream se book aur charts <em>rebuild</em> karta hai — matching engine se query nahi karta.</figcaption></figure>
+<h3>Reporting flow</h3>
+<figure class="diagram"><img src="../img/28/reporting-flow.png" alt="reporting flow" loading="lazy"><figcaption>Order Manager ↔ Matching Manager (orders / fills, rejects). Reporter mein Request (NewOrderReq) aur Response (NewOrderAck, Fill) milke <strong>ExecutionReport</strong>. Wahan se do raaste: Settlement &amp; Clearing (DB) aur Books &amp; Records (DB), dono → Reporting (DB). Latency nahi, accuracy + compliance important.</figcaption></figure>
+<p>Trading history, tax reporting, compliance, settlements — sab yahin se.</p>
+
+<h2 id="api">Step 2c: API design</h2>
+<p>Brokers ke liye REST; institutional clients ke liye low-latency proprietary protocol.</p>
+<pre><code>POST /v1/order
+  symbol: String, side: buy|sell, price: Long, orderType: limit|market, quantity: Long
+  -&gt; id: Long, creationTime: Long, filledQuantity: Long, remainingQuantity: Long,
+     status: new|canceled|filled, ...input fields
+
+GET /execution?symbol={symbol}&amp;orderId={orderId}&amp;startTime={startTime}&amp;endTime={endTime}
+  -&gt; executions: [ { id, orderId, symbol, side, price: Long, orderType, quantity } ]
+
+GET /marketdata/orderBook/L2?symbol={symbol}&amp;depth={depth}
+  -&gt; bids: [[price, size]], asks: [[price, size]]
+
+GET /marketdata/candles?symbol={symbol}&amp;resolution={seconds}&amp;startTime=..&amp;endTime=..
+  -&gt; candles: [ { open, close, high, low } ]</code></pre>
+<div class="callout warn">⚠️ Notes mein order price <code>Long</code> hai (achha — fixed-point/ticks, e.g. 100.08 = 1008 ticks of 0.01) lekin candles <code>Double</code> — inconsistent. Prices ke liye hamesha integer ticks/fixed-point; double sirf display layer mein. Payments ka "no floats for money" rule yahan bhi.</div>
+
+<h2 id="data-model">Step 2d: Data models</h2>
+<figure class="diagram"><img src="../img/28/product-order-execution-data-model.png" alt="product order execution data model" loading="lazy"><figcaption>Teen entities. <strong>Order</strong> (orderID UUID, productID, price long, quantity long, side, orderStatus, orderType, timeInForce, symbol, userID, clientOrderID, broker, accountID, entryTime, transactionTime). <strong>Execution</strong> (execID, orderID, price, quantity, side, … feeCurrency, feeRate, feeAmount, execStatus). <strong>Product</strong> (productID, symbol, lotSize, tickSize, quoteCurrency, settleCurrency…). Order 1 → 0..n Executions (partial fills), Order n → 1 Product.</figcaption></figure>
+<ul>
+ <li>Critical path pe orders/executions <strong>in-memory</strong>; sequencer se store aur recover.</li>
+ <li>Reporter DB mein likhta hai.</li>
+ <li>Executions market data ko → order book + candlesticks.</li>
+</ul>
+<h3>Order book</h3>
+<p>Requirements: price level pe volume O(1), fast add/execute/cancel, best bid/ask query, price levels iterate.</p>
+<figure class="diagram"><img src="../img/28/order-book-execution.png" alt="order book execution" loading="lazy"><figcaption>"Buy 2700 shares" ek bada marketable buy: best ask 100.10 ke saare orders khaata hai (200, 400, 1100, 100 = 1800), phir 100.11 ka pehla order 900 → 2700 − 200 − 400 − 1100 − 100 − 900 = 0. Pink = consumed. Ab best ask 100.10 se 100.11 (bache 700, 400) pe chala gaya — price upar, spread wide.</figcaption></figure>
+<pre><code>class PriceLevel {
+    private Price limitPrice;
+    private long totalVolume;
+    private List&lt;Order&gt; orders;
+}
+class Book&lt;Side&gt; {
+    private Side side;
+    private Map&lt;Price, PriceLevel&gt; limitMap;
+}
+class OrderBook {
+    private Book&lt;Buy&gt; buyBook;
+    private Book&lt;Sell&gt; sellBook;
+    private PriceLevel bestBid;
+    private PriceLevel bestOffer;
+    private Map&lt;OrderID, Order&gt; orderMap;
+}</code></pre>
+<p>List ki jagah <strong>doubly-linked list</strong>: new order = tail pe O(1); match = head se delete O(1); cancel = <code>orderMap</code> se O(1) lookup + prev/next pointers se O(1) delete.</p>
+<figure class="diagram"><img src="../img/28/order-book-impl.png" alt="order book impl" loading="lazy"><figcaption>Buy Book: <code>LinkedHashMap&lt;Price, PriceLevel&gt; limitMap</code> — keys 100.08, 100.07, 100.06; har level ki value ek <code>DoubleLinkedList&lt;Order&gt;</code>. ① Naya buy 100.07 qty 200 tail pe add. ② 100.08 ka head order (500) match hoke remove. ③ Cancel: Step 1 <code>HashMap&lt;OrderID, Order&gt; orderMap</code> se order (100.06, qty 400) dhoondho, Step 2 linked list se nikaalo (X).</figcaption></figure>
+<div class="callout tip">💡 Production order books mein price levels ke liye sorted structure chahiye taaki best level turant mile aur level khaali hone pe next best mile — <code>TreeMap</code> (O(log n)) ya, kyunki prices discrete ticks hain, ek <strong>array indexed by tick</strong> around current price (O(1)). Java mein boxing/GC avoid karne ke liye primitive collections (Agrona, Eclipse Collections) aur object pooling.</div>
+<h3>Candlestick</h3>
+<pre><code>class Candlestick {
+    private long openPrice, closePrice, highPrice, lowPrice, volume, timestamp;
+    private int interval;
+}
+class CandlestickChart {
+    private LinkedList&lt;Candlestick&gt; sticks;
+}</code></pre>
+<p>Memory optimisation: pre-allocated <strong>ring buffers</strong>, memory mein limited sticks, baaki disk pe. Real-time analytics ke liye in-memory columnar DB (e.g. KDB); market close ke baad historical DB.</p>
+
+<h2 id="performance">Step 3a: Performance — sab kuch ek server pe</h2>
+<p>Modern exchanges aksar sab kuch <strong>ek bade server</strong> pe chalate hain. Latency kam karne ke do tarike: critical path pe tasks kam karo (logging bhi hata do!), aur har task ka time kam karo (network/disk hatao).</p>
+<p>Original design (services over network + sequencer disk) = <strong>tens of milliseconds</strong>; target = <strong>tens of microseconds</strong>.</p>
+<figure class="diagram"><img src="../img/28/mmap-bus.png" alt="mmap bus" loading="lazy"><figcaption>"One Single Server" dashed box: Order Manager, Matching Engine, Market Data Publisher — teeno ka apna Application Loop. Sab ek shared <strong>mmap</strong> bus se jude, aur neeche Reporter, Logging, Aggregated Risk Check, Position Keeper bhi usi mmap se padhte/likhte hain. Network hop zero.</figcaption></figure>
+<figure class="diagram"><img src="../img/28/application-loop.png" alt="application loop" loading="lazy"><figcaption>Order Manager ke andar: orders → Input Thread/Netloop → dispatch → <strong>Application Loop Thread</strong> (ek while loop, queue process karta hai, Order State update) → dispatch → Output Thread/Netloop → orders. Application loop thread "pin to CPU 1" (8-core grid mein core 1 highlighted) — context switch nahi, cache warm.</figcaption></figure>
+<ul>
+ <li>Application loop: ek thread, ek CPU core pe pinned → no context switching, <strong>no lock contention</strong>.</li>
+ <li><code>mmap</code>: file ko process memory mein map karta hai. File <code>/dev/shm</code> (shared memory, RAM-backed) mein banao → disk access hi nahi.</li>
+</ul>
+<div class="callout realworld">🌍 <strong>Java low-latency stack (real tools):</strong> LMAX Disruptor (lock-free ring buffer, padding se false sharing avoid), Chronicle Queue (mmap-based persisted queue, Java), Aeron (reliable UDP unicast/multicast + IPC; Aeron Cluster Raft-based), SBE (Simple Binary Encoding — design-so-far diagram mein "SBE encoded payload" yahi hai). JVM tuning: zero-allocation hot path, ya low-pause GC (ZGC/Shenandoah), CPU isolation (<code>isolcpus</code>), thread affinity, busy-spin wait strategies. Spring Boot yahan critical path pe nahi hota — gateway/admin/reporting side pe hota hai.</div>
+
+<h2 id="event-sourcing">Step 3b: Event sourcing</h2>
+<p>Detail ke liye <a href="27-digital-wallet.html#event-sourcing">Digital Wallet chapter ka event sourcing section</a> dekho (notes ka link chapter28 likhta hai, sahi chapter 27 hai). Nutshell: current state ki jagah immutable state transitions store karo.</p>
+<figure class="diagram"><img src="../img/28/event-sourcing.png" alt="event sourcing" loading="lazy"><figcaption>Upar: Order V1 (New) → OrderFilledEvent → Order V2 (Filled). Neeche left "Non Event Sourcing": Order table mein Version V1 New, V2 Filled (state overwrite/versions). Right "Event Sourcing": Event table — sequence 100 NewOrderEvent, 101 OrderFilledEvent. State = events ka replay.</figcaption></figure>
+<figure class="diagram"><img src="../img/28/design-so-far.png" alt="design so far" loading="lazy"><figcaption>Left External Domain (FIX) → Gateway (Event Store Client) "NewOrderEvent" → <strong>Event Store (mmap)</strong> (Trading Domain, SBE). Matching Engine ka Event Store Client "Pull events" → App loop → Order Manager (Validate, update Order State) → Matching Core; fill pe "OrderFilledEvent" wapas event store. Market Data Publisher aur Reporter (Reporting Domain) events subscribe karte hain. Event store entry = Sequence + Event type + SBE encoded payload.</figcaption></figure>
+<ul>
+ <li>Bahar FIX, andar compact SBE events.</li>
+ <li>Order manager ek <strong>library</strong> hai jo har component embed karta hai — extra calls nahi; har component events replay karke same order state banata hai.</li>
+</ul>
+<figure class="diagram"><img src="../img/28/sequencer-deep-dive.png" alt="sequencer deep dive" loading="lazy"><figcaption>Sequencer ab event store nahi, <strong>single writer</strong> hai: ① Gateway apne ring buffer mein likhta hai, Matching Engine apne ring buffer mein. ② Sequencer dono ring buffers se pull karta hai. ③ Sequence stamp karke Event Store (mmap) mein likhta hai. Single writer = locks nahi, total order.</figcaption></figure>
+
+<h2 id="ha">Step 3c: High availability</h2>
+<p>99.99% = 8.64 sec/din downtime. SPOFs pehchano: critical services (matching engine) ke standby backups, failure detection + failover automate. Stateless (gateway) horizontally scale.</p>
+<figure class="diagram"><img src="../img/28/leader-election.png" alt="leader election" loading="lazy"><figcaption>Matching Engine (Hot) event store se NewOrderEvent padhta hai aur OrderFilledEvent likhta hai. Matching Engine (Warm, grey) bhi wahi NewOrderEvent padh ke apna state update karta hai, lekin <strong>kuch publish nahi karta</strong>. Hot gaya → warm ke paas already same state (determinism!), turant leader.</figcaption></figure>
+<p>Heartbeats se primary down detect. Yeh ek server ke andar kaam karta hai; aage — poora server hot/warm replica, event store <strong>reliable UDP</strong> se replicate.</p>
+
+<h2 id="fault">Step 3d: Fault tolerance</h2>
+<p>Warm bhi gaya to? Core data multiple cities ke DCs mein. Sawaal: kab/kaise failover, leader kaise chunein, <strong>RTO</strong> kitna, degraded mode mein kya chalega?</p>
+<ul>
+ <li>Bug primary aur replicas dono ko maar sakta hai (same code, same events, deterministic = same crash!) → chaos engineering.</li>
+ <li>Shuru mein manual failover jab tak failure modes samajh na aayein.</li>
+ <li>Leader election: Raft.</li>
+</ul>
+<figure class="diagram"><img src="../img/28/replication-across-servers.png" alt="replication across servers" loading="lazy"><figcaption>Leader ka Event Store (mmap) — pink first slot — se "AppendEntries RPCs" arrows chaar follower servers ke event stores tak. Upar Matching Engine Hot (read+write events) aur Warm (sirf NewOrderEvent read). Raft log = event store.</figcaption></figure>
+<figure class="diagram"><img src="../img/28/leader-election-terms.png" alt="leader election terms" loading="lazy"><figcaption>Raft terms timeline: har term ek election (teal) se shuru hota hai, phir Normal Operation (white). Term 1, 2, 3 normal; Term 4 mein "Split Vote" — koi leader nahi bana, poora term election mein gaya; Term 5 naya election + normal. Term number = logical clock; stale leader ko reject karne ke kaam aata hai.</figcaption></figure>
+<p>Raft ko visually samajhne ke liye: <a href="https://thesecretlivesofdata.com/raft/" target="_blank" rel="noopener">The Secret Lives of Data — Raft visualization</a> — <em>step-by-step animation: nodes follower → candidate → leader kaise bante hain, election timeout, heartbeats, log replication aur network partition ke baad kya hota hai. Kaise padhein: har slide pe "Continue" dabao aur dekho ki commit sirf majority ack ke baad hota hai. Detail: <a href="../links.html#ch28">links guide</a>.</em></p>
+<p><strong>Loss tolerance</strong>: exchange ke liye data loss unacceptable → frequent backup + Raft replication.</p>
+<div class="callout warn">⚠️ <strong>Determinism ka double-edged sword:</strong> Hot/warm replicas same events pe same state banate hain — failover instant. Lekin ek "poison" event jo matching engine crash karta hai, woh warm ko bhi same jagah crash karega. Mitigation: input validation sequencer se pehle, replicas pe alag build/version canary, aur kill-switch jo specific symbol ka trading halt kar sake.</div>
+
+<h2 id="matching">Step 3e: Matching algorithm</h2>
+<pre><code>Context handleOrder(OrderBook orderBook, OrderEvent orderEvent) {
+    if (orderEvent.getSequenceId() != nextSequence) {
+        return Error(OUT_OF_ORDER, nextSequence);
+    }
+    if (!validateOrder(symbol, price, quantity)) {
+        return ERROR(INVALID_ORDER, orderEvent);
+    }
+    Order order = createOrderFromEvent(orderEvent);
+    switch (msgType):
+        case NEW:    return handleNew(orderBook, order);
+        case CANCEL: return handleCancel(orderBook, order);
+        default:     return ERROR(INVALID_MSG_TYPE, msgType);
+}
+Context handleNew(OrderBook orderBook, Order order) {
+    if (BUY.equals(order.side)) return match(orderBook.sellBook, order);
+    else                        return match(orderBook.buyBook, order);
+}
+Context handleCancel(OrderBook orderBook, Order order) {
+    if (!orderBook.orderMap.contains(order.orderId)) {
+        return ERROR(CANNOT_CANCEL_ALREADY_MATCHED, order);
+    }
+    removeOrder(order);
+    setOrderStatus(order, CANCELED);
+    return SUCCESS(CANCEL_SUCCESS, order);
+}
+Context match(OrderBook book, Order order) {
+    Quantity leavesQuantity = order.quantity - order.matchedQuantity;
+    Iterator&lt;Order&gt; limitIter = book.limitMap.get(order.price).orders;
+    while (limitIter.hasNext() &amp;&amp; leavesQuantity &gt; 0) {
+        Quantity matched = min(limitIter.next.quantity, order.quantity);
+        order.matchedQuantity += matched;
+        leavesQuantity = order.quantity - order.matchedQuantity;
+        remove(limitIter.next);
+        generateMatchedFill();
+    }
+    return SUCCESS(MATCH_SUCCESS, order);
+}</code></pre>
+<p>Price level ke andar <strong>FIFO</strong> (price-time priority).</p>
+<div class="callout interview">🎤 <strong>Notes ke pseudo-code ke bugs pakdo (senior signal):</strong> (1) Sirf <em>same price</em> level dekhta hai — real matching best opposite price se shuru karke tab tak levels cross karta hai jab tak incoming limit price allow kare (buy @100.11 ko 100.10 aur 100.11 dono levels khaane chahiye). (2) <code>min(next.quantity, order.quantity)</code> galat — <code>leavesQuantity</code> se min lo. (3) <code>next</code> do baar call = do alag orders. (4) Resting order partially fill ho to remove nahi, quantity kam karo. (5) Leftover quantity book mein rest karni chahiye. Corrected sketch:
+<pre><code>while (leaves &gt; 0 &amp;&amp; opp.bestLevel() != null &amp;&amp; crosses(order, opp.bestLevel().price)) {
+    PriceLevel lvl = opp.bestLevel();
+    Order resting = lvl.head();
+    long qty = Math.min(leaves, resting.leaves());
+    emitFill(order, resting, lvl.price, qty, seq.next());   // two executions: buy &amp; sell
+    resting.fill(qty); order.fill(qty); leaves -= qty;
+    if (resting.leaves() == 0) lvl.removeHead();
+    if (lvl.isEmpty()) opp.removeLevel(lvl);
+}
+if (leaves &gt; 0) ownSide.rest(order);   // limit order book mein baith jaata hai</code></pre>
+Trade price = resting order ka price (maker price).</div>
+
+<h2 id="determinism">Step 3f: Determinism</h2>
+<figure class="diagram"><img src="../img/28/determinism.png" alt="determinism" loading="lazy"><figcaption>Upar timeline: events 1-6 alag-alag real times pe aaye (gaps uneven). Neeche: same events replay mein back-to-back. Functional result same hai kyunki order sequence number se decide hota hai, wall-clock se nahi.</figcaption></figure>
+<ul>
+ <li><strong>Functional determinism</strong>: sequencer se guaranteed — actual time matter nahi karta.</li>
+ <li><strong>Latency determinism</strong>: p99/p99.99 track karo. Java mein GC pauses spikes ke bade culprits.</li>
+</ul>
+
+<h2 id="mdp">Step 3g: Market data publisher</h2>
+<figure class="diagram"><img src="../img/28/market-data-publisher.png" alt="market data publisher" loading="lazy"><figcaption>Matching Engine → MDP (Order books + Candlestick Charts 1 min, 1 hour, 1 day). Har chart ek <strong>ring buffer</strong> — "Hold recent 100 ticks". → Persistence → Data Service. Granular data ke liye clients zyada pay kar sakte hain.</figcaption></figure>
+<p>Ring buffer: fixed-size circular queue, preallocated (no allocation), lock-free. <strong>Padding</strong> se sequence number apni cache line mein — false sharing nahi.</p>
+
+<h2 id="fairness">Step 3h: Fairness, multicast, colocation, security</h2>
+<p>Market data sab subscribers ko <strong>ek saath</strong> milna chahiye — jo pehle paaye usko unfair edge. Transport: unicast (1→1), broadcast (1→subnet), <strong>multicast</strong> (1→set of hosts across subnets). Multicast + reliable UDP (retransmissions) se sabko theoretically same time pe.</p>
+<p><strong>Colocation</strong>: brokers ke servers exchange ke DC mein — latency drastically kam; VIP service.</p>
+<p><strong>DDoS</strong>: public aur private services alag; rarely-updated data cache karo; URLs cacheable banao — e.g. <a href="https://my.website.com/data/recent" target="_blank" rel="noopener nofollow">https://my.website.com/data/recent</a> better hai <a href="https://my.website.com/data?from=123&amp;to=456" target="_blank" rel="noopener nofollow">https://my.website.com/data?from=123&amp;to=456</a> se — <em>dono sirf illustrative example URLs hain (real site nahi): pehla fixed path CDN pe ek hi cached object hai, doosre mein attacker har request pe from/to badal ke cache bypass karke origin pe load daal sakta hai. Detail: <a href="../links.html#ch28">links guide</a>.</em> Allowlist/blocklist + rate limiting.</p>
+
+<h2 id="wrapup">Step 4: Wrap up</h2>
+<ul>
+ <li>Sab exchanges ek bade server pe nahi chalte, lekin kuch abhi bhi.</li>
+ <li>Modern exchanges cloud infra aur (crypto mein) <strong>AMMs</strong> (automatic market makers) bhi use karte hain jahan order book hi nahi hota.</li>
+</ul>
+
+<div class="callout interview">🎤 <strong>Interview mein kaise bolein (45 min):</strong>
+<ol>
+<li>Scope: stocks, limit orders, place/cancel, 100 symbols, 43k avg / 215k peak QPS, p99 latency, 99.99%.</li>
+<li>Business 101 (bid/ask, L1/L2/L3, candlestick) — 2 minute, vocabulary dikhao.</li>
+<li>Teen flows diagram: critical trading path vs market data vs reporting.</li>
+<li>Matching engine + order book data structure (doubly-linked list + orderMap + price levels) + sequencer.</li>
+<li>Deep dive: single server, mmap bus, pinned application loop, event sourcing, single-writer sequencer.</li>
+<li>HA: hot/warm deterministic replicas, Raft across servers, RTO, chaos.</li>
+<li>Fairness: multicast, colocation; DDoS.</li>
+</ol>
+Bridge line: "Kafka mein jo partition-offset ordering main roz use karta hoon, wahi sequencer hai — bas microsecond budget ke liye in-process."</div>
+
+<h2 id="faq">Follow-up questions</h2>
+<dl>
+<dt>Q: 100 symbols se 10,000 symbols?</dt><dd>Symbols ko matching engine instances mein shard (symbol = natural partition key; cross-symbol matching nahi hota). Har shard ka apna sequencer + hot/warm.</dd>
+<dt>Q: Cancel aur fill race?</dt><dd>Sequencer decide karta hai — jo pehle sequence hua woh jeeta. Fill pehle → cancel reject (CANNOT_CANCEL_ALREADY_MATCHED).</dd>
+<dt>Q: Duplicate order (broker retry)?</dt><dd><code>clientOrderID</code> (FIX tag 11) per broker unique — gateway/order manager dedupe.</dd>
+<dt>Q: Market open pe 5× spike?</dt><dd>Opening auction (call auction) — orders collect karke ek price pe uncross, continuous matching baad mein; plus gateway rate limits per broker.</dd>
+<dt>Q: End of day settlement?</dt><dd>Reporter → clearing house (T+1 US mein), books &amp; records; trades vs positions vs cash ka recon — Ch26 jaisa.</dd>
+</dl>
+
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul>
+<li>Exchange = deterministic state machine over a totally-ordered event log (sequencer).</li>
+<li>Order book: price levels + doubly-linked FIFO queues + orderMap → O(1) add/match/cancel.</li>
+<li>Critical path ko minimal rakho; market data aur reporting off-path.</li>
+<li>Microseconds ke liye: single server, mmap (/dev/shm), pinned single-threaded loops, ring buffers, no locks, no GC on hot path.</li>
+<li>Event sourcing → replay, hot/warm replicas with identical state, fast failover; Raft across servers.</li>
+<li>Prices integer ticks mein; FIX bahar, binary (SBE) andar.</li>
+<li>Fairness: multicast + reliable UDP, colocation; DDoS: cacheable URLs, isolation, rate limits.</li>
+</ul></div>
+   <div class="chapter-nav"><a class="prev" href="27-digital-wallet.html">← Prev: Digital Wallet</a><a class="next" href="../index.html">Home →</a></div>
+  </main>
+  <aside class="toc">
+   <p class="toc-title">On this page</p>
+    <a href="#intro">Introduction</a>
+    <a href="#step1">Step 1: Requirements aur scope</a>
+    <a href="#business101">Step 2a: Business knowledge 101</a>
+    <a href="#hld">Step 2b: High-level design</a>
+    <a href="#api">Step 2c: API design</a>
+    <a href="#data-model">Step 2d: Data models</a>
+    <a href="#performance">Step 3a: Performance — sab kuch ek server pe</a>
+    <a href="#event-sourcing">Step 3b: Event sourcing</a>
+    <a href="#ha">Step 3c: High availability</a>
+    <a href="#fault">Step 3d: Fault tolerance</a>
+    <a href="#matching">Step 3e: Matching algorithm</a>
+    <a href="#determinism">Step 3f: Determinism</a>
+    <a href="#mdp">Step 3g: Market data publisher</a>
+    <a href="#fairness">Step 3h: Fairness, multicast, colocation, security</a>
+    <a href="#wrapup">Step 4: Wrap up</a>
+    <a href="#faq">Follow-up questions</a>
+    <a href="#takeaways">Key Takeaways</a>
+  </aside>
+ </div>
+ <script src="../assets/app.js"></script>
+</body>
+</html>
