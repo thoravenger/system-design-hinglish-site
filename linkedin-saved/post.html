@@ -1,0 +1,23 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>My Saved Posts · Post</title><link rel="stylesheet" href="assets/app.css"></head><body>
+<div id="sdh-libbar" style="position:relative;z-index:2147483000;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0;padding:8px 16px;background:#0f172a;color:#cbd5e1;font:600 13px/1.5 Inter,'Segoe UI',system-ui,-apple-system,sans-serif;border-bottom:2px solid #4f46e5;box-sizing:border-box;width:100%;text-align:left;letter-spacing:0"><a href="../index.html" style="color:#fff;text-decoration:none;font-weight:800">SystemDesign<span style="color:#8b8cff">.hinglish</span></a><span style="opacity:.45">/</span><a href="../all-topics.html" style="color:#fff;text-decoration:none">🗂 All Topics</a><span style="opacity:.45">·</span><a href="../library/index.html#linkedin-saved" style="color:#fff;text-decoration:none">📚 Library</a><span style="opacity:.45">/</span><span>LinkedIn Saved Posts</span><a href="linkedin_saved_posts.pdf" download style="color:#a5b4fc;text-decoration:none;font-size:12px">⬇ Saved posts PDF (644 pages)</a><a href="../library/linkedin-saved/linkedin-saved-posts-pipeline-hld-lld.html" style="color:#a5b4fc;text-decoration:none;font-size:12px">📄 How it was built (HLD + LLD)</a><span style="margin-left:auto;font-size:11px;padding:2px 9px;border-radius:999px;border:1px solid #6366f1;color:#c7d2fe">🔗 Offline feed</span></div>
+<div id="nav"></div>
+<main class="wrap one single"><section id="main"></section></main>
+<script src="assets/data.js"></script><script src="assets/common.js"></script>
+<script>
+(function(){
+const {P,BYID,esc,postCard,nav,bindCommon,qs,sorted,chip}=SP;
+document.getElementById('nav').innerHTML=nav('');
+const id=parseInt(qs().get('id'),10);const p=BYID[id];const m=document.getElementById('main');
+if(!p){m.innerHTML=`<div class="card empty">Post not found. <a href="index.html">Back to the feed</a></div>`;return}
+document.title=`#${p.id} ${p.author} · My Saved Posts`;
+const order=sorted('newest');const i=order.findIndex(x=>x.id===p.id);
+const prev=order[i-1],next=order[i+1];
+const lnk=(x,lbl,dir)=>x?`<a class="btn" href="post.html?id=${x.id}" title="${esc(x.author)}">${dir==='p'?'← ':''}${lbl}${dir==='n'?' →':''}</a>`:`<a class="btn" aria-disabled="true">${dir==='p'?'← ':''}${lbl}${dir==='n'?' →':''}</a>`;
+m.innerHTML=`<div class="crumbs"><a href="index.html">Feed</a> › ${chip(p.topic,true)} › Post #${p.id}</div>`+postCard(p,{full:true})+
+ `<div class="card pager">${lnk(prev,'Newer','p')}<span class="mid">${i+1} of ${order.length}</span>${lnk(next,'Older','n')}</div>`+
+ `<div style="text-align:center;margin:14px 0"><a class="btn solid" href="index.html?author=${encodeURIComponent(p.author)}">More from ${esc(p.author)}</a></div>`;
+document.addEventListener('keydown',e=>{if(e.target.tagName==='INPUT')return;if(e.key==='ArrowLeft'&&prev)location.href='post.html?id='+prev.id;if(e.key==='ArrowRight'&&next)location.href='post.html?id='+next.id});
+bindCommon(document.body);window.__ready=true;
+})();
+</script></body></html>

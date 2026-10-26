@@ -1,0 +1,26 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>My Saved Posts · Topics</title><link rel="stylesheet" href="assets/app.css"></head><body>
+<div id="sdh-libbar" style="position:relative;z-index:2147483000;display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:0;padding:8px 16px;background:#0f172a;color:#cbd5e1;font:600 13px/1.5 Inter,'Segoe UI',system-ui,-apple-system,sans-serif;border-bottom:2px solid #4f46e5;box-sizing:border-box;width:100%;text-align:left;letter-spacing:0"><a href="../index.html" style="color:#fff;text-decoration:none;font-weight:800">SystemDesign<span style="color:#8b8cff">.hinglish</span></a><span style="opacity:.45">/</span><a href="../all-topics.html" style="color:#fff;text-decoration:none">🗂 All Topics</a><span style="opacity:.45">·</span><a href="../library/index.html#linkedin-saved" style="color:#fff;text-decoration:none">📚 Library</a><span style="opacity:.45">/</span><span>LinkedIn Saved Posts</span><a href="linkedin_saved_posts.pdf" download style="color:#a5b4fc;text-decoration:none;font-size:12px">⬇ Saved posts PDF (644 pages)</a><a href="../library/linkedin-saved/linkedin-saved-posts-pipeline-hld-lld.html" style="color:#a5b4fc;text-decoration:none;font-size:12px">📄 How it was built (HLD + LLD)</a><span style="margin-left:auto;font-size:11px;padding:2px 9px;border-radius:999px;border:1px solid #6366f1;color:#c7d2fe">🔗 Offline feed</span></div>
+<div id="nav"></div>
+<main class="wrap one" style="grid-template-columns:minmax(0,1100px)"><section id="main"></section></main>
+<script src="assets/data.js"></script><script src="assets/common.js"></script>
+<script>
+(function(){
+const {P,T,esc,nav,sorted,authorCounts}=SP;
+document.getElementById('nav').innerHTML=nav('topics');
+const max=Math.max(...T.map(t=>P.filter(p=>p.topic===t.key).length));
+let h=`<div class="card head"><h1>Topics</h1><p>${P.length} saved posts, tagged automatically by keywords into ${T.length} topics.</p>
+<div class="bars">${T.map(t=>`<i title="${esc(t.label)}" style="flex:${P.filter(p=>p.topic===t.key).length};background:${t.color}"></i>`).join('')}</div></div><div class="tgrid">`;
+T.forEach(t=>{
+  const ps=sorted('newest').filter(p=>p.topic===t.key);
+  const au=authorCounts(ps).slice(0,4);
+  const first=x=>(x.text.split('\n').find(l=>l.trim())||'(no text)').slice(0,90);
+  h+=`<div class="card tcard" style="--c:${t.color}"><h2>${esc(t.label)}</h2><div class="cnt">${ps.length}</div><div style="font-size:12px;color:#5e5e5e">${(ps.length/P.length*100).toFixed(1)}% of saved posts</div>
+  <div class="bar"><i style="width:${ps.length/max*100}%"></i></div>
+  <div class="sub">Latest</div><ul>${ps.slice(0,3).map(p=>`<li><a href="post.html?id=${p.id}">${esc(first(p))}</a></li>`).join('')}</ul>
+  <div class="sub">Top authors</div><ul>${au.map(([a,n])=>`<li><a href="index.html?author=${encodeURIComponent(a)}">${esc(a)}</a> <span style="color:#888">· ${n}</span></li>`).join('')}</ul>
+  <a class="btn" style="border-color:${t.color};color:${t.color};margin-top:6px" href="index.html?topic=${t.key}">See all ${ps.length} →</a></div>`;
+});
+document.getElementById('main').innerHTML=h+'</div>';window.__ready=true;
+})();
+</script></body></html>
