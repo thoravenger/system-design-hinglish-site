@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>YouTube System Design — Pre-signed Upload, ABR Streaming, Watch Progress · Web Resources · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{if(localStorage.getItem('sd-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
+<style>
+.wr-src{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:.8em 0 0}
+.wr-src a.btn{font-size:.85rem}
+.wr-acc{font-size:.72rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:3px 9px;border-radius:999px}
+.wr-acc.free{background:#dcfce7;color:#15803d}.wr-acc.preview{background:#fef3c7;color:#b45309}
+html.dark .wr-acc.free{background:#0f2e1c;color:#86efac}html.dark .wr-acc.preview{background:#3a2a0a;color:#fcd34d}
+pre.mermaid{background:var(--bg-soft);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center;overflow-x:auto}
+.wr-flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:1em 0}
+.wr-flow span{padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg-card);font-weight:600;font-size:.9rem}
+.wr-flow i{color:var(--accent);font-style:normal;font-weight:800}
+</style>
+<script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";mermaid.initialize({startOnLoad:true,theme:document.documentElement.classList.contains("dark")?"dark":"default",securityLevel:"strict"});</script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><div class="toplinks"><a href="../all-topics.html">🗂 All Topics</a><a href="../index.html#chapters">Chapters</a><a href="../library/index.html">Library</a><a href="../bot-made/index.html">Bots</a><a href="../linkedin-saved/index.html">LinkedIn</a><a href="../web-resources/index.html" style="color:var(--accent);font-weight:700">Web</a><a href="../links.html">URL Guide</a></div><button class="theme-toggle" aria-label="theme">◐</button></header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="index.html"><span class="num">🌐</span> Web Resources home</a></li><li><a href="../all-topics.html"><span class="num">🗂</span> All Topics (har page)</a></li></ul>
+<div class="group">⚡ Messaging &amp; Real-time</div><ul>
+<li><a href="kafka-how-it-works.html"><span class="num">02</span> How Kafka Works</a></li>
+<li><a href="whatsapp-system-design.html"><span class="num">06</span> How WhatsApp Works</a></li>
+<li><a href="slack-architecture.html"><span class="num">09</span> How Slack Works</a></li>
+<li><a href="live-comments-system-design.html"><span class="num">21</span> How Live Comments Work</a></li>
+<li><a href="real-time-presence-platform.html"><span class="num">23</span> How Live Presence Works</a></li>
+</ul>
+<div class="group">🧩 Classic interview designs</div><ul>
+<li><a href="stock-exchange-system-design.html"><span class="num">01</span> How Stock Exchange Works</a></li>
+<li><a href="url-shortener-system-design.html"><span class="num">05</span> How URL Shortener Works</a></li>
+<li><a href="airbnb-hotel-booking-system-design.html"><span class="num">07</span> How Airbnb Works</a></li>
+<li><a href="leaderboard-system-design.html"><span class="num">22</span> How Leaderboards Work</a></li>
+<li><a href="pastebin-system-design.html"><span class="num">26</span> How Pastebin Works</a></li>
+</ul>
+<div class="group">🎬 Media, Social &amp; Frontend</div><ul>
+<li><a class="active" href="youtube-system-design.html"><span class="num">03</span> How YouTube Works</a></li>
+<li><a href="spotify-system-design.html"><span class="num">08</span> How Spotify Works</a></li>
+<li><a href="bluesky-atproto-architecture.html"><span class="num">12</span> How Bluesky Works</a></li>
+<li><a href="twitter-timeline-frontend-system-design.html"><span class="num">13</span> How Twitter Timeline Works</a></li>
+</ul>
+<div class="group">📍 Maps &amp; Location</div><ul>
+<li><a href="tinder-architecture.html"><span class="num">11</span> How Tinder Works</a></li>
+<li><a href="uber-eta-computation.html"><span class="num">19</span> How Uber Computes ETA</a></li>
+</ul>
+<div class="group">🛠 Infra, Databases &amp; Search</div><ul>
+<li><a href="vitess-youtube-mysql.html"><span class="num">24</span> How YouTube Scales MySQL</a></li>
+<li><a href="nginx-how-it-works.html"><span class="num">28</span> How Nginx Works</a></li>
+<li><a href="google-search-web-crawler.html"><span class="num">30</span> How Google Search Works</a></li>
+</ul>
+<div class="group">🤖 GenAI &amp; LLM systems</div><ul>
+<li><a href="llm-concepts.html"><span class="num">17</span> How LLMs Actually Work</a></li>
+<li><a href="chatgpt-apps-mcp.html"><span class="num">18</span> How ChatGPT Apps Work</a></li>
+<li><a href="vector-database-internals.html"><span class="num">25</span> How Vector DBs Work</a></li>
+<li><a href="chatgpt-system-design.html"><span class="num">27</span> How ChatGPT Works</a></li>
+</ul>
+</nav>
+<main class="content">
+<div class="chapter-hero"><span class="chapter-num">Case study #3 · 🎬 Media, Social &amp; Frontend</span><h1>YouTube System Design — Pre-signed Upload, ABR Streaming, Watch Progress</h1><p class="lead">&quot;App servers sirf metadata, heavy bytes seedha blob storage + CDN&quot; — pre-signed URL upload, resumable 256 GB uploads, manifest + adaptive bitrate, fire-and-forget watch progress aur cursor pagination.</p><div class="tags"><span class="tag">Pre-signed URL</span><span class="tag">ABR</span><span class="tag">CDN</span><span class="tag">DynamoDB</span><span class="tag">Cursor pagination</span></div><div class="wr-src"><span class="wr-acc preview">Free preview + paid part</span><a class="btn small" href="https://newsletter.systemdesign.one/p/youtube-system-design" target="_blank" rel="noopener">Original article ↗</a></div></div>
+<div class="callout realworld"><strong>Source &amp; credit</strong><p>Original article: <a href="https://newsletter.systemdesign.one/p/youtube-system-design" target="_blank" rel="noopener">YouTube System Design</a> — Neo Kim (The System Design Newsletter / systemdesign.one). LinkedIn post <a href="https://www.linkedin.com/posts/nk-systemdesign-one_if-you-want-to-become-good-at-system-design-activity-7520570734436319232-IxEG/" target="_blank" rel="noopener">“If you want to become good at system design (in 30 days), learn these 30 case studies”</a> ka case study #3.</p><p>Ye page us article ke <b>apne Hinglish study notes</b> hain — summary, concepts, diagram aur interview angle. Article ka text copy nahi kiya; details, original diagrams aur references ke liye source zaroor padho. <i>Note: article ka sirf free preview wala hissa padh ke notes banaye hain; baaki hissa paid subscribers ke liye hai.</i></p></div>
+<div class="callout tip"><strong>Site pe pehle se (yahan se jodo)</strong><ul><li><a href="../chapters/14-youtube.html">Ch 14 · Design YouTube (Alex Xu) — transcoding DAG, CDN cost</a></li><li><a href="../web-resources/spotify-system-design.html">Web Resources · Spotify (audio version of same idea)</a></li></ul></div>
+
+<h2>Requirements jo design badalte hain</h2>
+<ul><li>Web + mobile se upload, file <b>256 GB tak</b>, beech mein toote to <b>resume</b> (data loss nahi).</li><li>~1M uploads/day; naya video turant sabko dikhe zaroori nahi — <b>eventual consistency OK</b>.</li><li>Streaming smooth, har network pe. Search + comments paginated.</li></ul>
+
+<h2>Design philosophy</h2>
+<div class="callout tip"><strong>Ek line</strong><p>Application servers halka metadata sambhalein; bhaari video bytes <b>seedha cloud storage aur CDN</b> se jaayein. App server bandwidth ka bottleneck kabhi na bane.</p></div>
+
+<h2>4 APIs, 4 lessons</h2>
+<table class="cmp"><thead><tr><th>API</th><th>Kya karta hai</th><th>Lesson</th></tr></thead><tbody>
+<tr><td><code>POST /v1/videos</code></td><td>Video ID reserve + <b>pre-signed S3 URL</b> return</td><td>Client seedha S3 pe upload karta hai (multipart/resumable) — app server untouched</td></tr>
+<tr><td><code>GET /v1/videos/{id}</code></td><td>Metadata + <b>manifest file URL</b></td><td>Manifest batata hai kaunse segments/resolutions hain; client CDN se ABR streaming karta hai</td></tr>
+<tr><td><code>POST /v1/progress/{id}</code></td><td>Playback position save</td><td>Millions writes/sec — <b>fire-and-forget</b>, high-throughput store (DynamoDB jaisa), consistency se zyada speed</td></tr>
+<tr><td><code>GET /v1/search</code></td><td>Search index query</td><td><b>Cursor pagination</b> (next_cursor) — "skip 10M rows" wali problem nahi</td></tr>
+</tbody></table>
+
+<pre class="mermaid">
+flowchart LR
+  C[Client] -->|1 POST videos| API[API servers]
+  API -->|pre-signed URL| C
+  C -->|2 upload chunks| S3[(Blob storage raw)]
+  S3 -->|event| TQ[Transcode queue]
+  TQ --> W[Transcoders: 240p..4K + segments + manifest]
+  W --> S3B[(Blob storage encoded)]
+  S3B --> CDN[CDN]
+  C -->|3 GET video| API
+  C -->|4 ABR segments| CDN
+</pre>
+
+<h2>Adaptive bitrate (ABR) ek minute mein</h2>
+<p>Video ko kai qualities mein encode karke chhote segments (kuch seconds) mein kaata jaata hai. Manifest (HLS <code>.m3u8</code> / DASH <code>.mpd</code>) mein list hoti hai. Player network dekh ke har segment ki quality chunta hai — 4G pe 1080p, lift mein 360p, bina buffering.</p>
+<div class="callout warn"><strong>Note</strong><p>Free preview API design tak hai. Transcoding pipeline (DAG), CDN cost optimisation aur error handling Ch 14 mein detail mein hai.</p></div>
+
+<div class="callout interview"><strong>Interview mein kaise bolein</strong><p>"Upload pe app server bytes nahi chhuega — pre-signed URL se client seedha S3 pe resumable multipart upload. Upload complete event pe transcoding queue, workers multiple bitrates + segments + manifest banate hain, CDN serve karta hai. Watch progress fire-and-forget DynamoDB mein. Search cursor-paginated." Ye 4 lines + diagram = solid answer.</p></div>
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul><li>Metadata app server pe, bytes S3/CDN pe.</li><li>Pre-signed URL + multipart = resumable bade uploads.</li><li>Manifest + segments = adaptive bitrate.</li><li>High-volume progress writes: async, eventual.</li><li>Cursor pagination for search/comments.</li></ul></div>
+<div class="chapter-nav"><a class="prev" href="pastebin-system-design.html">← How Pastebin Works</a><a class="next" href="spotify-system-design.html">How Spotify Works →</a></div>
+</main>
+<aside class="toc"></aside>
+</div>
+<footer class="footer">SystemDesign.hinglish · Web Resources · Hinglish notes; original content © its authors (systemdesign.one) · auto-generated by libbuild/webres.py</footer>
+<script src="../assets/app.js"></script>
+</body>
+</html>

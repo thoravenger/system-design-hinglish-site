@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tinder Architecture — S2 Geo-sharding, Kafka Ordering, Match Workers · Web Resources · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{if(localStorage.getItem('sd-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
+<style>
+.wr-src{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:.8em 0 0}
+.wr-src a.btn{font-size:.85rem}
+.wr-acc{font-size:.72rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:3px 9px;border-radius:999px}
+.wr-acc.free{background:#dcfce7;color:#15803d}.wr-acc.preview{background:#fef3c7;color:#b45309}
+html.dark .wr-acc.free{background:#0f2e1c;color:#86efac}html.dark .wr-acc.preview{background:#3a2a0a;color:#fcd34d}
+pre.mermaid{background:var(--bg-soft);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center;overflow-x:auto}
+.wr-flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:1em 0}
+.wr-flow span{padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg-card);font-weight:600;font-size:.9rem}
+.wr-flow i{color:var(--accent);font-style:normal;font-weight:800}
+</style>
+<script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";mermaid.initialize({startOnLoad:true,theme:document.documentElement.classList.contains("dark")?"dark":"default",securityLevel:"strict"});</script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><div class="toplinks"><a href="../all-topics.html">🗂 All Topics</a><a href="../index.html#chapters">Chapters</a><a href="../library/index.html">Library</a><a href="../bot-made/index.html">Bots</a><a href="../linkedin-saved/index.html">LinkedIn</a><a href="../web-resources/index.html" style="color:var(--accent);font-weight:700">Web</a><a href="../links.html">URL Guide</a></div><button class="theme-toggle" aria-label="theme">◐</button></header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="index.html"><span class="num">🌐</span> Web Resources home</a></li><li><a href="../all-topics.html"><span class="num">🗂</span> All Topics (har page)</a></li></ul>
+<div class="group">⚡ Messaging &amp; Real-time</div><ul>
+<li><a href="kafka-how-it-works.html"><span class="num">02</span> How Kafka Works</a></li>
+<li><a href="whatsapp-system-design.html"><span class="num">06</span> How WhatsApp Works</a></li>
+<li><a href="slack-architecture.html"><span class="num">09</span> How Slack Works</a></li>
+<li><a href="live-comments-system-design.html"><span class="num">21</span> How Live Comments Work</a></li>
+<li><a href="real-time-presence-platform.html"><span class="num">23</span> How Live Presence Works</a></li>
+</ul>
+<div class="group">🧩 Classic interview designs</div><ul>
+<li><a href="stock-exchange-system-design.html"><span class="num">01</span> How Stock Exchange Works</a></li>
+<li><a href="url-shortener-system-design.html"><span class="num">05</span> How URL Shortener Works</a></li>
+<li><a href="airbnb-hotel-booking-system-design.html"><span class="num">07</span> How Airbnb Works</a></li>
+<li><a href="leaderboard-system-design.html"><span class="num">22</span> How Leaderboards Work</a></li>
+<li><a href="pastebin-system-design.html"><span class="num">26</span> How Pastebin Works</a></li>
+</ul>
+<div class="group">🎬 Media, Social &amp; Frontend</div><ul>
+<li><a href="youtube-system-design.html"><span class="num">03</span> How YouTube Works</a></li>
+<li><a href="spotify-system-design.html"><span class="num">08</span> How Spotify Works</a></li>
+<li><a href="bluesky-atproto-architecture.html"><span class="num">12</span> How Bluesky Works</a></li>
+<li><a href="twitter-timeline-frontend-system-design.html"><span class="num">13</span> How Twitter Timeline Works</a></li>
+</ul>
+<div class="group">📍 Maps &amp; Location</div><ul>
+<li><a class="active" href="tinder-architecture.html"><span class="num">11</span> How Tinder Works</a></li>
+<li><a href="uber-eta-computation.html"><span class="num">19</span> How Uber Computes ETA</a></li>
+</ul>
+<div class="group">🛠 Infra, Databases &amp; Search</div><ul>
+<li><a href="vitess-youtube-mysql.html"><span class="num">24</span> How YouTube Scales MySQL</a></li>
+<li><a href="nginx-how-it-works.html"><span class="num">28</span> How Nginx Works</a></li>
+<li><a href="google-search-web-crawler.html"><span class="num">30</span> How Google Search Works</a></li>
+</ul>
+<div class="group">🤖 GenAI &amp; LLM systems</div><ul>
+<li><a href="llm-concepts.html"><span class="num">17</span> How LLMs Actually Work</a></li>
+<li><a href="chatgpt-apps-mcp.html"><span class="num">18</span> How ChatGPT Apps Work</a></li>
+<li><a href="vector-database-internals.html"><span class="num">25</span> How Vector DBs Work</a></li>
+<li><a href="chatgpt-system-design.html"><span class="num">27</span> How ChatGPT Works</a></li>
+</ul>
+</nav>
+<main class="content">
+<div class="chapter-hero"><span class="chapter-num">Case study #11 · 📍 Maps &amp; Location</span><h1>Tinder Architecture — S2 Geo-sharding, Kafka Ordering, Match Workers</h1><p class="lead">Nearby profiles ke liye Google S2 cells se geo-sharding, location change ka ordering Kafka partition se, swipes stream → match workers → WebSocket notify, aur time-zone wale hot shards ka ilaaj.</p><div class="tags"><span class="tag">S2 geometry</span><span class="tag">Geo-sharding</span><span class="tag">Kafka</span><span class="tag">Kinesis</span><span class="tag">Hot shard</span></div><div class="wr-src"><span class="wr-acc free">Free article</span><a class="btn small" href="https://newsletter.systemdesign.one/p/tinder-architecture" target="_blank" rel="noopener">Original article ↗</a></div></div>
+<div class="callout realworld"><strong>Source &amp; credit</strong><p>Original article: <a href="https://newsletter.systemdesign.one/p/tinder-architecture" target="_blank" rel="noopener">Tinder Architecture</a> — Neo Kim (The System Design Newsletter / systemdesign.one). LinkedIn post <a href="https://www.linkedin.com/posts/nk-systemdesign-one_if-you-want-to-become-good-at-system-design-activity-7520570734436319232-IxEG/" target="_blank" rel="noopener">“If you want to become good at system design (in 30 days), learn these 30 case studies”</a> ka case study #11.</p><p>Ye page us article ke <b>apne Hinglish study notes</b> hain — summary, concepts, diagram aur interview angle. Article ka text copy nahi kiya; details, original diagrams aur references ke liye source zaroor padho.</p></div>
+<div class="callout tip"><strong>Site pe pehle se (yahan se jodo)</strong><ul><li><a href="../chapters/16-proximity-service.html">Ch 16 · Proximity Service (geohash/quadtree)</a></li><li><a href="../chapters/17-nearby-friends.html">Ch 17 · Nearby Friends</a></li></ul></div>
+
+<h2>Profile banana</h2>
+<ul><li>User data key-value DB (DynamoDB) mein; <b>DynamoDB Streams</b> se changes doosri jagah (location index etc.) auto push.</li><li>Profile update message queue mein → location index update.</li><li>Public API ek <b>API Gateway</b> ke peeche (auth, security rules); andar ~500 microservices, <b>service mesh</b> se communication.</li></ul>
+
+<h2>Nearby log — S2 se geo-sharding</h2>
+<p>Sirf lat/long se "paas ke log" dhundhna mehenga. Duniya ko barabar grids mein baanto to samundar ke grids khaali aur Mumbai/Delhi ke grids overloaded — <b>hot shard</b>. Isliye Google ka <b>S2</b>: square-shaped hierarchical cells, har cell ka 64-bit ID (Hilbert curve order — paas wali cells ke IDs bhi paas). Paas rehne wale users <b>same DB shard</b> mein → recommendation query ek-do shards pe.</p>
+<table class="cmp"><thead><tr><th></th><th>S2 (Tinder)</th><th>H3 (Uber)</th><th>Geohash</th></tr></thead><tbody>
+<tr><td>Cell shape</td><td>Square (sphere pe projected)</td><td>Hexagon</td><td>Rectangle</td></tr>
+<tr><td>Strength</td><td>Hierarchy + Hilbert locality</td><td>Neighbours barabar doori pe</td><td>Simple string prefix</td></tr>
+</tbody></table>
+
+<h2>Passport (location change) — ordering bug</h2>
+<p>Location badli = naye index mein add + purane se remove — ye atomic nahi. User ne jaldi se A→B→A kiya to operations ulte order mein chal ke galat location pe atak sakte hain. Fix: <b>same user ka data same Kafka partition</b> mein → FIFO order; consumer partition pe lock leta hai.</p>
+
+<h2>Swipe → match</h2>
+<pre class="mermaid">
+flowchart LR
+  S[Swipe right] --> K[Kinesis stream]
+  K --> MW[Match workers]
+  MW <--> LC[(Likes cache)]
+  MW -->|match!| WS[WebSocket notify dono ko]
+  K -->|left swipes| S3[(S3: analytics, recs)]
+</pre>
+
+<h2>Hot shards ka ilaaj</h2>
+<ul><li>Shard load = unique users count. Ek shard ke users usually ek time-zone mein → sab ka peak ek saath.</li><li>Isliye <b>kai shards randomly ek physical server pe</b> — alag time-zones mix, load average out.</li><li>Reads zyada → Redis cache-aside (read hot shard solved); writes ke liye rate limiting + exponential backoff.</li><li>Data stores ko periodically sync — ~26M matches/day scale.</li></ul>
+
+<div class="callout interview"><strong>Interview mein kaise bolein</strong><p>"Location ko S2 cells se index aur shard karunga taaki paas ke users ek shard mein hon; shards ko time-zones mix karke physical servers pe randomly place karunga. Swipes stream mein, match workers likes cache check karke WebSocket se notify. Location updates per-user Kafka partition se ordered." Geohash/H3 compare karna bonus.</p></div>
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul><li>Uniform grid = hot shards; hierarchical cells (S2) better.</li><li>Per-user Kafka partition = per-user ordering.</li><li>Swipes async stream + match workers + WebSocket.</li><li>Multi-shard per server, time-zone mix se balance.</li></ul></div>
+<div class="chapter-nav"><a class="prev" href="twitter-timeline-frontend-system-design.html">← How Twitter Timeline Works</a><a class="next" href="uber-eta-computation.html">How Uber Computes ETA →</a></div>
+</main>
+<aside class="toc"></aside>
+</div>
+<footer class="footer">SystemDesign.hinglish · Web Resources · Hinglish notes; original content © its authors (systemdesign.one) · auto-generated by libbuild/webres.py</footer>
+<script src="../assets/app.js"></script>
+</body>
+</html>

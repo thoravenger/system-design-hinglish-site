@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How Kafka Works — Log, Partitions, Replication, KRaft · Web Resources · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{if(localStorage.getItem('sd-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
+<style>
+.wr-src{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:.8em 0 0}
+.wr-src a.btn{font-size:.85rem}
+.wr-acc{font-size:.72rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:3px 9px;border-radius:999px}
+.wr-acc.free{background:#dcfce7;color:#15803d}.wr-acc.preview{background:#fef3c7;color:#b45309}
+html.dark .wr-acc.free{background:#0f2e1c;color:#86efac}html.dark .wr-acc.preview{background:#3a2a0a;color:#fcd34d}
+pre.mermaid{background:var(--bg-soft);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center;overflow-x:auto}
+.wr-flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:1em 0}
+.wr-flow span{padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg-card);font-weight:600;font-size:.9rem}
+.wr-flow i{color:var(--accent);font-style:normal;font-weight:800}
+</style>
+<script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";mermaid.initialize({startOnLoad:true,theme:document.documentElement.classList.contains("dark")?"dark":"default",securityLevel:"strict"});</script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><div class="toplinks"><a href="../all-topics.html">🗂 All Topics</a><a href="../index.html#chapters">Chapters</a><a href="../library/index.html">Library</a><a href="../bot-made/index.html">Bots</a><a href="../linkedin-saved/index.html">LinkedIn</a><a href="../web-resources/index.html" style="color:var(--accent);font-weight:700">Web</a><a href="../links.html">URL Guide</a></div><button class="theme-toggle" aria-label="theme">◐</button></header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="index.html"><span class="num">🌐</span> Web Resources home</a></li><li><a href="../all-topics.html"><span class="num">🗂</span> All Topics (har page)</a></li></ul>
+<div class="group">⚡ Messaging &amp; Real-time</div><ul>
+<li><a class="active" href="kafka-how-it-works.html"><span class="num">02</span> How Kafka Works</a></li>
+<li><a href="whatsapp-system-design.html"><span class="num">06</span> How WhatsApp Works</a></li>
+<li><a href="slack-architecture.html"><span class="num">09</span> How Slack Works</a></li>
+<li><a href="live-comments-system-design.html"><span class="num">21</span> How Live Comments Work</a></li>
+<li><a href="real-time-presence-platform.html"><span class="num">23</span> How Live Presence Works</a></li>
+</ul>
+<div class="group">🧩 Classic interview designs</div><ul>
+<li><a href="stock-exchange-system-design.html"><span class="num">01</span> How Stock Exchange Works</a></li>
+<li><a href="url-shortener-system-design.html"><span class="num">05</span> How URL Shortener Works</a></li>
+<li><a href="airbnb-hotel-booking-system-design.html"><span class="num">07</span> How Airbnb Works</a></li>
+<li><a href="leaderboard-system-design.html"><span class="num">22</span> How Leaderboards Work</a></li>
+<li><a href="pastebin-system-design.html"><span class="num">26</span> How Pastebin Works</a></li>
+</ul>
+<div class="group">🎬 Media, Social &amp; Frontend</div><ul>
+<li><a href="youtube-system-design.html"><span class="num">03</span> How YouTube Works</a></li>
+<li><a href="spotify-system-design.html"><span class="num">08</span> How Spotify Works</a></li>
+<li><a href="bluesky-atproto-architecture.html"><span class="num">12</span> How Bluesky Works</a></li>
+<li><a href="twitter-timeline-frontend-system-design.html"><span class="num">13</span> How Twitter Timeline Works</a></li>
+</ul>
+<div class="group">📍 Maps &amp; Location</div><ul>
+<li><a href="tinder-architecture.html"><span class="num">11</span> How Tinder Works</a></li>
+<li><a href="uber-eta-computation.html"><span class="num">19</span> How Uber Computes ETA</a></li>
+</ul>
+<div class="group">🛠 Infra, Databases &amp; Search</div><ul>
+<li><a href="vitess-youtube-mysql.html"><span class="num">24</span> How YouTube Scales MySQL</a></li>
+<li><a href="nginx-how-it-works.html"><span class="num">28</span> How Nginx Works</a></li>
+<li><a href="google-search-web-crawler.html"><span class="num">30</span> How Google Search Works</a></li>
+</ul>
+<div class="group">🤖 GenAI &amp; LLM systems</div><ul>
+<li><a href="llm-concepts.html"><span class="num">17</span> How LLMs Actually Work</a></li>
+<li><a href="chatgpt-apps-mcp.html"><span class="num">18</span> How ChatGPT Apps Work</a></li>
+<li><a href="vector-database-internals.html"><span class="num">25</span> How Vector DBs Work</a></li>
+<li><a href="chatgpt-system-design.html"><span class="num">27</span> How ChatGPT Works</a></li>
+</ul>
+</nav>
+<main class="content">
+<div class="chapter-hero"><span class="chapter-num">Case study #2 · ⚡ Messaging &amp; Real-time</span><h1>How Kafka Works — Log, Partitions, Replication, KRaft</h1><p class="lead">Kafka ki ek line wali definition (&quot;distributed, durable, scalable pub/sub…&quot;) ko tod ke samjho: append-only log, topic/partition, broker replication, KRaft controller, consumer groups, retention, transactions.</p><div class="tags"><span class="tag">Kafka</span><span class="tag">Log</span><span class="tag">Partitions</span><span class="tag">KRaft</span><span class="tag">Consumer groups</span><span class="tag">Exactly-once</span></div><div class="wr-src"><span class="wr-acc free">Free article</span><a class="btn small" href="https://newsletter.systemdesign.one/p/how-kafka-works" target="_blank" rel="noopener">Original article ↗</a></div></div>
+<div class="callout realworld"><strong>Source &amp; credit</strong><p>Original article: <a href="https://newsletter.systemdesign.one/p/how-kafka-works" target="_blank" rel="noopener">How Kafka Works</a> — Neo Kim &amp; Stanislav Kozlovski (The System Design Newsletter / systemdesign.one). LinkedIn post <a href="https://www.linkedin.com/posts/nk-systemdesign-one_if-you-want-to-become-good-at-system-design-activity-7520570734436319232-IxEG/" target="_blank" rel="noopener">“If you want to become good at system design (in 30 days), learn these 30 case studies”</a> ka case study #2.</p><p>Ye page us article ke <b>apne Hinglish study notes</b> hain — summary, concepts, diagram aur interview angle. Article ka text copy nahi kiya; details, original diagrams aur references ke liye source zaroor padho.</p></div>
+<div class="callout tip"><strong>Site pe pehle se (yahan se jodo)</strong><ul><li><a href="../chapters/19-message-queue.html">Ch 19 · Distributed Message Queue (Alex Xu)</a></li><li><a href="../library/data-messaging/kafka-design-manual.html">Library · Kafka Design Manual</a></li><li><a href="../library/data-messaging/kafka-redis-cassandra-mastery.html">Library · Kafka · Redis · Cassandra Deep Dive</a></li><li><a href="../library/data-messaging/northguard-xinfra-linkedin-kafka-replacement.html">Library · Northguard (LinkedIn ka Kafka replacement)</a></li></ul></div>
+
+<h2>Problem kya tha — N² pipelines</h2>
+<p>LinkedIn ke paas sainkdon services thi jinko ek doosre ka data chahiye tha. Har pair ke beech custom pipeline banao to <b>O(N²)</b> connections — har VM restart pe kuch toot jaata. Kafka ka idea: data <b>ek central jagah</b> likho, <b>ek standard API</b> se padho. Likho ek baar, padho jitni baar chaho — isliye Kafka mein read throughput aksar write ka kai guna hota hai (read fan-out).</p>
+
+<h2>Core data structure: append-only log</h2>
+<ul>
+<li><b>Log</b> = sirf end mein append; update/delete individually nahi. Har record ka monotonically increasing <b>offset</b>.</li>
+<li>Disk pe sequential read/write — HDD pe bhi tez. Append O(1) aur lock-free, isliye scale hota hai.</li>
+<li><b>Record</b> = key (optional) + value, dono raw <code>byte[]</code>. Kafka ko types/schema se matlab nahi — serialize/deserialize client karta hai.</li>
+<li><b>Topic</b> = category (DB table jaisa). <b>Partition</b> = topic ka shard; har partition apna alag log. Same key → same partition → us key ka order maintained.</li>
+</ul>
+<pre class="mermaid">
+flowchart LR
+  P[Producer] -->|key hash| T0[Partition 0 log]
+  P --> T1[Partition 1 log]
+  P --> T2[Partition 2 log]
+  T0 --> C1[Consumer A]
+  T1 --> C1
+  T2 --> C2[Consumer B]
+  subgraph G[Consumer group]
+    C1
+    C2
+  end
+</pre>
+
+<h2>Distributed system wala hissa</h2>
+<table class="cmp"><thead><tr><th>Concept</th><th>Hinglish mein</th></tr></thead><tbody>
+<tr><td>Broker</td><td>Kafka server node. Normal cluster mein kam se kam 3.</td></tr>
+<tr><td>Replication factor</td><td>Har partition ki kitni copies (default/common: 3), alag brokers pe.</td></tr>
+<tr><td>Leader / follower</td><td>Har partition ka ek leader writes leta hai; followers copy karte hain. Leader gira to naya leader chuna jaata hai.</td></tr>
+<tr><td>Controller + metadata log</td><td>Cluster ka control plane. Metadata bhi ek log (<code>__cluster_metadata</code>) mein; ek active controller likhta hai, baaki hot standby.</td></tr>
+<tr><td>KRaft</td><td>Raft-inspired consensus — controller election + metadata replication. ZooKeeper ki zaroorat khatam.</td></tr>
+</tbody></table>
+
+<h2>Kafka ko alag kya banata hai</h2>
+<ul>
+<li><b>Retention time-based</b> (e.g. 7 days) — consume hone pe delete nahi hota, isliye <b>replay</b> possible. Traditional queues consume ke baad hata deti hain.</li>
+<li><b>Tiered storage</b>: purana data object storage (S3 jaisa) mein, broker disk halki — rebalancing aur recovery fast.</li>
+<li><b>Consumer groups</b>: ek partition group ke ek hi consumer ko milta hai → parallel reads. Progress <code>{partition → offset}</code> special topic <code>__consumer_offsets</code> mein commit hota hai; group coordinator liveness/rebalance sambhalta hai.</li>
+<li><b>Transactions</b>: DB transaction jaisa nahi — kai partitions pe likhe messages ek saath visible/invisible (message visibility control). Isi se exactly-once processing (read-process-write).</li>
+<li><b>Ecosystem</b>: Kafka Streams (stateful stream processing: windows, joins), Schema Registry (schemas convention se, kyunki Kafka bytes hi jaanta hai), Kafka Connect (DBs/systems se data andar-bahar plugins se).</li>
+<li>Protocol: HTTP nahi, <b>apna TCP-based binary protocol</b> — isliye official/3rd-party client libraries chahiye.</li>
+</ul>
+
+<div class="callout interview"><strong>Interview mein kaise bolein</strong><p>"Kafka ek distributed append-only log hai. Topic partitions mein shard hota hai — partition ordering aur parallelism ki unit hai. Har partition RF=3 se replicate hota hai, leader writes leta hai, KRaft controller metadata sambhalta hai. Consumers group mein partitions baant lete hain aur offsets <code>__consumer_offsets</code> mein commit karte hain. Retention time-based hai, isliye replay mil jaata hai." Phir trade-off: ordering sirf partition ke andar, aur partitions badhana easy hai par key→partition mapping badal jaati hai.</p></div>
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul><li>Log + offset = Kafka ka dil; sequential disk I/O se speed.</li><li>Partition = scale aur ordering dono ki unit; same key same partition.</li><li>Replication factor 3 + leader/follower; KRaft ne ZooKeeper hataya.</li><li>Retention time-based hai → replay; tiered storage purana data sasta rakhta hai.</li><li>Exactly-once = idempotent producer + transactions (visibility control).</li></ul></div>
+<div class="chapter-nav"><a class="prev" href="index.html">← Web Resources</a><a class="next" href="whatsapp-system-design.html">How WhatsApp Works →</a></div>
+</main>
+<aside class="toc"></aside>
+</div>
+<footer class="footer">SystemDesign.hinglish · Web Resources · Hinglish notes; original content © its authors (systemdesign.one) · auto-generated by libbuild/webres.py</footer>
+<script src="../assets/app.js"></script>
+</body>
+</html>

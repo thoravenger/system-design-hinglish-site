@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Stock Exchange System Design — Broker, Gateway, Matching Engine · Web Resources · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{if(localStorage.getItem('sd-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
+<style>
+.wr-src{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:.8em 0 0}
+.wr-src a.btn{font-size:.85rem}
+.wr-acc{font-size:.72rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:3px 9px;border-radius:999px}
+.wr-acc.free{background:#dcfce7;color:#15803d}.wr-acc.preview{background:#fef3c7;color:#b45309}
+html.dark .wr-acc.free{background:#0f2e1c;color:#86efac}html.dark .wr-acc.preview{background:#3a2a0a;color:#fcd34d}
+pre.mermaid{background:var(--bg-soft);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center;overflow-x:auto}
+.wr-flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:1em 0}
+.wr-flow span{padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg-card);font-weight:600;font-size:.9rem}
+.wr-flow i{color:var(--accent);font-style:normal;font-weight:800}
+</style>
+<script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";mermaid.initialize({startOnLoad:true,theme:document.documentElement.classList.contains("dark")?"dark":"default",securityLevel:"strict"});</script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><div class="toplinks"><a href="../all-topics.html">🗂 All Topics</a><a href="../index.html#chapters">Chapters</a><a href="../library/index.html">Library</a><a href="../bot-made/index.html">Bots</a><a href="../linkedin-saved/index.html">LinkedIn</a><a href="../web-resources/index.html" style="color:var(--accent);font-weight:700">Web</a><a href="../links.html">URL Guide</a></div><button class="theme-toggle" aria-label="theme">◐</button></header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="index.html"><span class="num">🌐</span> Web Resources home</a></li><li><a href="../all-topics.html"><span class="num">🗂</span> All Topics (har page)</a></li></ul>
+<div class="group">⚡ Messaging &amp; Real-time</div><ul>
+<li><a href="kafka-how-it-works.html"><span class="num">02</span> How Kafka Works</a></li>
+<li><a href="whatsapp-system-design.html"><span class="num">06</span> How WhatsApp Works</a></li>
+<li><a href="slack-architecture.html"><span class="num">09</span> How Slack Works</a></li>
+<li><a href="live-comments-system-design.html"><span class="num">21</span> How Live Comments Work</a></li>
+<li><a href="real-time-presence-platform.html"><span class="num">23</span> How Live Presence Works</a></li>
+</ul>
+<div class="group">🧩 Classic interview designs</div><ul>
+<li><a class="active" href="stock-exchange-system-design.html"><span class="num">01</span> How Stock Exchange Works</a></li>
+<li><a href="url-shortener-system-design.html"><span class="num">05</span> How URL Shortener Works</a></li>
+<li><a href="airbnb-hotel-booking-system-design.html"><span class="num">07</span> How Airbnb Works</a></li>
+<li><a href="leaderboard-system-design.html"><span class="num">22</span> How Leaderboards Work</a></li>
+<li><a href="pastebin-system-design.html"><span class="num">26</span> How Pastebin Works</a></li>
+</ul>
+<div class="group">🎬 Media, Social &amp; Frontend</div><ul>
+<li><a href="youtube-system-design.html"><span class="num">03</span> How YouTube Works</a></li>
+<li><a href="spotify-system-design.html"><span class="num">08</span> How Spotify Works</a></li>
+<li><a href="bluesky-atproto-architecture.html"><span class="num">12</span> How Bluesky Works</a></li>
+<li><a href="twitter-timeline-frontend-system-design.html"><span class="num">13</span> How Twitter Timeline Works</a></li>
+</ul>
+<div class="group">📍 Maps &amp; Location</div><ul>
+<li><a href="tinder-architecture.html"><span class="num">11</span> How Tinder Works</a></li>
+<li><a href="uber-eta-computation.html"><span class="num">19</span> How Uber Computes ETA</a></li>
+</ul>
+<div class="group">🛠 Infra, Databases &amp; Search</div><ul>
+<li><a href="vitess-youtube-mysql.html"><span class="num">24</span> How YouTube Scales MySQL</a></li>
+<li><a href="nginx-how-it-works.html"><span class="num">28</span> How Nginx Works</a></li>
+<li><a href="google-search-web-crawler.html"><span class="num">30</span> How Google Search Works</a></li>
+</ul>
+<div class="group">🤖 GenAI &amp; LLM systems</div><ul>
+<li><a href="llm-concepts.html"><span class="num">17</span> How LLMs Actually Work</a></li>
+<li><a href="chatgpt-apps-mcp.html"><span class="num">18</span> How ChatGPT Apps Work</a></li>
+<li><a href="vector-database-internals.html"><span class="num">25</span> How Vector DBs Work</a></li>
+<li><a href="chatgpt-system-design.html"><span class="num">27</span> How ChatGPT Works</a></li>
+</ul>
+</nav>
+<main class="content">
+<div class="chapter-hero"><span class="chapter-num">Case study #1 · 🧩 Classic interview designs</span><h1>Stock Exchange System Design — Broker, Gateway, Matching Engine</h1><p class="lead">Farmer&#x27;s market wali simple analogy se: broker → gateway → matching engine, in-memory order book, price-time priority matching aur deterministic sequencing.</p><div class="tags"><span class="tag">Matching engine</span><span class="tag">Order book</span><span class="tag">Low latency</span><span class="tag">Sequencer</span><span class="tag">Determinism</span></div><div class="wr-src"><span class="wr-acc preview">Free preview + paid part</span><a class="btn small" href="https://newsletter.systemdesign.one/p/stock-exchange-system-design" target="_blank" rel="noopener">Original article ↗</a></div></div>
+<div class="callout realworld"><strong>Source &amp; credit</strong><p>Original article: <a href="https://newsletter.systemdesign.one/p/stock-exchange-system-design" target="_blank" rel="noopener">Stock Exchange System Design</a> — Neo Kim (The System Design Newsletter / systemdesign.one). LinkedIn post <a href="https://www.linkedin.com/posts/nk-systemdesign-one_if-you-want-to-become-good-at-system-design-activity-7520570734436319232-IxEG/" target="_blank" rel="noopener">“If you want to become good at system design (in 30 days), learn these 30 case studies”</a> ka case study #1.</p><p>Ye page us article ke <b>apne Hinglish study notes</b> hain — summary, concepts, diagram aur interview angle. Article ka text copy nahi kiya; details, original diagrams aur references ke liye source zaroor padho. <i>Note: article ka sirf free preview wala hissa padh ke notes banaye hain; baaki hissa paid subscribers ke liye hai.</i></p></div>
+<div class="callout tip"><strong>Site pe pehle se (yahan se jodo)</strong><ul><li><a href="../chapters/28-stock-exchange.html">Ch 28 · Design a Stock Exchange (Alex Xu) — full deep dive</a></li></ul></div>
+
+<h2>Simple samajh</h2>
+<p>Exchange ek bazaar hai: har stock ek "stall", buyers aur sellers aate hain, exchange sirf unhe <b>milata</b> hai aur fees kamata hai. Zyada trades = zyada kamai, isliye <b>speed aur fairness</b> sab kuch hai.</p>
+<p>Scope (article): sirf stocks; user BUY/SELL order daal sakta hai aur kabhi bhi cancel kar sakta hai; market data real-time dikhe.</p>
+
+<h2>Terms jo pata hone chahiye</h2>
+<ul>
+<li><b>Broker</b>: app/site jahan se user order daalta hai aur price dekhta hai (Zerodha/Robinhood jaisa).</li>
+<li><b>Order book</b>: ek stock ke saare open BUY aur SELL orders — kaun, kitna, kis price pe.</li>
+<li><b>Limit order</b>: "is price ya better pe hi". <b>Market order</b>: "jo best price abhi hai".</li>
+</ul>
+
+<h2>Architecture — critical path</h2>
+<div class="wr-flow"><span>Broker</span><i>→</i><span>Gateway (validate, convert, rate-limit)</span><i>→</i><span>Sequencer</span><i>→</i><span>Matching engine (order book)</span><i>→</i><span>Market data + execution reports</span></div>
+<ul>
+<li><b>Gateway</b>: broker ke orders ko exchange ke internal format mein badalta hai, results wapas bhejta hai. Low latency ke liye <b>co-location</b> — broker ke servers exchange ke paas.</li>
+<li><b>Matching engine</b>: sequence numbers verify, BUY/SELL match, aur trades se market data banata hai.</li>
+<li><b>Order book in-memory</b>: har symbol ke liye do lists — BUY (highest price pehle) aur SELL (lowest price pehle); same price pe pehle aaya pehle (price-time priority).</li>
+</ul>
+<pre class="mermaid">
+flowchart TB
+  N[Naya BUY order @ 101] --> Q{"best SELL ≤ 101?"}
+  Q -- haan --> M[Trade execute, quantity ghatao]
+  M --> Q
+  Q -- nahi --> R[Bacha hua BUY book mein rakho]
+</pre>
+
+<h2>Matching ka golden rule</h2>
+<p>Match tab jab <code>buy price ≥ sell price</code>. Aur <b>same input sequence → hamesha same output</b> — matching function <b>deterministic</b> hona chahiye. Isi se: replay karke state rebuild, primary/backup engines exact same state mein, audit possible.</p>
+<div class="callout warn"><strong>Note</strong><p>Is article ka free preview yahan tak hai. Event sourcing, risk checks, market data fan-out aur hot-standby ke details ke liye site ka Chapter 28 dekho — wahan poora deep dive Hinglish mein hai.</p></div>
+
+<div class="callout interview"><strong>Interview mein kaise bolein</strong><p>Do cheezein zaroor bolo: (1) matching engine single-threaded + in-memory order book per symbol, kyunki locks latency badhate hain; (2) sequencer har order ko number deta hai aur engine deterministic hai, isliye event log replay se recovery. Phir latency: co-location, kernel-bypass networking, DB critical path se bahar.</p></div>
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul><li>Critical path: broker → gateway → sequencer → matching engine.</li><li>Order book in-memory; price-time priority.</li><li>Match condition: buy ≥ sell.</li><li>Determinism + sequence numbers = replay, failover, audit.</li><li>Full design ke liye Ch 28.</li></ul></div>
+<div class="chapter-nav"><a class="prev" href="real-time-presence-platform.html">← How Live Presence Works</a><a class="next" href="url-shortener-system-design.html">How URL Shortener Works →</a></div>
+</main>
+<aside class="toc"></aside>
+</div>
+<footer class="footer">SystemDesign.hinglish · Web Resources · Hinglish notes; original content © its authors (systemdesign.one) · auto-generated by libbuild/webres.py</footer>
+<script src="../assets/app.js"></script>
+</body>
+</html>

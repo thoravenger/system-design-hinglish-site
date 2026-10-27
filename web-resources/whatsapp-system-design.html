@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WhatsApp System Design — WebSocket, Connection Registry, Presence · Web Resources · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{if(localStorage.getItem('sd-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
+<style>
+.wr-src{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:.8em 0 0}
+.wr-src a.btn{font-size:.85rem}
+.wr-acc{font-size:.72rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:3px 9px;border-radius:999px}
+.wr-acc.free{background:#dcfce7;color:#15803d}.wr-acc.preview{background:#fef3c7;color:#b45309}
+html.dark .wr-acc.free{background:#0f2e1c;color:#86efac}html.dark .wr-acc.preview{background:#3a2a0a;color:#fcd34d}
+pre.mermaid{background:var(--bg-soft);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center;overflow-x:auto}
+.wr-flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:1em 0}
+.wr-flow span{padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg-card);font-weight:600;font-size:.9rem}
+.wr-flow i{color:var(--accent);font-style:normal;font-weight:800}
+</style>
+<script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";mermaid.initialize({startOnLoad:true,theme:document.documentElement.classList.contains("dark")?"dark":"default",securityLevel:"strict"});</script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><div class="toplinks"><a href="../all-topics.html">🗂 All Topics</a><a href="../index.html#chapters">Chapters</a><a href="../library/index.html">Library</a><a href="../bot-made/index.html">Bots</a><a href="../linkedin-saved/index.html">LinkedIn</a><a href="../web-resources/index.html" style="color:var(--accent);font-weight:700">Web</a><a href="../links.html">URL Guide</a></div><button class="theme-toggle" aria-label="theme">◐</button></header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="index.html"><span class="num">🌐</span> Web Resources home</a></li><li><a href="../all-topics.html"><span class="num">🗂</span> All Topics (har page)</a></li></ul>
+<div class="group">⚡ Messaging &amp; Real-time</div><ul>
+<li><a href="kafka-how-it-works.html"><span class="num">02</span> How Kafka Works</a></li>
+<li><a class="active" href="whatsapp-system-design.html"><span class="num">06</span> How WhatsApp Works</a></li>
+<li><a href="slack-architecture.html"><span class="num">09</span> How Slack Works</a></li>
+<li><a href="live-comments-system-design.html"><span class="num">21</span> How Live Comments Work</a></li>
+<li><a href="real-time-presence-platform.html"><span class="num">23</span> How Live Presence Works</a></li>
+</ul>
+<div class="group">🧩 Classic interview designs</div><ul>
+<li><a href="stock-exchange-system-design.html"><span class="num">01</span> How Stock Exchange Works</a></li>
+<li><a href="url-shortener-system-design.html"><span class="num">05</span> How URL Shortener Works</a></li>
+<li><a href="airbnb-hotel-booking-system-design.html"><span class="num">07</span> How Airbnb Works</a></li>
+<li><a href="leaderboard-system-design.html"><span class="num">22</span> How Leaderboards Work</a></li>
+<li><a href="pastebin-system-design.html"><span class="num">26</span> How Pastebin Works</a></li>
+</ul>
+<div class="group">🎬 Media, Social &amp; Frontend</div><ul>
+<li><a href="youtube-system-design.html"><span class="num">03</span> How YouTube Works</a></li>
+<li><a href="spotify-system-design.html"><span class="num">08</span> How Spotify Works</a></li>
+<li><a href="bluesky-atproto-architecture.html"><span class="num">12</span> How Bluesky Works</a></li>
+<li><a href="twitter-timeline-frontend-system-design.html"><span class="num">13</span> How Twitter Timeline Works</a></li>
+</ul>
+<div class="group">📍 Maps &amp; Location</div><ul>
+<li><a href="tinder-architecture.html"><span class="num">11</span> How Tinder Works</a></li>
+<li><a href="uber-eta-computation.html"><span class="num">19</span> How Uber Computes ETA</a></li>
+</ul>
+<div class="group">🛠 Infra, Databases &amp; Search</div><ul>
+<li><a href="vitess-youtube-mysql.html"><span class="num">24</span> How YouTube Scales MySQL</a></li>
+<li><a href="nginx-how-it-works.html"><span class="num">28</span> How Nginx Works</a></li>
+<li><a href="google-search-web-crawler.html"><span class="num">30</span> How Google Search Works</a></li>
+</ul>
+<div class="group">🤖 GenAI &amp; LLM systems</div><ul>
+<li><a href="llm-concepts.html"><span class="num">17</span> How LLMs Actually Work</a></li>
+<li><a href="chatgpt-apps-mcp.html"><span class="num">18</span> How ChatGPT Apps Work</a></li>
+<li><a href="vector-database-internals.html"><span class="num">25</span> How Vector DBs Work</a></li>
+<li><a href="chatgpt-system-design.html"><span class="num">27</span> How ChatGPT Works</a></li>
+</ul>
+</nav>
+<main class="content">
+<div class="chapter-hero"><span class="chapter-num">Case study #6 · ⚡ Messaging &amp; Real-time</span><h1>WhatsApp System Design — WebSocket, Connection Registry, Presence</h1><p class="lead">1:1 chat at 500M DAU: kyun WebSocket (polling nahi), chat servers ka service discovery, Postgres + Cassandra + Redis ka data model aur presence server.</p><div class="tags"><span class="tag">WebSocket</span><span class="tag">Cassandra</span><span class="tag">Redis</span><span class="tag">Service discovery</span><span class="tag">Presence</span></div><div class="wr-src"><span class="wr-acc preview">Free preview + paid part</span><a class="btn small" href="https://newsletter.systemdesign.one/p/whatsapp-system-design" target="_blank" rel="noopener">Original article ↗</a></div></div>
+<div class="callout realworld"><strong>Source &amp; credit</strong><p>Original article: <a href="https://newsletter.systemdesign.one/p/whatsapp-system-design" target="_blank" rel="noopener">WhatsApp System Design Interview</a> — Neo Kim &amp; Hayk (The System Design Newsletter / systemdesign.one). LinkedIn post <a href="https://www.linkedin.com/posts/nk-systemdesign-one_if-you-want-to-become-good-at-system-design-activity-7520570734436319232-IxEG/" target="_blank" rel="noopener">“If you want to become good at system design (in 30 days), learn these 30 case studies”</a> ka case study #6.</p><p>Ye page us article ke <b>apne Hinglish study notes</b> hain — summary, concepts, diagram aur interview angle. Article ka text copy nahi kiya; details, original diagrams aur references ke liye source zaroor padho. <i>Note: article ka sirf free preview wala hissa padh ke notes banaye hain; baaki hissa paid subscribers ke liye hai.</i></p></div>
+<div class="callout tip"><strong>Site pe pehle se (yahan se jodo)</strong><ul><li><a href="../chapters/12-chat-system.html">Ch 12 · Design a Chat System (Alex Xu)</a></li></ul></div>
+
+<h2>Scale ka andaaza</h2>
+<p>Article ke assumptions: ~1B registered users, ~500M DAU, peak pe ~50M concurrent connections. Matlab problem "message bhejna" nahi — <b>itne saare long-lived connections</b> sambhalna aur offline users ke liye message rakhna hai.</p>
+
+<h2>Polling vs long polling vs WebSocket</h2>
+<table class="cmp"><thead><tr><th>Option</th><th>Dikkat / fayda</th></tr></thead><tbody>
+<tr><td>Short polling</td><td>Har kuch second "naya message?" — bandwidth waste + latency (just miss kiya to agle poll tak wait).</td></tr>
+<tr><td>Long polling</td><td>Better, lekin har message ke baad naya request, timeouts, server pe pending requests ka bojh.</td></tr>
+<tr><td><b>WebSocket</b></td><td>Ek persistent, full-duplex connection — server turant push kar sakta hai. Chat ke liye default choice.</td></tr>
+</tbody></table>
+
+<h2>High-level components</h2>
+<pre class="mermaid">
+flowchart LR
+  A[Phone A] -- WSS --> LB[Load balancer]
+  B[Phone B] -- WSS --> LB
+  LB --> CS1[Chat server 1]
+  LB --> CS2[Chat server 2]
+  CS1 <--> REG[(Redis: user to server registry)]
+  CS2 <--> REG
+  CS1 --> MS[Message storage service]
+  MS --> CAS[(Cassandra: messages)]
+  CS1 --> INB[(Redis: offline inbox)]
+  CS1 --> PR[Presence server]
+</pre>
+<ul>
+<li><b>Client</b> khud bhi smart hai: local message store, failed sends retry, persistent connection.</li>
+<li><b>Connection registry (Redis)</b>: "user X abhi kis chat server pe connected hai" — A ka server isi se B ka server dhoondh ke message forward karta hai.</li>
+<li><b>Service discovery</b>: chat servers crash/deploy/scale hote rehte hain, hardcoded IPs nahi chalenge. Servers registry mein heartbeat ke saath register hote hain; LB aur doosri services wahi se healthy list lete hain.</li>
+<li><b>Offline inbox (Redis)</b>: B offline hai to message inbox mein; B reconnect kare to drain karo.</li>
+</ul>
+
+<h2>Data model — har data ke liye sahi store</h2>
+<table class="cmp"><thead><tr><th>Data</th><th>Store</th><th>Kyun</th></tr></thead><tbody>
+<tr><td>Users, Groups</td><td>SQL (PostgreSQL)</td><td>Relational, kam writes, strong consistency</td></tr>
+<tr><td>Messages</td><td>Cassandra</td><td>Bahut zyada writes, (chat_id, time) se range reads, horizontal scale</td></tr>
+<tr><td>Connection registry, inbox</td><td>Redis</td><td>Fast, ephemeral, TTL</td></tr>
+</tbody></table>
+<p>WebSocket handshake mein client pehla frame <code>auth</code> type ka bhejta hai (user_id, JWT, device_id, platform) aur server <code>session_id</code> lauta deta hai — multi-device support ke liye device_id zaroori.</p>
+
+<div class="callout interview"><strong>Interview mein kaise bolein</strong><p>Pehle numbers (500M DAU, 50M concurrent) bolo, phir kaho "connections hi asli problem hai, isliye WebSocket + stateless-ish chat servers + Redis connection registry". Message flow: A → chat server → registry lookup → B ka server → B; B offline → inbox + push notification. Storage split (Postgres / Cassandra / Redis) ka reason ek line mein do.</p></div>
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul><li>Chat = long-lived connections ki problem; WebSocket default.</li><li>User→server mapping Redis registry mein, servers service discovery se.</li><li>Messages Cassandra (write-heavy), users/groups SQL, inbox/presence Redis.</li><li>Offline user ke liye inbox + push; reconnect pe drain.</li></ul></div>
+<div class="chapter-nav"><a class="prev" href="kafka-how-it-works.html">← How Kafka Works</a><a class="next" href="slack-architecture.html">How Slack Works →</a></div>
+</main>
+<aside class="toc"></aside>
+</div>
+<footer class="footer">SystemDesign.hinglish · Web Resources · Hinglish notes; original content © its authors (systemdesign.one) · auto-generated by libbuild/webres.py</footer>
+<script src="../assets/app.js"></script>
+</body>
+</html>

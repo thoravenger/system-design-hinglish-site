@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Live Comments System Design — SSE, Pub-Sub, Gateway Fan-out · Web Resources · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{if(localStorage.getItem('sd-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
+<style>
+.wr-src{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:.8em 0 0}
+.wr-src a.btn{font-size:.85rem}
+.wr-acc{font-size:.72rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:3px 9px;border-radius:999px}
+.wr-acc.free{background:#dcfce7;color:#15803d}.wr-acc.preview{background:#fef3c7;color:#b45309}
+html.dark .wr-acc.free{background:#0f2e1c;color:#86efac}html.dark .wr-acc.preview{background:#3a2a0a;color:#fcd34d}
+pre.mermaid{background:var(--bg-soft);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center;overflow-x:auto}
+.wr-flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:1em 0}
+.wr-flow span{padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg-card);font-weight:600;font-size:.9rem}
+.wr-flow i{color:var(--accent);font-style:normal;font-weight:800}
+</style>
+<script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";mermaid.initialize({startOnLoad:true,theme:document.documentElement.classList.contains("dark")?"dark":"default",securityLevel:"strict"});</script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><div class="toplinks"><a href="../all-topics.html">🗂 All Topics</a><a href="../index.html#chapters">Chapters</a><a href="../library/index.html">Library</a><a href="../bot-made/index.html">Bots</a><a href="../linkedin-saved/index.html">LinkedIn</a><a href="../web-resources/index.html" style="color:var(--accent);font-weight:700">Web</a><a href="../links.html">URL Guide</a></div><button class="theme-toggle" aria-label="theme">◐</button></header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="index.html"><span class="num">🌐</span> Web Resources home</a></li><li><a href="../all-topics.html"><span class="num">🗂</span> All Topics (har page)</a></li></ul>
+<div class="group">⚡ Messaging &amp; Real-time</div><ul>
+<li><a href="kafka-how-it-works.html"><span class="num">02</span> How Kafka Works</a></li>
+<li><a href="whatsapp-system-design.html"><span class="num">06</span> How WhatsApp Works</a></li>
+<li><a href="slack-architecture.html"><span class="num">09</span> How Slack Works</a></li>
+<li><a class="active" href="live-comments-system-design.html"><span class="num">21</span> How Live Comments Work</a></li>
+<li><a href="real-time-presence-platform.html"><span class="num">23</span> How Live Presence Works</a></li>
+</ul>
+<div class="group">🧩 Classic interview designs</div><ul>
+<li><a href="stock-exchange-system-design.html"><span class="num">01</span> How Stock Exchange Works</a></li>
+<li><a href="url-shortener-system-design.html"><span class="num">05</span> How URL Shortener Works</a></li>
+<li><a href="airbnb-hotel-booking-system-design.html"><span class="num">07</span> How Airbnb Works</a></li>
+<li><a href="leaderboard-system-design.html"><span class="num">22</span> How Leaderboards Work</a></li>
+<li><a href="pastebin-system-design.html"><span class="num">26</span> How Pastebin Works</a></li>
+</ul>
+<div class="group">🎬 Media, Social &amp; Frontend</div><ul>
+<li><a href="youtube-system-design.html"><span class="num">03</span> How YouTube Works</a></li>
+<li><a href="spotify-system-design.html"><span class="num">08</span> How Spotify Works</a></li>
+<li><a href="bluesky-atproto-architecture.html"><span class="num">12</span> How Bluesky Works</a></li>
+<li><a href="twitter-timeline-frontend-system-design.html"><span class="num">13</span> How Twitter Timeline Works</a></li>
+</ul>
+<div class="group">📍 Maps &amp; Location</div><ul>
+<li><a href="tinder-architecture.html"><span class="num">11</span> How Tinder Works</a></li>
+<li><a href="uber-eta-computation.html"><span class="num">19</span> How Uber Computes ETA</a></li>
+</ul>
+<div class="group">🛠 Infra, Databases &amp; Search</div><ul>
+<li><a href="vitess-youtube-mysql.html"><span class="num">24</span> How YouTube Scales MySQL</a></li>
+<li><a href="nginx-how-it-works.html"><span class="num">28</span> How Nginx Works</a></li>
+<li><a href="google-search-web-crawler.html"><span class="num">30</span> How Google Search Works</a></li>
+</ul>
+<div class="group">🤖 GenAI &amp; LLM systems</div><ul>
+<li><a href="llm-concepts.html"><span class="num">17</span> How LLMs Actually Work</a></li>
+<li><a href="chatgpt-apps-mcp.html"><span class="num">18</span> How ChatGPT Apps Work</a></li>
+<li><a href="vector-database-internals.html"><span class="num">25</span> How Vector DBs Work</a></li>
+<li><a href="chatgpt-system-design.html"><span class="num">27</span> How ChatGPT Works</a></li>
+</ul>
+</nav>
+<main class="content">
+<div class="chapter-hero"><span class="chapter-num">Case study #21 · ⚡ Messaging &amp; Real-time</span><h1>Live Comments System Design — SSE, Pub-Sub, Gateway Fan-out</h1><p class="lead">Facebook Live jaise video pe real-time comments: SSE se subscribe, Kafka/Redis pub-sub ke options, actor-model gateway servers, multi-DC fan-out aur HyperLogLog se comment count.</p><div class="tags"><span class="tag">SSE</span><span class="tag">Pub-Sub</span><span class="tag">Redis Streams</span><span class="tag">Actor model</span><span class="tag">HyperLogLog</span></div><div class="wr-src"><span class="wr-acc free">Free article</span><a class="btn small" href="https://systemdesign.one/live-comment-system-design/" target="_blank" rel="noopener">Original article ↗</a></div></div>
+<div class="callout realworld"><strong>Source &amp; credit</strong><p>Original article: <a href="https://systemdesign.one/live-comment-system-design/" target="_blank" rel="noopener">Live Comment System Design</a> — Neo Kim (The System Design Newsletter / systemdesign.one). LinkedIn post <a href="https://www.linkedin.com/posts/nk-systemdesign-one_if-you-want-to-become-good-at-system-design-activity-7520570734436319232-IxEG/" target="_blank" rel="noopener">“If you want to become good at system design (in 30 days), learn these 30 case studies”</a> ka case study #21.</p><p>Ye page us article ke <b>apne Hinglish study notes</b> hain — summary, concepts, diagram aur interview angle. Article ka text copy nahi kiya; details, original diagrams aur references ke liye source zaroor padho.</p></div>
+<div class="callout tip"><strong>Site pe pehle se (yahan se jodo)</strong><ul><li><a href="../chapters/11-news-feed.html">Ch 11 · News Feed (fan-out basics)</a></li><li><a href="../web-resources/real-time-presence-platform.html">Web Resources · Live Presence (same real-time platform)</a></li></ul></div>
+
+<h2>Problem shape</h2>
+<p>Read-heavy hai: comment likhne wale kam, dekhne wale bahut. Ek popular live video pe lakhon viewers — har naya comment sab tak ~sub-second mein. Eventual consistency chalega (do viewers ko comment 200ms aage-peeche dikhe to koi baat nahi).</p>
+
+<h2>API ka shape</h2>
+<ul>
+<li><b>Subscribe</b>: <code>PUT /videos/:id/subscriptions</code> with <code>Accept: text/event-stream</code> → server-sent events stream khulta hai.</li>
+<li><b>Unsubscribe</b>: <code>DELETE /videos/:id/subscriptions/:sub-id</code>.</li>
+<li><b>Publish</b>: <code>POST /videos/:id/comments</code> — normal HTTP.</li>
+</ul>
+<p>SSE kyun? Data mostly server → client ek taraf jaata hai; SSE plain HTTP pe chalta hai, auto-reconnect browser deta hai. Publish alag HTTP call.</p>
+
+<h2>Architecture</h2>
+<pre class="mermaid">
+flowchart LR
+  PUB[Publisher] -->|POST comment| API[Comment service]
+  API --> DB[(Cassandra: comments)]
+  API --> D[Dispatcher]
+  D -->|sirf un gateways ko jinke viewers is video pe| G1[Gateway 1]
+  D --> G2[Gateway 2]
+  G1 -- SSE --> V1[Viewers]
+  G2 -- SSE --> V2[Viewers]
+  G1 -. video to gateway subscriptions .-> SUB[(In-memory subscription store)]
+</pre>
+<ul>
+<li><b>Gateway servers</b> SSE connections hold karte hain. Andar <b>actor model</b>: har connection ek halka actor — lakhon concurrent (article: ~100K connections per gateway).</li>
+<li><b>Subscription store</b>: kaunsa gateway kis video ke viewers rakhta hai. Dispatcher sirf relevant gateways ko bhejta hai — har gateway ko har comment broadcast karna waste hai.</li>
+<li>Peak load pe single dispatcher bottleneck → dispatcher ko scale/partition karo (by video_id).</li>
+</ul>
+
+<h2>Pub-sub options compare</h2>
+<table class="cmp"><thead><tr><th>Option</th><th>Plus</th><th>Minus</th></tr></thead><tbody>
+<tr><td>Kafka</td><td>Durable, replay, scale</td><td>Lakhon videos = lakhon topics/partitions nahi chalte; pull-based latency</td></tr>
+<tr><td>Redis Pub/Sub</td><td>Bahut fast, channel per video</td><td>Fire-and-forget — subscriber offline to message gaya</td></tr>
+<tr><td>Redis Streams</td><td>Append-only log, consumer groups, thoda durable</td><td>Memory cost, ops</td></tr>
+</tbody></table>
+
+<h2>Multi-DC aur extras</h2>
+<ul>
+<li>GeoDNS se user paas wale DC pe. Comment local DC mein likho, doosre DCs ke dispatchers ko forward (cross-DC publish) — "write locally, fan-out globally".</li>
+<li><b>Total comment count</b>: exact count expensive; Redis <b>HyperLogLog</b> se approximate unique count, bahut kam memory.</li>
+<li>Reliability: reconnect mein jitter, backpressure + exponential backoff, rate limiter spam pe.</li>
+<li>Cassandra durability ke liye; purane comments cold storage mein.</li>
+</ul>
+
+<div class="callout interview"><strong>Interview mein kaise bolein</strong><p>"Read-heavy fan-out problem hai. Viewers SSE se gateway servers pe subscribe karte hain; ek in-memory subscription store video→gateways map rakhta hai. Publish HTTP POST se, comment Cassandra mein aur dispatcher sirf relevant gateways ko push karta hai. Multi-region mein local write + cross-DC forward." Phir pub-sub choice (Redis vs Kafka) ka trade-off do.</p></div>
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul><li>Ek-taraf push ke liye SSE, publish ke liye normal HTTP.</li><li>Gateway pe actor model = lakhon halke connections.</li><li>Dispatcher sirf un gateways ko bheje jinke paas us video ke viewers hain.</li><li>Redis Pub/Sub fast par lossy; Kafka durable par per-video topics ke liye bhaari.</li><li>Approx counts ke liye HyperLogLog.</li></ul></div>
+<div class="chapter-nav"><a class="prev" href="slack-architecture.html">← How Slack Works</a><a class="next" href="real-time-presence-platform.html">How Live Presence Works →</a></div>
+</main>
+<aside class="toc"></aside>
+</div>
+<footer class="footer">SystemDesign.hinglish · Web Resources · Hinglish notes; original content © its authors (systemdesign.one) · auto-generated by libbuild/webres.py</footer>
+<script src="../assets/app.js"></script>
+</body>
+</html>

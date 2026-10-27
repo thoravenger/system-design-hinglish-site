@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Real-Time Leaderboard — Redis Sorted Sets (ZSET) Deep Dive · Web Resources · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{if(localStorage.getItem('sd-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
+<style>
+.wr-src{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:.8em 0 0}
+.wr-src a.btn{font-size:.85rem}
+.wr-acc{font-size:.72rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:3px 9px;border-radius:999px}
+.wr-acc.free{background:#dcfce7;color:#15803d}.wr-acc.preview{background:#fef3c7;color:#b45309}
+html.dark .wr-acc.free{background:#0f2e1c;color:#86efac}html.dark .wr-acc.preview{background:#3a2a0a;color:#fcd34d}
+pre.mermaid{background:var(--bg-soft);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center;overflow-x:auto}
+.wr-flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:1em 0}
+.wr-flow span{padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg-card);font-weight:600;font-size:.9rem}
+.wr-flow i{color:var(--accent);font-style:normal;font-weight:800}
+</style>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><div class="toplinks"><a href="../all-topics.html">🗂 All Topics</a><a href="../index.html#chapters">Chapters</a><a href="../library/index.html">Library</a><a href="../bot-made/index.html">Bots</a><a href="../linkedin-saved/index.html">LinkedIn</a><a href="../web-resources/index.html" style="color:var(--accent);font-weight:700">Web</a><a href="../links.html">URL Guide</a></div><button class="theme-toggle" aria-label="theme">◐</button></header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="index.html"><span class="num">🌐</span> Web Resources home</a></li><li><a href="../all-topics.html"><span class="num">🗂</span> All Topics (har page)</a></li></ul>
+<div class="group">⚡ Messaging &amp; Real-time</div><ul>
+<li><a href="kafka-how-it-works.html"><span class="num">02</span> How Kafka Works</a></li>
+<li><a href="whatsapp-system-design.html"><span class="num">06</span> How WhatsApp Works</a></li>
+<li><a href="slack-architecture.html"><span class="num">09</span> How Slack Works</a></li>
+<li><a href="live-comments-system-design.html"><span class="num">21</span> How Live Comments Work</a></li>
+<li><a href="real-time-presence-platform.html"><span class="num">23</span> How Live Presence Works</a></li>
+</ul>
+<div class="group">🧩 Classic interview designs</div><ul>
+<li><a href="stock-exchange-system-design.html"><span class="num">01</span> How Stock Exchange Works</a></li>
+<li><a href="url-shortener-system-design.html"><span class="num">05</span> How URL Shortener Works</a></li>
+<li><a href="airbnb-hotel-booking-system-design.html"><span class="num">07</span> How Airbnb Works</a></li>
+<li><a class="active" href="leaderboard-system-design.html"><span class="num">22</span> How Leaderboards Work</a></li>
+<li><a href="pastebin-system-design.html"><span class="num">26</span> How Pastebin Works</a></li>
+</ul>
+<div class="group">🎬 Media, Social &amp; Frontend</div><ul>
+<li><a href="youtube-system-design.html"><span class="num">03</span> How YouTube Works</a></li>
+<li><a href="spotify-system-design.html"><span class="num">08</span> How Spotify Works</a></li>
+<li><a href="bluesky-atproto-architecture.html"><span class="num">12</span> How Bluesky Works</a></li>
+<li><a href="twitter-timeline-frontend-system-design.html"><span class="num">13</span> How Twitter Timeline Works</a></li>
+</ul>
+<div class="group">📍 Maps &amp; Location</div><ul>
+<li><a href="tinder-architecture.html"><span class="num">11</span> How Tinder Works</a></li>
+<li><a href="uber-eta-computation.html"><span class="num">19</span> How Uber Computes ETA</a></li>
+</ul>
+<div class="group">🛠 Infra, Databases &amp; Search</div><ul>
+<li><a href="vitess-youtube-mysql.html"><span class="num">24</span> How YouTube Scales MySQL</a></li>
+<li><a href="nginx-how-it-works.html"><span class="num">28</span> How Nginx Works</a></li>
+<li><a href="google-search-web-crawler.html"><span class="num">30</span> How Google Search Works</a></li>
+</ul>
+<div class="group">🤖 GenAI &amp; LLM systems</div><ul>
+<li><a href="llm-concepts.html"><span class="num">17</span> How LLMs Actually Work</a></li>
+<li><a href="chatgpt-apps-mcp.html"><span class="num">18</span> How ChatGPT Apps Work</a></li>
+<li><a href="vector-database-internals.html"><span class="num">25</span> How Vector DBs Work</a></li>
+<li><a href="chatgpt-system-design.html"><span class="num">27</span> How ChatGPT Works</a></li>
+</ul>
+</nav>
+<main class="content">
+<div class="chapter-hero"><span class="chapter-num">Case study #22 · 🧩 Classic interview designs</span><h1>Real-Time Leaderboard — Redis Sorted Sets (ZSET) Deep Dive</h1><p class="lead">Top-10, meri rank, mere aas-paas ke players, daily/weekly boards, friends leaderboard — sab Redis sorted set se; ZSET andar se hash + skip list kyun hai, aur sharding kaise.</p><div class="tags"><span class="tag">Redis ZSET</span><span class="tag">Skip list</span><span class="tag">Sharding</span><span class="tag">WebSocket</span><span class="tag">Scatter-gather</span></div><div class="wr-src"><span class="wr-acc free">Free article</span><a class="btn small" href="https://systemdesign.one/leaderboard-system-design/" target="_blank" rel="noopener">Original article ↗</a></div></div>
+<div class="callout realworld"><strong>Source &amp; credit</strong><p>Original article: <a href="https://systemdesign.one/leaderboard-system-design/" target="_blank" rel="noopener">Leaderboard System Design</a> — Neo Kim (The System Design Newsletter / systemdesign.one). LinkedIn post <a href="https://www.linkedin.com/posts/nk-systemdesign-one_if-you-want-to-become-good-at-system-design-activity-7520570734436319232-IxEG/" target="_blank" rel="noopener">“If you want to become good at system design (in 30 days), learn these 30 case studies”</a> ka case study #22.</p><p>Ye page us article ke <b>apne Hinglish study notes</b> hain — summary, concepts, diagram aur interview angle. Article ka text copy nahi kiya; details, original diagrams aur references ke liye source zaroor padho.</p></div>
+<div class="callout tip"><strong>Site pe pehle se (yahan se jodo)</strong><ul><li><a href="../chapters/25-gaming-leaderboard.html">Ch 25 · Real-time Gaming Leaderboard (Alex Xu)</a></li><li><a href="../library/data-messaging/redis-hld-lld-handbook.html">Library · Redis HLD + LLD Handbook</a></li></ul></div>
+
+<h2>Kyun SQL kaafi nahi</h2>
+<p>Chhote scale pe <code>ORDER BY score DESC LIMIT 10</code> + cache-aside chal jaata hai. Lekin "meri rank kya hai" = count of players with higher score → har baar bada scan. Read:write ≈ 5:1 (article) — kaafi write-heavy. Isliye in-memory <b>sorted set</b>.</p>
+
+<h2>ZSET commands — interview cheat sheet</h2>
+<table class="cmp"><thead><tr><th>Kaam</th><th>Command</th><th>Complexity</th></tr></thead><tbody>
+<tr><td>Score badhao</td><td><code>ZINCRBY lb 50 player42</code></td><td>O(log N)</td></tr>
+<tr><td>Top 10</td><td><code>ZREVRANGE lb 0 9 WITHSCORES</code></td><td>O(log N + 10)</td></tr>
+<tr><td>Meri rank / score</td><td><code>ZREVRANK lb player42</code>, <code>ZSCORE</code></td><td>O(log N) / O(1)</td></tr>
+<tr><td>Aas-paas ke players</td><td>rank r nikaalo → <code>ZREVRANGE lb r-5 r+5</code></td><td>O(log N + k)</td></tr>
+</tbody></table>
+<p><b>Andar kya hai</b>: ZSET = <b>hash map</b> (member → score, O(1) lookup) + <b>skip list</b> (score order mein, O(log N) insert/rank). Skip list = multiple levels wali linked list jisme upar ke levels "express lane" hain.</p>
+
+<h2>Variations</h2>
+<ul>
+<li><b>Daily/weekly/monthly</b>: alag ZSET per period (<code>lb:2026-10-27</code>), purane pe TTL.</li>
+<li><b>Global vs per-game</b>: per-scenario ZSET + aggregated global ZSET (<code>ZUNIONSTORE</code>).</li>
+<li><b>Friends leaderboard</b>: friend list ka chhota ZSET banao aur scores se intersect (<code>ZINTERSTORE</code>).</li>
+<li><b>Historical</b>: completed games REST + long TTL cache; live games WebSocket se push.</li>
+<li><b>Push notifications</b>: DB change feed/trigger se "aapka score beat ho gaya".</li>
+</ul>
+
+<h2>Scale: sharding</h2>
+<table class="cmp"><thead><tr><th>Approach</th><th>Plus</th><th>Minus</th></tr></thead><tbody>
+<tr><td>Score-range sharding (fixed partitions)</td><td>Top-N sirf highest shard se</td><td>Players shards ke beech move karte hain; hot shard</td></tr>
+<tr><td>Hash/consistent hashing (Redis Cluster hash slots)</td><td>Even distribution</td><td>Top-N/rank ke liye <b>scatter-gather</b> — sab shards se poochho, merge karo</td></tr>
+</tbody></table>
+<ul><li>Concurrency: reverse proxy pe <b>collapsed forwarding</b> (same concurrent reads ek hi baar backend pe); Redis single-threaded hai to ek command atomic.</li><li>Durability: ZSET cache hai — truth DB (ya DynamoDB) mein, async write; Redis replicas + persistence.</li><li>Security: fake score updates rokne ke liye scores server-side compute, signed requests, rate limiting.</li></ul>
+
+<div class="callout interview"><strong>Interview mein kaise bolein</strong><p>Seedha bolo: "Redis sorted set — ZINCRBY update, ZREVRANGE top-10, ZREVRANK meri rank, sab O(log N)." Phir internals (hash + skip list), phir scale (score-range vs hash sharding + scatter-gather) aur durability (DB source of truth). Ye 3 layer answer interviewer ko pasand aata hai.</p></div>
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul><li>Leaderboard = ZSET; rank queries O(log N).</li><li>ZSET = hash + skip list.</li><li>Period/friends/global boards = alag ZSETs + union/intersect.</li><li>Sharding: score-range (easy top-N) vs hash (scatter-gather).</li><li>Redis cache hai; DB source of truth; scores server-side validate.</li></ul></div>
+<div class="chapter-nav"><a class="prev" href="airbnb-hotel-booking-system-design.html">← How Airbnb Works</a><a class="next" href="pastebin-system-design.html">How Pastebin Works →</a></div>
+</main>
+<aside class="toc"></aside>
+</div>
+<footer class="footer">SystemDesign.hinglish · Web Resources · Hinglish notes; original content © its authors (systemdesign.one) · auto-generated by libbuild/webres.py</footer>
+<script src="../assets/app.js"></script>
+</body>
+</html>

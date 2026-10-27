@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ChatGPT System Design — SSE Streaming, Message Service, Single-Primary Postgres · Web Resources · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{if(localStorage.getItem('sd-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
+<style>
+.wr-src{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:.8em 0 0}
+.wr-src a.btn{font-size:.85rem}
+.wr-acc{font-size:.72rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:3px 9px;border-radius:999px}
+.wr-acc.free{background:#dcfce7;color:#15803d}.wr-acc.preview{background:#fef3c7;color:#b45309}
+html.dark .wr-acc.free{background:#0f2e1c;color:#86efac}html.dark .wr-acc.preview{background:#3a2a0a;color:#fcd34d}
+pre.mermaid{background:var(--bg-soft);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center;overflow-x:auto}
+.wr-flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:1em 0}
+.wr-flow span{padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg-card);font-weight:600;font-size:.9rem}
+.wr-flow i{color:var(--accent);font-style:normal;font-weight:800}
+</style>
+<script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";mermaid.initialize({startOnLoad:true,theme:document.documentElement.classList.contains("dark")?"dark":"default",securityLevel:"strict"});</script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><div class="toplinks"><a href="../all-topics.html">🗂 All Topics</a><a href="../index.html#chapters">Chapters</a><a href="../library/index.html">Library</a><a href="../bot-made/index.html">Bots</a><a href="../linkedin-saved/index.html">LinkedIn</a><a href="../web-resources/index.html" style="color:var(--accent);font-weight:700">Web</a><a href="../links.html">URL Guide</a></div><button class="theme-toggle" aria-label="theme">◐</button></header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="index.html"><span class="num">🌐</span> Web Resources home</a></li><li><a href="../all-topics.html"><span class="num">🗂</span> All Topics (har page)</a></li></ul>
+<div class="group">⚡ Messaging &amp; Real-time</div><ul>
+<li><a href="kafka-how-it-works.html"><span class="num">02</span> How Kafka Works</a></li>
+<li><a href="whatsapp-system-design.html"><span class="num">06</span> How WhatsApp Works</a></li>
+<li><a href="slack-architecture.html"><span class="num">09</span> How Slack Works</a></li>
+<li><a href="live-comments-system-design.html"><span class="num">21</span> How Live Comments Work</a></li>
+<li><a href="real-time-presence-platform.html"><span class="num">23</span> How Live Presence Works</a></li>
+</ul>
+<div class="group">🧩 Classic interview designs</div><ul>
+<li><a href="stock-exchange-system-design.html"><span class="num">01</span> How Stock Exchange Works</a></li>
+<li><a href="url-shortener-system-design.html"><span class="num">05</span> How URL Shortener Works</a></li>
+<li><a href="airbnb-hotel-booking-system-design.html"><span class="num">07</span> How Airbnb Works</a></li>
+<li><a href="leaderboard-system-design.html"><span class="num">22</span> How Leaderboards Work</a></li>
+<li><a href="pastebin-system-design.html"><span class="num">26</span> How Pastebin Works</a></li>
+</ul>
+<div class="group">🎬 Media, Social &amp; Frontend</div><ul>
+<li><a href="youtube-system-design.html"><span class="num">03</span> How YouTube Works</a></li>
+<li><a href="spotify-system-design.html"><span class="num">08</span> How Spotify Works</a></li>
+<li><a href="bluesky-atproto-architecture.html"><span class="num">12</span> How Bluesky Works</a></li>
+<li><a href="twitter-timeline-frontend-system-design.html"><span class="num">13</span> How Twitter Timeline Works</a></li>
+</ul>
+<div class="group">📍 Maps &amp; Location</div><ul>
+<li><a href="tinder-architecture.html"><span class="num">11</span> How Tinder Works</a></li>
+<li><a href="uber-eta-computation.html"><span class="num">19</span> How Uber Computes ETA</a></li>
+</ul>
+<div class="group">🛠 Infra, Databases &amp; Search</div><ul>
+<li><a href="vitess-youtube-mysql.html"><span class="num">24</span> How YouTube Scales MySQL</a></li>
+<li><a href="nginx-how-it-works.html"><span class="num">28</span> How Nginx Works</a></li>
+<li><a href="google-search-web-crawler.html"><span class="num">30</span> How Google Search Works</a></li>
+</ul>
+<div class="group">🤖 GenAI &amp; LLM systems</div><ul>
+<li><a href="llm-concepts.html"><span class="num">17</span> How LLMs Actually Work</a></li>
+<li><a href="chatgpt-apps-mcp.html"><span class="num">18</span> How ChatGPT Apps Work</a></li>
+<li><a href="vector-database-internals.html"><span class="num">25</span> How Vector DBs Work</a></li>
+<li><a class="active" href="chatgpt-system-design.html"><span class="num">27</span> How ChatGPT Works</a></li>
+</ul>
+</nav>
+<main class="content">
+<div class="chapter-hero"><span class="chapter-num">Case study #27 · 🤖 GenAI &amp; LLM systems</span><h1>ChatGPT System Design — SSE Streaming, Message Service, Single-Primary Postgres</h1><p class="lead">&quot;Bas OpenAI API call karke messages save karo&quot; kyun kaafi nahi: 1B WAU, first token &lt;2s, SSE (WebSocket nahi) streaming, client → LB → gateway → message service ka open connection, aur 90% reads ke liye single primary + 20+ read replicas.</p><div class="tags"><span class="tag">SSE</span><span class="tag">Streaming</span><span class="tag">Rate limiting (tokens)</span><span class="tag">PostgreSQL replicas</span><span class="tag">Multi-cloud</span></div><div class="wr-src"><span class="wr-acc preview">Free preview + paid part</span><a class="btn small" href="https://newsletter.systemdesign.one/p/chatgpt-system-design" target="_blank" rel="noopener">Original article ↗</a></div></div>
+<div class="callout realworld"><strong>Source &amp; credit</strong><p>Original article: <a href="https://newsletter.systemdesign.one/p/chatgpt-system-design" target="_blank" rel="noopener">ChatGPT System Design</a> — Neo Kim &amp; Hayk (The System Design Newsletter / systemdesign.one). LinkedIn post <a href="https://www.linkedin.com/posts/nk-systemdesign-one_if-you-want-to-become-good-at-system-design-activity-7520570734436319232-IxEG/" target="_blank" rel="noopener">“If you want to become good at system design (in 30 days), learn these 30 case studies”</a> ka case study #27.</p><p>Ye page us article ke <b>apne Hinglish study notes</b> hain — summary, concepts, diagram aur interview angle. Article ka text copy nahi kiya; details, original diagrams aur references ke liye source zaroor padho. <i>Note: article ka sirf free preview wala hissa padh ke notes banaye hain; baaki hissa paid subscribers ke liye hai.</i></p></div>
+<div class="callout tip"><strong>Site pe pehle se (yahan se jodo)</strong><ul><li><a href="../library/genai/ai-customer-support-agent-hld-lld.html">Library · AI Customer Support Agent HLD + LLD</a></li><li><a href="../library/genai/enterprise-ai-gateway-architecture.html">Library · Enterprise AI Gateway</a></li><li><a href="../web-resources/live-comments-system-design.html">Web Resources · Live Comments (SSE fan-out)</a></li></ul></div>
+
+<h2>Clarifying questions (skip kiye to fail)</h2>
+<ul><li>Model khud banana hai ya existing model integrate? (Interview mein: integrate.)</li><li>Streaming (word by word) chahiye ya poora response?</li><li>Scale kitna — hazaron ya crores users?</li></ul>
+
+<h2>Requirements</h2>
+<table class="cmp"><thead><tr><th>Functional</th><th>Non-functional</th></tr></thead><tbody>
+<tr><td>Auth; conversations create/manage; message bhejo + streaming response; poori history save/retrieve; rate limiting (requests <b>aur tokens</b>)</td><td>99.9% availability (~43 min/month downtime); <b>first token &lt; 2s</b>; ~200M DAU, ~20M concurrent (article ke numbers, ~1B WAU ke design target se)</td></tr>
+</tbody></table>
+
+<h2>Streaming: SSE, WebSocket nahi</h2>
+<table class="cmp"><thead><tr><th>Wait for full response</th><th>Stream tokens</th></tr></thead><tbody>
+<tr><td>Simple POST, par 10–30s spinner → UX kharab</td><td>Persistent connection, user ko turant progress</td></tr>
+</tbody></table>
+<p>Article ka point: bade AI chat products <b>Server-Sent Events</b> use karte hain — plain HTTP pe, browser ka built-in <code>EventSource</code>, auto-reconnect, server→client one-way (jo yahan chahiye), WebSocket se kam overhead aur debug easy. Frontend: React + EventSource + Zustand/Redux + optimistic user message + rate-limit/network error handling.</p>
+
+<h2>Architecture</h2>
+<pre class="mermaid">
+flowchart LR
+  B[Browser / mobile] -- SSE --> LB[Load balancer]
+  LB --> GW[API gateway: TLS, routing]
+  GW --> AUTH[Auth service: JWT]
+  GW --> MSG[Message service: orchestrator]
+  MSG --> CONV[Conversation service]
+  CONV --> PG[(Postgres primary)]
+  PG --> RR[(20+ read replicas, multi-region)]
+  MSG --> RL[Rate limiter: req + tokens]
+  MSG --> INF[Model inference: GPU clusters, multi-cloud]
+  INF -- tokens --> MSG
+</pre>
+<p><b>Response kaise wapas aata hai</b>: HTTP connection Browser → LB → Gateway → Message service tak <b>khula rehta hai</b>; message service har token response stream pe likhti hai aur wo usi raaste ulta browser tak jaata hai. Stream khatam → poora assistant message DB mein save.</p>
+
+<h2>Key decisions</h2>
+<ul>
+<li><b>Single-primary PostgreSQL (sharded nahi)</b>: workload ~90% reads; writes ek primary pe, reads 20+ replicas across regions. Trade-off: single-writer bottleneck — isliye app-level optimisations, write batching, caching. (Article OpenAI ke public Postgres scaling posts ka reference deta hai.)</li>
+<li><b>Multi-cloud compute</b>: Azure primary + doosre providers — GPU capacity aur single-vendor risk.</li>
+<li><b>Token-based rate limiting</b>: sirf requests gin-na kaafi nahi; ek request 10 tokens, doosri 10K.</li>
+</ul>
+<div class="callout warn"><strong>Note</strong><p>Free preview yahan tak; cost estimation aur deep dives paid part mein.</p></div>
+
+<div class="callout interview"><strong>Interview mein kaise bolein</strong><p>"Client SSE se stream leta hai — first token &lt;2s target. Gateway → message service orchestrator: auth, token-aware rate limit, conversation history fetch (read replicas), model call, tokens stream back, end pe persist. DB: read-heavy, isliye single primary + many replicas; sharding tab jab writes limit cross karein." SSE vs WebSocket ka reason zaroor do.</p></div>
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul><li>Streaming UX = SSE (one-way, HTTP, auto-reconnect).</li><li>Connection poore path pe open; tokens same path se wapas.</li><li>Message service = orchestrator (auth, limits, history, model, persist).</li><li>Read-heavy → single primary + many replicas.</li><li>Rate limit requests aur tokens dono pe.</li></ul></div>
+<div class="chapter-nav"><a class="prev" href="vector-database-internals.html">← How Vector DBs Work</a><a class="next" href="index.html">Back to Web Resources →</a></div>
+</main>
+<aside class="toc"></aside>
+</div>
+<footer class="footer">SystemDesign.hinglish · Web Resources · Hinglish notes; original content © its authors (systemdesign.one) · auto-generated by libbuild/webres.py</footer>
+<script src="../assets/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLM Concepts — Token se Agent tak, 33 cheezein ek map mein · Web Resources · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{if(localStorage.getItem('sd-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
+<style>
+.wr-src{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:.8em 0 0}
+.wr-src a.btn{font-size:.85rem}
+.wr-acc{font-size:.72rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:3px 9px;border-radius:999px}
+.wr-acc.free{background:#dcfce7;color:#15803d}.wr-acc.preview{background:#fef3c7;color:#b45309}
+html.dark .wr-acc.free{background:#0f2e1c;color:#86efac}html.dark .wr-acc.preview{background:#3a2a0a;color:#fcd34d}
+pre.mermaid{background:var(--bg-soft);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center;overflow-x:auto}
+.wr-flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:1em 0}
+.wr-flow span{padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg-card);font-weight:600;font-size:.9rem}
+.wr-flow i{color:var(--accent);font-style:normal;font-weight:800}
+</style>
+<script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";mermaid.initialize({startOnLoad:true,theme:document.documentElement.classList.contains("dark")?"dark":"default",securityLevel:"strict"});</script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><div class="toplinks"><a href="../all-topics.html">🗂 All Topics</a><a href="../index.html#chapters">Chapters</a><a href="../library/index.html">Library</a><a href="../bot-made/index.html">Bots</a><a href="../linkedin-saved/index.html">LinkedIn</a><a href="../web-resources/index.html" style="color:var(--accent);font-weight:700">Web</a><a href="../links.html">URL Guide</a></div><button class="theme-toggle" aria-label="theme">◐</button></header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="index.html"><span class="num">🌐</span> Web Resources home</a></li><li><a href="../all-topics.html"><span class="num">🗂</span> All Topics (har page)</a></li></ul>
+<div class="group">⚡ Messaging &amp; Real-time</div><ul>
+<li><a href="kafka-how-it-works.html"><span class="num">02</span> How Kafka Works</a></li>
+<li><a href="whatsapp-system-design.html"><span class="num">06</span> How WhatsApp Works</a></li>
+<li><a href="slack-architecture.html"><span class="num">09</span> How Slack Works</a></li>
+<li><a href="live-comments-system-design.html"><span class="num">21</span> How Live Comments Work</a></li>
+<li><a href="real-time-presence-platform.html"><span class="num">23</span> How Live Presence Works</a></li>
+</ul>
+<div class="group">🧩 Classic interview designs</div><ul>
+<li><a href="stock-exchange-system-design.html"><span class="num">01</span> How Stock Exchange Works</a></li>
+<li><a href="url-shortener-system-design.html"><span class="num">05</span> How URL Shortener Works</a></li>
+<li><a href="airbnb-hotel-booking-system-design.html"><span class="num">07</span> How Airbnb Works</a></li>
+<li><a href="leaderboard-system-design.html"><span class="num">22</span> How Leaderboards Work</a></li>
+<li><a href="pastebin-system-design.html"><span class="num">26</span> How Pastebin Works</a></li>
+</ul>
+<div class="group">🎬 Media, Social &amp; Frontend</div><ul>
+<li><a href="youtube-system-design.html"><span class="num">03</span> How YouTube Works</a></li>
+<li><a href="spotify-system-design.html"><span class="num">08</span> How Spotify Works</a></li>
+<li><a href="bluesky-atproto-architecture.html"><span class="num">12</span> How Bluesky Works</a></li>
+<li><a href="twitter-timeline-frontend-system-design.html"><span class="num">13</span> How Twitter Timeline Works</a></li>
+</ul>
+<div class="group">📍 Maps &amp; Location</div><ul>
+<li><a href="tinder-architecture.html"><span class="num">11</span> How Tinder Works</a></li>
+<li><a href="uber-eta-computation.html"><span class="num">19</span> How Uber Computes ETA</a></li>
+</ul>
+<div class="group">🛠 Infra, Databases &amp; Search</div><ul>
+<li><a href="vitess-youtube-mysql.html"><span class="num">24</span> How YouTube Scales MySQL</a></li>
+<li><a href="nginx-how-it-works.html"><span class="num">28</span> How Nginx Works</a></li>
+<li><a href="google-search-web-crawler.html"><span class="num">30</span> How Google Search Works</a></li>
+</ul>
+<div class="group">🤖 GenAI &amp; LLM systems</div><ul>
+<li><a class="active" href="llm-concepts.html"><span class="num">17</span> How LLMs Actually Work</a></li>
+<li><a href="chatgpt-apps-mcp.html"><span class="num">18</span> How ChatGPT Apps Work</a></li>
+<li><a href="vector-database-internals.html"><span class="num">25</span> How Vector DBs Work</a></li>
+<li><a href="chatgpt-system-design.html"><span class="num">27</span> How ChatGPT Works</a></li>
+</ul>
+</nav>
+<main class="content">
+<div class="chapter-hero"><span class="chapter-num">Case study #17 · 🤖 GenAI &amp; LLM systems</span><h1>LLM Concepts — Token se Agent tak, 33 cheezein ek map mein</h1><p class="lead">Tokens, embeddings, latent space, parameters → pre-training, base vs instruct, fine-tuning, RLHF → prompts, context window, CoT → inference, temperature → grounding, RAG, agents → benchmarks, LLM-as-judge → hallucination aur guardrails.</p><div class="tags"><span class="tag">Tokens</span><span class="tag">Embeddings</span><span class="tag">RLHF</span><span class="tag">RAG</span><span class="tag">Agents</span><span class="tag">Evaluation</span></div><div class="wr-src"><span class="wr-acc free">Free article</span><a class="btn small" href="https://newsletter.systemdesign.one/p/llm-concepts" target="_blank" rel="noopener">Original article ↗</a></div></div>
+<div class="callout realworld"><strong>Source &amp; credit</strong><p>Original article: <a href="https://newsletter.systemdesign.one/p/llm-concepts" target="_blank" rel="noopener">LLM Concepts</a> — Neo Kim &amp; Louis-François Bouchard (The System Design Newsletter / systemdesign.one). LinkedIn post <a href="https://www.linkedin.com/posts/nk-systemdesign-one_if-you-want-to-become-good-at-system-design-activity-7520570734436319232-IxEG/" target="_blank" rel="noopener">“If you want to become good at system design (in 30 days), learn these 30 case studies”</a> ka case study #17.</p><p>Ye page us article ke <b>apne Hinglish study notes</b> hain — summary, concepts, diagram aur interview angle. Article ka text copy nahi kiya; details, original diagrams aur references ke liye source zaroor padho.</p></div>
+<div class="callout tip"><strong>Site pe pehle se (yahan se jodo)</strong><ul><li><a href="../library/genai/java-genai-complete-guide.html">Library · Java GenAI Complete Guide</a></li><li><a href="../library/genai/llm-evaluation-prompt-platform-hld-lld.html">Library · LLM Evaluation &amp; Prompt Platform HLD</a></li><li><a href="../web-resources/vector-database-internals.html">Web Resources · Vector Databases</a></li><li><a href="../bot-made/study-guides/bytebytego-study-path.html">Bots · ByteByteGo Study Path (AI engineering)</a></li></ul></div>
+
+<h2>Ek line mein</h2>
+<p>LLM ek bahut bada <b>next-token predictor</b> hai — pattern-matcher, truth ka source nahi. Article 33 concepts ko 7 layers mein baandhta hai; neeche wahi map, Hinglish mein.</p>
+
+<h2>1. Andar ki machinery</h2>
+<table class="cmp"><thead><tr><th>Concept</th><th>Seedhi baat</th></tr></thead><tbody>
+<tr><td>Token</td><td>Text ka tukda (word/sub-word). Pricing, context limit sab tokens mein.</td></tr>
+<tr><td>Embedding</td><td>Token/text ka number-vector; similar meaning → paas-paas vectors.</td></tr>
+<tr><td>Latent space</td><td>Wo high-dimensional "map" jisme meanings rehte hain.</td></tr>
+<tr><td>Parameters</td><td>Model ke learned weights (billions) — model ka "knowledge".</td></tr>
+</tbody></table>
+
+<h2>2. Training aur behaviour shaping</h2>
+<div class="wr-flow"><span>Pre-training (internet text, next token)</span><i>→</i><span>Base model</span><i>→</i><span>Instruction tuning / Fine-tuning</span><i>→</i><span>Alignment: RLHF</span><i>→</i><span>Instruct / chat model</span></div>
+<ul><li><b>Base model</b> text complete karta hai; <b>instruct model</b> instructions follow karta hai.</li><li><b>Fine-tuning</b>: specific data pe aage train (domain, style).</li><li><b>RLHF</b>: humans answers rank karte hain → reward model → model ko helpful/safe direction mein push.</li></ul>
+
+<h2>3. Baat kaise karein (interaction layer)</h2>
+<ul><li><b>System vs user prompt</b>: system = rules/persona, user = sawaal.</li><li><b>Context window</b>: ek baar mein kitne tokens dekh sakta hai (prompt + history + docs + output).</li><li><b>Zero-shot vs few-shot</b>: bina example vs prompt mein kuch examples.</li><li><b>Chain-of-thought</b>: step-by-step sochwana → reasoning better.</li></ul>
+
+<h2>4. Real time mein (inference)</h2>
+<ul><li><b>Inference</b> = trained model se output nikaalna, token by token. <b>Latency</b> = time-to-first-token + tokens/sec.</li><li><b>Temperature</b>: low = deterministic/focused, high = creative/random (stochastic).</li></ul>
+
+<h2>5. Basics se aage: grounding, RAG, agents</h2>
+<pre class="mermaid">
+flowchart LR
+  Q[User question] --> E[Embed query]
+  E --> VDB[(Vector DB)]
+  VDB -->|top-k chunks| P[Prompt: question + context]
+  P --> LLM[LLM]
+  LLM --> A[Grounded answer + citations]
+</pre>
+<ul><li><b>Grounding</b>: answer ko trusted data se baandhna. <b>RAG</b> = retrieve relevant docs → prompt mein daalo → generate.</li><li><b>Workflow vs agent</b>: workflow = fixed steps code mein; agent = LLM khud decide kare next step/tool. <b>Agentic AI</b> = multi-step planning + tool use + memory.</li></ul>
+
+<h2>6. Model flavours</h2>
+<ul><li>Proprietary (API se) vs open-weight/open-source (self-host, control, cost).</li><li><b>API</b> = app aur model ka connection. <b>SLM</b> (&lt;~15B params) = sasta, fast, edge pe.</li><li><b>Multimodal</b> = text + image + audio. <b>Reasoning models</b> = jawab se pehle "notes" banate hain, multi-step problems ke liye.</li></ul>
+
+<h2>7. Evaluation aur failures</h2>
+<table class="cmp"><thead><tr><th>Failure</th><th>Patch</th></tr></thead><tbody>
+<tr><td>Hallucination (confident jhooth)</td><td>Grounding/RAG + citations</td></tr>
+<tr><td>Math/logic weak</td><td>Tools (calculator, code exec), reasoning models</td></tr>
+<tr><td>Inherited bias</td><td>Curated data, alignment, evals</td></tr>
+<tr><td>Knowledge cutoff</td><td>RAG / web search tools</td></tr>
+<tr><td>Unsafe output</td><td>Guardrails: input + output dono filter</td></tr>
+</tbody></table>
+<p><b>Benchmarks</b> model ki raw capability compare karte hain; <b>metrics</b> (faithfulness, relevance) aapke app pe; scale pe <b>LLM-as-judge</b> — ek model doosre ke answers grade kare (rubric ke saath, human spot-checks zaroori).</p>
+
+<div class="callout interview"><strong>Interview mein kaise bolein</strong><p>GenAI round mein ye flow bolo: "LLM next-token predictor hai; pre-training → instruct tuning → RLHF. App banate waqt hallucination aur cutoff ke liye RAG se grounding, math ke liye tools, safety ke liye guardrails, aur quality ke liye offline evals + LLM-as-judge." Workflow vs agent ka farak zaroor poocha jaata hai.</p></div>
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul><li>Token → embedding → latent space → parameters.</li><li>Pre-train → fine-tune → RLHF = chat model.</li><li>Context window + temperature = runtime knobs.</li><li>RAG/grounding hallucination aur cutoff ka main ilaaj.</li><li>Workflow (fixed) vs agent (LLM decides).</li><li>Evaluate: benchmarks, app metrics, LLM-as-judge.</li></ul></div>
+<div class="chapter-nav"><a class="prev" href="google-search-web-crawler.html">← How Google Search Works</a><a class="next" href="chatgpt-apps-mcp.html">How ChatGPT Apps Work →</a></div>
+</main>
+<aside class="toc"></aside>
+</div>
+<footer class="footer">SystemDesign.hinglish · Web Resources · Hinglish notes; original content © its authors (systemdesign.one) · auto-generated by libbuild/webres.py</footer>
+<script src="../assets/app.js"></script>
+</body>
+</html>

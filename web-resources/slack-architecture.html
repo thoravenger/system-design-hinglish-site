@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Slack Architecture — Web API + Real-time API, Snapshot, Message Ordering · Web Resources · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{if(localStorage.getItem('sd-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
+<style>
+.wr-src{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:.8em 0 0}
+.wr-src a.btn{font-size:.85rem}
+.wr-acc{font-size:.72rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:3px 9px;border-radius:999px}
+.wr-acc.free{background:#dcfce7;color:#15803d}.wr-acc.preview{background:#fef3c7;color:#b45309}
+html.dark .wr-acc.free{background:#0f2e1c;color:#86efac}html.dark .wr-acc.preview{background:#3a2a0a;color:#fcd34d}
+pre.mermaid{background:var(--bg-soft);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center;overflow-x:auto}
+.wr-flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:1em 0}
+.wr-flow span{padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg-card);font-weight:600;font-size:.9rem}
+.wr-flow i{color:var(--accent);font-style:normal;font-weight:800}
+</style>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><div class="toplinks"><a href="../all-topics.html">🗂 All Topics</a><a href="../index.html#chapters">Chapters</a><a href="../library/index.html">Library</a><a href="../bot-made/index.html">Bots</a><a href="../linkedin-saved/index.html">LinkedIn</a><a href="../web-resources/index.html" style="color:var(--accent);font-weight:700">Web</a><a href="../links.html">URL Guide</a></div><button class="theme-toggle" aria-label="theme">◐</button></header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="index.html"><span class="num">🌐</span> Web Resources home</a></li><li><a href="../all-topics.html"><span class="num">🗂</span> All Topics (har page)</a></li></ul>
+<div class="group">⚡ Messaging &amp; Real-time</div><ul>
+<li><a href="kafka-how-it-works.html"><span class="num">02</span> How Kafka Works</a></li>
+<li><a href="whatsapp-system-design.html"><span class="num">06</span> How WhatsApp Works</a></li>
+<li><a class="active" href="slack-architecture.html"><span class="num">09</span> How Slack Works</a></li>
+<li><a href="live-comments-system-design.html"><span class="num">21</span> How Live Comments Work</a></li>
+<li><a href="real-time-presence-platform.html"><span class="num">23</span> How Live Presence Works</a></li>
+</ul>
+<div class="group">🧩 Classic interview designs</div><ul>
+<li><a href="stock-exchange-system-design.html"><span class="num">01</span> How Stock Exchange Works</a></li>
+<li><a href="url-shortener-system-design.html"><span class="num">05</span> How URL Shortener Works</a></li>
+<li><a href="airbnb-hotel-booking-system-design.html"><span class="num">07</span> How Airbnb Works</a></li>
+<li><a href="leaderboard-system-design.html"><span class="num">22</span> How Leaderboards Work</a></li>
+<li><a href="pastebin-system-design.html"><span class="num">26</span> How Pastebin Works</a></li>
+</ul>
+<div class="group">🎬 Media, Social &amp; Frontend</div><ul>
+<li><a href="youtube-system-design.html"><span class="num">03</span> How YouTube Works</a></li>
+<li><a href="spotify-system-design.html"><span class="num">08</span> How Spotify Works</a></li>
+<li><a href="bluesky-atproto-architecture.html"><span class="num">12</span> How Bluesky Works</a></li>
+<li><a href="twitter-timeline-frontend-system-design.html"><span class="num">13</span> How Twitter Timeline Works</a></li>
+</ul>
+<div class="group">📍 Maps &amp; Location</div><ul>
+<li><a href="tinder-architecture.html"><span class="num">11</span> How Tinder Works</a></li>
+<li><a href="uber-eta-computation.html"><span class="num">19</span> How Uber Computes ETA</a></li>
+</ul>
+<div class="group">🛠 Infra, Databases &amp; Search</div><ul>
+<li><a href="vitess-youtube-mysql.html"><span class="num">24</span> How YouTube Scales MySQL</a></li>
+<li><a href="nginx-how-it-works.html"><span class="num">28</span> How Nginx Works</a></li>
+<li><a href="google-search-web-crawler.html"><span class="num">30</span> How Google Search Works</a></li>
+</ul>
+<div class="group">🤖 GenAI &amp; LLM systems</div><ul>
+<li><a href="llm-concepts.html"><span class="num">17</span> How LLMs Actually Work</a></li>
+<li><a href="chatgpt-apps-mcp.html"><span class="num">18</span> How ChatGPT Apps Work</a></li>
+<li><a href="vector-database-internals.html"><span class="num">25</span> How Vector DBs Work</a></li>
+<li><a href="chatgpt-system-design.html"><span class="num">27</span> How ChatGPT Works</a></li>
+</ul>
+</nav>
+<main class="content">
+<div class="chapter-hero"><span class="chapter-num">Case study #9 · ⚡ Messaging &amp; Real-time</span><h1>Slack Architecture — Web API + Real-time API, Snapshot, Message Ordering</h1><p class="lead">Workspace → channels → messages. HTTP web API + WebSocket real-time API, login pe workspace snapshot, cursor pagination, message ordering aur thundering herd se bachav.</p><div class="tags"><span class="tag">WebSocket</span><span class="tag">Cursor pagination</span><span class="tag">MySQL/Vitess</span><span class="tag">Thundering herd</span><span class="tag">Ordering</span></div><div class="wr-src"><span class="wr-acc free">Free article</span><a class="btn small" href="https://systemdesign.one/slack-architecture/" target="_blank" rel="noopener">Original article ↗</a></div></div>
+<div class="callout realworld"><strong>Source &amp; credit</strong><p>Original article: <a href="https://systemdesign.one/slack-architecture/" target="_blank" rel="noopener">Slack Architecture</a> — Neo Kim (The System Design Newsletter / systemdesign.one). LinkedIn post <a href="https://www.linkedin.com/posts/nk-systemdesign-one_if-you-want-to-become-good-at-system-design-activity-7520570734436319232-IxEG/" target="_blank" rel="noopener">“If you want to become good at system design (in 30 days), learn these 30 case studies”</a> ka case study #9.</p><p>Ye page us article ke <b>apne Hinglish study notes</b> hain — summary, concepts, diagram aur interview angle. Article ka text copy nahi kiya; details, original diagrams aur references ke liye source zaroor padho.</p></div>
+<div class="callout tip"><strong>Site pe pehle se (yahan se jodo)</strong><ul><li><a href="../chapters/12-chat-system.html">Ch 12 · Design a Chat System (Alex Xu)</a></li><li><a href="../web-resources/vitess-youtube-mysql.html">Web Resources · Vitess (MySQL scaling)</a></li></ul></div>
+
+<h2>Scope (article ke numbers)</h2>
+<ul><li>10M DAU, ~7M concurrent connected users, read:write = 10:1.</li><li>Channel mein max 10K users, workspace mein max 200K. 1:1 + group chat, history persist, media files, presence.</li><li>Traffic office hours mein (9–17h), peak dopahar ~11–14h — capacity isi peak ke hisaab se.</li></ul>
+
+<h2>Do tarah ki API</h2>
+<table class="cmp"><thead><tr><th></th><th>Web API (HTTP)</th><th>Real-time API (WebSocket)</th></tr></thead><tbody>
+<tr><td>Kaam</td><td>Message post karna, login, channel banana, history fetch</td><td>Message delivery, typing indicator, presence</td></tr>
+<tr><td>Kyun</td><td>Reliable, cache/LB-friendly, debug easy</td><td>Low-latency, full-duplex push</td></tr>
+</tbody></table>
+<p>Interesting point: message <b>bhejna HTTP POST</b> se ho sakta hai (WebSocket ke bina bhi), aur <b>deliver</b> WebSocket se. Typing indicator jaise transient events seedha WebSocket pe — DB tak jaate hi nahi.</p>
+
+<h2>Login pe "snapshot"</h2>
+<p>Client login kare to server poore workspace ka snapshot (channels, members, unread) deta hai. Bade workspace mein ye bhaari hai — isliye client last sync ka timestamp rakhta hai aur <b>incremental updates</b> leta hai; ek in-memory/edge snapshot service (article mein Flannel ka zikr) load kam karti hai.</p>
+
+<h2>Pagination: offset vs cursor</h2>
+<table class="cmp"><thead><tr><th>Offset</th><th>Cursor</th></tr></thead><tbody>
+<tr><td><code>LIMIT 20 OFFSET 400</code> — simple, page number jump</td><td><code>WHERE created_at &lt; :cursor LIMIT 20</code> — index pe seedha seek</td></tr>
+<tr><td>Deep pages slow; naye messages aane pe items skip/duplicate</td><td>Stable aur fast; chat jaise live feed ke liye best</td></tr>
+</tbody></table>
+<pre><code>SELECT * FROM chat WHERE channel_id = ? ORDER BY created_at DESC LIMIT 20;
+-- index: (channel_id, created_at)</code></pre>
+
+<h2>Deep dive points</h2>
+<ul>
+<li><b>Message ordering</b>: server timestamp clock skew se galat, client timestamp pe bharosa nahi. Har channel ke andar total order chahiye → per-channel sequence / Snowflake-type sortable IDs, aur <b>atomic broadcast</b> ki requirement (sabko same order).</li>
+<li><b>Storage</b>: relational MySQL, scale ke liye Vitess se shard (by workspace/channel).</li>
+<li><b>Thundering herd</b>: outage ke baad poori org ek saath reconnect → reconnect mein <b>jitter + exponential backoff</b>, snapshot cache.</li>
+<li><b>Fault tolerance</b>: data center fail ho to users ko "drain" karke doosre DC pe; DB write errors ke liye dead letter queue.</li>
+<li>Media S3 + CDN; clients Electron (desktop), React (web), React Native/native (mobile).</li>
+</ul>
+
+<div class="callout interview"><strong>Interview mein kaise bolein</strong><p>"Main do APIs rakhunga: HTTP web API state-changing kaam ke liye, aur WebSocket real-time delivery/presence/typing ke liye. Messages MySQL mein (channel_id, created_at) index ke saath, cursor pagination; scale pe Vitess sharding. Ordering per-channel sequence se, aur reconnect storms ke liye jitter + backoff." Bonus: Slack vs WhatsApp — Slack mein history server pe permanent aur search important; WhatsApp mein device-centric delivery.</p></div>
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul><li>HTTP for commands, WebSocket for real-time push — dono ka role alag.</li><li>Login snapshot + incremental sync se bade workspaces fast load.</li><li>Chat history ke liye cursor pagination, offset nahi.</li><li>Ordering per channel; clock skew ke wajah se raw timestamps pe bharosa nahi.</li><li>Reconnect storm (thundering herd) ka ilaaj: jitter, backoff, cache.</li></ul></div>
+<div class="chapter-nav"><a class="prev" href="whatsapp-system-design.html">← How WhatsApp Works</a><a class="next" href="live-comments-system-design.html">How Live Comments Work →</a></div>
+</main>
+<aside class="toc"></aside>
+</div>
+<footer class="footer">SystemDesign.hinglish · Web Resources · Hinglish notes; original content © its authors (systemdesign.one) · auto-generated by libbuild/webres.py</footer>
+<script src="../assets/app.js"></script>
+</body>
+</html>

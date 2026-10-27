@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bluesky Architecture — ATProto, Repositories, DIDs, Feeds, HLS Video · Web Resources · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{if(localStorage.getItem('sd-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
+<style>
+.wr-src{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:.8em 0 0}
+.wr-src a.btn{font-size:.85rem}
+.wr-acc{font-size:.72rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:3px 9px;border-radius:999px}
+.wr-acc.free{background:#dcfce7;color:#15803d}.wr-acc.preview{background:#fef3c7;color:#b45309}
+html.dark .wr-acc.free{background:#0f2e1c;color:#86efac}html.dark .wr-acc.preview{background:#3a2a0a;color:#fcd34d}
+pre.mermaid{background:var(--bg-soft);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center;overflow-x:auto}
+.wr-flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:1em 0}
+.wr-flow span{padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg-card);font-weight:600;font-size:.9rem}
+.wr-flow i{color:var(--accent);font-style:normal;font-weight:800}
+</style>
+<script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";mermaid.initialize({startOnLoad:true,theme:document.documentElement.classList.contains("dark")?"dark":"default",securityLevel:"strict"});</script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><div class="toplinks"><a href="../all-topics.html">🗂 All Topics</a><a href="../index.html#chapters">Chapters</a><a href="../library/index.html">Library</a><a href="../bot-made/index.html">Bots</a><a href="../linkedin-saved/index.html">LinkedIn</a><a href="../web-resources/index.html" style="color:var(--accent);font-weight:700">Web</a><a href="../links.html">URL Guide</a></div><button class="theme-toggle" aria-label="theme">◐</button></header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="index.html"><span class="num">🌐</span> Web Resources home</a></li><li><a href="../all-topics.html"><span class="num">🗂</span> All Topics (har page)</a></li></ul>
+<div class="group">⚡ Messaging &amp; Real-time</div><ul>
+<li><a href="kafka-how-it-works.html"><span class="num">02</span> How Kafka Works</a></li>
+<li><a href="whatsapp-system-design.html"><span class="num">06</span> How WhatsApp Works</a></li>
+<li><a href="slack-architecture.html"><span class="num">09</span> How Slack Works</a></li>
+<li><a href="live-comments-system-design.html"><span class="num">21</span> How Live Comments Work</a></li>
+<li><a href="real-time-presence-platform.html"><span class="num">23</span> How Live Presence Works</a></li>
+</ul>
+<div class="group">🧩 Classic interview designs</div><ul>
+<li><a href="stock-exchange-system-design.html"><span class="num">01</span> How Stock Exchange Works</a></li>
+<li><a href="url-shortener-system-design.html"><span class="num">05</span> How URL Shortener Works</a></li>
+<li><a href="airbnb-hotel-booking-system-design.html"><span class="num">07</span> How Airbnb Works</a></li>
+<li><a href="leaderboard-system-design.html"><span class="num">22</span> How Leaderboards Work</a></li>
+<li><a href="pastebin-system-design.html"><span class="num">26</span> How Pastebin Works</a></li>
+</ul>
+<div class="group">🎬 Media, Social &amp; Frontend</div><ul>
+<li><a href="youtube-system-design.html"><span class="num">03</span> How YouTube Works</a></li>
+<li><a href="spotify-system-design.html"><span class="num">08</span> How Spotify Works</a></li>
+<li><a class="active" href="bluesky-atproto-architecture.html"><span class="num">12</span> How Bluesky Works</a></li>
+<li><a href="twitter-timeline-frontend-system-design.html"><span class="num">13</span> How Twitter Timeline Works</a></li>
+</ul>
+<div class="group">📍 Maps &amp; Location</div><ul>
+<li><a href="tinder-architecture.html"><span class="num">11</span> How Tinder Works</a></li>
+<li><a href="uber-eta-computation.html"><span class="num">19</span> How Uber Computes ETA</a></li>
+</ul>
+<div class="group">🛠 Infra, Databases &amp; Search</div><ul>
+<li><a href="vitess-youtube-mysql.html"><span class="num">24</span> How YouTube Scales MySQL</a></li>
+<li><a href="nginx-how-it-works.html"><span class="num">28</span> How Nginx Works</a></li>
+<li><a href="google-search-web-crawler.html"><span class="num">30</span> How Google Search Works</a></li>
+</ul>
+<div class="group">🤖 GenAI &amp; LLM systems</div><ul>
+<li><a href="llm-concepts.html"><span class="num">17</span> How LLMs Actually Work</a></li>
+<li><a href="chatgpt-apps-mcp.html"><span class="num">18</span> How ChatGPT Apps Work</a></li>
+<li><a href="vector-database-internals.html"><span class="num">25</span> How Vector DBs Work</a></li>
+<li><a href="chatgpt-system-design.html"><span class="num">27</span> How ChatGPT Works</a></li>
+</ul>
+</nav>
+<main class="content">
+<div class="chapter-hero"><span class="chapter-num">Case study #12 · 🎬 Media, Social &amp; Frontend</span><h1>Bluesky Architecture — ATProto, Repositories, DIDs, Feeds, HLS Video</h1><p class="lead">Decentralised social network: har user ka signed data repository, DID identity, relay/firehose se aggregation, AppView se timeline, labels wala moderation, social proof aur HLS short video.</p><div class="tags"><span class="tag">ATProto</span><span class="tag">DID</span><span class="tag">Decentralised</span><span class="tag">Firehose</span><span class="tag">HLS</span></div><div class="wr-src"><span class="wr-acc preview">Free preview + paid part</span><a class="btn small" href="https://newsletter.systemdesign.one/p/how-does-bluesky-work" target="_blank" rel="noopener">Original article ↗</a></div></div>
+<div class="callout realworld"><strong>Source &amp; credit</strong><p>Original article: <a href="https://newsletter.systemdesign.one/p/how-does-bluesky-work" target="_blank" rel="noopener">How Does Bluesky Work</a> — Neo Kim (The System Design Newsletter / systemdesign.one). LinkedIn post <a href="https://www.linkedin.com/posts/nk-systemdesign-one_if-you-want-to-become-good-at-system-design-activity-7520570734436319232-IxEG/" target="_blank" rel="noopener">“If you want to become good at system design (in 30 days), learn these 30 case studies”</a> ka case study #12.</p><p>Ye page us article ke <b>apne Hinglish study notes</b> hain — summary, concepts, diagram aur interview angle. Article ka text copy nahi kiya; details, original diagrams aur references ke liye source zaroor padho. <i>Note: article ka sirf free preview wala hissa padh ke notes banaye hain; baaki hissa paid subscribers ke liye hai.</i></p></div>
+<div class="callout tip"><strong>Site pe pehle se (yahan se jodo)</strong><ul><li><a href="../chapters/11-news-feed.html">Ch 11 · News Feed (centralised fan-out se compare karo)</a></li></ul></div>
+
+<h2>Centralised Twitter se farak</h2>
+<p>Bluesky ek open framework <b>ATProto</b> (Authenticated Transfer Protocol) pe bana hai. Data kisi ek company ke DB mein "lock" nahi — har user ka apna <b>repository</b> hai jo kisi bhi compatible server pe host ho sakta hai, aur user apna server badal sakta hai bina followers khoye.</p>
+
+<h2>Building blocks</h2>
+<table class="cmp"><thead><tr><th>Cheez</th><th>Matlab</th></tr></thead><tbody>
+<tr><td>Repository</td><td>User ka signed data store — posts (text + timestamp), follows, likes. Git-jaisa content-addressed structure, har change signed.</td></tr>
+<tr><td>DID</td><td>Decentralised identifier — permanent user ID; handle (domain name) badal sakta hai, DID nahi.</td></tr>
+<tr><td>PDS (personal data server)</td><td>Jahan repo host hota hai.</td></tr>
+<tr><td>Relay / firehose</td><td>Saare PDS se updates ka ek stream.</td></tr>
+<tr><td>AppView</td><td>Firehose padh ke indexes banata hai — likes count, replies, timelines.</td></tr>
+</tbody></table>
+
+<pre class="mermaid">
+flowchart LR
+  U1[User repo on PDS 1] --> R[Relay: firehose]
+  U2[User repo on PDS 2] --> R
+  R --> AV[AppView: indexes, counts, threads]
+  R --> MOD[Moderation service: labels]
+  R --> FG[Custom feed generators]
+  AV --> APP[Bluesky app]
+  MOD --> APP
+  FG --> APP
+</pre>
+
+<h2>Features ka design</h2>
+<ul>
+<li><b>Follow</b>: sirf follow karne wale ke repo mein target ka DID add hota hai. Followers count kahin "stored" nahi — AppView aggregate karta hai.</li>
+<li><b>Timeline</b>: user ke posts reverse-chronological; likes/comments repo mein nahi hote, isliye AppView se aate hain.</li>
+<li><b>Moderation</b>: moderation service posts pe <b>labels</b> (metadata) lagati hai — auto ya manual; client user preference ke hisaab se hide/blur. Multiple moderation services subscribe kar sakte ho.</li>
+<li><b>Social proof</b>: "aapke follow kiye kitne log isko follow karte hain" — graph intersection query.</li>
+<li><b>Short video (90s tak)</b>: <b>HLS</b> — har quality ~5s segments mein; master playlist (qualities) + media playlist (segments). Client network dekh ke quality chunta hai; CDN cache; stream requests 302 redirect se CDN pe. Views = master playlist requests ka count, watch-time = last fetched segment. Subtitles alag media playlist.</li>
+</ul>
+
+<div class="callout interview"><strong>Interview mein kaise bolein</strong><p>Decentralised design ka sawaal aaye to bolo: "Write path user-owned signed repos mein (PDS), read path aggregated indexes (AppView) se — ye CQRS jaisa split hai. Relay firehose sab changes stream karta hai; counts/timelines derived data hain." Aur HLS master/media playlist ka 2-line explanation.</p></div>
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul><li>User data = signed repository; identity = DID.</li><li>Writes decentralised, reads aggregated (AppView) — CQRS feel.</li><li>Counts aur timelines derived data hain, source nahi.</li><li>Moderation = labels, policy client/user ke haath.</li><li>HLS: master playlist → media playlist → segments.</li></ul></div>
+<div class="chapter-nav"><a class="prev" href="spotify-system-design.html">← How Spotify Works</a><a class="next" href="twitter-timeline-frontend-system-design.html">How Twitter Timeline Works →</a></div>
+</main>
+<aside class="toc"></aside>
+</div>
+<footer class="footer">SystemDesign.hinglish · Web Resources · Hinglish notes; original content © its authors (systemdesign.one) · auto-generated by libbuild/webres.py</footer>
+<script src="../assets/app.js"></script>
+</body>
+</html>

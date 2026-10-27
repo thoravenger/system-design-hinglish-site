@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vector Database — Storage (Quantization), Index (HNSW), Query Path · Web Resources · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{if(localStorage.getItem('sd-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
+<style>
+.wr-src{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:.8em 0 0}
+.wr-src a.btn{font-size:.85rem}
+.wr-acc{font-size:.72rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:3px 9px;border-radius:999px}
+.wr-acc.free{background:#dcfce7;color:#15803d}.wr-acc.preview{background:#fef3c7;color:#b45309}
+html.dark .wr-acc.free{background:#0f2e1c;color:#86efac}html.dark .wr-acc.preview{background:#3a2a0a;color:#fcd34d}
+pre.mermaid{background:var(--bg-soft);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center;overflow-x:auto}
+.wr-flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:1em 0}
+.wr-flow span{padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg-card);font-weight:600;font-size:.9rem}
+.wr-flow i{color:var(--accent);font-style:normal;font-weight:800}
+</style>
+<script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";mermaid.initialize({startOnLoad:true,theme:document.documentElement.classList.contains("dark")?"dark":"default",securityLevel:"strict"});</script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><div class="toplinks"><a href="../all-topics.html">🗂 All Topics</a><a href="../index.html#chapters">Chapters</a><a href="../library/index.html">Library</a><a href="../bot-made/index.html">Bots</a><a href="../linkedin-saved/index.html">LinkedIn</a><a href="../web-resources/index.html" style="color:var(--accent);font-weight:700">Web</a><a href="../links.html">URL Guide</a></div><button class="theme-toggle" aria-label="theme">◐</button></header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="index.html"><span class="num">🌐</span> Web Resources home</a></li><li><a href="../all-topics.html"><span class="num">🗂</span> All Topics (har page)</a></li></ul>
+<div class="group">⚡ Messaging &amp; Real-time</div><ul>
+<li><a href="kafka-how-it-works.html"><span class="num">02</span> How Kafka Works</a></li>
+<li><a href="whatsapp-system-design.html"><span class="num">06</span> How WhatsApp Works</a></li>
+<li><a href="slack-architecture.html"><span class="num">09</span> How Slack Works</a></li>
+<li><a href="live-comments-system-design.html"><span class="num">21</span> How Live Comments Work</a></li>
+<li><a href="real-time-presence-platform.html"><span class="num">23</span> How Live Presence Works</a></li>
+</ul>
+<div class="group">🧩 Classic interview designs</div><ul>
+<li><a href="stock-exchange-system-design.html"><span class="num">01</span> How Stock Exchange Works</a></li>
+<li><a href="url-shortener-system-design.html"><span class="num">05</span> How URL Shortener Works</a></li>
+<li><a href="airbnb-hotel-booking-system-design.html"><span class="num">07</span> How Airbnb Works</a></li>
+<li><a href="leaderboard-system-design.html"><span class="num">22</span> How Leaderboards Work</a></li>
+<li><a href="pastebin-system-design.html"><span class="num">26</span> How Pastebin Works</a></li>
+</ul>
+<div class="group">🎬 Media, Social &amp; Frontend</div><ul>
+<li><a href="youtube-system-design.html"><span class="num">03</span> How YouTube Works</a></li>
+<li><a href="spotify-system-design.html"><span class="num">08</span> How Spotify Works</a></li>
+<li><a href="bluesky-atproto-architecture.html"><span class="num">12</span> How Bluesky Works</a></li>
+<li><a href="twitter-timeline-frontend-system-design.html"><span class="num">13</span> How Twitter Timeline Works</a></li>
+</ul>
+<div class="group">📍 Maps &amp; Location</div><ul>
+<li><a href="tinder-architecture.html"><span class="num">11</span> How Tinder Works</a></li>
+<li><a href="uber-eta-computation.html"><span class="num">19</span> How Uber Computes ETA</a></li>
+</ul>
+<div class="group">🛠 Infra, Databases &amp; Search</div><ul>
+<li><a href="vitess-youtube-mysql.html"><span class="num">24</span> How YouTube Scales MySQL</a></li>
+<li><a href="nginx-how-it-works.html"><span class="num">28</span> How Nginx Works</a></li>
+<li><a href="google-search-web-crawler.html"><span class="num">30</span> How Google Search Works</a></li>
+</ul>
+<div class="group">🤖 GenAI &amp; LLM systems</div><ul>
+<li><a href="llm-concepts.html"><span class="num">17</span> How LLMs Actually Work</a></li>
+<li><a href="chatgpt-apps-mcp.html"><span class="num">18</span> How ChatGPT Apps Work</a></li>
+<li><a class="active" href="vector-database-internals.html"><span class="num">25</span> How Vector DBs Work</a></li>
+<li><a href="chatgpt-system-design.html"><span class="num">27</span> How ChatGPT Works</a></li>
+</ul>
+</nav>
+<main class="content">
+<div class="chapter-hero"><span class="chapter-num">Case study #25 · 🤖 GenAI &amp; LLM systems</span><h1>Vector Database — Storage (Quantization), Index (HNSW), Query Path</h1><p class="lead">B-tree exact match ke liye hai, embeddings &quot;closeness&quot; maangte hain. Teen layers: storage (6 KB/vector, scalar/binary quantization), index (HNSW small-world graph) aur query path — cost, latency, accuracy ka trade-off.</p><div class="tags"><span class="tag">Embeddings</span><span class="tag">ANN</span><span class="tag">HNSW</span><span class="tag">Quantization</span><span class="tag">RAG</span></div><div class="wr-src"><span class="wr-acc preview">Free preview + paid part</span><a class="btn small" href="https://newsletter.systemdesign.one/p/what-is-a-vector-database" target="_blank" rel="noopener">Original article ↗</a></div></div>
+<div class="callout realworld"><strong>Source &amp; credit</strong><p>Original article: <a href="https://newsletter.systemdesign.one/p/what-is-a-vector-database" target="_blank" rel="noopener">What is a Vector Database</a> — Maxine Meurer &amp; Neo Kim (The System Design Newsletter / systemdesign.one). LinkedIn post <a href="https://www.linkedin.com/posts/nk-systemdesign-one_if-you-want-to-become-good-at-system-design-activity-7520570734436319232-IxEG/" target="_blank" rel="noopener">“If you want to become good at system design (in 30 days), learn these 30 case studies”</a> ka case study #25.</p><p>Ye page us article ke <b>apne Hinglish study notes</b> hain — summary, concepts, diagram aur interview angle. Article ka text copy nahi kiya; details, original diagrams aur references ke liye source zaroor padho. <i>Note: article ka sirf free preview wala hissa padh ke notes banaye hain; baaki hissa paid subscribers ke liye hai.</i></p></div>
+<div class="callout tip"><strong>Site pe pehle se (yahan se jodo)</strong><ul><li><a href="../library/genai/vector-database-mastery.html">Library · Vector Database Mastery (poori book)</a></li><li><a href="../web-resources/llm-concepts.html">Web Resources · LLM Concepts (RAG)</a></li></ul></div>
+
+<h2>Normal DB kyun nahi</h2>
+<p><code>WHERE user_id = 12345</code> ya date range — B-tree index seedha row pe le jaata hai. Embedding ke saath koi "exact value" nahi; chahiye <b>sabse paas ke vectors</b> (cosine / dot product / L2) high-dimensional space mein. Har vector se compare (brute force) = O(N·d) — millions pe slow. Isliye <b>ANN</b> (approximate nearest neighbour) indexes.</p>
+
+<h2>Layer 1: Storage — vectors bhaari hain</h2>
+<pre><code>1 vector = 1536 dims × 4 bytes (float32) ≈ 6 KB
+10M vectors ≈ 60 GB  (sirf raw vectors; index alag)</code></pre>
+<table class="cmp"><thead><tr><th>Quantization</th><th>Kya</th><th>Saving</th><th>Cost</th></tr></thead><tbody>
+<tr><td>Scalar (int8)</td><td>Har dimension 32-bit → 8-bit</td><td>~4×</td><td>Thoda accuracy loss</td></tr>
+<tr><td>Binary</td><td>Har dimension 1 bit</td><td>~32×</td><td>Zyada loss; aksar re-rank ke saath</td></tr>
+<tr><td>Product quantization</td><td>Vector ko sub-vectors mein tod ke codebook</td><td>Bahut zyada</td><td>Complex, approximation error</td></tr>
+</tbody></table>
+<p>Approximation error = compressed aur original ka gap → kabhi-kabhi ek sahi result miss (recall girta hai).</p>
+
+<h2>Layer 2: Index — HNSW</h2>
+<p>"Small world" idea: duniya mein kisi tak bhi kuch hi connections mein pahunch jaate ho. HNSW multi-layer graph banata hai: upar ki layer mein kam nodes, lambi "express" links; neeche sab nodes, chhoti links. Query upar se shuru → greedy closest neighbour ki taraf → layer neeche → bottom pe best matches.</p>
+<pre class="mermaid">
+flowchart TB
+  L2[Layer 2: few nodes, long jumps] --> L1[Layer 1: more nodes]
+  L1 --> L0[Layer 0: all vectors, local links]
+  Q[Query vector] -.enter top.-> L2
+  L0 --> R[top-k nearest]
+</pre>
+<ul><li>Knobs: <code>M</code> (har node ke links), <code>efConstruction</code>, <code>efSearch</code> — zyada = better recall, zyada memory/latency.</li><li>Alternatives: IVF (clusters), DiskANN (disk-based) — memory vs latency trade-off.</li></ul>
+
+<h2>Layer 3: Query path</h2>
+<div class="wr-flow"><span>Text query</span><i>→</i><span>Embedding model</span><i>→</i><span>Metadata filter (tenant, date)</span><i>→</i><span>ANN search (HNSW)</span><i>→</i><span>Re-rank (exact / cross-encoder)</span><i>→</i><span>top-k to app / LLM</span></div>
+<div class="callout warn"><strong>Note</strong><p>Free preview yahan tak hai; production concerns (sharding, filtering, hybrid search) ke liye library ki "Vector Database Mastery" book dekho.</p></div>
+
+<div class="callout interview"><strong>Interview mein kaise bolein</strong><p>"Embeddings ke liye exact-match index kaam nahi karta — ANN chahiye. Main HNSW lunga (high recall, in-memory), memory bachane ke liye int8/PQ quantization + exact re-rank top candidates pe. Metadata filter pehle/saath, aur recall@k vs p99 latency tune karunga ef/M se." Storage math (6 KB × N) bolna impressive lagta hai.</p></div>
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul><li>Embeddings = closeness search, exact match nahi.</li><li>1536-d float32 ≈ 6 KB per vector — memory math karo.</li><li>Quantization: 4×+ saving, thoda recall loss.</li><li>HNSW = multi-layer small-world graph; ef/M knobs.</li><li>Query: embed → filter → ANN → re-rank.</li></ul></div>
+<div class="chapter-nav"><a class="prev" href="chatgpt-apps-mcp.html">← How ChatGPT Apps Work</a><a class="next" href="chatgpt-system-design.html">How ChatGPT Works →</a></div>
+</main>
+<aside class="toc"></aside>
+</div>
+<footer class="footer">SystemDesign.hinglish · Web Resources · Hinglish notes; original content © its authors (systemdesign.one) · auto-generated by libbuild/webres.py</footer>
+<script src="../assets/app.js"></script>
+</body>
+</html>
