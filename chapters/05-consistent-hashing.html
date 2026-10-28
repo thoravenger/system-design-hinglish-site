@@ -6,6 +6,7 @@
 <title>Chapter 05: Design Consistent Hashing · SystemDesign.hinglish</title>
 <link rel="stylesheet" href="../assets/style.css">
 <script>try{if(localStorage.getItem('sd-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
+<script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";mermaid.initialize({startOnLoad:true,theme:document.documentElement.classList.contains("dark")?"dark":"default",securityLevel:"strict"});</script>
 </head>
 <body>
 <header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><div class="toplinks"><a href="../all-topics.html">🗂 All Topics</a><a href="../index.html#chapters" style="color:var(--accent);font-weight:700">Chapters</a><a href="../library/index.html">Library</a><a href="../bot-made/index.html">Bots</a><a href="../linkedin-saved/index.html">LinkedIn</a><a href="../web-resources/index.html">Web</a><a href="../links.html">URL Guide</a></div><button class="theme-toggle" aria-label="theme">◐</button></header>
@@ -141,6 +142,43 @@
 <details><summary>Hot key (ek hi key pe bahut traffic) consistent hashing solve karta hai?</summary><p>Nahi — wo ek hi key ek hi server pe jaayegi. Iske liye key ko replicate/salt karo (key#1..key#k) ya local cache lagao.</p></details>
 <details><summary>Kitne virtual nodes?</summary><p>Commonly 100–200 per server range discuss hoti hai; zyada = better balance, zyada metadata. Measure karke tune karo.</p></details>
 
+<section class="wr-aug" id="wr-aug-consistent-hashing"><div class="callout tip"><strong>🌐 Web Resources se add kiya</strong><p>Partitioning ke 5 options compare, BST/TreeMap complexity, concurrency (RW lock), hash function choice, drawbacks aur variants: multi-probe aur bounded-load consistent hashing.</p></div>
+
+<h2 id="wr-extra-partitioning">Extra: partitioning ke 5 options (consistent hashing tak kaise pahunche)</h2>
+<table class="cmp"><thead><tr><th>Option</th><th>Dikkat</th></tr></thead><tbody>
+<tr><td>Random assignment</td><td>Distribution even, par client ko pata hi nahi key kahan gayi</td></tr>
+<tr><td>Single global cache</td><td>Simple lookup, par ek server = bottleneck + SPOF</td></tr>
+<tr><td>Key-range partitioning</td><td>Lookup easy, par kuch ranges mein zyada keys → hot spots</td></tr>
+<tr><td>Static hash (<code>hash % N</code>)</td><td>Even + easy lookup, par N badla to ~saari keys remap (rehashing problem)</td></tr>
+<tr><td><b>Consistent hashing</b></td><td>Node add/remove pe sirf ~k/n keys move</td></tr>
+</tbody></table>
+
+<h2 id="wr-extra-impl">Extra: implementation details jo follow-up mein poochhe jaate hain</h2>
+<ul>
+<li><b>Ring storage</b>: node positions ek self-balancing BST mein (Java <code>TreeMap</code>, C++ <code>std::map</code>) → lookup = "key ke hash se agla bada position" = <code>ceilingKey()</code>, O(log n). Sorted array + binary search bhi chalega agar membership kam badle.</li>
+<li><b>Complexity</b>: add/remove node O(k/n + log n) (keys move + tree update); key lookup O(log n).</li>
+<li><b>Concurrency</b>: ring mutable hai — kai nodes ek saath add/remove ho to <b>readers-writer lock</b> (reads bahut, writes kam), ya copy-on-write ring: naya ring banao aur atomically swap.</li>
+<li><b>Hash function</b>: fast + uniform chahiye. MD5/SHA-1/SHA-256 cryptographic hain par slow; <b>MurmurHash</b>, xxHash jaise non-cryptographic hashes better.</li>
+</ul>
+
+<h2 id="wr-extra-variants">Extra: drawbacks aur variants</h2>
+<ul>
+<li>Drawbacks: hot key ek node pe → wo gira to load agle node pe → <b>cascading failure</b>; nodes ki alag capacity (heterogeneity) ka plain ring ko pata nahi (fix: capacity ke hisaab se zyada virtual nodes). Virtual nodes ka cost: zyada memory aur node ke gone hone pe kai jagah se data move.</li>
+<li><b>Multi-probe consistent hashing</b>: virtual nodes nahi — har node ring pe ek position, lekin key ko kai baar hash karke sabse paas wala node lo → O(n) space, achha balance.</li>
+<li><b>Consistent hashing with bounded loads</b>: har node pe upper limit (average load × (1+ε)); node full ho to key agle node pe → hot spots control. HAProxy load balancing mein ye algorithm deta hai.</li>
+<li>Real world: Memcached clients (Ketama), Amazon Dynamo-style stores, Discord (chat server → nodes), CDNs aur load balancers.</li>
+</ul>
+<pre class="mermaid">
+flowchart LR
+  K[key hash] --> T{TreeMap ceilingKey}
+  T -->|found| N[that node]
+  T -->|null: ring end| F[firstKey: wrap around]
+  N --> BL{bounded load: node full?}
+  BL -- haan --> NX[next node on ring]
+  BL -- nahi --> OK[serve]
+</pre>
+</section>
+<div class="callout tip" id="wr-see-also"><strong>🌐 Web Resources mein aur padho</strong><ul><li><a href="../web-resources/service-discovery.html">Service Discovery — Registry, Heartbeats, Client-side vs Server-side</a> — Microservices mein instances aate-jaate rehte hain: hardcode/config/DNS/LB/registry approaches, register-heart</li></ul></div>
 <div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul>
 <li><code>hash % N</code> server count badalne pe lagbhag saari keys shuffle kar deta hai.</li>
 <li>Consistent hashing: servers + keys ek ring pe, key → clockwise next server; sirf ~k/n keys move.</li>

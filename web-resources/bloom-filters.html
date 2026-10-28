@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bloom Filter — Kam Memory mein &quot;Shayad Haan / Pakka Nahi&quot; · Web Resources · SystemDesign.hinglish</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script>try{if(localStorage.getItem('sd-theme')==='dark')document.documentElement.classList.add('dark')}catch(e){}</script>
+<style>
+.wr-src{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:.8em 0 0}
+.wr-src a.btn{font-size:.85rem}
+.wr-acc{font-size:.72rem;font-weight:800;letter-spacing:.05em;text-transform:uppercase;padding:3px 9px;border-radius:999px}
+.wr-acc.free{background:#dcfce7;color:#15803d}.wr-acc.preview{background:#fef3c7;color:#b45309}
+html.dark .wr-acc.free{background:#0f2e1c;color:#86efac}html.dark .wr-acc.preview{background:#3a2a0a;color:#fcd34d}
+pre.mermaid{background:var(--bg-soft);border:1px solid var(--border);border-radius:12px;padding:14px;text-align:center;overflow-x:auto}
+.wr-flow{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:1em 0}
+.wr-flow span{padding:8px 12px;border-radius:10px;border:1px solid var(--border);background:var(--bg-card);font-weight:600;font-size:.9rem}
+.wr-flow i{color:var(--accent);font-style:normal;font-weight:800}
+</style>
+<script type="module">import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";mermaid.initialize({startOnLoad:true,theme:document.documentElement.classList.contains("dark")?"dark":"default",securityLevel:"strict"});</script>
+</head>
+<body>
+<header class="topbar"><a class="brand" href="../index.html">SystemDesign<span>.hinglish</span></a><div class="toplinks"><a href="../all-topics.html">🗂 All Topics</a><a href="../index.html#chapters">Chapters</a><a href="../library/index.html">Library</a><a href="../bot-made/index.html">Bots</a><a href="../linkedin-saved/index.html">LinkedIn</a><a href="../web-resources/index.html" style="color:var(--accent);font-weight:700">Web</a><a href="../links.html">URL Guide</a></div><button class="theme-toggle" aria-label="theme">◐</button></header>
+<div class="layout">
+<nav class="sidebar"><ul><li><a href="index.html"><span class="num">🌐</span> Web Resources home</a></li><li><a href="../all-topics.html"><span class="num">🗂</span> All Topics (har page)</a></li></ul>
+<div class="group">⚡ Messaging &amp; Real-time</div><ul>
+<li><a href="kafka-how-it-works.html"><span class="num">02</span> How Kafka Works</a></li>
+<li><a href="whatsapp-system-design.html"><span class="num">06</span> How WhatsApp Works</a></li>
+<li><a href="slack-architecture.html"><span class="num">09</span> How Slack Works</a></li>
+<li><a href="live-comments-system-design.html"><span class="num">21</span> How Live Comments Work</a></li>
+<li><a href="real-time-presence-platform.html"><span class="num">23</span> How Live Presence Works</a></li>
+</ul>
+<div class="group">🧩 Classic interview designs</div><ul>
+<li><a href="stock-exchange-system-design.html"><span class="num">01</span> How Stock Exchange Works</a></li>
+<li><a href="url-shortener-system-design.html"><span class="num">05</span> How URL Shortener Works</a></li>
+<li><a href="airbnb-hotel-booking-system-design.html"><span class="num">07</span> How Airbnb Works</a></li>
+<li><a href="leaderboard-system-design.html"><span class="num">22</span> How Leaderboards Work</a></li>
+<li><a href="pastebin-system-design.html"><span class="num">26</span> How Pastebin Works</a></li>
+</ul>
+<div class="group">🎬 Media, Social &amp; Frontend</div><ul>
+<li><a href="youtube-system-design.html"><span class="num">03</span> How YouTube Works</a></li>
+<li><a href="spotify-system-design.html"><span class="num">08</span> How Spotify Works</a></li>
+<li><a href="bluesky-atproto-architecture.html"><span class="num">12</span> How Bluesky Works</a></li>
+<li><a href="twitter-timeline-frontend-system-design.html"><span class="num">13</span> How Twitter Timeline Works</a></li>
+</ul>
+<div class="group">📍 Maps &amp; Location</div><ul>
+<li><a href="tinder-architecture.html"><span class="num">11</span> How Tinder Works</a></li>
+<li><a href="uber-eta-computation.html"><span class="num">19</span> How Uber Computes ETA</a></li>
+</ul>
+<div class="group">🛠 Infra, Databases &amp; Search</div><ul>
+<li><a href="vitess-youtube-mysql.html"><span class="num">24</span> How YouTube Scales MySQL</a></li>
+<li><a href="nginx-how-it-works.html"><span class="num">28</span> How Nginx Works</a></li>
+<li><a href="google-search-web-crawler.html"><span class="num">30</span> How Google Search Works</a></li>
+</ul>
+<div class="group">🧱 Building blocks &amp; concepts</div><ul>
+<li><a href="redis-use-cases.html"><span class="num">31</span> Redis ke 6 Use Cases</a></li>
+<li><a class="active" href="bloom-filters.html"><span class="num">32</span> Bloom Filters</a></li>
+<li><a href="service-discovery.html"><span class="num">33</span> Service Discovery</a></li>
+</ul>
+<div class="group">🤖 GenAI &amp; LLM systems</div><ul>
+<li><a href="llm-concepts.html"><span class="num">17</span> How LLMs Actually Work</a></li>
+<li><a href="chatgpt-apps-mcp.html"><span class="num">18</span> How ChatGPT Apps Work</a></li>
+<li><a href="vector-database-internals.html"><span class="num">25</span> How Vector DBs Work</a></li>
+<li><a href="chatgpt-system-design.html"><span class="num">27</span> How ChatGPT Works</a></li>
+</ul>
+</nav>
+<main class="content">
+<div class="chapter-hero"><span class="chapter-num">Case study #32 · 🧱 Building blocks &amp; concepts</span><h1>Bloom Filter — Kam Memory mein &quot;Shayad Haan / Pakka Nahi&quot;</h1><p class="lead">Bit array + k hash functions: add aur membership check O(k), false positives possible par false negatives kabhi nahi, delete nahi hota — counting, scalable aur striped variants, aur real-world use (LSM trees, URL dedup).</p><div class="tags"><span class="tag">Bloom filter</span><span class="tag">Probabilistic DS</span><span class="tag">False positive</span><span class="tag">Hashing</span><span class="tag">Counting BF</span></div><div class="wr-src"><span class="wr-acc free">Free article</span></div></div>
+<div class="callout tip"><strong>Site pe pehle se (yahan se jodo)</strong><ul><li><a href="../chapters/08-url-shortener.html">Ch 08 · URL Shortener (collision check mein Bloom filter)</a></li><li><a href="../chapters/09-web-crawler.html">Ch 09 · Web Crawler (URL seen?)</a></li><li><a href="../library/system-design/system-design-mastery.html">Library · System Design Mastery (Bloom filter section)</a></li><li><a href="../library/system-design/98-system-design-concepts.html">Library · 98 System Design Concepts</a></li><li><a href="../web-resources/google-search-web-crawler.html">Web Resources · Web Crawler (URL dedup)</a></li></ul></div>
+
+<h2>Problem</h2>
+<p>Chhote data set mein <code>HashSet</code> se "ye item hai ya nahi" turant pata chal jaata hai. Lekin billions items (crawled URLs, usernames, disk pe keys) ke liye poora set memory mein rakhna mehenga. Requirement: <b>constant time</b>, <b>bahut kam memory</b>, parallel insert/query, aur <b>approximate</b> answer chalega.</p>
+
+<h2>Kaise kaam karta hai</h2>
+<ul><li><code>n</code> bits ka array, sab 0.</li><li><b>Add</b>: item ko <code>k</code> hash functions se hash karo, har output <code>mod n</code> → un <code>k</code> positions pe bit = 1.</li><li><b>Check</b>: same <code>k</code> positions dekho — koi bhi 0 hai to <b>pakka nahi</b>; sab 1 hain to <b>shayad haan</b>.</li></ul>
+<pre class="mermaid">
+flowchart LR
+  I[item: red] --> H1[h1 mod 10 = 1]
+  I --> H2[h2 mod 10 = 4]
+  I --> H3[h3 mod 10 = 7]
+  H1 --> B[bit array: 0 1 0 0 1 0 0 1 0 0]
+  H2 --> B
+  H3 --> B
+  B --> Q{query: sab k bits 1?}
+  Q -- koi 0 --> NO[Definitely NOT in set]
+  Q -- sab 1 --> MAYBE[Maybe in set: verify with DB]
+</pre>
+<p><b>False positive</b> kyun: doosre items ne milke wahi bits 1 kar di hon. <b>False negative</b> kabhi nahi, kyunki add kiye item ki bits kabhi 0 nahi hoti.</p>
+
+<h2>Complexity aur tuning</h2>
+<table class="cmp"><thead><tr><th></th><th>Value</th></tr></thead><tbody>
+<tr><td>Time (add / check)</td><td>O(k) — kitne items pehle se hain usse independent; k lookups parallel</td></tr>
+<tr><td>Space</td><td>Fixed bit array — items khud store nahi hote (privacy bonus)</td></tr>
+<tr><td>False positive rate</td><td>≈ (1 − e<sup>−kN/n</sup>)<sup>k</sup>; best k ≈ (n/N)·ln 2</td></tr>
+</tbody></table>
+<p>Rule of thumb: ~10 bits per item → ~1% false positives (k ≈ 7). Accuracy depend karti hai: k, hash quality, n aur expected items N. Fast <b>non-cryptographic</b> hashes (MurmurHash, FNV-1a) use karo — MD5/SHA slow hain. Online "bloom filter calculator" se n aur k choose karo.</p>
+
+<h2>Limits</h2>
+<ul><li><b>Delete nahi</b>: ek bit kai items share karte hain, 0 karne se doosre items "gayab" ho jaayenge.</li><li>False positive rate zero nahi ho sakti.</li><li>Disk pe rakho to random access (random bit positions) — isliye memory mein rakhte hain.</li><li>Saturate hone pe rebalance nahi kar sakte (original items pata hi nahi).</li></ul>
+
+<h2>Variants</h2>
+<table class="cmp"><thead><tr><th>Variant</th><th>Kya add karta hai</th></tr></thead><tbody>
+<tr><td>Counting Bloom filter</td><td>Har bit ki jagah counter → <b>delete</b> possible (zyada memory)</td></tr>
+<tr><td>Scalable Bloom filter</td><td>Bhar jaaye to upar naya, bada filter stack karo; query sab layers pe</td></tr>
+<tr><td>Striped Bloom filter</td><td>64-bit words ke shards, har shard ka apna mutex → high concurrency</td></tr>
+<tr><td>Cuckoo / quotient filter</td><td>Similar kaam, delete support, kabhi better space</td></tr>
+</tbody></table>
+
+<h2>Real-world use</h2>
+<ul><li>High-ingestion systems mein <b>expensive disk seeks bachana</b>: LSM-tree DBs (Cassandra, RocksDB, HBase) har SSTable ke liye Bloom filter — "is file mein key nahi hai" to disk read skip.</li><li>Crawler: URL pehle dekha? Shortener: short code taken? Username available?</li><li>Redis mein RedisBloom module — plain set ki tulna mein ~2% memory tak.</li></ul>
+
+<div class="callout interview"><strong>Interview mein kaise bolein</strong><p>"Bloom filter ek bit array + k hash functions hai. Check pe koi bit 0 = definitely absent, sab 1 = maybe present → tab hi DB/disk pe jaao. False negatives nahi, false positives tunable (~10 bits/item ≈ 1%). Delete chahiye to counting Bloom filter." Phir use case: LSM tree mein SSTable reads skip karna — ye example interviewer ko pasand aata hai.</p></div>
+<div class="keytakeaways"><h2 id="takeaways">Key Takeaways</h2><ul><li>Bit array + k hashes; add/check O(k).</li><li>Pakka nahi / shayad haan — no false negatives.</li><li>~10 bits/item ≈ 1% FP; best k ≈ (n/N) ln 2.</li><li>Delete ke liye counting BF; growth ke liye scalable BF.</li><li>Use: disk seeks bachana (LSM), URL/username dedup.</li></ul></div>
+<div class="chapter-nav"><a class="prev" href="redis-use-cases.html">← Redis ke 6 Use Cases</a><a class="next" href="service-discovery.html">Service Discovery →</a></div>
+</main>
+<aside class="toc"></aside>
+</div>
+<footer class="footer">SystemDesign.hinglish · Web Resources · Hinglish notes · auto-generated by libbuild/webres.py</footer>
+<script src="../assets/app.js"></script>
+</body>
+</html>
